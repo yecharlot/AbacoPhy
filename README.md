@@ -23,6 +23,12 @@ Personalizable por negocio. Persistencia local + anclas **CID** (estilo IPFS) y 
 
 ---
 
+## Producción
+
+- **URL:** https://abacophy.onrender.com  
+- **ANS:** https://abacophy.onrender.com/w/abacophy.app.ans  
+- **API:** https://abacophy.onrender.com/api/v1/info  
+
 ## Arranque local
 
 ```bash

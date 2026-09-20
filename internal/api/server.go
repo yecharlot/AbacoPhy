@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -54,6 +55,8 @@ func (s *Server) Handler() http.Handler {
 
 	// Master (mantenimiento)
 	mux.HandleFunc("/api/v1/master/tenants", s.handleMasterTenants)
+	mux.HandleFunc("/api/v1/master/tenants/create", s.handleMasterCreateTenant)
+	mux.HandleFunc("/api/v1/reports/summary", s.handleReportsSummary)
 
 	// App ANS + PWA + static assets
 	mux.HandleFunc("/w/"+s.AppAlias, s.servePWA)
@@ -596,6 +599,131 @@ func (s *Server) handleMasterTenants(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"tenants": s.Store.ListTenants()})
+}
+
+
+func (s *Server) handleReportsSummary(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
+		return
+	}
+	if err := auth.RequireView(sess, "reportes"); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "forbidden"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "not found"})
+		return
+	}
+	var income, expense float64
+	for _, e := range snap.Entries {
+		if e.Type == "income" {
+			income += e.Amount
+		} else if e.Type == "expense" {
+			expense += e.Amount
+		}
+	}
+	var invValue float64
+	for _, it := range snap.Inventory {
+		invValue += it.Qty * it.Cost
+	}
+	var invIssued, invPaid float64
+	nInv := 0
+	for _, inv := range snap.Invoices {
+		nInv++
+		if inv.Status == "issued" || inv.Status == "paid" {
+			invIssued += inv.Total
+		}
+		if inv.Status == "paid" {
+			invPaid += inv.Total
+		}
+	}
+	writeJSON(w, 200, map[string]any{
+		"tenant":                snap.Tenant.Name,
+		"slug":                  snap.Tenant.Slug,
+		"currency":              snap.Tenant.Currency,
+		"income_total":          income,
+		"expense_total":         expense,
+		"net":                   income - expense,
+		"inventory_items":       len(snap.Inventory),
+		"inventory_cost_value":  invValue,
+		"invoices_count":        nInv,
+		"invoices_issued_total": invIssued,
+		"invoices_paid_total":   invPaid,
+		"employees":             len(snap.Employees),
+		"rev":                   snap.Rev,
+		"root_cid":              snap.RootCID,
+	})
+}
+
+func (s *Server) handleMasterCreateTenant(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
+		return
+	}
+	if err := auth.RequireView(sess, "master"); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "forbidden"})
+		return
+	}
+	var body struct {
+		Name      string `json:"name"`
+		Slug      string `json:"slug"`
+		Currency  string `json:"currency"`
+		AdminUser string `json:"admin_user"`
+		AdminPass string `json:"admin_pass"`
+	}
+	if err := readJSON(r, &body); err != nil || body.Name == "" {
+		writeJSON(w, 400, map[string]string{"error": "name required"})
+		return
+	}
+	if body.Slug == "" {
+		body.Slug = strings.ToLower(strings.ReplaceAll(body.Name, " ", "-"))
+	}
+	if body.Currency == "" {
+		body.Currency = "CUP"
+	}
+	if body.AdminUser == "" {
+		body.AdminUser = "admin"
+	}
+	if body.AdminPass == "" {
+		body.AdminPass = "admin123"
+	}
+	for _, t := range s.Store.ListTenants() {
+		if strings.EqualFold(t.Slug, body.Slug) {
+			writeJSON(w, 409, map[string]string{"error": "slug exists"})
+			return
+		}
+	}
+	snap := domain.BootstrapTenant(body.Name, body.Slug, body.Currency)
+	hash, err := auth.HashPassword(body.AdminPass)
+	if err != nil {
+		writeJSON(w, 500, map[string]string{"error": "hash failed"})
+		return
+	}
+	for _, u := range snap.Users {
+		if u.Username == "admin" {
+			u.Username = body.AdminUser
+			u.PasswordHash = hash
+		}
+		if u.Role == domain.RoleMaster {
+			u.PasswordHash = hash
+			u.Role = domain.RoleAdmin
+			u.Username = body.AdminUser + "-owner"
+			u.DisplayName = "Owner"
+		}
+	}
+	if err := s.Store.Put(snap); err != nil {
+		writeJSON(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 201, map[string]any{"tenant": snap.Tenant, "admin_user": body.AdminUser})
 }
 
 func (s *Server) servePWA(w http.ResponseWriter, r *http.Request) {
