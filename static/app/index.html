@@ -365,6 +365,20 @@
   <div id="toast" class="toast hidden"></div>
 
 <script>
+/* Red de seguridad temprana: si el resto del script falla, el splash no se queda eterno */
+(function () {
+  function forceOutOfSplash() {
+    try {
+      var sp = document.getElementById('splash');
+      if (sp) { sp.classList.add('hide'); sp.style.display = 'none'; }
+      var lo = document.getElementById('loginOverlay');
+      if (lo) lo.style.display = 'flex';
+    } catch (e) {}
+  }
+  setTimeout(forceOutOfSplash, 5000);
+  window.__abacoForceLogin = forceOutOfSplash;
+})();
+
 const API = (function(){
   const h = location.hostname;
   if (h === 'localhost' || h === '127.0.0.1') return location.origin + '/api/v1';
@@ -528,36 +542,42 @@ window.addEventListener('online', () => { setRed(true); autoSync(); });
 window.addEventListener('offline', () => setRed(false));
 setInterval(() => { if (navigator.onLine && state.queue.length) autoSync(); }, 45000);
 
-document.getElementById('formAcceso').onsubmit = async (ev) => {
-  ev.preventDefault();
-  try {
-    const data = await api('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({
-        username: document.getElementById('campoUsuario').value.trim(),
-        password: document.getElementById('campoClave').value,
-      }),
-    });
-    state.token = data.token; state.user = data.user; state.views = data.views || [];
-    document.getElementById('campoClave').value = ''; saveLocal(); await boot();
-  } catch (e) { toast(e.message || 'No se pudo iniciar sesión'); }
-};
-document.getElementById('btnSalir').onclick = async () => {
-  try { await api('/auth/logout', { method: 'POST' }); } catch (_) {}
-  state.token = ''; saveLocal(); location.reload();
-};
-document.getElementById('btnTema').onclick = () => {
-  applyThemeMode(state.themeMode === 'light' ? 'dark' : 'light');
-  toast(state.themeMode === 'light' ? 'Tema claro' : 'Tema oscuro');
-};
-document.getElementById('btnMenu').onclick = () => {
-  document.getElementById('sidebar').classList.toggle('open');
-  document.getElementById('overlaySide').classList.toggle('on');
-};
-document.getElementById('overlaySide').onclick = () => {
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('overlaySide').classList.remove('on');
-};
+(function bindChrome() {
+  const form = document.getElementById('formAcceso');
+  if (form) form.onsubmit = async (ev) => {
+    ev.preventDefault();
+    try {
+      const data = await api('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: document.getElementById('campoUsuario').value.trim(),
+          password: document.getElementById('campoClave').value,
+        }),
+      });
+      state.token = data.token; state.user = data.user; state.views = data.views || [];
+      const clave = document.getElementById('campoClave');
+      if (clave) clave.value = '';
+      saveLocal();
+      await boot();
+      hideSplash();
+    } catch (e) { toast(e.message || 'No se pudo iniciar sesión'); }
+  };
+  const btnSalir = document.getElementById('btnSalir');
+  if (btnSalir) btnSalir.onclick = async () => {
+    try { await api('/auth/logout', { method: 'POST' }); } catch (_) {}
+    state.token = ''; saveLocal(); location.reload();
+  };
+  const btnMenu = document.getElementById('btnMenu');
+  if (btnMenu) btnMenu.onclick = () => {
+    document.getElementById('sidebar')?.classList.toggle('open');
+    document.getElementById('overlaySide')?.classList.toggle('on');
+  };
+  const ov = document.getElementById('overlaySide');
+  if (ov) ov.onclick = () => {
+    document.getElementById('sidebar')?.classList.remove('open');
+    document.getElementById('overlaySide')?.classList.remove('on');
+  };
+})();
 
 function can(view) {
   if (view === 'dashboard') return state.views.includes('dashboard') || state.views.length;
@@ -1114,118 +1134,44 @@ async function startApp() {
   if (bl) bl.onclick = () => { applyThemeMode('light'); toast('Tema claro'); };
   if (bd) bd.onclick = () => { applyThemeMode('dark'); toast('Tema oscuro'); };
 
-  // Gestos menú lateral (móvil / tablet)
-  let touchX0 = null;
-  document.addEventListener('touchstart', (e) => {
-    if (e.touches[0]) touchX0 = e.touches[0].clientX;
-  }, { passive: true });
-  document.addEventListener('touchend', (e) => {
-    if (touchX0 == null || !e.changedTouches[0]) return;
-    const dx = e.changedTouches[0].clientX - touchX0;
-    touchX0 = null;
-    const side = document.getElementById('sidebar');
-    const ov = document.getElementById('overlaySide');
-    if (dx > 60 && touchX0 === null && e.changedTouches[0].clientX > 0) {
-      // open from left edge swipe
-      if (window.innerWidth <= 900 && e.changedTouches[0].clientX - dx < 40) {
-        side.classList.add('open'); ov.classList.add('on');
-      }
-    }
-    if (dx < -60 && side.classList.contains('open')) {
-      side.classList.remove('open'); ov.classList.remove('on');
-    }
-  }, { passive: true });
-  // Fix open from left: store start edge
-  let edgeStart = false;
-  document.addEventListener('touchstart', (e) => {
-    edgeStart = e.touches[0] && e.touches[0].clientX < 28;
-    touchX0 = e.touches[0] ? e.touches[0].clientX : null;
-  }, { passive: true });
-  document.addEventListener('touchend', (e) => {
-    if (touchX0 == null || !e.changedTouches[0]) return;
-    const dx = e.changedTouches[0].clientX - touchX0;
-    const side = document.getElementById('sidebar');
-    const ov = document.getElementById('overlaySide');
-    if (edgeStart && dx > 50 && window.innerWidth <= 900) {
-      side.classList.add('open'); ov.classList.add('on');
-    } else if (dx < -50 && side.classList.contains('open')) {
-      side.classList.remove('open'); ov.classList.remove('on');
-    }
-    touchX0 = null; edgeStart = false;
-  }, { passive: true });
+  setSplash('Comprobando sesión…');
+  await sleep(400);
 
-  // Arranque blindado: el splash NUNCA debe quedar eterno
-  let done = false;
-  const forceLogin = () => {
+  if (state.token) {
+    setSplash('Restaurando sesión…');
     try {
-      const lo = document.getElementById('loginOverlay');
-      if (lo) lo.style.display = 'flex';
-      const sh = document.getElementById('appShell');
-      if (sh) sh.classList.remove('on');
-    } catch (_) {}
-  };
-  try {
-    setSplash('Comprobando sesión guardada…');
-    await sleep(700);
-    if (state.token) {
-      setSplash('Restaurando sesión…');
-      await sleep(500);
-      try {
-        setSplash('Cargando panel del negocio…');
-        await boot();
-        setSplash('Listo');
-        await sleep(350);
-        done = true;
-        hideSplash();
-        return;
-      } catch (err) {
-        console.warn('[ÁbacoPhy] sesión inválida', err);
-        state.token = '';
-        state.user = null;
-        saveLocal();
-        setSplash('Sesión no válida · preparando acceso…');
-        await sleep(600);
-      }
-    } else {
-      setSplash('Preparando acceso seguro…');
-      await sleep(700);
-    }
-    setSplash('Listo para iniciar sesión');
-    await sleep(400);
-  } catch (err) {
-    console.error('[ÁbacoPhy] arranque', err);
-    setSplash('No se pudo cargar · reintente');
-    await sleep(500);
-  } finally {
-    if (!done) {
+      await boot();
+      setSplash('Listo');
+      await sleep(250);
       hideSplash();
-      forceLogin();
+      return;
+    } catch (err) {
+      console.warn('[ÁbacoPhy] sesión inválida', err);
+      state.token = '';
+      state.user = null;
+      saveLocal();
+      setSplash('Sesión no válida · acceso…');
+      await sleep(350);
     }
+  } else {
+    setSplash('Preparando acceso…');
+    await sleep(350);
   }
+  hideSplash();
+  const lo = document.getElementById('loginOverlay');
+  if (lo) lo.style.display = 'flex';
+  const sh = document.getElementById('appShell');
+  if (sh) sh.classList.remove('on');
 }
 
-if ('serviceWorker' in navigator) {
+if ('serviceWorker'
+ in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 startApp().catch((err) => {
   console.error('[ÁbacoPhy] startApp fatal', err);
-  try {
-    const sp = document.getElementById('splash');
-    if (sp) { sp.classList.add('hide'); sp.style.display = 'none'; }
-    const lo = document.getElementById('loginOverlay');
-    if (lo) lo.style.display = 'flex';
-  } catch (_) {}
+  if (window.__abacoForceLogin) window.__abacoForceLogin();
 });
-// Red de seguridad: si a los 8s el splash sigue visible, forzar login
-setTimeout(() => {
-  const sp = document.getElementById('splash');
-  if (sp && sp.style.display !== 'none' && !sp.classList.contains('hide')) {
-    sp.classList.add('hide');
-    sp.style.display = 'none';
-    const lo = document.getElementById('loginOverlay');
-    if (lo) lo.style.display = 'flex';
-  }
-}, 8000);
 </script>
 </body>
 </html>

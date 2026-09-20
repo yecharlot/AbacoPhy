@@ -1,5 +1,5 @@
 /* ÁbacoPhy service worker — offline-first shell */
-const CACHE = "abacophy-v3";
+const CACHE = "abacophy-v4";
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/sw.js"];
 
 self.addEventListener("install", (e) => {
