@@ -406,14 +406,19 @@ const NAV = [
   { id: 'master', label: 'Master', view: 'master', icon: 'master' },
 ];
 
+function safeJSON(raw, fallback) {
+  try { return JSON.parse(raw); } catch (_) { return fallback; }
+}
 const state = {
   token: localStorage.getItem('ap_token') || '',
   user: null, tenant: null, views: [], tab: 'inicio',
   informeSub: 'situacion',
-  queue: JSON.parse(localStorage.getItem('ap_queue') || '[]'),
-  cache: JSON.parse(localStorage.getItem('ap_cache') || '{}'),
+  queue: safeJSON(localStorage.getItem('ap_queue') || '[]', []),
+  cache: safeJSON(localStorage.getItem('ap_cache') || '{}', {}),
   themeMode: localStorage.getItem('ap_theme') || 'light',
 };
+if (!Array.isArray(state.queue)) state.queue = [];
+if (!state.cache || typeof state.cache !== 'object') state.cache = {};
 
 function applyThemeMode(mode) {
   state.themeMode = mode || 'light';
@@ -449,11 +454,13 @@ async function reportSystemError(detail, ref) {
 }
 function toast(msg) {
   const el = document.getElementById('toast');
+  if (!el) return;
   el.textContent = msg; el.classList.remove('hidden');
   setTimeout(() => el.classList.add('hidden'), 2800);
 }
 function setRed(ok, text) {
   const b = document.getElementById('estadoRed');
+  if (!b) return;
   if (text) { b.textContent = text; b.className = 'badge syncing'; return; }
   b.textContent = ok ? 'En línea' : 'Sin conexión';
   b.className = 'badge' + (ok ? ' ok' : ' off');
@@ -467,18 +474,29 @@ async function api(path, opts={}) {
   const headers = Object.assign({}, opts.headers || {});
   if (!(opts.body instanceof FormData)) headers['Content-Type'] = headers['Content-Type'] || 'application/json';
   if (state.token) headers.Authorization = 'Bearer ' + state.token;
+  const ctrl = new AbortController();
+  const ms = opts.timeoutMs || 12000;
+  const timer = setTimeout(() => ctrl.abort(), ms);
   try {
-    const res = await fetch(API + path, {...opts, headers});
+    const res = await fetch(API + path, {...opts, headers, signal: ctrl.signal});
     setRed(true);
-    if (path.includes('/pdf') || path.includes('/export')) return res;
+    if (path.includes('/pdf') || path.includes('/export') || path.includes('/payroll/pdf')) return res;
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       const errMsg = data.error || res.statusText || 'error HTTP';
-      reportSystemError('Error de API · ' + path + ' · ' + errMsg, path);
+      if (!path.includes('/auth/') && path !== '/errors') {
+        reportSystemError('Error de API · ' + path + ' · ' + errMsg, path);
+      }
       throw new Error(errMsg);
     }
     return data;
-  } catch (e) { setRed(false); throw e; }
+  } catch (e) {
+    setRed(false);
+    if (e && e.name === 'AbortError') throw new Error('Tiempo de espera agotado');
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 async function notifySync(status, detail) {
   try {
@@ -1136,39 +1154,78 @@ async function startApp() {
     touchX0 = null; edgeStart = false;
   }, { passive: true });
 
-  setSplash('Comprobando sesión guardada…');
-  await sleep(900);
-  if (state.token) {
-    setSplash('Restaurando sesión…');
-    await sleep(700);
+  // Arranque blindado: el splash NUNCA debe quedar eterno
+  let done = false;
+  const forceLogin = () => {
     try {
-      setSplash('Cargando panel del negocio…');
-      await sleep(600);
-      await boot();
-      setSplash('Listo');
-      await sleep(400);
-      hideSplash();
-      return;
-    } catch (_) {
-      state.token = '';
-      saveLocal();
-      setSplash('Sesión no válida · preparando acceso…');
-      await sleep(900);
+      const lo = document.getElementById('loginOverlay');
+      if (lo) lo.style.display = 'flex';
+      const sh = document.getElementById('appShell');
+      if (sh) sh.classList.remove('on');
+    } catch (_) {}
+  };
+  try {
+    setSplash('Comprobando sesión guardada…');
+    await sleep(700);
+    if (state.token) {
+      setSplash('Restaurando sesión…');
+      await sleep(500);
+      try {
+        setSplash('Cargando panel del negocio…');
+        await boot();
+        setSplash('Listo');
+        await sleep(350);
+        done = true;
+        hideSplash();
+        return;
+      } catch (err) {
+        console.warn('[ÁbacoPhy] sesión inválida', err);
+        state.token = '';
+        state.user = null;
+        saveLocal();
+        setSplash('Sesión no válida · preparando acceso…');
+        await sleep(600);
+      }
+    } else {
+      setSplash('Preparando acceso seguro…');
+      await sleep(700);
     }
-  } else {
-    setSplash('Preparando acceso seguro…');
-    await sleep(1000);
+    setSplash('Listo para iniciar sesión');
+    await sleep(400);
+  } catch (err) {
+    console.error('[ÁbacoPhy] arranque', err);
+    setSplash('No se pudo cargar · reintente');
+    await sleep(500);
+  } finally {
+    if (!done) {
+      hideSplash();
+      forceLogin();
+    }
   }
-  setSplash('Listo para iniciar sesión');
-  await sleep(500);
-  hideSplash();
-  document.getElementById('loginOverlay').style.display = 'flex';
 }
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
-startApp();
+startApp().catch((err) => {
+  console.error('[ÁbacoPhy] startApp fatal', err);
+  try {
+    const sp = document.getElementById('splash');
+    if (sp) { sp.classList.add('hide'); sp.style.display = 'none'; }
+    const lo = document.getElementById('loginOverlay');
+    if (lo) lo.style.display = 'flex';
+  } catch (_) {}
+});
+// Red de seguridad: si a los 8s el splash sigue visible, forzar login
+setTimeout(() => {
+  const sp = document.getElementById('splash');
+  if (sp && sp.style.display !== 'none' && !sp.classList.contains('hide')) {
+    sp.classList.add('hide');
+    sp.style.display = 'none';
+    const lo = document.getElementById('loginOverlay');
+    if (lo) lo.style.display = 'flex';
+  }
+}, 8000);
 </script>
 </body>
 </html>

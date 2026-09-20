@@ -1,6 +1,6 @@
 /* ÁbacoPhy service worker — offline-first shell */
-const CACHE = "abacophy-v2";
-const SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg", "/sw.js"];
+const CACHE = "abacophy-v3";
+const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/sw.js"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -34,7 +34,7 @@ self.addEventListener("fetch", (e) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(e.request, copy));
         return res;
-      }).catch(() => caches.match("/") || caches.match("/index.html"));
+      }).catch(() => caches.match("/") || caches.match("/"));
     })
   );
 });
