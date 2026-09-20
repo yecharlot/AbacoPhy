@@ -33,6 +33,10 @@ var ViewACL = map[string][]string{
 	"tenant":     {domain.RoleMaster, domain.RoleAdmin},
 	"master":     {domain.RoleMaster},
 	"sync":       {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador},
+	"monedas":    {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador},
+	"traza":      {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador},
+	"salvas":     {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador},
+	"cuentas_t":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleReadonly},
 }
 
 func HashPassword(pw string) (string, error) {

@@ -70,6 +70,7 @@ func BootstrapTenant(name, slug, currency string) *StoreSnapshot {
 		Tenant:    tenant,
 		Users:     map[string]*User{master.ID: master, admin.ID: admin},
 		Accounts:  DefaultAccounts(tid),
+		Currencies: DefaultCurrencies(currency),
 		Entries:   []Entry{},
 		Inventory: map[string]*InventoryItem{},
 		InvMoves:  []InventoryMove{},

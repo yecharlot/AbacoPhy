@@ -176,3 +176,20 @@ func (s *Store) FindUserByUsername(username string) (*domain.User, *domain.Store
 	}
 	return nil, nil
 }
+
+
+func (s *Store) LoadCID(cid string) (*domain.StoreSnapshot, error) {
+	if cid == "" {
+		return nil, fmt.Errorf("cid vacio")
+	}
+	path := filepath.Join(s.dataDir, "cids", cid+".json")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var snap domain.StoreSnapshot
+	if err := json.Unmarshal(b, &snap); err != nil {
+		return nil, err
+	}
+	return &snap, nil
+}

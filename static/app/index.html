@@ -202,8 +202,7 @@
         </div>
         <button type="submit" style="width:100%">Iniciar sesión</button>
       </form>
-      <p class="muted" style="margin-top:12px">Las credenciales no se muestran en pantalla. Consulte la documentación interna del despliegue.</p>
-    </div>
+      </div>
   </div>
 
   <div id="appView" class="app hidden">
@@ -344,6 +343,10 @@
     { id: "facturas", label: "Facturas", view: "facturas" },
     { id: "nomina", label: "Nómina", view: "nomina" },
     { id: "cuentas", label: "Cuentas", view: "cuentas" },
+    { id: "cuentas_t", label: "Cuenta T", view: "cuentas_t" },
+    { id: "monedas", label: "Monedas", view: "monedas" },
+    { id: "traza", label: "Traza", view: "traza" },
+    { id: "salvas", label: "Salvas CID", view: "salvas" },
     { id: "tenant", label: "Negocio", view: "tenant" },
     { id: "master", label: "Master", view: "master" },
   ];
@@ -444,24 +447,47 @@
       } else if (state.tab === "inventario") {
         const data = await api("/inventory");
         const rows = (data.items || []).map((i) =>
-          `<tr><td>${i.name}</td><td>${i.qty} ${i.unit}</td><td>${i.price}</td></tr>`
+          `<tr><td>${i.name}</td><td>${i.qty} ${i.unit}</td><td>${(i.cost||0).toFixed(2)} ${i.currency||""}</td><td>${(i.amount||0).toFixed(2)}</td><td>${(i.amount_base||0).toFixed(2)}</td><td><button type="button" class="ghost" data-out="${i.id}">Salida</button></td></tr>`
         ).join("");
         main.innerHTML = `
           <div class="card">
-            <div class="field"><label>Nombre</label><input id="iname" /></div>
+            <div class="section-label">Almacén</div>
+            <div class="field"><label>Nombre del producto</label><input id="iname" /></div>
             <div class="grid cols-2">
-              <div class="field"><label>Cantidad</label><input id="iqty" type="number" step="0.01" value="0" /></div>
-              <div class="field"><label>Precio</label><input id="iprice" type="number" step="0.01" value="0" /></div>
+              <div class="field"><label>Unidad de medida</label>
+                <select id="iunit"><option value="ud">Unidad</option><option value="kg">Kg</option><option value="l">Litro</option><option value="caja">Caja</option><option value="m">Metro</option></select>
+              </div>
+              <div class="field"><label>Cantidad</label><input id="iqty" type="number" step="0.01" value="1" /></div>
             </div>
-            <button id="addInv">Agregar al inventario</button>
+            <div class="grid cols-2">
+              <div class="field"><label>Costo unitario</label><input id="icost" type="number" step="0.01" value="0" /></div>
+              <div class="field"><label>Precio de venta</label><input id="iprice" type="number" step="0.01" value="0" /></div>
+            </div>
+            <div class="grid cols-2">
+              <div class="field"><label>Moneda</label><select id="icur"><option value="CUP">CUP</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="MLC">MLC</option></select></div>
+              <div class="field"><label>Importe (cant. × costo)</label><input id="iamount" type="number" step="0.01" value="0" readonly /></div>
+            </div>
+            <button id="addInv">Registrar entrada al almacén</button>
+            <p class="muted" style="margin-top:8px">Actualiza la cuenta Inventario y Caja según el tipo de cambio a la moneda base.</p>
           </div>
-          <div class="card"><table><thead><tr><th>Producto</th><th>Stock</th><th>Precio</th></tr></thead><tbody>${rows || "<tr><td colspan=3 class='muted'>Vacío</td></tr>"}</tbody></table></div>`;
-        document.getElementById("addInv").onclick = async () => {
+          <div class="card"><table><thead><tr><th>Producto</th><th>Cant.</th><th>Costo</th><th>Importe</th><th>Base</th><th></th></tr></thead><tbody>${rows || "<tr><td colspan=3 class='muted'>Vacío</td></tr>"}</tbody></table></div>`;
+        const syncAmt = () => {
+            const q = parseFloat(document.getElementById("iqty").value||0);
+            const c = parseFloat(document.getElementById("icost").value||0);
+            document.getElementById("iamount").value = (q*c).toFixed(2);
+          };
+          document.getElementById("iqty").oninput = syncAmt;
+          document.getElementById("icost").oninput = syncAmt;
+          document.getElementById("addInv").onclick = async () => {
+          const qty = parseFloat(document.getElementById("iqty").value || "0");
+          const cost = parseFloat(document.getElementById("icost").value || "0");
           const payload = {
             name: document.getElementById("iname").value.trim(),
-            qty: parseFloat(document.getElementById("iqty").value || "0"),
+            qty, cost,
             price: parseFloat(document.getElementById("iprice").value || "0"),
-            unit: "ud",
+            unit: document.getElementById("iunit").value,
+            currency: document.getElementById("icur").value,
+            amount: qty * cost,
           };
           try {
             await api("/inventory", { method: "POST", body: JSON.stringify(payload) });
@@ -471,6 +497,17 @@
             queueAction({ kind: "inventory", payload });
           }
         };
+        main.querySelectorAll("[data-out]").forEach((btn) => {
+          btn.onclick = async () => {
+            const qty = prompt("Cantidad a dar de baja", "1");
+            if (qty == null) return;
+            try {
+              await api("/inventory/out", { method: "POST", body: JSON.stringify({ id: btn.dataset.out, qty: parseFloat(qty) }) });
+              toast("Salida registrada en cuentas");
+              renderMain();
+            } catch (e) { toast(e.message); }
+          };
+        });
       } else if (state.tab === "facturas") {
         const data = await api("/invoices");
         const rows = (data.invoices || []).map((f) =>
@@ -548,10 +585,121 @@
         };
       } else if (state.tab === "cuentas") {
         const data = await api("/accounts");
+        const tipoES = { asset: "Activo", liability: "Pasivo", equity: "Patrimonio", income: "Ingreso", expense: "Gasto" };
         const rows = (data.accounts || []).map((a) =>
-          `<tr><td>${a.code}</td><td>${a.name}</td><td>${a.type}</td><td>${a.balance}</td></tr>`
+          `<tr><td>${a.code}</td><td>${a.name}</td><td>${tipoES[a.type]||a.type}</td><td>${(a.balance||0).toFixed(2)}</td>
+           <td><button type="button" class="ghost" data-edit="${a.id}" data-code="${a.code}" data-name="${a.name}" data-type="${a.type}">Editar</button>
+           <button type="button" class="ghost" data-del="${a.id}">Eliminar</button></td></tr>`
         ).join("");
-        main.innerHTML = `<div class="card"><table><thead><tr><th>Código</th><th>Cuenta</th><th>Tipo</th><th>Saldo</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        main.innerHTML = `
+          <div class="card">
+            <div class="section-label">Plan de cuentas</div>
+            <div class="grid cols-2">
+              <div class="field"><label>Código</label><input id="acode" /></div>
+              <div class="field"><label>Nombre</label><input id="aname" /></div>
+            </div>
+            <div class="field"><label>Tipo</label>
+              <select id="atype"><option value="asset">Activo</option><option value="liability">Pasivo</option><option value="equity">Patrimonio</option><option value="income">Ingreso</option><option value="expense">Gasto</option></select>
+            </div>
+            <button id="addAcc">Agregar cuenta</button>
+          </div>
+          <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th>Saldo</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        document.getElementById("addAcc").onclick = async () => {
+          await api("/accounts", { method: "POST", body: JSON.stringify({
+            code: document.getElementById("acode").value.trim(),
+            name: document.getElementById("aname").value.trim(),
+            type: document.getElementById("atype").value,
+          })});
+          toast("Cuenta creada"); renderMain();
+        };
+        main.querySelectorAll("[data-del]").forEach((b) => b.onclick = async () => {
+          if (!confirm("¿Eliminar cuenta?")) return;
+          await api("/accounts?id=" + encodeURIComponent(b.dataset.del), { method: "DELETE" });
+          toast("Cuenta eliminada"); renderMain();
+        });
+        main.querySelectorAll("[data-edit]").forEach((b) => b.onclick = async () => {
+          const name = prompt("Nuevo nombre", b.dataset.name);
+          if (name == null) return;
+          const code = prompt("Nuevo código", b.dataset.code);
+          if (code == null) return;
+          await api("/accounts", { method: "PUT", body: JSON.stringify({ id: b.dataset.edit, name, code, type: b.dataset.type })});
+          toast("Cuenta actualizada"); renderMain();
+        });
+      } else if (state.tab === "cuentas_t") {
+        const data = await api("/accounts");
+        const opts = (data.accounts||[]).map(a => `<option value="${a.id}">${a.code} — ${a.name}</option>`).join("");
+        main.innerHTML = `<div class="card">
+          <div class="section-label">Cuenta T</div>
+          <div class="field"><label>Cuenta</label><select id="tid">${opts}</select></div>
+          <button id="verT">Ver debe / haber</button>
+          <div id="tout" style="margin-top:14px"></div>
+        </div>`;
+        document.getElementById("verT").onclick = async () => {
+          const id = document.getElementById("tid").value;
+          const tacc = await api("/accounts/t?id=" + encodeURIComponent(id));
+          const debe = (tacc.debe||[]).map(e => `<tr><td>${e.date||""}</td><td>${e.description||""}</td><td>${(e.amount||0).toFixed(2)}</td></tr>`).join("");
+          const haber = (tacc.haber||[]).map(e => `<tr><td>${e.date||""}</td><td>${e.description||""}</td><td>${(e.amount||0).toFixed(2)}</td></tr>`).join("");
+          document.getElementById("tout").innerHTML = `
+            <div class="section-title" style="font-size:1rem">${tacc.titulo||""}</div>
+            <p class="muted">Saldo: <strong>${(tacc.saldo||0).toFixed(2)}</strong></p>
+            <div class="grid cols-2">
+              <div class="card"><div class="section-label">Debe</div><table><tbody>${debe||"<tr><td class=muted>—</td></tr>"}</tbody></table></div>
+              <div class="card"><div class="section-label">Haber</div><table><tbody>${haber||"<tr><td class=muted>—</td></tr>"}</tbody></table></div>
+            </div>`;
+        };
+      } else if (state.tab === "monedas") {
+        const data = await api("/currencies");
+        const rows = (data.currencies||[]).map(c =>
+          `<tr><td>${c.code}</td><td>${c.name}</td><td>${c.rate}</td></tr>`).join("");
+        main.innerHTML = `<div class="card">
+          <div class="section-label">Nomenclador</div>
+          <p class="muted">Moneda base del negocio: <strong>${data.base||"CUP"}</strong>. Rate = unidades de base por 1 unidad de esta moneda.</p>
+          <div class="grid cols-2">
+            <div class="field"><label>Código</label><input id="mcode" placeholder="USD" /></div>
+            <div class="field"><label>Nombre</label><input id="mname" placeholder="Dólar" /></div>
+          </div>
+          <div class="field"><label>Tipo de cambio a ${data.base||"base"}</label><input id="mrate" type="number" step="0.0001" value="1" /></div>
+          <button id="saveM">Guardar moneda</button>
+        </div>
+        <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>Cambio</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        document.getElementById("saveM").onclick = async () => {
+          await api("/currencies", { method: "POST", body: JSON.stringify({
+            code: document.getElementById("mcode").value.trim().toUpperCase(),
+            name: document.getElementById("mname").value.trim(),
+            rate: parseFloat(document.getElementById("mrate").value||"1"),
+          })});
+          toast("Moneda actualizada"); renderMain();
+        };
+      } else if (state.tab === "traza") {
+        const data = await api("/audit");
+        const rows = (data.audit||[]).slice(0,100).map(a =>
+          `<tr><td>${(a.created_at||"").toString().slice(0,19)}</td><td>${a.username||a.user_id||""}</td><td>${a.action}</td><td>${a.detail||""}</td><td style="font-size:0.7rem">${(a.cid||"").slice(0,16)}</td></tr>`).join("");
+        main.innerHTML = `<div class="card">
+          <div class="section-label">Traza Alset / CID</div>
+          <p class="muted">Operaciones por fecha y usuario. CID actual: ${(data.root_cid||"—").slice(0,28)}…</p>
+          <table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Detalle</th><th>CID</th></tr></thead><tbody>${rows||"<tr><td colspan=5 class=muted>Sin eventos</td></tr>"}</tbody></table>
+        </div>`;
+      } else if (state.tab === "salvas") {
+        const data = await api("/backups");
+        const rows = (data.backups||[]).map(b =>
+          `<tr><td>${(b.created_at||"").toString().slice(0,19)}</td><td>${b.label||"—"}</td><td style="font-size:0.75rem">${(b.cid||"").slice(0,22)}…</td><td>${b.rev}</td>
+           <td><button type="button" class="ghost" data-restore="${b.cid}">Restaurar</button></td></tr>`).join("");
+        main.innerHTML = `<div class="card">
+          <div class="section-label">Salvas content-addressable</div>
+          <p class="muted">CID actual: <strong>${(data.current_cid||"—").slice(0,28)}…</strong> · rev ${data.rev||0}</p>
+          <div class="field"><label>Etiqueta de la salva</label><input id="blabel" placeholder="Cierre mensual" /></div>
+          <button id="saveB">Guardar salva en almacén CID / IPFS</button>
+        </div>
+        <div class="card"><table><thead><tr><th>Fecha</th><th>Etiqueta</th><th>CID</th><th>Rev</th><th></th></tr></thead><tbody>${rows||"<tr><td colspan=5 class=muted>Sin salvas aún</td></tr>"}</tbody></table></div>`;
+        document.getElementById("saveB").onclick = async () => {
+          await api("/backups", { method: "POST", body: JSON.stringify({ label: document.getElementById("blabel").value.trim() })});
+          toast("Salva anclada a CID"); renderMain();
+        };
+        main.querySelectorAll("[data-restore]").forEach((b) => b.onclick = async () => {
+          if (!confirm("¿Restaurar esta salva? Se reemplaza el estado actual del negocio.")) return;
+          await api("/backups/restore", { method: "POST", body: JSON.stringify({ cid: b.dataset.restore })});
+          toast("Estado restaurado"); renderMain();
+        });
       } else if (state.tab === "tenant") {
         const t = state.tenant || {};
         main.innerHTML = `

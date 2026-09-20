@@ -57,6 +57,7 @@ func (s *Server) Handler() http.Handler {
 
 	// Master (mantenimiento)
 	mux.HandleFunc("/api/v1/master/tenants", s.handleMasterTenants)
+	s.registerExtraRoutes(mux)
 	mux.HandleFunc("/api/v1/master/tenants/create", s.handleMasterCreateTenant)
 	mux.HandleFunc("/api/v1/reports/summary", s.handleReportsSummary)
 
@@ -246,30 +247,106 @@ func (s *Server) handleTenant(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+
 func (s *Server) handleAccounts(w http.ResponseWriter, r *http.Request) {
 	sess, err := s.sess(r)
 	if err != nil {
-		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
-		return
-	}
-	if err := auth.RequireView(sess, "cuentas"); err != nil && r.Method != http.MethodGet {
-		writeJSON(w, 403, map[string]string{"error": "forbidden"})
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
 	snap := s.Store.Get(sess.TenantID)
 	if snap == nil {
-		writeJSON(w, 404, map[string]string{"error": "not found"})
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
 		return
 	}
-	if r.Method == http.MethodGet {
+	switch r.Method {
+	case http.MethodGet:
+		if err := auth.RequireView(sess, "cuentas"); err != nil {
+			if err2 := auth.RequireView(sess, "reportes"); err2 != nil {
+				writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+				return
+			}
+		}
 		list := make([]*domain.Account, 0, len(snap.Accounts))
 		for _, a := range snap.Accounts {
-			list = append(list, a)
+			if a != nil && a.Active {
+				list = append(list, a)
+			}
 		}
-		writeJSON(w, 200, map[string]any{"accounts": list, "rev": snap.Rev})
-		return
+		writeJSON(w, 200, map[string]any{"accounts": list, "rev": snap.Rev, "ecuacion": domain.EquationSnapshot(snap)})
+	case http.MethodPost:
+		if err := auth.RequireView(sess, "cuentas"); err != nil {
+			writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+			return
+		}
+		var body domain.Account
+		if err := readJSON(r, &body); err != nil || body.Code == "" || body.Name == "" {
+			writeJSON(w, 400, map[string]string{"error": "codigo y nombre requeridos"})
+			return
+		}
+		if body.Type == "" {
+			body.Type = "asset"
+		}
+		body.ID = uuid.NewString()
+		body.TenantID = sess.TenantID
+		body.Active = true
+		body.CreatedAt = time.Now().UTC()
+		body.UpdatedAt = body.CreatedAt
+		snap.Accounts[body.ID] = &body
+		s.audit(snap, sess, "account.create", body.Code+" "+body.Name, body.ID)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 201, body)
+	case http.MethodPut, http.MethodPatch:
+		if err := auth.RequireView(sess, "cuentas"); err != nil {
+			writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+			return
+		}
+		var body domain.Account
+		if err := readJSON(r, &body); err != nil || body.ID == "" {
+			writeJSON(w, 400, map[string]string{"error": "id requerido"})
+			return
+		}
+		acc := snap.Accounts[body.ID]
+		if acc == nil {
+			writeJSON(w, 404, map[string]string{"error": "cuenta no encontrada"})
+			return
+		}
+		if body.Code != "" {
+			acc.Code = body.Code
+		}
+		if body.Name != "" {
+			acc.Name = body.Name
+		}
+		if body.Type != "" {
+			acc.Type = body.Type
+		}
+		acc.UpdatedAt = time.Now().UTC()
+		s.audit(snap, sess, "account.update", acc.Code+" "+acc.Name, acc.ID)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 200, acc)
+	case http.MethodDelete:
+		if err := auth.RequireView(sess, "cuentas"); err != nil {
+			writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+			return
+		}
+		id := r.URL.Query().Get("id")
+		if id == "" {
+			writeJSON(w, 400, map[string]string{"error": "id requerido"})
+			return
+		}
+		acc := snap.Accounts[id]
+		if acc == nil {
+			writeJSON(w, 404, map[string]string{"error": "cuenta no encontrada"})
+			return
+		}
+		acc.Active = false
+		acc.UpdatedAt = time.Now().UTC()
+		s.audit(snap, sess, "account.delete", acc.Code+" "+acc.Name, id)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 200, map[string]any{"ok": true})
+	default:
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
 	}
-	writeJSON(w, 405, map[string]string{"error": "method not allowed"})
 }
 
 func (s *Server) handleEntries(w http.ResponseWriter, r *http.Request) {
@@ -317,6 +394,7 @@ func (s *Server) handleEntries(w http.ResponseWriter, r *http.Request) {
 		}
 		domain.ApplyDoubleEntry(snap, &body)
 		snap.Entries = append(snap.Entries, body)
+		s.audit(snap, sess, "entry.create", body.Description, body.ID)
 		_ = s.Store.Put(snap)
 		eq := domain.EquationSnapshot(snap)
 		writeJSON(w, 201, map[string]any{"asiento": body, "ecuacion": eq, "rev": snap.Rev, "root_cid": snap.RootCID})
@@ -325,32 +403,36 @@ func (s *Server) handleEntries(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+
 func (s *Server) handleInventory(w http.ResponseWriter, r *http.Request) {
 	sess, err := s.sess(r)
 	if err != nil {
-		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
 	if err := auth.RequireView(sess, "inventario"); err != nil {
-		writeJSON(w, 403, map[string]string{"error": "forbidden"})
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
 	snap := s.Store.Get(sess.TenantID)
 	if snap == nil {
-		writeJSON(w, 404, map[string]string{"error": "not found"})
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
 		return
 	}
+	s.ensureCurrencies(snap)
 	switch r.Method {
 	case http.MethodGet:
 		list := make([]*domain.InventoryItem, 0, len(snap.Inventory))
 		for _, it := range snap.Inventory {
-			list = append(list, it)
+			if it != nil && it.Active {
+				list = append(list, it)
+			}
 		}
-		writeJSON(w, 200, map[string]any{"items": list, "rev": snap.Rev})
+		writeJSON(w, 200, map[string]any{"items": list, "rev": snap.Rev, "base": snap.Tenant.Currency})
 	case http.MethodPost:
 		var body domain.InventoryItem
-		if err := readJSON(r, &body); err != nil {
-			writeJSON(w, 400, map[string]string{"error": "bad json"})
+		if err := readJSON(r, &body); err != nil || body.Name == "" {
+			writeJSON(w, 400, map[string]string{"error": "nombre requerido"})
 			return
 		}
 		body.ID = uuid.NewString()
@@ -360,11 +442,64 @@ func (s *Server) handleInventory(w http.ResponseWriter, r *http.Request) {
 		if body.Unit == "" {
 			body.Unit = "ud"
 		}
+		if body.Currency == "" {
+			body.Currency = snap.Tenant.Currency
+		}
+		if body.Amount == 0 && body.Qty > 0 {
+			body.Amount = body.Qty * body.Cost
+		}
+		body.AmountBase = domain.ToBase(snap, body.Amount, body.Currency)
 		snap.Inventory[body.ID] = &body
+		domain.ApplyInventoryIn(snap, body.AmountBase)
+		mv := domain.InventoryMove{
+			ID: uuid.NewString(), TenantID: sess.TenantID, ItemID: body.ID,
+			Kind: "in", Qty: body.Qty, Cost: body.Cost, AmountBase: body.AmountBase,
+			CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
+		}
+		snap.InvMoves = append(snap.InvMoves, mv)
+		invAcc := domain.FindAccountByCode(snap.Accounts, "1300")
+		cash := domain.FindAccountByCode(snap.Accounts, "1000")
+		entry := domain.Entry{
+			ID: uuid.NewString(), TenantID: sess.TenantID, Date: time.Now().Format("2006-01-02"),
+			Type: "inventory", Amount: body.AmountBase, Currency: snap.Tenant.Currency,
+			OrigAmount: body.Amount, OrigCurrency: body.Currency,
+			Description: "Entrada inventario " + body.Name, Ref: body.ID,
+			CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
+		}
+		if invAcc != nil {
+			entry.AccountID = invAcc.ID
+		}
+		if cash != nil {
+			entry.Counterpart = cash.ID
+		}
+		snap.Entries = append(snap.Entries, entry)
+		s.audit(snap, sess, "inventory.in", body.Name+" "+body.Currency, body.ID)
 		_ = s.Store.Put(snap)
-		writeJSON(w, 201, body)
+		writeJSON(w, 201, map[string]any{"item": body, "ecuacion": domain.EquationSnapshot(snap), "rev": snap.Rev})
+	case http.MethodDelete:
+		id := r.URL.Query().Get("id")
+		if id == "" {
+			writeJSON(w, 400, map[string]string{"error": "id requerido"})
+			return
+		}
+		item := snap.Inventory[id]
+		if item == nil {
+			writeJSON(w, 404, map[string]string{"error": "producto no encontrado"})
+			return
+		}
+		if item.Qty > 0 && item.AmountBase > 0 {
+			domain.ApplyInventoryOut(snap, item.AmountBase)
+		}
+		item.Active = false
+		item.Qty = 0
+		item.Amount = 0
+		item.AmountBase = 0
+		item.UpdatedAt = time.Now().UTC()
+		s.audit(snap, sess, "inventory.delete", item.Name, id)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 200, map[string]any{"ok": true, "ecuacion": domain.EquationSnapshot(snap)})
 	default:
-		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
 	}
 }
 
