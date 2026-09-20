@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/yecharlot/AbacoPhy/internal/auth"
 	"github.com/yecharlot/AbacoPhy/internal/domain"
+	"github.com/yecharlot/AbacoPhy/internal/pdf"
 	"github.com/yecharlot/AbacoPhy/internal/store"
 )
 
@@ -48,6 +49,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/payroll/employees", s.handleEmployees)
 	mux.HandleFunc("/api/v1/payroll/payslips", s.handlePayslips)
 	mux.HandleFunc("/api/v1/invoices", s.handleInvoices)
+	mux.HandleFunc("/api/v1/invoices/pdf", s.handleInvoicePDF)
 
 	// Sync offline-first
 	mux.HandleFunc("/api/v1/sync", s.handleSync)
@@ -131,7 +133,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	tok, user, err := auth.Login(s.Store, body.Username, body.Password)
 	if err != nil {
-		writeJSON(w, 401, map[string]string{"error": "credenciales inválidas"})
+		writeJSON(w, 401, map[string]string{"error": "usuario o contraseña incorrectos"})
 		return
 	}
 	writeJSON(w, 200, map[string]any{
@@ -313,16 +315,11 @@ func (s *Server) handleEntries(w http.ResponseWriter, r *http.Request) {
 		if body.Date == "" {
 			body.Date = time.Now().Format("2006-01-02")
 		}
+		domain.ApplyDoubleEntry(snap, &body)
 		snap.Entries = append(snap.Entries, body)
-		if acc, ok := snap.Accounts[body.AccountID]; ok {
-			if body.Type == "income" {
-				acc.Balance += body.Amount
-			} else if body.Type == "expense" {
-				acc.Balance -= body.Amount
-			}
-		}
 		_ = s.Store.Put(snap)
-		writeJSON(w, 201, body)
+		eq := domain.EquationSnapshot(snap)
+		writeJSON(w, 201, map[string]any{"asiento": body, "ecuacion": eq, "rev": snap.Rev, "root_cid": snap.RootCID})
 	default:
 		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
 	}
@@ -504,8 +501,21 @@ func (s *Server) handleInvoices(w http.ResponseWriter, r *http.Request) {
 		raw, _ := json.Marshal(body)
 		body.CID = store.ContentCID(raw)
 		snap.Invoices = append(snap.Invoices, body)
+		var asiento *domain.Entry
+		if body.Status == "issued" || body.Status == "paid" {
+			asiento = domain.PostInvoiceToLedger(snap, &body, sess.UserID)
+			if asiento != nil {
+				asiento.ID = uuid.NewString()
+				asiento.TenantID = sess.TenantID
+				asiento.CreatedAt = time.Now().UTC()
+				if asiento.Date == "" {
+					asiento.Date = time.Now().Format("2006-01-02")
+				}
+				snap.Entries = append(snap.Entries, *asiento)
+			}
+		}
 		_ = s.Store.Put(snap)
-		writeJSON(w, 201, body)
+		writeJSON(w, 201, map[string]any{"factura": body, "asiento": asiento, "ecuacion": domain.EquationSnapshot(snap)})
 	default:
 		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
 	}
@@ -724,6 +734,46 @@ func (s *Server) handleMasterCreateTenant(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, 201, map[string]any{"tenant": snap.Tenant, "admin_user": body.AdminUser})
+}
+
+
+func (s *Server) handleInvoicePDF(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if err := auth.RequireView(sess, "facturas"); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+		return
+	}
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		writeJSON(w, 400, map[string]string{"error": "falta id de factura"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "negocio no encontrado"})
+		return
+	}
+	var inv *domain.Invoice
+	for i := range snap.Invoices {
+		if snap.Invoices[i].ID == id {
+			inv = &snap.Invoices[i]
+			break
+		}
+	}
+	if inv == nil {
+		writeJSON(w, 404, map[string]string{"error": "factura no encontrada"})
+		return
+	}
+	data := pdf.InvoicePDF(snap.Tenant, *inv)
+	filename := "factura-" + inv.Number + ".pdf"
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
+	w.WriteHeader(200)
+	_, _ = w.Write(data)
 }
 
 func (s *Server) servePWA(w http.ResponseWriter, r *http.Request) {

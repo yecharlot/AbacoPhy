@@ -1,33 +1,82 @@
 # ÁbacoPhy
 
-**Contabilidad para PyME** — API REST + PWA offline-first.  
-Personalizable por negocio. Persistencia local + anclas **CID** (estilo IPFS) y **Durable Object** opcional (Cloudflare).
+**Contabilidad para PyME** sobre la idea Alset: roles y tokens por sección, rastro **CID**, API REST y PWA con **offline primero**.
 
-> Motor conceptual: **Alset** (roles/token, rastro content-addressable, apps `*.app.ans`).  
-> Dominio ANS de la app: **`abacophy.app.ans`**
+| | |
+|--|--|
+| App (producción) | https://abacophy.onrender.com |
+| Alias ANS | `abacophy.app.ans` |
+| En nodo Alset | https://prisma-tec.onrender.com/w/abacophy.app.ans |
+| API | https://abacophy.onrender.com/api/v1 |
+| Documentación API | [API.md](API.md) |
+| Acceso (interno) | [LOGIN.md](LOGIN.md) |
 
----
+La pantalla de la aplicación **no muestra** usuarios ni contraseñas.
 
-## Qué incluye (v0.1)
+## Qué resuelve
 
-| Módulo | Descripción |
-|--------|-------------|
-| Ingresos / gastos | Asientos con plan de cuentas |
-| Inventario | Productos y cantidades |
-| Nómina | Empleados y nóminas |
-| Facturación | Facturas con líneas y CID |
-| Multi-negocio | Tenant personalizable (nombre, moneda, datos) |
-| Roles | `master`, `admin`, `contador`, `operador`, `readonly` |
-| Offline-first | Cola local + `POST /api/v1/sync/push` |
-| PWA | Instalable, responsive (móvil / tablet / PC) |
+- Registro de **ingresos** y **gastos** con **partida doble**
+- **Ecuación ampliada**: Activo = Pasivo + Patrimonio + (Ingresos − Gastos)
+- **Inventario**, **nómina** y **facturación**
+- Facturas exportables a **PDF** para impresión (datos del negocio + líneas + total)
+- Varios **negocios** (tenants) en la misma instancia
+- Uso desde el navegador (PWA) o desde una **app de terceros** vía API
 
----
+## Cómo usar la aplicación (PWA)
 
-## Producción
+1. Abra la URL de producción o `/w/abacophy.app.ans` en el nodo Alset.
+2. Inicie sesión con el usuario que le hayan asignado (no aparecen claves en pantalla).
+3. El menú superior solo muestra las **secciones permitidas por su rol**.
+4. **Inicio**: totales e ecuación contable actualizada.
+5. **Ingresos / Gastos**: cada asiento mueve la cuenta de resultado y la **Caja**.
+6. **Facturas**: al emitir, se crea el ingreso contable; use el botón **PDF** para descargar e imprimir.
+7. **Sincronizar**: si trabajó sin red, la cola offline se envía al recuperar conexión.
+8. **Salir**: cierra la sesión del token.
 
-- **URL:** https://abacophy.onrender.com  
-- **ANS:** https://abacophy.onrender.com/w/abacophy.app.ans  
-- **API:** https://abacophy.onrender.com/api/v1/info  
+Puede **instalar** la PWA en el móvil cuando el navegador lo ofrezca.
+
+### Personalizar el negocio
+
+Con rol administrador (o superior): pestaña **Negocio** → nombre, moneda, teléfono, dirección. Esos datos aparecen en el **PDF de facturas**.
+
+## Roles (estilo Alset)
+
+| Rol | Para quién | Qué puede hacer |
+|-----|------------|-----------------|
+| **master** | Operador de la plataforma | Crear negocios, ver tenants |
+| **admin** | Dueño / gerente | Configurar negocio y operación completa |
+| **contador** | Contabilidad | Cuentas, asientos, nómina, reportes |
+| **operador** | Personal de mostrador | Ingresos, gastos, facturas, inventario |
+| **readonly** | Consulta | Ver reportes e inventario sin modificar |
+
+El login devuelve `views`. Cada petición comprueba esa lista. Detalle: **[API.md](API.md)**. Credenciales de arranque: **[LOGIN.md](LOGIN.md)**.
+
+## Contabilidad: partida doble
+
+- **Ingreso**: sube Caja (activo) y la cuenta de ingresos.
+- **Gasto**: sube la cuenta de gastos y baja Caja.
+- **Factura emitida**: asiento de ingreso enlazado; se recalcula la ecuación.
+
+`GET /api/v1/reports/summary` incluye el bloque `ecuacion`.
+
+## API para apps de terceros
+
+Base: `https://abacophy.onrender.com/api/v1`
+
+1. `POST /auth/login` → token  
+2. Header `Authorization: Bearer …`  
+3. Recursos: `/entries`, `/invoices`, `/reports/summary`, …  
+4. PDF: `GET /invoices/pdf?id=…`  
+
+Guía completa: **[API.md](API.md)**.
+
+## Persistencia
+
+| Capa | Descripción |
+|------|-------------|
+| Disco local | `ABACOPHY_DATA` |
+| CID | `root_cid` por revisión |
+| Cloudflare KV | Opcional vía `ABACOPHY_DO_URL` |
 
 ## Arranque local
 
@@ -38,100 +87,30 @@ go mod tidy
 go run ./cmd/abacophy
 ```
 
-- App / PWA: http://localhost:8090/  
-- Alias ANS: http://localhost:8090/w/abacophy.app.ans  
-- API info: http://localhost:8090/api/v1/info  
+- App: http://localhost:8090/
+- API: http://localhost:8090/api/v1/info
 
-### Usuarios por defecto
+| Variable | Uso |
+|----------|-----|
+| `PORT` | Puerto HTTP |
+| `ABACOPHY_DATA` | Datos |
+| `ABACOPHY_STATIC` | PWA |
+| `ABACOPHY_DO_URL` | Edge KV |
+| `ABACOPHY_DO_TOKEN` | Bearer opcional al edge |
 
-| Usuario | Contraseña | Rol |
-|---------|------------|-----|
-| `master` | `AbacoPhy#Master1` | Mantenimiento global (transparente al negocio) |
-| `admin` | `admin123` | Administrador del negocio demo |
+## Estructura
 
-**Cambia estas claves en cuanto salgas a producción.**
-
----
-
-## API REST (consumo móvil / PWA)
-
-Base: `/api/v1`
-
-| Método | Ruta | Notas |
-|--------|------|--------|
-| GET | `/info` | Metadatos públicos |
-| POST | `/auth/login` | `{username,password}` → token |
-| POST | `/auth/logout` | Bearer |
-| GET | `/auth/me` | Usuario + tenant + vistas |
-| GET/PUT | `/tenant` | Personalización del negocio |
-| GET | `/accounts` | Plan de cuentas |
-| GET/POST | `/entries` | Ingresos y gastos |
-| GET/POST | `/inventory` | Inventario |
-| GET/POST | `/payroll/employees` | Empleados |
-| GET/POST | `/payroll/payslips` | Nóminas |
-| GET/POST | `/invoices` | Facturas |
-| GET | `/sync` | Snapshot completo (pull offline) |
-| POST | `/sync/push` | Empuje de cola offline |
-| GET | `/master/tenants` | Solo rol master |
-
-Autenticación: header `Authorization: Bearer <token>`.
-
-### Ejemplo
-
-```bash
-TOKEN=$(curl -s -X POST http://localhost:8090/api/v1/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"admin123"}' | jq -r .token)
-
-curl -s http://localhost:8090/api/v1/auth/me -H "Authorization: Bearer $TOKEN" | jq .
+```
+cmd/abacophy/     binario
+internal/api/     REST
+internal/auth/    tokens y ACL
+internal/domain/  modelo y partida doble
+internal/pdf/     PDF de facturas
+internal/store/   disco + CID + edge
+static/app/       PWA
+API.md  LOGIN.md  README.md
 ```
 
----
+## Seguridad
 
-## Persistencia
-
-1. **Disco local** — `abacophy_data/tenants/*.json`  
-2. **CID** — cada guardado genera `root_cid` y copia en `abacophy_data/cids/`  
-3. **Durable Object** (opcional) — variables:
-
-```bash
-export ABACOPHY_DO_URL=https://<tu-worker>.workers.dev
-export ABACOPHY_DO_TOKEN=<secreto>
-```
-
-Worker de referencia: `cloudflare/abacophy-do/`.
-
----
-
-## Variables de entorno
-
-| Variable | Default | Uso |
-|----------|---------|-----|
-| `PORT` | `8090` | Puerto HTTP |
-| `ABACOPHY_DATA` | `./abacophy_data` | Datos |
-| `ABACOPHY_STATIC` | `static` | PWA |
-| `ABACOPHY_DO_URL` | — | Endpoint DO |
-| `ABACOPHY_DO_TOKEN` | — | Bearer al DO |
-
----
-
-## Integración con nodo Alset / PrismaTec
-
-La app se expone como **`/w/abacophy.app.ans`**.  
-Puedes desplegar ÁbacoPhy como servicio propio o registrar el front en el nodo Alset (`POST /api/apps/register` con los estáticos) y apuntar la API móvil a este servicio.
-
----
-
-## Roadmap breve
-
-- [ ] Partida doble completa y reportes (balance, P&L)  
-- [ ] Multi-tenant por slug en URL  
-- [ ] Pin de acceso rápido en móvil  
-- [ ] Registro de app en nodo PrismaTec en arranque  
-- [ ] Export CSV / PDF de facturas  
-
----
-
-## Licencia
-
-Misma línea que el ecosistema PrismaTec / Alset (ver LICENSE del repo origen cuando se unifique).
+No publique claves reales en el repositorio. Use LOGIN.md solo en entornos controlados y rote las claves de demostración en producción.

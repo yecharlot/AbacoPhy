@@ -107,16 +107,16 @@
       </div>
       <form id="loginForm">
         <div class="field">
-          <label>Usuario</label>
-          <input id="username" autocomplete="username" required value="admin" />
+          <label for="campoUsuario">Usuario</label>
+          <input id="campoUsuario" autocomplete="username" required value="admin" />
         </div>
         <div class="field">
-          <label>Contraseña</label>
-          <input id="password" type="password" autocomplete="current-password" required value="admin123" />
+          <label for="campoClave">Contraseña</label>
+          <input id="campoClave" type="password" autocomplete="current-password" required value="admin123" />
         </div>
-        <button type="submit" style="width:100%">Entrar</button>
+        <button type="submit" style="width:100%">Iniciar sesión</button>
       </form>
-      <p class="muted" style="margin-top:12px">Master: master / AbacoPhy#Master1 · Admin: admin / admin123</p>
+      <p class="muted" style="margin-top:12px">Las credenciales no se muestran en pantalla. Consulte la documentación interna del despliegue.</p>
     </div>
   </div>
 
@@ -222,13 +222,14 @@
       const data = await api("/auth/login", {
         method: "POST",
         body: JSON.stringify({
-          username: document.getElementById("username").value.trim(),
-          password: document.getElementById("password").value,
+          username: document.getElementById("campoUsuario").value.trim(),
+          password: document.getElementById("campoClave").value,
         }),
       });
       state.token = data.token;
       state.user = data.user;
       state.views = data.views || [];
+      document.getElementById("campoClave") && (document.getElementById("campoClave").value = "");
       saveLocal();
       await bootApp();
     } catch (e) {
@@ -293,22 +294,23 @@
     main.innerHTML = "<p class='muted'>Cargando…</p>";
     try {
       if (state.tab === "dashboard") {
-        const [entries, inv, invoices] = await Promise.all([
-          api("/entries").catch(() => ({ entries: [] })),
-          api("/inventory").catch(() => ({ items: [] })),
-          api("/invoices").catch(() => ({ invoices: [] })),
-        ]);
-        const income = (entries.entries || []).filter((e) => e.type === "income").reduce((s, e) => s + e.amount, 0);
-        const expense = (entries.entries || []).filter((e) => e.type === "expense").reduce((s, e) => s + e.amount, 0);
+        const rep = await api("/reports/summary").catch(() => null);
+        const eq = (rep && rep.ecuacion) || {};
+        const fmt = (n) => (Number(n) || 0).toFixed(2);
         main.innerHTML = `
           <div class="grid cols-3">
-            <div class="card"><div class="muted">Ingresos</div><div class="stat">${income.toFixed(2)}</div></div>
-            <div class="card"><div class="muted">Gastos</div><div class="stat">${expense.toFixed(2)}</div></div>
-            <div class="card"><div class="muted">Facturas</div><div class="stat">${(invoices.invoices||[]).length}</div></div>
+            <div class="card"><div class="muted">Ingresos</div><div class="stat">${fmt(rep && rep.income_total)}</div></div>
+            <div class="card"><div class="muted">Gastos</div><div class="stat">${fmt(rep && rep.expense_total)}</div></div>
+            <div class="card"><div class="muted">Resultado neto</div><div class="stat">${fmt(rep && rep.net)}</div></div>
           </div>
           <div class="card">
-            <div class="muted">Inventario · ${(inv.items||[]).length} ítems</div>
-            <div class="muted" style="margin-top:8px">Rev ${state.cache.rev || 0} · CID ${(state.cache.root_cid||"—").slice(0,24)}…</div>
+            <div style="font-weight:600;margin-bottom:8px">Ecuación ampliada de la contabilidad</div>
+            <p class="muted">Activo = Pasivo + Patrimonio + (Ingresos − Gastos)</p>
+            <p style="margin-top:8px;font-family:monospace;font-size:0.9rem">
+              Activo ${fmt(eq.activo)} = Pasivo ${fmt(eq.pasivo)} + Patrimonio ${fmt(eq.patrimonio)} + (${fmt(eq.ingresos)} − ${fmt(eq.gastos)})
+            </p>
+            <p class="muted" style="margin-top:8px">Cada ingreso o gasto mueve Caja y la cuenta de resultado a la vez (partida doble).</p>
+            <div class="muted" style="margin-top:8px">Revisión ${state.cache.rev || 0} · CID ${(state.cache.root_cid||"—").slice(0,24)}…</div>
             <div class="muted">Cola offline: ${state.offlineQueue.length}</div>
           </div>`;
       } else if (state.tab === "ingresos" || state.tab === "gastos") {
@@ -320,6 +322,8 @@
         main.innerHTML = `
           <div class="card">
             <h3 style="margin-bottom:12px">${type === "income" ? "Registrar ingreso" : "Registrar gasto"}</h3>
+            <p class="muted" style="margin-bottom:12px">Partida doble: actualiza la cuenta de resultado y la Caja (activo).</p>
+            <h3 style="display:none"></h3>
             <div class="field"><label>Importe</label><input id="amt" type="number" step="0.01" min="0" /></div>
             <div class="field"><label>Cuenta</label>
               <select id="acc">${accounts.map((a) => `<option value="${a.id}">${a.code} — ${a.name}</option>`).join("")}</select>
@@ -376,7 +380,8 @@
       } else if (state.tab === "facturas") {
         const data = await api("/invoices");
         const rows = (data.invoices || []).map((f) =>
-          `<tr><td>${f.number}</td><td>${f.client_name}</td><td>${f.total}</td><td>${f.status}</td></tr>`
+          `<tr><td>${f.number}</td><td>${f.client_name}</td><td>${f.total}</td><td>${f.status}</td>
+            <td><button type="button" class="ghost" data-pdf="${f.id}">PDF</button></td></tr>`
         ).join("");
         main.innerHTML = `
           <div class="card">
@@ -388,7 +393,7 @@
             </div>
             <button id="addInvF">Emitir factura</button>
           </div>
-          <div class="card"><table><thead><tr><th>Nº</th><th>Cliente</th><th>Total</th><th>Estado</th></tr></thead><tbody>${rows || ""}</tbody></table></div>`;
+          <div class="card"><table><thead><tr><th>Nº</th><th>Cliente</th><th>Total</th><th>Estado</th><th>PDF</th></tr></thead><tbody>${rows || ""}</tbody></table></div>`;
         document.getElementById("addInvF").onclick = async () => {
           const qty = parseFloat(document.getElementById("fqty").value || "1");
           const price = parseFloat(document.getElementById("fprice").value || "0");
@@ -406,7 +411,23 @@
             queueAction({ kind: "invoice", payload });
           }
         };
-      } else if (state.tab === "nomina") {
+      
+        main.querySelectorAll("[data-pdf]").forEach((btn) => {
+          btn.onclick = async () => {
+            try {
+              const res = await fetch(API + "/invoices/pdf?id=" + encodeURIComponent(btn.dataset.pdf), {
+                headers: { Authorization: "Bearer " + state.token },
+              });
+              if (!res.ok) throw new Error("No se pudo generar el PDF");
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url; a.download = "factura.pdf"; a.click();
+              URL.revokeObjectURL(url);
+            } catch (e) { toast(e.message); }
+          };
+        });
+} else if (state.tab === "nomina") {
         const data = await api("/payroll/employees");
         const rows = (data.employees || []).map((e) =>
           `<tr><td>${e.name}</td><td>${e.role || "—"}</td><td>${e.salary} ${e.currency}</td></tr>`
