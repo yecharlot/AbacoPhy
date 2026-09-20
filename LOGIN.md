@@ -133,3 +133,15 @@ Tras el reinicio use de nuevo `master` / `AbacoPhy#Master1` y `admin` / `admin12
 4. Si es admin/master, el campo **Usuario objetivo** permite restablecer la clave de otro usuario del negocio sin conocer la anterior del objetivo (sí debe conocer la suya propia).
 
 Endpoint: `POST /api/v1/auth/password`
+
+
+## Roles operativos
+
+| Rol | Acceso típico |
+|-----|----------------|
+| vendedor | Vendedor (POS), inicio |
+| almacenero | Almacén, recepción, inventario, nomenclador productos |
+| economico | Contabilidad, informes, nómina, fichas, traza |
+| admin | Todo el negocio + usuarios |
+
+Créelos en **Usuarios** (solo admin/master).

@@ -414,7 +414,7 @@ const NAV = [
   { id: 'ingresos', label: 'Ingresos', view: 'ingresos', icon: 'ingresos' },
   { id: 'gastos', label: 'Gastos', view: 'gastos', icon: 'gastos' },
   { id: 'inventario', label: 'Inventario', view: 'inventario', icon: 'inventario' },
-  { id: 'productos', label: 'Nomenclador', view: 'productos', icon: 'productos' },
+  { id: 'nomencladores', label: 'Nomencladores', view: 'nomencladores', icon: 'productos' },
   { id: 'almacen', label: 'Almacén', view: 'almacen', icon: 'almacen' },
   { id: 'unidades', label: 'Unidades venta', view: 'unidades', icon: 'unidades' },
   { id: 'recepcion', label: 'Recepción', view: 'recepcion', icon: 'recepcion' },
@@ -423,11 +423,11 @@ const NAV = [
   { id: 'facturas', label: 'Facturas', view: 'facturas', icon: 'facturas' },
   { id: 'nomina', label: 'Nómina', view: 'nomina', icon: 'nomina' },
   { id: 'cuentas', label: 'Nomenclador de cuentas', view: 'cuentas', icon: 'cuentas' },
-  { id: 'monedas', label: 'Monedas', view: 'monedas', icon: 'monedas' },
   { id: 'informes', label: 'Informes', view: 'reportes', icon: 'informes' },
   { id: 'traza', label: 'Traza', view: 'traza', icon: 'traza' },
   { id: 'salvas', label: 'Salvas', view: 'salvas', icon: 'salvas' },
   { id: 'negocio', label: 'Negocio', view: 'tenant', icon: 'negocio' },
+  { id: 'usuarios', label: 'Usuarios', view: 'usuarios', icon: 'unidades' },
   { id: 'tema', label: 'Apariencia', view: 'master', icon: 'tema' },
   { id: 'master', label: 'Master', view: 'master', icon: 'master' },
 ];
@@ -439,6 +439,7 @@ const state = {
   token: localStorage.getItem('ap_token') || '',
   user: null, tenant: null, views: [], tab: 'inicio',
   informeSub: 'situacion',
+  nomSub: 'productos',
   queue: safeJSON(localStorage.getItem('ap_queue') || '[]', []),
   cache: safeJSON(localStorage.getItem('ap_cache') || '{}', {}),
   themeMode: localStorage.getItem('ap_theme') || 'light',
@@ -623,7 +624,7 @@ async function loadMe() {
   state.cache.rev = me.rev; state.cache.root_cid = me.root_cid;
   document.getElementById('sideTitle').textContent = (me.tenant.settings && me.tenant.settings.app_title) || me.tenant.name || 'ÁbacoPhy';
   document.getElementById('sideSub').textContent = me.tenant.name || 'Negocio';
-  const rol = { master: 'Master', admin: 'Administrador', contador: 'Contador', operador: 'Operador', readonly: 'Solo lectura' }[me.user.role] || me.user.role;
+  const rol = { master: 'Master', admin: 'Administrador', contador: 'Contador', economico: 'Económico', vendedor: 'Vendedor', almacenero: 'Almacenero', operador: 'Operador', readonly: 'Solo lectura' }[me.user.role] || me.user.role;
   document.getElementById('sideUser').textContent = (me.user.display_name || me.user.username) + ' · ' + rol;
   saveLocal();
 }
@@ -725,6 +726,8 @@ async function render() {
     } else if (state.tab === 'nomina') {
       const data = await api('/payroll/employees');
       const pays = await api('/payroll/payslips').catch(() => ({ payslips: [] }));
+      const jobs = await api('/job-positions').catch(() => ({ positions: [] }));
+      const jobOpts = (jobs.positions||[]).map(j => `<option value="${j.name}">${j.code} — ${j.name}</option>`).join('');
       const rows = (data.employees || []).filter(e => e.active !== false).map(e => `<tr>
         <td>${e.name}</td><td>${e.role || '—'}</td>
         <td class="money">${money(e.salary, e.currency || base)}</td>
@@ -740,7 +743,7 @@ async function render() {
         <p class="muted" style="margin-bottom:.6rem">Primero registre al trabajador (nombre, CI, cargo, salario). Después, con <strong>Editar</strong>, podrá actualizar vacaciones, seguridad social, certificados y licencias. Valores por defecto según prácticas cubanas: vacaciones <strong>9 %</strong>, SS entidad <strong>12,5 %</strong>, SS trabajador <strong>5 %</strong> (configurables).</p>
         <div style="margin-bottom:.75rem"><button class="btn btn-secondary" id="pdfNom">Exportar / imprimir nómina (PDF)</button></div>
         <label>Nombre</label><input id="ename" />
-        <div class="grid-2"><div><label>CI</label><input id="eci" /></div><div><label>Cargo</label><input id="erole" /></div></div>
+        <div class="grid-2"><div><label>CI</label><input id="eci" /></div><div><label>Cargo</label><select id="erole"><option value="">— elegir —</option>${jobOpts}<option value="__other">Otro…</option></select></div></div>
         <div class="grid-2"><div><label>Departamento</label><input id="edept" /></div><div><label>Fecha ingreso</label><input id="ehire" type="date" /></div></div>
         <div class="grid-2"><div><label>Salario</label><input id="esal" type="number" step="0.01" /></div>
         <div><label>Moneda</label><select id="ecur"><option>CUP</option><option>USD</option></select></div></div>
@@ -769,7 +772,7 @@ async function render() {
         await api('/payroll/employees', { method: 'POST', body: JSON.stringify({
           name: document.getElementById('ename').value.trim(),
           ci: document.getElementById('eci').value.trim(),
-          role: document.getElementById('erole').value.trim(),
+          role: (document.getElementById('erole').value === '__other' ? (prompt('Cargo')||'') : document.getElementById('erole').value),
           department: document.getElementById('edept').value.trim(),
           hire_date: document.getElementById('ehire').value,
           salary: +document.getElementById('esal').value || 0,
@@ -882,20 +885,6 @@ async function render() {
           return;
         }
         editId = null; render();
-      };
-    } else if (state.tab === 'monedas') {
-      const data = await api('/currencies');
-      const rows = (data.currencies || []).map(c => `<tr><td>${c.code}</td><td>${c.name}</td><td>${c.rate}</td></tr>`).join('');
-      main.innerHTML = `<div class="card"><div class="section-label">Nomenclador de monedas</div>
-        <p class="muted">Base del negocio: <strong>${data.base || base}</strong></p>
-        <div class="grid-2"><div><label>Código</label><input id="mcode" /></div><div><label>Nombre</label><input id="mname" /></div></div>
-        <label>Tipo de cambio</label><input id="mrate" type="number" step="0.0001" value="1" />
-        <button class="btn btn-primary" id="saveM">Guardar</button>
-      </div>
-      <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>Cambio</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-      document.getElementById('saveM').onclick = async () => {
-        await api('/currencies', { method: 'POST', body: JSON.stringify({ code: document.getElementById('mcode').value.trim().toUpperCase(), name: document.getElementById('mname').value.trim(), rate: +document.getElementById('mrate').value || 1 }) });
-        toast('Moneda guardada'); render();
       };
     } else if (state.tab === 'informes') {
       const acc = await api('/accounts');
@@ -1054,31 +1043,114 @@ async function render() {
         toast('Restaurado'); await loadMe(); render();
       });
 
-    } else if (state.tab === 'productos') {
-      const data = await api('/products');
-      const rows = (data.products || []).map(p => `<tr>
-        <td><strong>${p.code}</strong></td><td>${p.name}</td><td>${p.unit||'u'}</td><td>${p.category||'—'}</td>
-        <td class="money">${money(p.cost_std, p.currency||base)}</td>
-        <td class="money">${money(p.price_sale, p.currency||base)}</td>
-      </tr>`).join('');
-      main.innerHTML = `<div class="card">
-        <div class="section-label">Nomenclador de productos</div>
-        <p class="muted" style="margin-bottom:.75rem">Código único por producto, válido en almacén y todas las unidades de venta. Evita errores de nomenclatura al inventariar.</p>
-        <div class="grid-2"><div><label>Nombre</label><input id="pn" /></div><div><label>Unidad</label><input id="pu" value="u" /></div></div>
-        <div class="grid-2"><div><label>Categoría</label><input id="pc" /></div><div><label>Precio venta</label><input id="pp" type="number" step="0.01" value="0" /></div></div>
-        <button class="btn btn-primary" id="addP">Agregar producto (código automático)</button>
-      </div>
-      <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>UM</th><th>Categoría</th><th>Costo</th><th>Precio</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="6" class="muted">Sin productos</td></tr>'}</tbody></table></div>`;
-      document.getElementById('addP').onclick = async () => {
-        await api('/products', { method: 'POST', body: JSON.stringify({
-          name: document.getElementById('pn').value.trim(),
-          unit: document.getElementById('pu').value.trim()||'u',
-          category: document.getElementById('pc').value.trim(),
-          price_sale: +document.getElementById('pp').value||0,
-        })});
-        toast('Producto agregado al nomenclador'); render();
-      };
+    } else if (state.tab === 'nomencladores') {
+      const sub = state.nomSub || 'productos';
+      const tabs = [['productos','Productos'],['cargos','Cargos'],['monedas','Monedas']];
+      let body = '';
+      if (sub === 'productos') {
+        const data = await api('/products');
+        const rows = (data.products || []).map(p => `<tr>
+          <td><strong>${p.code}</strong></td><td>${p.name}</td><td>${p.unit||'u'}</td><td>${p.category||'—'}</td>
+          <td class="money">${money(p.cost_std, p.currency||base)}</td>
+          <td class="money">${money(p.price_sale, p.currency||base)}</td>
+          <td>
+            <button class="btn btn-secondary btn-sm" data-pe="${p.id}">Editar</button>
+            <button class="btn btn-secondary btn-sm" data-pd="${p.id}">Eliminar</button>
+          </td></tr>`).join('');
+        body = `<div class="card">
+          <div class="section-label">Productos</div>
+          <p class="muted">Código único válido en almacén y todas las unidades. CRUD completo.</p>
+          <div class="grid-2"><div><label>Nombre</label><input id="pn" /></div><div><label>Unidad</label><input id="pu" value="u" /></div></div>
+          <div class="grid-2"><div><label>Categoría</label><input id="pc" /></div><div><label>Precio venta</label><input id="pp" type="number" step="0.01" value="0" /></div></div>
+          <div class="grid-2"><div><label>Costo std.</label><input id="pco" type="number" step="0.01" value="0" /></div><div><label>Código (opcional)</label><input id="pcd" placeholder="auto P-xxxx" /></div></div>
+          <button class="btn btn-primary" id="addP">Agregar producto</button>
+        </div>
+        <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>UM</th><th>Cat.</th><th>Costo</th><th>Precio</th><th></th></tr></thead>
+        <tbody>${rows||'<tr><td colspan="7" class="muted">Sin productos</td></tr>'}</tbody></table></div>`;
+      } else if (sub === 'cargos') {
+        const data = await api('/job-positions');
+        const rows = (data.positions||[]).map(j => `<tr>
+          <td>${j.code}</td><td>${j.name}</td>
+          <td><button class="btn btn-secondary btn-sm" data-je="${j.id}">Editar</button>
+          <button class="btn btn-secondary btn-sm" data-jd="${j.id}">Eliminar</button></td></tr>`).join('');
+        body = `<div class="card">
+          <div class="section-label">Cargos</div>
+          <p class="muted">Nomenclador de puestos de trabajo para nómina y organización.</p>
+          <label>Nombre del cargo</label><input id="jn" />
+          <button class="btn btn-primary" id="addJ">Agregar cargo</button>
+        </div>
+        <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th></th></tr></thead>
+        <tbody>${rows||'<tr><td colspan="3" class="muted">Sin cargos</td></tr>'}</tbody></table></div>`;
+      } else {
+        const data = await api('/currencies');
+        const rows = (data.currencies || []).map(c => {
+          const code = c.code || c.Code; const name = c.name || c.Name; const rate = c.rate != null ? c.rate : c.Rate;
+          return `<tr><td>${code}</td><td>${name}</td><td>${rate}</td></tr>`;
+        }).join('');
+        body = `<div class="card"><div class="section-label">Monedas</div>
+          <p class="muted">Base del negocio: <strong>${data.base || base}</strong></p>
+          <div class="grid-2"><div><label>Código</label><input id="mcode" /></div><div><label>Nombre</label><input id="mname" /></div></div>
+          <label>Tipo de cambio</label><input id="mrate" type="number" step="0.0001" value="1" />
+          <button class="btn btn-primary" id="saveM">Guardar moneda</button>
+        </div>
+        <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>Cambio</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      }
+      main.innerHTML = `<div class="card"><div class="section-label">Nomencladores</div>
+        <div class="tabs" id="nomTabs">${tabs.map(([k,l]) => `<button type="button" class="tab ${sub===k?'active':''}" data-k="${k}">${l}</button>`).join('')}</div>
+      </div>${body}`;
+      document.querySelectorAll('#nomTabs .tab').forEach(tb => tb.onclick = () => { state.nomSub = tb.dataset.k; render(); });
+      if (sub === 'productos') {
+        document.getElementById('addP').onclick = async () => {
+          await api('/products', { method: 'POST', body: JSON.stringify({
+            name: document.getElementById('pn').value.trim(),
+            unit: document.getElementById('pu').value.trim()||'u',
+            category: document.getElementById('pc').value.trim(),
+            price_sale: +document.getElementById('pp').value||0,
+            cost_std: +document.getElementById('pco').value||0,
+            code: document.getElementById('pcd').value.trim()||undefined,
+          })});
+          toast('Producto agregado'); render();
+        };
+        document.querySelectorAll('[data-pe]').forEach(b => b.onclick = async () => {
+          const data = await api('/products');
+          const p = (data.products||[]).find(x => x.id === b.dataset.pe); if (!p) return;
+          const name = prompt('Nombre', p.name); if (name == null) return;
+          const unit = prompt('Unidad', p.unit||'u'); if (unit == null) return;
+          const category = prompt('Categoría', p.category||''); if (category == null) return;
+          const code = prompt('Código', p.code); if (code == null) return;
+          const cost_std = prompt('Costo std.', String(p.cost_std||0)); if (cost_std == null) return;
+          const price_sale = prompt('Precio venta', String(p.price_sale||0)); if (price_sale == null) return;
+          await api('/products', { method: 'PUT', body: JSON.stringify({ ...p, name, unit, category, code, cost_std: +cost_std, price_sale: +price_sale }) });
+          toast('Producto actualizado'); render();
+        });
+        document.querySelectorAll('[data-pd]').forEach(b => b.onclick = async () => {
+          if (!confirm('¿Eliminar producto del nomenclador?')) return;
+          await api('/products?id=' + encodeURIComponent(b.dataset.pd), { method: 'DELETE' });
+          toast('Producto eliminado'); render();
+        });
+      } else if (sub === 'cargos') {
+        document.getElementById('addJ').onclick = async () => {
+          await api('/job-positions', { method: 'POST', body: JSON.stringify({ name: document.getElementById('jn').value.trim() }) });
+          toast('Cargo agregado'); render();
+        };
+        document.querySelectorAll('[data-je]').forEach(b => b.onclick = async () => {
+          const data = await api('/job-positions');
+          const j = (data.positions||[]).find(x => x.id === b.dataset.je); if (!j) return;
+          const name = prompt('Nombre', j.name); if (name == null) return;
+          await api('/job-positions', { method: 'PUT', body: JSON.stringify({ id: j.id, name }) });
+          toast('Cargo actualizado'); render();
+        });
+        document.querySelectorAll('[data-jd]').forEach(b => b.onclick = async () => {
+          if (!confirm('¿Eliminar cargo?')) return;
+          await api('/job-positions?id=' + encodeURIComponent(b.dataset.jd), { method: 'DELETE' });
+          toast('Cargo eliminado'); render();
+        });
+      } else {
+        document.getElementById('saveM').onclick = async () => {
+          await api('/currencies', { method: 'POST', body: JSON.stringify({ code: document.getElementById('mcode').value.trim().toUpperCase(), name: document.getElementById('mname').value.trim(), rate: +document.getElementById('mrate').value || 1 }) });
+          toast('Moneda guardada'); render();
+        };
+      }
     } else if (state.tab === 'unidades') {
       const data = await api('/units');
       const rows = (data.units||[]).map(u => `<tr><td>${u.code}</td><td>${u.name}</td><td>${u.address||'—'}</td><td>${u.phone||'—'}</td></tr>`).join('');
@@ -1250,7 +1322,49 @@ async function render() {
         })});
         toast('Ficha de costo guardada'); render();
       };
-    }
+    } else if (state.tab === 'usuarios') {
+      const data = await api('/users');
+      const roles = data.roles || ['admin','contador','economico','vendedor','almacenero','operador','readonly'];
+      const roleOpts = roles.map(r => `<option value="${r}">${r}</option>`).join('');
+      const rows = (data.users||[]).filter(u => u.active !== false).map(u => `<tr>
+        <td>${u.username}</td><td>${u.display_name||'—'}</td><td>${u.role}</td>
+        <td>
+          <button class="btn btn-secondary btn-sm" data-ue="${u.id}">Editar</button>
+          ${u.role==='master'?'':`<button class="btn btn-secondary btn-sm" data-ud="${u.id}">Baja</button>`}
+        </td></tr>`).join('');
+      main.innerHTML = `<div class="card">
+        <div class="section-label">Usuarios del negocio</div>
+        <p class="muted">Roles: <strong>vendedor</strong> (solo punto de venta), <strong>almacenero</strong> (almacén/recepción), <strong>economico</strong> (contabilidad e informes). Cada uno ve solo su parte del menú.</p>
+        <div class="grid-2"><div><label>Usuario</label><input id="uu" /></div><div><label>Nombre visible</label><input id="udn" /></div></div>
+        <div class="grid-2"><div><label>Contraseña</label><input id="upw" type="password" /></div>
+        <div><label>Rol</label><select id="ur">${roleOpts}</select></div></div>
+        <button class="btn btn-primary" id="addUser">Crear usuario</button>
+      </div>
+      <div class="card"><table><thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th></th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="4" class="muted">Sin usuarios</td></tr>'}</tbody></table></div>`;
+      document.getElementById('addUser').onclick = async () => {
+        await api('/users', { method: 'POST', body: JSON.stringify({
+          username: document.getElementById('uu').value.trim(),
+          display_name: document.getElementById('udn').value.trim(),
+          password: document.getElementById('upw').value,
+          role: document.getElementById('ur').value,
+        })});
+        toast('Usuario creado'); render();
+      };
+      document.querySelectorAll('[data-ue]').forEach(b => b.onclick = async () => {
+        const data = await api('/users');
+        const u = (data.users||[]).find(x => x.id === b.dataset.ue); if (!u) return;
+        const display_name = prompt('Nombre visible', u.display_name||''); if (display_name == null) return;
+        const role = prompt('Rol ('+(data.roles||[]).join(', ')+')', u.role); if (role == null) return;
+        const password = prompt('Nueva contraseña (vacío = no cambiar)', ''); if (password == null) return;
+        await api('/users', { method: 'PUT', body: JSON.stringify({ id: u.id, display_name, role, password: password || undefined }) });
+        toast('Usuario actualizado'); render();
+      });
+      document.querySelectorAll('[data-ud]').forEach(b => b.onclick = async () => {
+        if (!confirm('¿Dar de baja este usuario?')) return;
+        await api('/users?id=' + encodeURIComponent(b.dataset.ud), { method: 'DELETE' });
+        toast('Usuario dado de baja'); render();
+      });
     } else if (state.tab === 'negocio') {
       const t = state.tenant || {};
       const isAdmin = state.user && (state.user.role === 'admin' || state.user.role === 'master');

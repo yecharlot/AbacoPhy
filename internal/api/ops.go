@@ -20,6 +20,8 @@ func (s *Server) registerOpsRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/transfers", s.handleTransfers)
 	mux.HandleFunc("/api/v1/pos/sales", s.handlePOSSales)
 	mux.HandleFunc("/api/v1/cost-sheets", s.handleCostSheets)
+	mux.HandleFunc("/api/v1/job-positions", s.handleJobPositions)
+	mux.HandleFunc("/api/v1/users", s.handleUsers)
 }
 
 func ensureOpsMaps(snap *domain.StoreSnapshot) {
@@ -41,6 +43,15 @@ func ensureOpsMaps(snap *domain.StoreSnapshot) {
 			snap.Products[id] = p
 		}
 		snap.DocCounters.ProductSeq = 15
+	}
+	if snap.JobPositions == nil {
+		snap.JobPositions = map[string]*domain.JobPosition{}
+	}
+	if len(snap.JobPositions) == 0 {
+		for id, j := range domain.DefaultJobPositions(snap.Tenant.ID) {
+			snap.JobPositions[id] = j
+		}
+		snap.DocCounters.JobSeq = 10
 	}
 }
 
@@ -122,6 +133,15 @@ func (s *Server) handleProducts(w http.ResponseWriter, r *http.Request) {
 		if body.Unit != "" {
 			ex.Unit = body.Unit
 		}
+		if body.Code != "" && body.Code != ex.Code {
+			for _, p := range snap.Products {
+				if p != nil && p.Active && p.ID != ex.ID && strings.EqualFold(p.Code, body.Code) {
+					writeJSON(w, 409, map[string]string{"error": "código ya en uso"})
+					return
+				}
+			}
+			ex.Code = body.Code
+		}
 		ex.Category = body.Category
 		ex.CostStd = body.CostStd
 		ex.PriceSale = body.PriceSale
@@ -133,6 +153,22 @@ func (s *Server) handleProducts(w http.ResponseWriter, r *http.Request) {
 		s.audit(snap, sess, "producto.edicion", "Edición "+ex.Code+" — "+ex.Name, ex.ID)
 		_ = s.Store.Put(snap)
 		writeJSON(w, 200, map[string]any{"product": ex})
+	case http.MethodDelete:
+		id := r.URL.Query().Get("id")
+		if id == "" {
+			writeJSON(w, 400, map[string]string{"error": "id requerido"})
+			return
+		}
+		ex := snap.Products[id]
+		if ex == nil {
+			writeJSON(w, 404, map[string]string{"error": "producto no encontrado"})
+			return
+		}
+		ex.Active = false
+		ex.UpdatedAt = time.Now().UTC()
+		s.audit(snap, sess, "producto.baja", "Baja lógica producto "+ex.Code+" — "+ex.Name, id)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 200, map[string]any{"ok": true})
 	default:
 		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
 	}
@@ -607,6 +643,217 @@ func (s *Server) handleCostSheets(w http.ResponseWriter, r *http.Request) {
 				p.Code, p.Name, body.CostoUnitario, body.Currency, body.MateriaPrima, body.GastosIndirectos), body.ID)
 		_ = s.Store.Put(snap)
 		writeJSON(w, 201, map[string]any{"cost_sheet": body})
+	default:
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+	}
+}
+
+
+func (s *Server) handleJobPositions(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if err := auth.RequireView(sess, "cargos"); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	ensureOpsMaps(snap)
+	switch r.Method {
+	case http.MethodGet:
+		list := make([]*domain.JobPosition, 0)
+		for _, j := range snap.JobPositions {
+			if j != nil && j.Active {
+				list = append(list, j)
+			}
+		}
+		writeJSON(w, 200, map[string]any{"positions": list})
+	case http.MethodPost:
+		var body domain.JobPosition
+		if err := readJSON(r, &body); err != nil || strings.TrimSpace(body.Name) == "" {
+			writeJSON(w, 400, map[string]string{"error": "nombre del cargo requerido"})
+			return
+		}
+		body.ID = uuid.NewString()
+		body.TenantID = sess.TenantID
+		if body.Code == "" {
+			body.Code = nextCode("C", &snap.DocCounters.JobSeq)
+		}
+		body.Active = true
+		body.CreatedAt = time.Now().UTC()
+		snap.JobPositions[body.ID] = &body
+		s.audit(snap, sess, "cargo.alta", "Cargo "+body.Code+" — "+body.Name, body.ID)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 201, map[string]any{"position": body})
+	case http.MethodPut:
+		var body domain.JobPosition
+		if err := readJSON(r, &body); err != nil || body.ID == "" {
+			writeJSON(w, 400, map[string]string{"error": "id requerido"})
+			return
+		}
+		ex := snap.JobPositions[body.ID]
+		if ex == nil {
+			writeJSON(w, 404, map[string]string{"error": "cargo no encontrado"})
+			return
+		}
+		if body.Name != "" {
+			ex.Name = body.Name
+		}
+		if body.Code != "" {
+			ex.Code = body.Code
+		}
+		s.audit(snap, sess, "cargo.edicion", "Cargo "+ex.Code+" — "+ex.Name, ex.ID)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 200, map[string]any{"position": ex})
+	case http.MethodDelete:
+		id := r.URL.Query().Get("id")
+		ex := snap.JobPositions[id]
+		if ex == nil {
+			writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+			return
+		}
+		ex.Active = false
+		s.audit(snap, sess, "cargo.baja", "Baja cargo "+ex.Code, id)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 200, map[string]any{"ok": true})
+	default:
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+	}
+}
+
+func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if err := auth.RequireView(sess, "usuarios"); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		list := []map[string]any{}
+		for _, u := range snap.Users {
+			if u == nil {
+				continue
+			}
+			list = append(list, publicUser(u))
+		}
+		writeJSON(w, 200, map[string]any{"users": list, "roles": auth.ValidRoles()})
+	case http.MethodPost:
+		var body struct {
+			Username    string `json:"username"`
+			DisplayName string `json:"display_name"`
+			Password    string `json:"password"`
+			Role        string `json:"role"`
+		}
+		if err := readJSON(r, &body); err != nil || body.Username == "" || body.Password == "" {
+			writeJSON(w, 400, map[string]string{"error": "usuario y contraseña requeridos"})
+			return
+		}
+		roleOK := false
+		for _, r := range auth.ValidRoles() {
+			if r == body.Role {
+				roleOK = true
+				break
+			}
+		}
+		if !roleOK {
+			writeJSON(w, 400, map[string]string{"error": "rol no permitido"})
+			return
+		}
+		for _, u := range snap.Users {
+			if u != nil && strings.EqualFold(u.Username, body.Username) {
+				writeJSON(w, 409, map[string]string{"error": "usuario ya existe"})
+				return
+			}
+		}
+		hash, err := auth.HashPassword(body.Password)
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"error": "hash"})
+			return
+		}
+		u := &domain.User{
+			ID: uuid.NewString(), TenantID: sess.TenantID,
+			Username: strings.TrimSpace(body.Username), DisplayName: body.DisplayName,
+			Role: body.Role, PasswordHash: hash, Active: true,
+			CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+		}
+		if u.DisplayName == "" {
+			u.DisplayName = u.Username
+		}
+		snap.Users[u.ID] = u
+		s.audit(snap, sess, "usuario.alta", "Alta usuario "+u.Username+" rol "+u.Role, u.ID)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 201, map[string]any{"user": publicUser(u)})
+	case http.MethodPut:
+		var body struct {
+			ID          string `json:"id"`
+			DisplayName string `json:"display_name"`
+			Role        string `json:"role"`
+			Password    string `json:"password"`
+			Active      *bool  `json:"active"`
+		}
+		if err := readJSON(r, &body); err != nil || body.ID == "" {
+			writeJSON(w, 400, map[string]string{"error": "id requerido"})
+			return
+		}
+		u := snap.Users[body.ID]
+		if u == nil {
+			writeJSON(w, 404, map[string]string{"error": "usuario no encontrado"})
+			return
+		}
+		if u.Role == domain.RoleMaster && sess.Role != domain.RoleMaster {
+			writeJSON(w, 403, map[string]string{"error": "no puede modificar master"})
+			return
+		}
+		if body.DisplayName != "" {
+			u.DisplayName = body.DisplayName
+		}
+		if body.Role != "" && body.Role != domain.RoleMaster {
+			u.Role = body.Role
+		}
+		if body.Password != "" {
+			h, err := auth.HashPassword(body.Password)
+			if err == nil {
+				u.PasswordHash = h
+			}
+		}
+		if body.Active != nil {
+			u.Active = *body.Active
+		}
+		u.UpdatedAt = time.Now().UTC()
+		s.audit(snap, sess, "usuario.edicion", "Edición usuario "+u.Username+" rol "+u.Role, u.ID)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 200, map[string]any{"user": publicUser(u)})
+	case http.MethodDelete:
+		id := r.URL.Query().Get("id")
+		u := snap.Users[id]
+		if u == nil {
+			writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+			return
+		}
+		if u.Role == domain.RoleMaster {
+			writeJSON(w, 403, map[string]string{"error": "no se puede dar de baja master"})
+			return
+		}
+		u.Active = false
+		u.UpdatedAt = time.Now().UTC()
+		s.audit(snap, sess, "usuario.baja", "Baja usuario "+u.Username, id)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 200, map[string]any{"ok": true})
 	default:
 		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
 	}

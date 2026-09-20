@@ -7,7 +7,10 @@ const (
 	RoleAdmin    = "admin"
 	RoleContador = "contador"
 	RoleOperador = "operador"
-	RoleReadonly = "readonly"
+	RoleReadonly   = "readonly"
+	RoleVendedor   = "vendedor"
+	RoleAlmacenero = "almacenero"
+	RoleEconomico  = "economico"
 )
 
 type Tenant struct {
@@ -230,9 +233,19 @@ type StoreSnapshot struct {
 	POSSales       []POSSale                  `json:"pos_sales,omitempty"`
 	CostSheets     map[string]*CostSheet      `json:"cost_sheets,omitempty"`
 	DocCounters    DocCounters               `json:"doc_counters,omitempty"`
+	JobPositions   map[string]*JobPosition    `json:"job_positions,omitempty"`
 	Rev        int64                     `json:"rev"`
 	RootCID    string                    `json:"root_cid,omitempty"`
 	UpdatedAt  time.Time                 `json:"updated_at"`
+}
+
+type JobPosition struct {
+	ID        string    `json:"id"`
+	TenantID  string    `json:"tenant_id"`
+	Code      string    `json:"code"`
+	Name      string    `json:"name"`
+	Active    bool      `json:"active"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type TokenSession struct {

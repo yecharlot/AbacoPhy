@@ -123,7 +123,7 @@ func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 		"persistence": []string{"local", "cid", "durable_object_optional"},
 		"offline":     true,
 		"modules":     []string{"ingresos", "gastos", "inventario", "nomina", "facturacion", "cuentas", "productos", "almacen", "unidades", "recepcion", "vendedor", "fichas_costo"},
-		"roles":       []string{domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador, domain.RoleReadonly},
+		"roles":       []string{domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleVendedor, domain.RoleAlmacenero, domain.RoleOperador, domain.RoleReadonly},
 	})
 }
 

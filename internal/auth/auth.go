@@ -21,28 +21,30 @@ var (
 
 // Vistas / módulos y roles que pueden acceder.
 var ViewACL = map[string][]string{
-	"dashboard":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador, domain.RoleReadonly},
-	"ingresos":   {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador},
-	"gastos":     {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador},
-	"cuentas":    {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador},
-	"inventario": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador, domain.RoleReadonly},
-	"nomina":     {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador},
-	"facturas":   {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador},
-	"reportes":   {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleReadonly},
-	"usuarios":   {domain.RoleMaster, domain.RoleAdmin},
-	"tenant":     {domain.RoleMaster, domain.RoleAdmin},
-	"master":     {domain.RoleMaster},
-	"sync":       {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador},
-	"monedas":    {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador},
-	"traza":      {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador},
-	"salvas":     {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador},
-	"cuentas_t":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleReadonly},
-	"productos":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador, domain.RoleReadonly},
-	"almacen":    {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador, domain.RoleReadonly},
-	"unidades":   {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador, domain.RoleReadonly},
-	"recepcion":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador},
-	"vendedor":   {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador},
-	"fichas_costo": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador},
+	"dashboard": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador, domain.RoleEconomico, domain.RoleVendedor, domain.RoleAlmacenero, domain.RoleReadonly},
+	"ingresos":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleOperador},
+	"gastos":    {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleOperador},
+	"cuentas":   {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
+	"inventario": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero, domain.RoleOperador, domain.RoleReadonly},
+	"nomina":    {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
+	"facturas":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleOperador},
+	"reportes":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleReadonly},
+	"usuarios":  {domain.RoleMaster, domain.RoleAdmin},
+	"tenant":    {domain.RoleMaster, domain.RoleAdmin},
+	"master":    {domain.RoleMaster},
+	"sync":      {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador, domain.RoleEconomico, domain.RoleVendedor, domain.RoleAlmacenero},
+	"monedas":   {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
+	"traza":     {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
+	"salvas":    {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
+	"cuentas_t": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleReadonly},
+	"nomencladores": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero, domain.RoleOperador, domain.RoleReadonly},
+	"productos": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero, domain.RoleOperador, domain.RoleReadonly},
+	"cargos":    {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
+	"almacen":   {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero, domain.RoleOperador, domain.RoleReadonly},
+	"unidades":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero},
+	"recepcion": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero},
+	"vendedor":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleVendedor, domain.RoleOperador},
+	"fichas_costo": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
 }
 
 
@@ -116,4 +118,12 @@ func RequireView(sess *domain.TokenSession, view string) error {
 		return ErrForbidden
 	}
 	return nil
+}
+
+
+func ValidRoles() []string {
+	return []string{
+		domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico,
+		domain.RoleVendedor, domain.RoleAlmacenero, domain.RoleOperador, domain.RoleReadonly,
+	}
 }

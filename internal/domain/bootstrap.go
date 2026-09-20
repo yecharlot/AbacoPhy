@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -97,7 +98,8 @@ func BootstrapTenant(name, slug, currency string) *StoreSnapshot {
 		SalesUnits: map[string]*SalesUnit{},
 		WarehouseStock: map[string]*WarehouseStock{},
 		CostSheets: map[string]*CostSheet{},
-		DocCounters: DocCounters{ProductSeq: 15},
+		DocCounters: DocCounters{ProductSeq: 15, JobSeq: 10},
+		JobPositions: DefaultJobPositions(tid),
 		Currencies: DefaultCurrencies(currency),
 		Entries:   []Entry{},
 		Inventory: map[string]*InventoryItem{},
@@ -142,6 +144,19 @@ func DefaultProducts(tenantID string) map[string]*Product {
 			Category: it.cat, CostStd: it.cost, PriceSale: it.price, Currency: "CUP",
 			Active: true, CreatedAt: now, UpdatedAt: now,
 		}
+	}
+	return out
+}
+
+
+func DefaultJobPositions(tenantID string) map[string]*JobPosition {
+	now := time.Now().UTC()
+	names := []string{"Director", "Administrador", "Contador", "Economista", "Vendedor", "Almacenero", "Dependiente", "Chofer", "Técnico", "Auxiliar"}
+	out := make(map[string]*JobPosition, len(names))
+	for i, n := range names {
+		code := fmt.Sprintf("C-%02d", i+1)
+		id := "job-" + code
+		out[id] = &JobPosition{ID: id, TenantID: tenantID, Code: code, Name: n, Active: true, CreatedAt: now}
 	}
 	return out
 }

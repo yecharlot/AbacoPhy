@@ -162,4 +162,5 @@ type DocCounters struct {
 	TransferSeq   int `json:"transfer_seq"`
 	POSSaleSeq    int `json:"pos_sale_seq"`
 	UnitSeq       int `json:"unit_seq"`
+	JobSeq        int `json:"job_seq"`
 }
