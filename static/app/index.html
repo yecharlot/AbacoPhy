@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a7f5a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>ÁbacoPhy</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a222c;
+      --card: #232d3a;
+      --text: #e8eef4;
+      --muted: #8b9aab;
+      --accent: #1a7f5a;
+      --accent2: #2dd4a0;
+      --danger: #e05a5a;
+      --border: #2e3a48;
+      --radius: 12px;
+      --font: "DM Sans", system-ui, -apple-system, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      line-height: 1.45;
+    }
+    a { color: var(--accent2); }
+    .app { max-width: 1100px; margin: 0 auto; padding: 12px 14px 80px; }
+    header.top {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; padding: 10px 0 16px; flex-wrap: wrap;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.15rem; }
+    .brand .logo {
+      width: 36px; height: 36px; border-radius: 10px; background: var(--accent);
+      display: grid; place-items: center; font-weight: 800;
+    }
+    .badge {
+      font-size: 0.7rem; padding: 2px 8px; border-radius: 999px;
+      background: #243528; color: var(--accent2); border: 1px solid #2f5a45;
+    }
+    .badge.off { background: #3a2a2a; color: #f0a0a0; border-color: #5a3a3a; }
+    button, .btn {
+      appearance: none; border: none; border-radius: 10px; padding: 10px 14px;
+      background: var(--accent); color: #fff; font-weight: 600; cursor: pointer;
+      font-size: 0.95rem;
+    }
+    button.ghost, .btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    button.danger { background: var(--danger); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    input, select, textarea {
+      width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-size: 1rem;
+    }
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; }
+    .field { margin-bottom: 12px; }
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 14px; margin-bottom: 12px;
+    }
+    .grid { display: grid; gap: 12px; }
+    @media (min-width: 720px) {
+      .grid.cols-2 { grid-template-columns: 1fr 1fr; }
+      .grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+    }
+    nav.tabs {
+      display: flex; gap: 6px; overflow-x: auto; padding-bottom: 10px;
+      -webkit-overflow-scrolling: touch;
+    }
+    nav.tabs button {
+      flex: 0 0 auto; background: var(--panel); color: var(--muted);
+      border: 1px solid var(--border); font-size: 0.85rem; padding: 8px 12px;
+    }
+    nav.tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+    .login-wrap {
+      min-height: 100dvh; display: grid; place-items: center; padding: 20px;
+    }
+    .login-box { width: 100%; max-width: 380px; }
+    .muted { color: var(--muted); font-size: 0.85rem; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .stat { font-size: 1.4rem; font-weight: 700; }
+    .hidden { display: none !important; }
+    .toast {
+      position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+      background: #1e2a24; border: 1px solid var(--accent); padding: 10px 16px;
+      border-radius: 10px; z-index: 50; max-width: 90vw; font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="loginView" class="login-wrap">
+    <div class="login-box card">
+      <div class="brand" style="margin-bottom:16px">
+        <div class="logo">Á</div>
+        <div>
+          <div>ÁbacoPhy</div>
+          <div class="muted">Contabilidad para PyME · offline-first</div>
+        </div>
+      </div>
+      <form id="loginForm">
+        <div class="field">
+          <label>Usuario</label>
+          <input id="username" autocomplete="username" required value="admin" />
+        </div>
+        <div class="field">
+          <label>Contraseña</label>
+          <input id="password" type="password" autocomplete="current-password" required value="admin123" />
+        </div>
+        <button type="submit" style="width:100%">Entrar</button>
+      </form>
+      <p class="muted" style="margin-top:12px">Master: master / AbacoPhy#Master1 · Admin: admin / admin123</p>
+    </div>
+  </div>
+
+  <div id="appView" class="app hidden">
+    <header class="top">
+      <div class="brand">
+        <div class="logo">Á</div>
+        <div>
+          <div id="tenantName">ÁbacoPhy</div>
+          <div class="muted" id="userMeta"></div>
+        </div>
+      </div>
+      <div class="row">
+        <span id="netBadge" class="badge">En línea</span>
+        <button type="button" class="ghost" id="btnSync">Sincronizar</button>
+        <button type="button" class="ghost" id="btnLogout">Salir</button>
+      </div>
+    </header>
+    <nav class="tabs" id="tabs"></nav>
+    <main id="main"></main>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+
+  <script>
+  const API = location.origin + "/api/v1";
+  const state = {
+    token: localStorage.getItem("ap_token") || "",
+    user: null,
+    tenant: null,
+    views: [],
+    tab: "dashboard",
+    offlineQueue: JSON.parse(localStorage.getItem("ap_queue") || "[]"),
+    cache: JSON.parse(localStorage.getItem("ap_cache") || "{}"),
+  };
+
+  function toast(msg) {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.remove("hidden");
+    setTimeout(() => el.classList.add("hidden"), 2800);
+  }
+
+  function setOnline(on) {
+    const b = document.getElementById("netBadge");
+    b.textContent = on ? "En línea" : "Sin conexión";
+    b.className = "badge" + (on ? "" : " off");
+  }
+
+  async function api(path, opts = {}) {
+    const headers = Object.assign({ "Content-Type": "application/json" }, opts.headers || {});
+    if (state.token) headers.Authorization = "Bearer " + state.token;
+    try {
+      const res = await fetch(API + path, { ...opts, headers });
+      setOnline(true);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      return data;
+    } catch (e) {
+      setOnline(false);
+      throw e;
+    }
+  }
+
+  function saveLocal() {
+    localStorage.setItem("ap_token", state.token || "");
+    localStorage.setItem("ap_queue", JSON.stringify(state.offlineQueue));
+    localStorage.setItem("ap_cache", JSON.stringify(state.cache));
+  }
+
+  function queueAction(action) {
+    state.offlineQueue.push({ ...action, ts: Date.now() });
+    saveLocal();
+    toast("Guardado offline · se sincronizará al conectar");
+  }
+
+  async function flushQueue() {
+    if (!state.token || !navigator.onLine || !state.offlineQueue.length) return;
+    const entries = state.offlineQueue.filter((x) => x.kind === "entry").map((x) => x.payload);
+    const invoices = state.offlineQueue.filter((x) => x.kind === "invoice").map((x) => x.payload);
+    const inventory = state.offlineQueue.filter((x) => x.kind === "inventory").map((x) => x.payload);
+    try {
+      await api("/sync/push", {
+        method: "POST",
+        body: JSON.stringify({ entries, invoices, inventory, client_rev: state.cache.rev || 0 }),
+      });
+      state.offlineQueue = [];
+      saveLocal();
+      toast("Sincronización completa");
+      await loadDashboard();
+    } catch (e) {
+      toast("No se pudo sincronizar aún");
+    }
+  }
+
+  document.getElementById("loginForm").onsubmit = async (ev) => {
+    ev.preventDefault();
+    try {
+      const data = await api("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({
+          username: document.getElementById("username").value.trim(),
+          password: document.getElementById("password").value,
+        }),
+      });
+      state.token = data.token;
+      state.user = data.user;
+      state.views = data.views || [];
+      saveLocal();
+      await bootApp();
+    } catch (e) {
+      toast(e.message || "Error de acceso");
+    }
+  };
+
+  document.getElementById("btnLogout").onclick = async () => {
+    try { await api("/auth/logout", { method: "POST" }); } catch (_) {}
+    state.token = "";
+    state.user = null;
+    saveLocal();
+    location.reload();
+  };
+
+  document.getElementById("btnSync").onclick = () => flushQueue();
+
+  window.addEventListener("online", () => { setOnline(true); flushQueue(); });
+  window.addEventListener("offline", () => setOnline(false));
+
+  const TAB_DEFS = [
+    { id: "dashboard", label: "Inicio", view: "dashboard" },
+    { id: "ingresos", label: "Ingresos", view: "ingresos" },
+    { id: "gastos", label: "Gastos", view: "gastos" },
+    { id: "inventario", label: "Inventario", view: "inventario" },
+    { id: "facturas", label: "Facturas", view: "facturas" },
+    { id: "nomina", label: "Nómina", view: "nomina" },
+    { id: "cuentas", label: "Cuentas", view: "cuentas" },
+    { id: "tenant", label: "Negocio", view: "tenant" },
+    { id: "master", label: "Master", view: "master" },
+  ];
+
+  function renderTabs() {
+    const nav = document.getElementById("tabs");
+    nav.innerHTML = "";
+    TAB_DEFS.filter((t) => state.views.includes(t.view)).forEach((t) => {
+      const b = document.createElement("button");
+      b.textContent = t.label;
+      b.className = state.tab === t.id ? "active" : "";
+      b.onclick = () => { state.tab = t.id; renderTabs(); renderMain(); };
+      nav.appendChild(b);
+    });
+  }
+
+  async function loadDashboard() {
+    try {
+      const me = await api("/auth/me");
+      state.user = me.user;
+      state.tenant = me.tenant;
+      state.views = me.views || state.views;
+      state.cache.rev = me.rev;
+      state.cache.root_cid = me.root_cid;
+      document.getElementById("tenantName").textContent = me.tenant.name || "ÁbacoPhy";
+      document.getElementById("userMeta").textContent =
+        (me.user.display_name || me.user.username) + " · " + me.user.role;
+      saveLocal();
+    } catch (_) {}
+  }
+
+  async function renderMain() {
+    const main = document.getElementById("main");
+    main.innerHTML = "<p class='muted'>Cargando…</p>";
+    try {
+      if (state.tab === "dashboard") {
+        const [entries, inv, invoices] = await Promise.all([
+          api("/entries").catch(() => ({ entries: [] })),
+          api("/inventory").catch(() => ({ items: [] })),
+          api("/invoices").catch(() => ({ invoices: [] })),
+        ]);
+        const income = (entries.entries || []).filter((e) => e.type === "income").reduce((s, e) => s + e.amount, 0);
+        const expense = (entries.entries || []).filter((e) => e.type === "expense").reduce((s, e) => s + e.amount, 0);
+        main.innerHTML = `
+          <div class="grid cols-3">
+            <div class="card"><div class="muted">Ingresos</div><div class="stat">${income.toFixed(2)}</div></div>
+            <div class="card"><div class="muted">Gastos</div><div class="stat">${expense.toFixed(2)}</div></div>
+            <div class="card"><div class="muted">Facturas</div><div class="stat">${(invoices.invoices||[]).length}</div></div>
+          </div>
+          <div class="card">
+            <div class="muted">Inventario · ${(inv.items||[]).length} ítems</div>
+            <div class="muted" style="margin-top:8px">Rev ${state.cache.rev || 0} · CID ${(state.cache.root_cid||"—").slice(0,24)}…</div>
+            <div class="muted">Cola offline: ${state.offlineQueue.length}</div>
+          </div>`;
+      } else if (state.tab === "ingresos" || state.tab === "gastos") {
+        const type = state.tab === "ingresos" ? "income" : "expense";
+        const acc = await api("/accounts");
+        const accounts = (acc.accounts || []).filter((a) =>
+          type === "income" ? a.type === "income" : a.type === "expense"
+        );
+        main.innerHTML = `
+          <div class="card">
+            <h3 style="margin-bottom:12px">${type === "income" ? "Registrar ingreso" : "Registrar gasto"}</h3>
+            <div class="field"><label>Importe</label><input id="amt" type="number" step="0.01" min="0" /></div>
+            <div class="field"><label>Cuenta</label>
+              <select id="acc">${accounts.map((a) => `<option value="${a.id}">${a.code} — ${a.name}</option>`).join("")}</select>
+            </div>
+            <div class="field"><label>Descripción</label><input id="desc" /></div>
+            <button id="saveEntry">Guardar</button>
+          </div>`;
+        document.getElementById("saveEntry").onclick = async () => {
+          const payload = {
+            type, amount: parseFloat(document.getElementById("amt").value || "0"),
+            account_id: document.getElementById("acc").value,
+            description: document.getElementById("desc").value.trim(),
+          };
+          try {
+            await api("/entries", { method: "POST", body: JSON.stringify(payload) });
+            toast("Registrado");
+            state.tab = "dashboard";
+            renderTabs();
+            renderMain();
+          } catch (_) {
+            queueAction({ kind: "entry", payload });
+          }
+        };
+      } else if (state.tab === "inventario") {
+        const data = await api("/inventory");
+        const rows = (data.items || []).map((i) =>
+          `<tr><td>${i.name}</td><td>${i.qty} ${i.unit}</td><td>${i.price}</td></tr>`
+        ).join("");
+        main.innerHTML = `
+          <div class="card">
+            <div class="field"><label>Nombre</label><input id="iname" /></div>
+            <div class="grid cols-2">
+              <div class="field"><label>Cantidad</label><input id="iqty" type="number" step="0.01" value="0" /></div>
+              <div class="field"><label>Precio</label><input id="iprice" type="number" step="0.01" value="0" /></div>
+            </div>
+            <button id="addInv">Agregar al inventario</button>
+          </div>
+          <div class="card"><table><thead><tr><th>Producto</th><th>Stock</th><th>Precio</th></tr></thead><tbody>${rows || "<tr><td colspan=3 class='muted'>Vacío</td></tr>"}</tbody></table></div>`;
+        document.getElementById("addInv").onclick = async () => {
+          const payload = {
+            name: document.getElementById("iname").value.trim(),
+            qty: parseFloat(document.getElementById("iqty").value || "0"),
+            price: parseFloat(document.getElementById("iprice").value || "0"),
+            unit: "ud",
+          };
+          try {
+            await api("/inventory", { method: "POST", body: JSON.stringify(payload) });
+            toast("Producto agregado");
+            renderMain();
+          } catch (_) {
+            queueAction({ kind: "inventory", payload });
+          }
+        };
+      } else if (state.tab === "facturas") {
+        const data = await api("/invoices");
+        const rows = (data.invoices || []).map((f) =>
+          `<tr><td>${f.number}</td><td>${f.client_name}</td><td>${f.total}</td><td>${f.status}</td></tr>`
+        ).join("");
+        main.innerHTML = `
+          <div class="card">
+            <div class="field"><label>Cliente</label><input id="fclient" /></div>
+            <div class="field"><label>Concepto</label><input id="fdesc" value="Servicio" /></div>
+            <div class="grid cols-2">
+              <div class="field"><label>Cantidad</label><input id="fqty" type="number" value="1" /></div>
+              <div class="field"><label>Precio unitario</label><input id="fprice" type="number" step="0.01" value="0" /></div>
+            </div>
+            <button id="addInvF">Emitir factura</button>
+          </div>
+          <div class="card"><table><thead><tr><th>Nº</th><th>Cliente</th><th>Total</th><th>Estado</th></tr></thead><tbody>${rows || ""}</tbody></table></div>`;
+        document.getElementById("addInvF").onclick = async () => {
+          const qty = parseFloat(document.getElementById("fqty").value || "1");
+          const price = parseFloat(document.getElementById("fprice").value || "0");
+          const payload = {
+            client_name: document.getElementById("fclient").value.trim() || "Cliente",
+            lines: [{ description: document.getElementById("fdesc").value.trim(), qty, unit_price: price }],
+            status: "issued",
+            issued_at: new Date().toISOString().slice(0, 10),
+          };
+          try {
+            await api("/invoices", { method: "POST", body: JSON.stringify(payload) });
+            toast("Factura creada");
+            renderMain();
+          } catch (_) {
+            queueAction({ kind: "invoice", payload });
+          }
+        };
+      } else if (state.tab === "nomina") {
+        const data = await api("/payroll/employees");
+        const rows = (data.employees || []).map((e) =>
+          `<tr><td>${e.name}</td><td>${e.role || "—"}</td><td>${e.salary} ${e.currency}</td></tr>`
+        ).join("");
+        main.innerHTML = `
+          <div class="card">
+            <div class="field"><label>Nombre</label><input id="ename" /></div>
+            <div class="field"><label>Cargo</label><input id="erole" /></div>
+            <div class="field"><label>Salario</label><input id="esal" type="number" step="0.01" /></div>
+            <button id="addEmp">Alta empleado</button>
+          </div>
+          <div class="card"><table><thead><tr><th>Nombre</th><th>Cargo</th><th>Salario</th></tr></thead><tbody>${rows || ""}</tbody></table></div>`;
+        document.getElementById("addEmp").onclick = async () => {
+          await api("/payroll/employees", {
+            method: "POST",
+            body: JSON.stringify({
+              name: document.getElementById("ename").value.trim(),
+              role: document.getElementById("erole").value.trim(),
+              salary: parseFloat(document.getElementById("esal").value || "0"),
+            }),
+          });
+          toast("Empleado registrado");
+          renderMain();
+        };
+      } else if (state.tab === "cuentas") {
+        const data = await api("/accounts");
+        const rows = (data.accounts || []).map((a) =>
+          `<tr><td>${a.code}</td><td>${a.name}</td><td>${a.type}</td><td>${a.balance}</td></tr>`
+        ).join("");
+        main.innerHTML = `<div class="card"><table><thead><tr><th>Código</th><th>Cuenta</th><th>Tipo</th><th>Saldo</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      } else if (state.tab === "tenant") {
+        const t = state.tenant || {};
+        main.innerHTML = `
+          <div class="card">
+            <div class="field"><label>Nombre del negocio</label><input id="tname" value="${t.name || ""}" /></div>
+            <div class="field"><label>Moneda</label><input id="tcur" value="${t.currency || "CUP"}" /></div>
+            <div class="field"><label>Teléfono</label><input id="tphone" value="${t.phone || ""}" /></div>
+            <div class="field"><label>Dirección</label><input id="taddr" value="${t.address || ""}" /></div>
+            <button id="saveT">Guardar personalización</button>
+          </div>`;
+        document.getElementById("saveT").onclick = async () => {
+          const updated = await api("/tenant", {
+            method: "PUT",
+            body: JSON.stringify({
+              name: document.getElementById("tname").value.trim(),
+              currency: document.getElementById("tcur").value.trim(),
+              phone: document.getElementById("tphone").value.trim(),
+              address: document.getElementById("taddr").value.trim(),
+            }),
+          });
+          state.tenant = updated;
+          document.getElementById("tenantName").textContent = updated.name;
+          toast("Negocio actualizado");
+        };
+      } else if (state.tab === "master") {
+        const data = await api("/master/tenants");
+        main.innerHTML = `<div class="card"><pre class="muted" style="white-space:pre-wrap">${JSON.stringify(data.tenants, null, 2)}</pre></div>`;
+      }
+    } catch (e) {
+      main.innerHTML = `<div class="card muted">No se pudo cargar la vista (${e.message}). Prueba sincronizar o revisa la conexión.</div>`;
+    }
+  }
+
+  async function bootApp() {
+    document.getElementById("loginView").classList.add("hidden");
+    document.getElementById("appView").classList.remove("hidden");
+    await loadDashboard();
+    renderTabs();
+    await renderMain();
+    flushQueue();
+  }
+
+  async function trySession() {
+    if (!state.token) return;
+    try {
+      await loadDashboard();
+      await bootApp();
+    } catch (_) {
+      state.token = "";
+      saveLocal();
+    }
+  }
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }
+  // serve manifest from same origin path helpers
+  trySession();
+  </script>
+</body>
+</html>

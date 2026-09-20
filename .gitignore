@@ -1,0 +1,7 @@
+abacophy_data/
+*.exe
+*.test
+.DS_Store
+.env
+.idea/
+.vscode/

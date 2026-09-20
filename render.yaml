@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: abacophy
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: ABACOPHY_STATIC
+        value: /app/static
+      - key: ABACOPHY_DATA
+        value: /app/data
