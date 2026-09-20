@@ -480,24 +480,16 @@ func (s *Server) handleTheme(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 400, map[string]string{"error": "json invalido"})
 			return
 		}
-		if sess.Role == domain.RoleMaster {
-			for k, v := range body {
-				if k == "name" {
-					snap.Tenant.Name = v
-					continue
-				}
-				snap.Tenant.Settings[k] = v
-			}
-		} else if sess.Role == domain.RoleAdmin {
-			if n, ok := body["name"]; ok {
-				snap.Tenant.Name = n
-			}
-			if t, ok := body["app_title"]; ok {
-				snap.Tenant.Settings["app_title"] = t
-			}
-		} else {
-			writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+		if sess.Role != domain.RoleMaster {
+			writeJSON(w, 403, map[string]string{"error": "solo el usuario master puede personalizar la apariencia"})
 			return
+		}
+		for k, v := range body {
+			if k == "name" {
+				snap.Tenant.Name = v
+				continue
+			}
+			snap.Tenant.Settings[k] = v
 		}
 		s.audit(snap, sess, "theme.update", "personalizacion", "")
 		_ = s.Store.Put(snap)

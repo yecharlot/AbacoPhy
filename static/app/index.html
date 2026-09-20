@@ -323,7 +323,12 @@ function applyTheme(settings) {
   state.theme = settings;
   if (settings.primary) document.documentElement.style.setProperty('--primary', settings.primary);
   if (settings.primary_dark) document.documentElement.style.setProperty('--primary-dark', settings.primary_dark);
-  if (settings.bg) document.documentElement.style.setProperty('--bg-primary', settings.bg);
+  if (settings.bg) {
+    document.documentElement.style.setProperty('--bg-primary', settings.bg);
+    document.body.style.background = settings.bg;
+  }
+  if (settings.text) document.documentElement.style.setProperty('--text-primary', settings.text);
+  if (settings.card) document.documentElement.style.setProperty('--bg-card', settings.card);
   if (settings.app_title) {
     document.getElementById('sideTitle').textContent = settings.app_title;
     document.title = settings.app_title;
@@ -384,8 +389,7 @@ function renderNav() {
   const nav = document.getElementById('sideNav');
   nav.innerHTML = '';
   NAV.filter(n => {
-    if (n.id === 'tema') return state.user && (state.user.role === 'master' || state.user.role === 'admin');
-    if (n.id === 'master') return state.user && state.user.role === 'master';
+    if (n.id === 'tema' || n.id === 'master') return state.user && state.user.role === 'master';
     return can(n.view);
   }).forEach(n => {
     const b = document.createElement('button');
@@ -649,25 +653,30 @@ async function render() {
         const u = await api('/tenant',{method:'PUT',body:JSON.stringify({name:document.getElementById('tname').value.trim(), currency:document.getElementById('tcur').value.trim(), phone:document.getElementById('tphone').value.trim(), address:document.getElementById('taddr').value.trim()})});
         state.tenant = u; document.getElementById('sideSub').textContent = u.name; toast('Negocio actualizado');
       };
-    } else if (state.tab === 'tema' || (state.tab === 'master' && state.user && state.user.role !== 'master')) {
+    } else if (state.tab === 'tema' && state.user && state.user.role === 'master') {
       // apariencia for admin/master
       const th = await api('/theme');
       const s = th.settings || {};
       main.innerHTML = `<div class="card"><div class="section-label">Personalización</div>
         <label>Título de la app</label><input id="apptitle" value="${s.app_title||'ÁbacoPhy'}" />
         <label>Nombre del negocio</label><input id="thname" value="${th.name||''}" />
-        ${state.user.role==='master' ? `
-        <label>Color primario</label><input id="thpri" value="${s.primary||'#F4B400'}" />
-        <label>Color primario oscuro</label><input id="thprid" value="${s.primary_dark||'#FB8C00'}" />
-        ` : ''}
+        <label>Color primario</label><input id="thpri" type="color" value="${s.primary||'#F4B400'}" />
+        <label>Color primario oscuro</label><input id="thprid" type="color" value="${s.primary_dark||'#FB8C00'}" />
+        <label>Fondo base</label><input id="thbg" type="color" value="${s.bg||'#0A0A0A'}" />
+        <label>Texto</label><input id="thtext" type="color" value="${s.text||'#FFFFFF'}" />
+        <label>Tarjeta</label><input id="thcard" type="color" value="${s.card||'#141414'}" />
         <button class="btn btn-primary" id="saveTh">Aplicar</button>
       </div>`;
       document.getElementById('saveTh').onclick = async () => {
-        const body = { app_title: document.getElementById('apptitle').value.trim(), name: document.getElementById('thname').value.trim() };
-        if (state.user.role==='master') {
-          body.primary = document.getElementById('thpri').value.trim();
-          body.primary_dark = document.getElementById('thprid').value.trim();
-        }
+        const body = {
+          app_title: document.getElementById('apptitle').value.trim(),
+          name: document.getElementById('thname').value.trim(),
+          primary: document.getElementById('thpri').value.trim(),
+          primary_dark: document.getElementById('thprid').value.trim(),
+          bg: document.getElementById('thbg').value.trim(),
+          text: document.getElementById('thtext').value.trim(),
+          card: document.getElementById('thcard').value.trim(),
+        };
         const r = await api('/theme',{method:'PUT',body:JSON.stringify(body)});
         applyTheme(r.settings||body); toast('Apariencia actualizada'); await loadMe(); renderNav();
       };

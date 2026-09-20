@@ -435,35 +435,85 @@ func (s *Server) handleInventory(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 400, map[string]string{"error": "nombre requerido"})
 			return
 		}
-		body.ID = uuid.NewString()
-		body.TenantID = sess.TenantID
-		body.Active = true
-		body.UpdatedAt = time.Now().UTC()
 		if body.Unit == "" {
 			body.Unit = "ud"
 		}
 		if body.Currency == "" {
 			body.Currency = snap.Tenant.Currency
 		}
+		if body.Qty <= 0 {
+			writeJSON(w, 400, map[string]string{"error": "cantidad debe ser mayor que cero"})
+			return
+		}
 		if body.Amount == 0 && body.Qty > 0 {
 			body.Amount = body.Qty * body.Cost
 		}
 		body.AmountBase = domain.ToBase(snap, body.Amount, body.Currency)
-		snap.Inventory[body.ID] = &body
-		domain.ApplyInventoryIn(snap, body.AmountBase)
-		mv := domain.InventoryMove{
-			ID: uuid.NewString(), TenantID: sess.TenantID, ItemID: body.ID,
-			Kind: "in", Qty: body.Qty, Cost: body.Cost, AmountBase: body.AmountBase,
-			CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
+		// Promedio ponderado: mismo nombre + unidad + moneda → fusionar
+		nameKey := strings.ToLower(strings.TrimSpace(body.Name))
+		var existing *domain.InventoryItem
+		for _, it := range snap.Inventory {
+			if it == nil || !it.Active {
+				continue
+			}
+			if strings.ToLower(strings.TrimSpace(it.Name)) == nameKey &&
+				strings.EqualFold(it.Unit, body.Unit) &&
+				strings.EqualFold(it.Currency, body.Currency) {
+				existing = it
+				break
+			}
 		}
-		snap.InvMoves = append(snap.InvMoves, mv)
+		var itemOut *domain.InventoryItem
+		if existing != nil {
+			oldQty := existing.Qty
+			oldCost := existing.Cost
+			newQty := body.Qty
+			newCost := body.Cost
+			totalQty := oldQty + newQty
+			if totalQty > 0 {
+				// promedio ponderado del costo unitario
+				existing.Cost = (oldQty*oldCost + newQty*newCost) / totalQty
+			}
+			existing.Qty = totalQty
+			existing.Amount = existing.Qty * existing.Cost
+			existing.AmountBase = domain.ToBase(snap, existing.Amount, existing.Currency)
+			if body.Price > 0 {
+				existing.Price = body.Price
+			}
+			existing.UpdatedAt = time.Now().UTC()
+			itemOut = existing
+			domain.ApplyInventoryIn(snap, body.AmountBase)
+			mv := domain.InventoryMove{
+				ID: uuid.NewString(), TenantID: sess.TenantID, ItemID: existing.ID,
+				Kind: "in", Qty: body.Qty, Cost: body.Cost, AmountBase: body.AmountBase,
+				Note: "promedio ponderado",
+				CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
+			}
+			snap.InvMoves = append(snap.InvMoves, mv)
+			s.audit(snap, sess, "inventory.in.avg", body.Name+" avg="+formatFloat(existing.Cost), existing.ID)
+		} else {
+			body.ID = uuid.NewString()
+			body.TenantID = sess.TenantID
+			body.Active = true
+			body.UpdatedAt = time.Now().UTC()
+			snap.Inventory[body.ID] = &body
+			itemOut = &body
+			domain.ApplyInventoryIn(snap, body.AmountBase)
+			mv := domain.InventoryMove{
+				ID: uuid.NewString(), TenantID: sess.TenantID, ItemID: body.ID,
+				Kind: "in", Qty: body.Qty, Cost: body.Cost, AmountBase: body.AmountBase,
+				CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
+			}
+			snap.InvMoves = append(snap.InvMoves, mv)
+			s.audit(snap, sess, "inventory.in", body.Name+" "+body.Currency, body.ID)
+		}
 		invAcc := domain.FindAccountByCode(snap.Accounts, "1300")
 		cash := domain.FindAccountByCode(snap.Accounts, "1000")
 		entry := domain.Entry{
 			ID: uuid.NewString(), TenantID: sess.TenantID, Date: time.Now().Format("2006-01-02"),
 			Type: "inventory", Amount: body.AmountBase, Currency: snap.Tenant.Currency,
 			OrigAmount: body.Amount, OrigCurrency: body.Currency,
-			Description: "Entrada inventario " + body.Name, Ref: body.ID,
+			Description: "Entrada inventario " + body.Name, Ref: itemOut.ID,
 			CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
 		}
 		if invAcc != nil {
@@ -473,9 +523,8 @@ func (s *Server) handleInventory(w http.ResponseWriter, r *http.Request) {
 			entry.Counterpart = cash.ID
 		}
 		snap.Entries = append(snap.Entries, entry)
-		s.audit(snap, sess, "inventory.in", body.Name+" "+body.Currency, body.ID)
 		_ = s.Store.Put(snap)
-		writeJSON(w, 201, map[string]any{"item": body, "ecuacion": domain.EquationSnapshot(snap), "rev": snap.Rev})
+		writeJSON(w, 201, map[string]any{"item": itemOut, "ecuacion": domain.EquationSnapshot(snap), "rev": snap.Rev, "weighted_avg": existing != nil})
 	case http.MethodDelete:
 		id := r.URL.Query().Get("id")
 		if id == "" {
