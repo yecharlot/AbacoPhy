@@ -10,17 +10,18 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     :root, [data-theme="light"] {
-      --primary: #C9920A;
-      --primary-dark: #A67A08;
-      --primary-soft: rgba(201,146,10,.12);
+      /* Paleta PrismaTEC / TCP sobre fondo claro sereno (hito buscopincha) */
+      --primary: #F4B400;
+      --primary-dark: #D49A00;
+      --primary-soft: rgba(244,180,0,.16);
       --bg: #F7F4EC;
       --bg-elevated: #FFFFFF;
-      --bg-sidebar: #FFFcf7;
+      --bg-sidebar: #FFFCF5;
       --text: #1A1A1A;
-      --text-secondary: #5C5C5C;
-      --text-muted: #8A8A8A;
-      --border: rgba(26,26,26,.08);
-      --shadow: 0 8px 28px rgba(26,26,26,.06);
+      --text-secondary: #4A4A4A;
+      --text-muted: #7A7A7A;
+      --border: rgba(26,26,26,.09);
+      --shadow: 0 8px 28px rgba(26,26,26,.07);
       --ok: #2E7D32;
       --danger: #C62828;
       --sidebar-w: 260px;
@@ -189,17 +190,36 @@
     }
     .tab.active { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
 
+    @media (max-width: 1024px) {
+      .sidebar { width: 240px; }
+      :root, [data-theme="light"], [data-theme="dark"] { --sidebar-w: 240px; }
+    }
     @media (max-width: 900px) {
-      .sidebar { transform: translateX(-100%); }
+      .sidebar {
+        transform: translateX(-100%);
+        width: min(300px, 88vw);
+        box-shadow: 8px 0 32px rgba(0,0,0,.12);
+      }
       .sidebar.open { transform: translateX(0); }
-      .main { margin-left: 0; padding: 1rem; }
+      .main { margin-left: 0; padding: 1rem; padding-bottom: 2.5rem; }
       .grid-2 { grid-template-columns: 1fr; }
       .menu-toggle { display: inline-flex !important; }
+      .topbar { gap: 8px; }
+      .btn { min-height: 40px; }
+      table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
     }
-    @media (max-width: 420px) {
-      .stats-grid { grid-template-columns: 1fr 1fr; }
-      .topbar h1 { font-size: 1.05rem; }
-      table { font-size: .78rem; }
+    @media (max-width: 600px) {
+      .stats-grid { grid-template-columns: 1fr 1fr; gap: .65rem; }
+      .stat-card { padding: .75rem; }
+      .stat-card h3 { font-size: 1.05rem; }
+      .card { padding: .9rem; border-radius: 14px; }
+      .login-card { padding: 1.5rem; border-radius: 22px; }
+    }
+    @media (max-width: 380px) {
+      .stats-grid { grid-template-columns: 1fr; }
+      .topbar h1 { font-size: 1rem; }
+      table { font-size: .76rem; }
+      .nav-item { font-size: .84rem; padding: .7rem .9rem; }
     }
   </style>
 </head>
@@ -650,16 +670,42 @@ async function render() {
         if (!confirm('¿Dar de baja la cuenta?')) return;
         await api('/accounts?id=' + encodeURIComponent(b.dataset.del), { method: 'DELETE' }); toast('Baja'); render();
       });
-      main.querySelectorAll('[data-edit]').forEach(b => b.onclick = async () => {
+      let editId = null;
+      main.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => {
         const a = (data.accounts || []).find(x => x.id === b.dataset.edit); if (!a) return;
-        const name = prompt('Nombre', a.name); if (name == null) return;
-        const code = prompt('Código', a.code); if (code == null) return;
-        const nature = prompt('Naturaleza (deudora/acreedora)', a.nature || 'deudora'); if (nature == null) return;
-        const group = prompt('Grupo', a.group || ''); if (group == null) return;
-        const notes = prompt('Notas', a.notes || ''); if (notes == null) return;
-        await api('/accounts', { method: 'PUT', body: JSON.stringify({ id: a.id, name, code, type: a.type, nature, group, notes, active: true }) });
-        toast('Cuenta actualizada'); render();
+        editId = a.id;
+        document.getElementById('acode').value = a.code || '';
+        document.getElementById('aname').value = a.name || '';
+        document.getElementById('atype').value = a.type || 'asset';
+        document.getElementById('anature').value = a.nature || 'deudora';
+        document.getElementById('agroup').value = a.group || '';
+        document.getElementById('anotes').value = a.notes || '';
+        const lab = document.querySelector('#principal .section-label');
+        if (lab) lab.textContent = 'Nomenclador de cuentas · editando ' + (a.code || '');
+        document.getElementById('addAcc').textContent = 'Guardar cambios';
       });
+      const prevAdd = document.getElementById('addAcc').onclick;
+      document.getElementById('addAcc').onclick = async () => {
+        const payload = {
+          code: document.getElementById('acode').value.trim(),
+          name: document.getElementById('aname').value.trim(),
+          type: document.getElementById('atype').value,
+          nature: document.getElementById('anature').value,
+          group: document.getElementById('agroup').value.trim(),
+          notes: document.getElementById('anotes').value.trim(),
+          active: true,
+        };
+        if (!payload.code || !payload.name) { toast('Código y nombre son obligatorios'); return; }
+        if (editId) {
+          payload.id = editId;
+          await api('/accounts', { method: 'PUT', body: JSON.stringify(payload) });
+          toast('Cuenta actualizada en el nomenclador');
+        } else {
+          await prevAdd();
+          return;
+        }
+        editId = null; render();
+      };
     } else if (state.tab === 'monedas') {
       const data = await api('/currencies');
       const rows = (data.currencies || []).map(c => `<tr><td>${c.code}</td><td>${c.name}</td><td>${c.rate}</td></tr>`).join('');
