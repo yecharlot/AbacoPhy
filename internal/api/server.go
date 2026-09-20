@@ -152,6 +152,18 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+
+func publicUser(u *domain.User) map[string]any {
+	if u == nil {
+		return nil
+	}
+	return map[string]any{
+		"id": u.ID, "username": u.Username, "display_name": u.DisplayName,
+		"role": u.Role, "tenant_id": u.TenantID, "active": u.Active,
+		"created_at": u.CreatedAt, "updated_at": u.UpdatedAt,
+	}
+}
+
 func viewsForRole(role string) []string {
 	var out []string
 	for view := range auth.ViewACL {
@@ -183,7 +195,7 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	}
 	user := snap.Users[sess.UserID]
 	writeJSON(w, 200, map[string]any{
-		"user": user, "tenant": snap.Tenant, "rev": snap.Rev, "root_cid": snap.RootCID,
+		"user": publicUser(user), "tenant": snap.Tenant, "rev": snap.Rev, "root_cid": snap.RootCID,
 		"views": viewsForRole(sess.Role),
 	})
 }
@@ -1114,23 +1126,62 @@ func (s *Server) servePWA(w http.ResponseWriter, r *http.Request) {
 }
 
 // EnsureBootstrap crea tenant + master si no hay datos.
+// Si ya hay tenants pero las claves están vacías (bug json:"-" antiguo), las repara.
 func EnsureBootstrap(st *store.Store) error {
-	if len(st.ListTenants()) > 0 {
-		return nil
+	tenants := st.ListTenants()
+	if len(tenants) == 0 {
+		snap := domain.BootstrapTenant("Negocio Demo ÁbacoPhy", "demo", "CUP")
+		hash, err := auth.HashPassword("AbacoPhy#Master1")
+		if err != nil {
+			return err
+		}
+		ah, err := auth.HashPassword("admin123")
+		if err != nil {
+			return err
+		}
+		for _, u := range snap.Users {
+			if u.Username == "admin" {
+				u.PasswordHash = ah
+			} else {
+				u.PasswordHash = hash
+			}
+		}
+		return st.Put(snap)
 	}
-	snap := domain.BootstrapTenant("Negocio Demo ÁbacoPhy", "demo", "CUP")
-	hash, err := auth.HashPassword("AbacoPhy#Master1")
-	if err != nil {
-		return err
-	}
-	for _, u := range snap.Users {
-		u.PasswordHash = hash
-		if u.Username == "admin" {
-			ah, _ := auth.HashPassword("admin123")
-			u.PasswordHash = ah
+	// Reparar hashes vacíos en tenants existentes
+	for _, t := range tenants {
+		snap := st.Get(t.ID)
+		if snap == nil {
+			continue
+		}
+		changed := false
+		for _, u := range snap.Users {
+			if u == nil || u.PasswordHash != "" {
+				continue
+			}
+			var pw string
+			switch u.Username {
+			case "master":
+				pw = "AbacoPhy#Master1"
+			case "admin":
+				pw = "admin123"
+			default:
+				pw = "cambiar123"
+			}
+			h, err := auth.HashPassword(pw)
+			if err != nil {
+				return err
+			}
+			u.PasswordHash = h
+			changed = true
+		}
+		if changed {
+			if err := st.Put(snap); err != nil {
+				return err
+			}
 		}
 	}
-	return st.Put(snap)
+	return nil
 }
 
 // Note: static assets are also served from main via FileServer fallback if needed.

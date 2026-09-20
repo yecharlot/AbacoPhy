@@ -34,8 +34,8 @@ type User struct {
 	Username     string    `json:"username"`
 	DisplayName  string    `json:"display_name"`
 	Role         string    `json:"role"`
-	PasswordHash string    `json:"-"`
-	PinHash      string    `json:"-"`
+	PasswordHash string    `json:"password_hash,omitempty"`
+	PinHash      string    `json:"pin_hash,omitempty"`
 	Active       bool      `json:"active"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
