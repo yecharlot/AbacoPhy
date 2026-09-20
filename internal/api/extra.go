@@ -1,6 +1,11 @@
 package api
 
 import (
+	"archive/zip"
+	"bytes"
+	"io"
+	"strconv"
+	"strings"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -8,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/yecharlot/AbacoPhy/internal/auth"
 	"github.com/yecharlot/AbacoPhy/internal/domain"
+	"github.com/yecharlot/AbacoPhy/internal/pdf"
 	"github.com/yecharlot/AbacoPhy/internal/store"
 )
 
@@ -47,6 +53,10 @@ func (s *Server) registerExtraRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/reports/financial", s.handleFinancial)
 	mux.HandleFunc("/api/v1/theme", s.handleTheme)
 	mux.HandleFunc("/api/v1/errors", s.handleErrors)
+	mux.HandleFunc("/api/v1/reports/pdf", s.handleReportPDF)
+	mux.HandleFunc("/api/v1/backups/export", s.handleBackupExport)
+	mux.HandleFunc("/api/v1/backups/import", s.handleBackupImport)
+	mux.HandleFunc("/api/v1/sync/notify", s.handleSyncNotify)
 }
 
 func (s *Server) handleCurrencies(w http.ResponseWriter, r *http.Request) {
@@ -540,4 +550,172 @@ func (s *Server) handleErrors(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
 	}
+}
+
+
+func (s *Server) handleReportPDF(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if err := auth.RequireView(sess, "reportes"); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	kind := r.URL.Query().Get("kind") // situacion|rendimiento|ecuacion|cuenta_t
+	period := r.URL.Query().Get("period")
+	if period == "" {
+		period = "month"
+	}
+	accountID := r.URL.Query().Get("account_id")
+	data, err := pdf.BuildReportPDF(snap, kind, period, accountID)
+	if err != nil {
+		writeJSON(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	s.audit(snap, sess, "informe.exportacion_pdf", "Exportación PDF de informe · tipo "+kind+" · periodo "+period+" · negocio "+snap.Tenant.Name, kind)
+	_ = s.Store.Put(snap)
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", "attachment; filename=informe-"+kind+".pdf")
+	w.Write(data)
+}
+
+func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	raw, err := json.MarshalIndent(snap, "", "  ")
+	if err != nil {
+		writeJSON(w, 500, map[string]string{"error": "no se pudo serializar"})
+		return
+	}
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	f, err := zw.Create("abacophy-salva.json")
+	if err != nil {
+		writeJSON(w, 500, map[string]string{"error": "zip"})
+		return
+	}
+	_, _ = f.Write(raw)
+	meta, _ := zw.Create("meta.txt")
+	_, _ = meta.Write([]byte("ÁbacoPhy salva\nNegocio: " + snap.Tenant.Name + "\nCID: " + snap.RootCID + "\nRev: " + strconv.FormatInt(int64(snap.Rev), 10) + "\n"))
+	_ = zw.Close()
+	s.audit(snap, sess, "salva.exportacion_zip", "Exportación de salva a ZIP · negocio "+snap.Tenant.Name+" · rev "+strconv.FormatInt(snap.Rev, 10)+" · CID "+snap.RootCID, snap.RootCID)
+	_ = s.Store.Put(snap)
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", "attachment; filename=abacophy-salva.zip")
+	w.Write(buf.Bytes())
+}
+
+func (s *Server) handleBackupImport(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if sess.Role != domain.RoleAdmin && sess.Role != domain.RoleMaster && sess.Role != domain.RoleContador {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso para restaurar"})
+		return
+	}
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "archivo requerido"})
+		return
+	}
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		writeJSON(w, 400, map[string]string{"error": "archivo requerido"})
+		return
+	}
+	defer file.Close()
+	raw, err := io.ReadAll(file)
+	if err != nil {
+		writeJSON(w, 400, map[string]string{"error": "lectura fallida"})
+		return
+	}
+	// ZIP or plain JSON
+	var jsonBytes []byte
+	if len(raw) >= 2 && raw[0] == 'P' && raw[1] == 'K' {
+		zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+		if err != nil {
+			writeJSON(w, 400, map[string]string{"error": "zip inválido"})
+			return
+		}
+		for _, zf := range zr.File {
+			if strings.HasSuffix(zf.Name, ".json") {
+				rc, err := zf.Open()
+				if err != nil {
+					continue
+				}
+				jsonBytes, _ = io.ReadAll(rc)
+				rc.Close()
+				break
+			}
+		}
+	} else {
+		jsonBytes = raw
+	}
+	if len(jsonBytes) == 0 {
+		writeJSON(w, 400, map[string]string{"error": "no se encontró JSON en el archivo"})
+		return
+	}
+	var restored domain.StoreSnapshot
+	if err := json.Unmarshal(jsonBytes, &restored); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "JSON inválido"})
+		return
+	}
+	if restored.Tenant.ID != "" && restored.Tenant.ID != sess.TenantID && sess.Role != domain.RoleMaster {
+		writeJSON(w, 403, map[string]string{"error": "la salva pertenece a otro negocio"})
+		return
+	}
+	restored.Tenant.ID = sess.TenantID
+	s.audit(&restored, sess, "salva.restauracion_local", "Restauración de salva desde archivo local · rev "+strconv.FormatInt(restored.Rev, 10), restored.RootCID)
+	_ = s.Store.Put(&restored)
+	writeJSON(w, 200, map[string]any{"ok": true, "rev": restored.Rev, "root_cid": restored.RootCID})
+}
+
+func (s *Server) handleSyncNotify(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	var body struct {
+		Status string `json:"status"` // started|ok|error
+		Detail string `json:"detail"`
+	}
+	_ = readJSON(r, &body)
+	msg := body.Detail
+	if msg == "" {
+		switch body.Status {
+		case "started":
+			msg = "Sincronización automática iniciada al detectar red"
+		case "ok":
+			msg = "Sincronización automática completada correctamente"
+		case "error":
+			msg = "Sincronización automática finalizó con error"
+		default:
+			msg = "Evento de sincronización: " + body.Status
+		}
+	}
+	s.audit(snap, sess, "sincronizacion."+body.Status, msg, "")
+	_ = s.Store.Put(snap)
+	writeJSON(w, 200, map[string]any{"ok": true})
 }

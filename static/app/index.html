@@ -1,196 +1,214 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="light">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#f4b400" />
+  <meta name="theme-color" content="#F4B400" />
   <title>ÁbacoPhy</title>
   <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
-    :root {
-      --primary: #F4B400;
-      --primary-dark: #FB8C00;
-      --bg-primary: #0A0A0A;
-      --bg-secondary: #0F0F0F;
-      --bg-card: #141414;
-      --bg-elevated: #1A1A1A;
-      --text-primary: #FFFFFF;
-      --text-secondary: #B0B0B0;
-      --text-muted: #6B6B6B;
-      --accent-green: #4CAF50;
-      --accent-red: #FF5252;
-      --border: rgba(244, 180, 0, 0.15);
-      --shadow: 0 8px 32px rgba(0,0,0,.4);
+    :root, [data-theme="light"] {
+      --primary: #C9920A;
+      --primary-dark: #A67A08;
+      --primary-soft: rgba(201,146,10,.12);
+      --bg: #F7F4EC;
+      --bg-elevated: #FFFFFF;
+      --bg-sidebar: #FFFcf7;
+      --text: #1A1A1A;
+      --text-secondary: #5C5C5C;
+      --text-muted: #8A8A8A;
+      --border: rgba(26,26,26,.08);
+      --shadow: 0 8px 28px rgba(26,26,26,.06);
+      --ok: #2E7D32;
+      --danger: #C62828;
       --sidebar-w: 260px;
     }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    [data-theme="dark"] {
+      --primary: #F4B400;
+      --primary-dark: #FB8C00;
+      --primary-soft: rgba(244,180,0,.14);
+      --bg: #0A0A0A;
+      --bg-elevated: #141414;
+      --bg-sidebar: #0F0F0F;
+      --text: #FFFFFF;
+      --text-secondary: #B0B0B0;
+      --text-muted: #6B6B6B;
+      --border: rgba(244,180,0,.15);
+      --shadow: 0 8px 32px rgba(0,0,0,.4);
+      --ok: #4CAF50;
+      --danger: #FF5252;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: Inter, system-ui, sans-serif;
-      background: radial-gradient(ellipse at 20% 30%, #0F0F0F, #050505);
-      color: var(--text-primary);
+      background: var(--bg);
+      color: var(--text);
       min-height: 100dvh;
     }
-    @keyframes fadeInUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-    @keyframes slideIn { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
     .hidden { display: none !important; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(12px);} to { opacity: 1; transform: none;} }
 
-    /* Login */
     #loginOverlay {
       position: fixed; inset: 0; z-index: 1000;
       display: flex; align-items: center; justify-content: center;
-      background: radial-gradient(ellipse at 50% 40%, #121212, #050505);
+      background: radial-gradient(ellipse at 50% 30%, #fff8e7, var(--bg));
       padding: 20px;
     }
-    .login-card {
-      width: 100%; max-width: 420px;
-      background: rgba(20,20,20,.92); backdrop-filter: blur(16px);
-      border: 1px solid rgba(244,180,0,.2); border-radius: 28px;
-      padding: 2.25rem; text-align: center;
-      box-shadow: var(--shadow); animation: fadeInUp .5s ease;
+    [data-theme="dark"] #loginOverlay {
+      background: radial-gradient(ellipse at 50% 40%, #121212, #050505);
     }
-    .login-card h2 { font-weight: 800; letter-spacing: -.02em; margin: .75rem 0 .35rem; }
-    .login-card .muted { color: var(--text-secondary); font-size: .9rem; margin-bottom: 1.5rem; }
+    .login-card {
+      width: 100%; max-width: 400px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 28px; padding: 2rem;
+      box-shadow: var(--shadow); text-align: center;
+      animation: fadeUp .45s ease;
+    }
+    .login-card h2 { font-weight: 800; margin: .6rem 0 .25rem; letter-spacing: -.02em; }
+    .login-card .muted { color: var(--text-secondary); font-size: .9rem; margin-bottom: 1.25rem; }
+    .logo-mark {
+      width: 52px; height: 52px; margin: 0 auto; border-radius: 14px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      display: grid; place-items: center;
+      box-shadow: 0 6px 18px var(--primary-soft);
+    }
+    .logo-mark img, .logo-mark svg { width: 28px; height: 28px; }
 
-    /* Shell */
     #appShell { display: none; min-height: 100dvh; }
     #appShell.on { display: block; }
 
     .sidebar {
       width: var(--sidebar-w); position: fixed; inset: 0 auto 0 0;
-      background: rgba(15,15,15,.96); backdrop-filter: blur(12px);
-      border-right: 1px solid rgba(244,180,0,.1);
-      overflow-y: auto; z-index: 100; display: flex; flex-direction: column;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; z-index: 100;
       transition: transform .25s ease;
     }
-    .sidebar-header { padding: 1.5rem 1.25rem; border-bottom: 1px solid rgba(244,180,0,.12); }
-    .brand-row { display: flex; align-items: center; gap: 12px; }
-    .logo {
-      width: 40px; height: 40px; border-radius: 12px;
-      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-      display: grid; place-items: center; color: #0A0A0A;
-      box-shadow: 0 4px 16px rgba(244,180,0,.3);
+    .sidebar-header {
+      flex-shrink: 0; padding: 1.15rem 1.1rem;
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; background: var(--bg-sidebar); z-index: 2;
     }
-    .logo svg { width: 22px; height: 22px; stroke: #0A0A0A; fill: none; stroke-width: 1.8; }
-    .brand-row h3 { font-size: 1rem; font-weight: 800; }
+    .brand-row { display: flex; align-items: center; gap: 10px; }
+    .brand-row h3 { font-size: .95rem; font-weight: 800; }
     .brand-row p { font-size: .65rem; color: var(--text-muted); }
-
-    .nav { padding: .75rem 0 1.5rem; flex: 1; }
+    .nav { flex: 1; overflow-y: auto; padding: .55rem 0 1.25rem; -webkit-overflow-scrolling: touch; }
     .nav-item {
-      margin: .2rem .65rem; padding: .75rem 1rem; border-radius: 12px;
-      display: flex; align-items: center; gap: 12px;
-      color: var(--text-secondary); font-weight: 500; font-size: .9rem;
-      cursor: pointer; transition: all .25s ease; border: none; background: transparent;
-      width: calc(100% - 1.3rem); text-align: left; font-family: inherit;
+      margin: .15rem .55rem; padding: .7rem .9rem; border-radius: 12px;
+      display: flex; align-items: center; gap: 10px; width: calc(100% - 1.1rem);
+      color: var(--text-secondary); font-weight: 500; font-size: .88rem;
+      cursor: pointer; border: none; background: transparent; font-family: inherit; text-align: left;
+      transition: background .2s, color .2s, transform .2s;
     }
-    .nav-item svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; flex-shrink: 0; }
-    .nav-item:hover { background: rgba(244,180,0,.1); color: var(--primary); transform: translateX(4px); }
+    .nav-item svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.7; flex-shrink: 0; }
+    .nav-item:hover { background: var(--primary-soft); color: var(--primary); transform: translateX(3px); }
     .nav-item.active {
-      background: linear-gradient(135deg, rgba(244,180,0,.15), rgba(251,140,0,.08));
-      color: var(--primary); border-left: 3px solid var(--primary);
+      background: var(--primary-soft); color: var(--primary);
+      border-left: 3px solid var(--primary); font-weight: 600;
     }
 
-    .main { margin-left: var(--sidebar-w); padding: 1.5rem; min-height: 100dvh; animation: fadeInUp .4s ease; }
-    .topbar {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      margin-bottom: 1.25rem; flex-wrap: wrap;
-    }
-    .topbar h1 { font-size: 1.35rem; font-weight: 800; letter-spacing: -.02em; }
+    .main { margin-left: var(--sidebar-w); padding: 1.25rem; min-height: 100dvh; animation: fadeUp .35s ease; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 1rem; flex-wrap: wrap; }
+    .topbar h1 { font-size: 1.25rem; font-weight: 800; letter-spacing: -.02em; }
     .badge {
-      font-size: .65rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
-      padding: 4px 10px; border-radius: 999px;
-      background: rgba(244,180,0,.12); color: var(--primary); border: 1px solid var(--border);
+      font-size: .62rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+      padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border);
+      background: var(--primary-soft); color: var(--primary);
     }
-    .badge.off { background: rgba(255,82,82,.12); color: var(--accent-red); border-color: rgba(255,82,82,.3); }
+    .badge.syncing { background: rgba(201,146,10,.2); }
+    .badge.off { color: var(--danger); background: rgba(198,40,40,.08); border-color: rgba(198,40,40,.25); }
+    .badge.ok { color: var(--ok); background: rgba(46,125,50,.1); border-color: rgba(46,125,50,.25); }
 
     .card {
-      background: rgba(20,20,20,.85); backdrop-filter: blur(10px);
-      border: 1px solid rgba(244,180,0,.1); border-radius: 20px;
-      padding: 1.25rem; margin-bottom: 1rem;
-      transition: transform .25s ease, border-color .25s;
-      animation: fadeInUp .35s ease;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 18px; padding: 1.1rem; margin-bottom: .9rem; box-shadow: var(--shadow);
+      animation: fadeUp .3s ease;
     }
-    .card:hover { border-color: rgba(244,180,0,.28); }
-
-    .stats-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 1rem; margin-bottom: 1rem;
-    }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .85rem; margin-bottom: .9rem; }
     .stat-card {
-      background: rgba(20,20,20,.7); border: 1px solid rgba(244,180,0,.1);
-      border-radius: 18px; padding: 1.15rem; text-align: center;
-      transition: transform .25s ease, border-color .25s;
+      background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 16px;
+      padding: 1rem; text-align: center; transition: transform .2s, border-color .2s;
     }
-    .stat-card:hover { transform: translateY(-3px); border-color: var(--primary); }
-    .stat-card svg { width: 28px; height: 28px; stroke: var(--primary); fill: none; stroke-width: 1.6; margin-bottom: .5rem; }
-    .stat-card h3 { font-size: 1.45rem; font-weight: 800; color: var(--primary); }
-    .stat-card small { color: var(--text-muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; }
+    .stat-card:hover { transform: translateY(-2px); border-color: var(--primary); }
+    .stat-card h3 { font-size: 1.25rem; font-weight: 800; color: var(--primary); margin-top: .25rem; }
+    .stat-card small { color: var(--text-muted); font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; }
 
     label {
-      display: block; font-size: .68rem; font-weight: 700; letter-spacing: .1em;
-      text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;
+      display: block; font-size: .65rem; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--text-muted); margin-bottom: 5px;
     }
     input, select, textarea {
-      width: 100%; padding: 12px 14px; margin-bottom: .85rem;
-      background: rgba(26,26,26,.85); border: 1px solid rgba(244,180,0,.15);
-      border-radius: 12px; color: var(--text-primary); font-family: inherit; font-size: .95rem;
+      width: 100%; padding: 11px 13px; margin-bottom: .75rem;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+      color: var(--text); font-family: inherit; font-size: .92rem;
+    }
+    [data-theme="dark"] input, [data-theme="dark"] select, [data-theme="dark"] textarea {
+      background: #1A1A1A;
     }
     input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); }
 
     .btn {
-      padding: 11px 20px; border-radius: 40px; border: none; font-weight: 700;
-      cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
-      font-family: inherit; font-size: .9rem; transition: all .25s ease;
+      padding: 10px 18px; border-radius: 40px; border: none; font-weight: 700;
+      cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+      font-family: inherit; font-size: .88rem; transition: transform .2s, box-shadow .2s;
     }
-    .btn-primary { background: linear-gradient(135deg, #F4B400, #FB8C00); color: #0A0A0A; }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(244,180,0,.3); }
-    .btn-secondary { background: rgba(26,26,26,.9); color: var(--text-primary); border: 1px solid rgba(244,180,0,.2); }
-    .btn-secondary:hover { border-color: var(--primary); }
-    .btn-sm { padding: 6px 12px; font-size: .75rem; border-radius: 20px; }
-    .btn-danger { background: linear-gradient(135deg, #FF5252, #D32F2F); color: #fff; }
+    .btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: #0A0A0A; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 18px var(--primary-soft); }
+    .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-sm { padding: 6px 11px; font-size: .74rem; border-radius: 20px; }
+    .btn-danger { background: var(--danger); color: #fff; }
 
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-    @media (max-width: 700px) {
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem; }
+    .section-label { font-size: .65rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--primary); margin-bottom: 6px; }
+    .muted { color: var(--text-secondary); font-size: .88rem; }
+    .money { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--primary); }
+    .eq { font-family: ui-monospace, monospace; font-size: .8rem; color: var(--text-secondary); line-height: 1.5; }
+    table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+    th, td { text-align: left; padding: 9px 7px; border-bottom: 1px solid var(--border); }
+    th { color: var(--text-muted); font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; }
+    .toast {
+      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      padding: 11px 16px; border-radius: 14px; z-index: 2000; max-width: 92vw;
+      box-shadow: var(--shadow); animation: fadeUp .25s ease;
+    }
+    .menu-toggle {
+      display: none; background: transparent; border: 1px solid var(--border);
+      border-radius: 10px; padding: 7px; color: var(--primary); cursor: pointer;
+    }
+    .menu-toggle svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+    .overlay-side { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 90; }
+    .overlay-side.on { display: block; }
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1rem; }
+    .tab {
+      padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border);
+      background: transparent; color: var(--text-secondary); cursor: pointer; font-size: .82rem; font-weight: 600; font-family: inherit;
+    }
+    .tab.active { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+
+    @media (max-width: 900px) {
       .sidebar { transform: translateX(-100%); }
       .sidebar.open { transform: translateX(0); }
       .main { margin-left: 0; padding: 1rem; }
       .grid-2 { grid-template-columns: 1fr; }
       .menu-toggle { display: inline-flex !important; }
     }
-    .menu-toggle {
-      display: none; background: transparent; border: 1px solid var(--border);
-      border-radius: 10px; padding: 8px; color: var(--primary); cursor: pointer;
+    @media (max-width: 420px) {
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .topbar h1 { font-size: 1.05rem; }
+      table { font-size: .78rem; }
     }
-    .menu-toggle svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; }
-
-    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
-    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,.06); }
-    th { color: var(--text-muted); font-size: .65rem; letter-spacing: .1em; text-transform: uppercase; }
-
-    .section-label { font-size: .65rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--primary); margin-bottom: 6px; }
-    .muted { color: var(--text-secondary); font-size: .88rem; }
-    .money { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--primary); }
-    .toast {
-      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-      background: rgba(20,20,20,.95); border: 1px solid var(--border);
-      padding: 12px 18px; border-radius: 14px; z-index: 2000; max-width: 92vw;
-      animation: fadeInUp .3s ease;
-    }
-    .eq { font-family: ui-monospace, monospace; font-size: .8rem; color: var(--text-secondary); }
-    .overlay-side {
-      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 90;
-    }
-    .overlay-side.on { display: block; }
   </style>
 </head>
 <body>
   <div id="loginOverlay">
     <div class="login-card">
-      <div class="logo" style="margin:0 auto">
-        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-      </div>
+      <div class="logo-mark"><img src="/icon.svg" alt="" width="28" height="28" /></div>
       <h2>Ábaco<span style="color:var(--primary)">Phy</span></h2>
-      <p class="muted">Contabilidad para PyME · PrismaTEC</p>
+      <p class="muted">Sistema Contable para Negocios</p>
       <form id="formAcceso">
         <label for="campoUsuario">Usuario</label>
         <input id="campoUsuario" autocomplete="username" required />
@@ -206,13 +224,13 @@
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <div class="brand-row">
-          <div class="logo"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+          <div class="logo-mark" style="width:40px;height:40px;border-radius:12px"><img src="/icon.svg" width="22" height="22" alt="" /></div>
           <div>
             <h3 id="sideTitle">ÁbacoPhy</h3>
-            <p id="sideSub">Contabilidad</p>
+            <p id="sideSub">Negocio</p>
           </div>
         </div>
-        <p class="muted" style="margin-top:10px;font-size:.75rem" id="sideUser"></p>
+        <p class="muted" style="margin-top:8px;font-size:.75rem" id="sideUser"></p>
       </div>
       <nav class="nav" id="sideNav"></nav>
     </aside>
@@ -226,7 +244,7 @@
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <span class="badge" id="estadoRed">En línea</span>
-          <button type="button" class="btn btn-secondary btn-sm" id="btnSync">Sincronizar</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnTema" title="Tema">Tema</button>
           <button type="button" class="btn btn-secondary btn-sm" id="btnSalir">Salir</button>
         </div>
       </div>
@@ -251,9 +269,8 @@ const ICONS = {
   facturas: '<svg viewBox="0 0 24 24"><path d="M7 3h10v18l-2-1-2 1-2-1-2 1-2-1-2 1V3z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
   nomina: '<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
   cuentas: '<svg viewBox="0 0 24 24"><path d="M4 4h16v4H4zM4 10h16v10H4z"/><path d="M8 14h2m4 0h2"/></svg>',
-  cuentas_t: '<svg viewBox="0 0 24 24"><path d="M12 3v18M5 7h14M5 17h14"/></svg>',
   monedas: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10m-3-7.5c0-1 1.5-1.5 3-1.5s3 .5 3 1.5-1.5 1.5-3 1.5-3 .5-3 1.5 1.5 1.5 3 1.5 3-.5 3-1.5"/></svg>',
-  reportes: '<svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h16"/><path d="M8 17V10m4 7V7m4 10v-4"/></svg>',
+  informes: '<svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h16"/><path d="M8 17V10m4 7V7m4 10v-4"/></svg>',
   traza: '<svg viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>',
   salvas: '<svg viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h9l5 5v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 5v5h5M8 17h8"/></svg>',
   negocio: '<svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V8l7-4 7 4v13"/><path d="M9 21v-6h6v6"/></svg>',
@@ -268,12 +285,11 @@ const NAV = [
   { id: 'inventario', label: 'Inventario', view: 'inventario', icon: 'inventario' },
   { id: 'facturas', label: 'Facturas', view: 'facturas', icon: 'facturas' },
   { id: 'nomina', label: 'Nómina', view: 'nomina', icon: 'nomina' },
-  { id: 'cuentas', label: 'Cuentas', view: 'cuentas', icon: 'cuentas' },
-  { id: 'cuentas_t', label: 'Cuenta T', view: 'cuentas_t', icon: 'cuentas_t' },
+  { id: 'cuentas', label: 'Nomenclador de cuentas', view: 'cuentas', icon: 'cuentas' },
   { id: 'monedas', label: 'Monedas', view: 'monedas', icon: 'monedas' },
-  { id: 'reportes', label: 'Estados', view: 'reportes', icon: 'reportes' },
+  { id: 'informes', label: 'Informes', view: 'reportes', icon: 'informes' },
   { id: 'traza', label: 'Traza', view: 'traza', icon: 'traza' },
-  { id: 'salvas', label: 'Salvas CID', view: 'salvas', icon: 'salvas' },
+  { id: 'salvas', label: 'Salvas', view: 'salvas', icon: 'salvas' },
   { id: 'negocio', label: 'Negocio', view: 'tenant', icon: 'negocio' },
   { id: 'tema', label: 'Apariencia', view: 'master', icon: 'tema' },
   { id: 'master', label: 'Master', view: 'master', icon: 'master' },
@@ -282,10 +298,18 @@ const NAV = [
 const state = {
   token: localStorage.getItem('ap_token') || '',
   user: null, tenant: null, views: [], tab: 'inicio',
+  informeSub: 'situacion',
   queue: JSON.parse(localStorage.getItem('ap_queue') || '[]'),
   cache: JSON.parse(localStorage.getItem('ap_cache') || '{}'),
-  theme: {},
+  themeMode: localStorage.getItem('ap_theme') || 'light',
 };
+
+function applyThemeMode(mode) {
+  state.themeMode = mode || 'light';
+  document.documentElement.setAttribute('data-theme', state.themeMode);
+  localStorage.setItem('ap_theme', state.themeMode);
+}
+applyThemeMode(state.themeMode);
 
 function money(n, cur) {
   const c = cur || (state.tenant && state.tenant.currency) || 'CUP';
@@ -296,10 +320,11 @@ function toast(msg) {
   el.textContent = msg; el.classList.remove('hidden');
   setTimeout(() => el.classList.add('hidden'), 2800);
 }
-function setRed(ok) {
+function setRed(ok, text) {
   const b = document.getElementById('estadoRed');
+  if (text) { b.textContent = text; b.className = 'badge syncing'; return; }
   b.textContent = ok ? 'En línea' : 'Sin conexión';
-  b.className = 'badge' + (ok ? '' : ' off');
+  b.className = 'badge' + (ok ? ' ok' : ' off');
 }
 function saveLocal() {
   localStorage.setItem('ap_token', state.token || '');
@@ -307,33 +332,47 @@ function saveLocal() {
   localStorage.setItem('ap_cache', JSON.stringify(state.cache));
 }
 async function api(path, opts={}) {
-  const headers = Object.assign({'Content-Type':'application/json'}, opts.headers||{});
+  const headers = Object.assign({}, opts.headers || {});
+  if (!(opts.body instanceof FormData)) headers['Content-Type'] = headers['Content-Type'] || 'application/json';
   if (state.token) headers.Authorization = 'Bearer ' + state.token;
   try {
     const res = await fetch(API + path, {...opts, headers});
     setRed(true);
-    if (path.includes('/invoices/pdf')) return res;
+    if (path.includes('/pdf') || path.includes('/export')) return res;
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || res.statusText);
     return data;
   } catch (e) { setRed(false); throw e; }
 }
-function applyTheme(settings) {
-  if (!settings) return;
-  state.theme = settings;
-  if (settings.primary) document.documentElement.style.setProperty('--primary', settings.primary);
-  if (settings.primary_dark) document.documentElement.style.setProperty('--primary-dark', settings.primary_dark);
-  if (settings.bg) {
-    document.documentElement.style.setProperty('--bg-primary', settings.bg);
-    document.body.style.background = settings.bg;
-  }
-  if (settings.text) document.documentElement.style.setProperty('--text-primary', settings.text);
-  if (settings.card) document.documentElement.style.setProperty('--bg-card', settings.card);
-  if (settings.app_title) {
-    document.getElementById('sideTitle').textContent = settings.app_title;
-    document.title = settings.app_title;
+async function notifySync(status, detail) {
+  try {
+    await api('/sync/notify', { method: 'POST', body: JSON.stringify({ status, detail }) });
+  } catch (_) {}
+}
+async function autoSync() {
+  if (!state.token || !state.queue.length) return;
+  if (!navigator.onLine) return;
+  setRed(true, 'Sincronizando…');
+  await notifySync('started', 'Sincronización automática iniciada · '+state.queue.length+' operaciones en cola · '+new Date().toISOString());
+  try {
+    await api('/sync/push', { method: 'POST', body: JSON.stringify({
+      entries: state.queue.filter(x => x.kind === 'entry').map(x => x.payload),
+      invoices: state.queue.filter(x => x.kind === 'invoice').map(x => x.payload),
+      inventory: state.queue.filter(x => x.kind === 'inventory').map(x => x.payload),
+      client_rev: state.cache.rev || 0,
+    })});
+    const n = state.queue.length;
+    state.queue = []; saveLocal();
+    await notifySync('ok', 'Sincronización automática completada · '+n+' operaciones enviadas · '+new Date().toISOString());
+    setRed(true); toast('Sincronización completada');
+  } catch (e) {
+    await notifySync('error', 'Error en sincronización automática: '+(e.message||'desconocido')+' · '+new Date().toISOString());
+    setRed(false); toast('Sync pendiente');
   }
 }
+window.addEventListener('online', () => { setRed(true); autoSync(); });
+window.addEventListener('offline', () => setRed(false));
+setInterval(() => { if (navigator.onLine && state.queue.length) autoSync(); }, 45000);
 
 document.getElementById('formAcceso').onsubmit = async (ev) => {
   ev.preventDefault();
@@ -345,30 +384,17 @@ document.getElementById('formAcceso').onsubmit = async (ev) => {
         password: document.getElementById('campoClave').value,
       }),
     });
-    state.token = data.token;
-    state.user = data.user;
-    state.views = data.views || [];
-    document.getElementById('campoClave').value = '';
-    saveLocal();
-    await boot();
+    state.token = data.token; state.user = data.user; state.views = data.views || [];
+    document.getElementById('campoClave').value = ''; saveLocal(); await boot();
   } catch (e) { toast(e.message || 'No se pudo iniciar sesión'); }
 };
-
 document.getElementById('btnSalir').onclick = async () => {
-  try { await api('/auth/logout', {method:'POST'}); } catch(_){}
+  try { await api('/auth/logout', { method: 'POST' }); } catch (_) {}
   state.token = ''; saveLocal(); location.reload();
 };
-document.getElementById('btnSync').onclick = async () => {
-  if (!state.queue.length) { toast('Nada pendiente'); return; }
-  try {
-    await api('/sync/push', { method:'POST', body: JSON.stringify({
-      entries: state.queue.filter(x=>x.kind==='entry').map(x=>x.payload),
-      invoices: state.queue.filter(x=>x.kind==='invoice').map(x=>x.payload),
-      inventory: state.queue.filter(x=>x.kind==='inventory').map(x=>x.payload),
-      client_rev: state.cache.rev||0,
-    })});
-    state.queue = []; saveLocal(); toast('Sincronizado'); render();
-  } catch(_) { toast('Sin conexión aún'); }
+document.getElementById('btnTema').onclick = () => {
+  applyThemeMode(state.themeMode === 'light' ? 'dark' : 'light');
+  toast(state.themeMode === 'light' ? 'Tema claro' : 'Tema oscuro');
 };
 document.getElementById('btnMenu').onclick = () => {
   document.getElementById('sidebar').classList.toggle('open');
@@ -384,7 +410,6 @@ function can(view) {
   if (view === 'reportes') return state.views.includes('reportes') || state.views.includes('cuentas');
   return state.views.includes(view);
 }
-
 function renderNav() {
   const nav = document.getElementById('sideNav');
   nav.innerHTML = '';
@@ -406,19 +431,14 @@ function renderNav() {
     nav.appendChild(b);
   });
 }
-
 async function loadMe() {
   const me = await api('/auth/me');
-  state.user = me.user;
-  state.tenant = me.tenant;
-  state.views = me.views || state.views;
-  state.cache.rev = me.rev;
-  state.cache.root_cid = me.root_cid;
+  state.user = me.user; state.tenant = me.tenant; state.views = me.views || state.views;
+  state.cache.rev = me.rev; state.cache.root_cid = me.root_cid;
   document.getElementById('sideTitle').textContent = (me.tenant.settings && me.tenant.settings.app_title) || me.tenant.name || 'ÁbacoPhy';
   document.getElementById('sideSub').textContent = me.tenant.name || 'Negocio';
-  const rol = {master:'Master',admin:'Administrador',contador:'Contador',operador:'Operador',readonly:'Solo lectura'}[me.user.role] || me.user.role;
+  const rol = { master: 'Master', admin: 'Administrador', contador: 'Contador', operador: 'Operador', readonly: 'Solo lectura' }[me.user.role] || me.user.role;
   document.getElementById('sideUser').textContent = (me.user.display_name || me.user.username) + ' · ' + rol;
-  if (me.tenant.settings) applyTheme(me.tenant.settings);
   saveLocal();
 }
 
@@ -428,46 +448,46 @@ async function render() {
   const base = (state.tenant && state.tenant.currency) || 'CUP';
   try {
     if (state.tab === 'inicio') {
-      const rep = await api('/reports/summary').catch(()=>null);
+      const rep = await api('/reports/summary').catch(() => null);
       const eq = (rep && rep.ecuacion) || {};
       main.innerHTML = `
         <div class="stats-grid">
-          <div class="stat-card"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 21h14"/></svg><small>Ingresos</small><h3 class="money">${money(rep&&rep.income_total, base)}</h3></div>
-          <div class="stat-card"><svg viewBox="0 0 24 24"><path d="M12 21V9m0 0 4 4m-4-4-4 4"/><path d="M5 3h14"/></svg><small>Gastos</small><h3 class="money">${money(rep&&rep.expense_total, base)}</h3></div>
-          <div class="stat-card"><svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h16"/><path d="M8 17V10m4 7V7m4 10v-4"/></svg><small>Resultado</small><h3 class="money">${money(rep&&rep.net, base)}</h3></div>
+          <div class="stat-card"><small>Ingresos</small><h3 class="money">${money(rep && rep.income_total, base)}</h3></div>
+          <div class="stat-card"><small>Gastos</small><h3 class="money">${money(rep && rep.expense_total, base)}</h3></div>
+          <div class="stat-card"><small>Resultado</small><h3 class="money">${money(rep && rep.net, base)}</h3></div>
         </div>
         <div class="card">
           <div class="section-label">Ecuación ampliada</div>
-          <p class="eq">Activo ${money(eq.activo,base)} = Pasivo ${money(eq.pasivo,base)} + Patrimonio ${money(eq.patrimonio,base)} + (${money(eq.ingresos,base)} − ${money(eq.gastos,base)})</p>
-          <p class="muted" style="margin-top:10px">Rev ${state.cache.rev||0} · CID ${(state.cache.root_cid||'—').slice(0,24)}… · Cola offline ${state.queue.length}</p>
+          <p class="eq">Activo ${money(eq.activo, base)} = Pasivo ${money(eq.pasivo, base)} + Patrimonio ${money(eq.patrimonio, base)} + (${money(eq.ingresos, base)} − ${money(eq.gastos, base)})</p>
+          <p class="muted" style="margin-top:10px">Rev ${state.cache.rev || 0} · Cola offline ${state.queue.length}</p>
         </div>`;
     } else if (state.tab === 'ingresos' || state.tab === 'gastos') {
       const type = state.tab === 'ingresos' ? 'income' : 'expense';
       const acc = await api('/accounts');
-      const cuentas = (acc.accounts||[]).filter(a => type==='income' ? a.type==='income' : a.type==='expense');
+      const cuentas = (acc.accounts || []).filter(a => type === 'income' ? a.type === 'income' : a.type === 'expense');
       main.innerHTML = `<div class="card">
-        <div class="section-label">${type==='income'?'Ingreso':'Gasto'}</div>
+        <div class="section-label">${type === 'income' ? 'Ingreso' : 'Gasto'}</div>
         <label>Importe</label><input id="importe" type="number" step="0.01" />
         <label>Moneda</label><select id="mon"><option>CUP</option><option>USD</option><option>EUR</option><option>MLC</option></select>
-        <label>Cuenta</label><select id="cuenta">${cuentas.map(a=>`<option value="${a.id}">${a.code} — ${a.name}</option>`).join('')}</select>
+        <label>Cuenta</label><select id="cuenta">${cuentas.map(a => `<option value="${a.id}">${a.code} — ${a.name}</option>`).join('')}</select>
         <label>Descripción</label><input id="desc" />
         <button class="btn btn-primary" id="saveE">Guardar</button>
       </div>`;
       document.getElementById('saveE').onclick = async () => {
-        const payload = { type, amount: parseFloat(document.getElementById('importe').value||0), account_id: document.getElementById('cuenta').value, description: document.getElementById('desc').value.trim(), currency: document.getElementById('mon').value };
-        try { await api('/entries',{method:'POST',body:JSON.stringify(payload)}); toast('Asiento registrado'); state.tab='inicio'; renderNav(); render(); }
-        catch(_){ state.queue.push({kind:'entry',payload}); saveLocal(); toast('Guardado offline'); }
+        const payload = { type, amount: parseFloat(document.getElementById('importe').value || 0), account_id: document.getElementById('cuenta').value, description: document.getElementById('desc').value.trim(), currency: document.getElementById('mon').value };
+        try { await api('/entries', { method: 'POST', body: JSON.stringify(payload) }); toast('Asiento registrado'); state.tab = 'inicio'; renderNav(); render(); }
+        catch (_) { state.queue.push({ kind: 'entry', payload }); saveLocal(); toast('Guardado offline · se sincronizará al tener red'); }
       };
     } else if (state.tab === 'inventario') {
       const data = await api('/inventory');
-      const rows = (data.items||[]).map(i => `<tr>
-        <td>${i.name}</td><td>${i.qty} ${i.unit||'ud'}</td>
-        <td class="money">${money(i.cost, i.currency||base)}</td>
-        <td class="money">${money(i.amount, i.currency||base)}</td>
-        <td class="money">${money(i.amount_base, base)}</td>
+      const rows = (data.items || []).map(i => `<tr>
+        <td>${i.name}</td><td>${i.qty} ${i.unit || 'ud'}</td>
+        <td class="money">${money(i.cost, i.currency || base)}</td>
+        <td class="money">${money(i.amount, i.currency || base)}</td>
         <td><button class="btn btn-secondary btn-sm" data-out="${i.id}">Rebaja</button></td></tr>`).join('');
       main.innerHTML = `<div class="card">
         <div class="section-label">Entrada al almacén</div>
+        <p class="muted" style="margin-bottom:.75rem">Si el producto ya existe (mismo nombre, unidad y moneda), se aplica <strong>promedio ponderado</strong> del costo.</p>
         <label>Nombre del producto</label><input id="iname" />
         <div class="grid-2">
           <div><label>Unidad</label><select id="iunit"><option value="ud">Unidad</option><option value="kg">Kg</option><option value="l">Litro</option><option value="caja">Caja</option></select></div>
@@ -475,31 +495,25 @@ async function render() {
         </div>
         <div class="grid-2">
           <div><label>Costo unitario</label><input id="icost" type="number" step="0.01" /></div>
-          <div><label>Precio venta</label><input id="iprice" type="number" step="0.01" /></div>
-        </div>
-        <div class="grid-2">
           <div><label>Moneda</label><select id="icur"><option>CUP</option><option>USD</option><option>EUR</option><option>MLC</option></select></div>
-          <div><label>Importe</label><input id="iamount" readonly /></div>
         </div>
         <button class="btn btn-primary" id="addInv">Registrar entrada</button>
       </div>
-      <div class="card"><table><thead><tr><th>Producto</th><th>Cant.</th><th>Costo</th><th>Importe</th><th>En base (${base})</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="6" class="muted">Vacío</td></tr>'}</tbody></table></div>`;
-      const sync = ()=>{ const q=+document.getElementById('iqty').value||0,c=+document.getElementById('icost').value||0; document.getElementById('iamount').value=(q*c).toFixed(2)+' '+(document.getElementById('icur').value); };
-      ['iqty','icost','icur'].forEach(id => document.getElementById(id).oninput = sync);
+      <div class="card"><table><thead><tr><th>Producto</th><th>Cant.</th><th>Costo</th><th>Importe</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="muted">Vacío</td></tr>'}</tbody></table></div>`;
       document.getElementById('addInv').onclick = async () => {
-        const qty=+document.getElementById('iqty').value||0, cost=+document.getElementById('icost').value||0;
-        const payload = { name: document.getElementById('iname').value.trim(), qty, cost, price:+document.getElementById('iprice').value||0, unit: document.getElementById('iunit').value, currency: document.getElementById('icur').value, amount: qty*cost };
-        try { await api('/inventory',{method:'POST',body:JSON.stringify(payload)}); toast('Entrada registrada'); render(); }
-        catch(_){ state.queue.push({kind:'inventory',payload}); saveLocal(); toast('Offline'); }
+        const qty = +document.getElementById('iqty').value || 0, cost = +document.getElementById('icost').value || 0;
+        const payload = { name: document.getElementById('iname').value.trim(), qty, cost, unit: document.getElementById('iunit').value, currency: document.getElementById('icur').value, amount: qty * cost };
+        try { const r = await api('/inventory', { method: 'POST', body: JSON.stringify(payload) }); toast(r.weighted_avg ? 'Entrada con promedio ponderado' : 'Entrada registrada'); render(); }
+        catch (_) { state.queue.push({ kind: 'inventory', payload }); saveLocal(); toast('Offline'); }
       };
       main.querySelectorAll('[data-out]').forEach(btn => btn.onclick = async () => {
-        const qty = prompt('Cantidad a rebajar', '1'); if (qty==null) return;
-        try { await api('/inventory/out',{method:'POST',body:JSON.stringify({id:btn.dataset.out, qty:+qty})}); toast('Rebaja aplicada a cuentas'); render(); }
-        catch(e){ toast(e.message); }
+        const qty = prompt('Cantidad a rebajar', '1'); if (qty == null) return;
+        try { await api('/inventory/out', { method: 'POST', body: JSON.stringify({ id: btn.dataset.out, qty: +qty }) }); toast('Rebaja aplicada'); render(); }
+        catch (e) { toast(e.message); }
       });
     } else if (state.tab === 'facturas') {
       const data = await api('/invoices');
-      const rows = (data.invoices||[]).map(f => `<tr><td>${f.number}</td><td>${f.client_name}</td><td class="money">${money(f.total,f.currency||base)}</td><td>${f.status}</td>
+      const rows = (data.invoices || []).map(f => `<tr><td>${f.number}</td><td>${f.client_name}</td><td class="money">${money(f.total, f.currency || base)}</td><td>${f.status}</td>
         <td><button class="btn btn-secondary btn-sm" data-pdf="${f.id}">PDF</button></td></tr>`).join('');
       main.innerHTML = `<div class="card">
         <label>Cliente</label><input id="fclient" />
@@ -511,190 +525,319 @@ async function render() {
       </div>
       <div class="card"><table><thead><tr><th>Nº</th><th>Cliente</th><th>Total</th><th>Estado</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
       document.getElementById('emit').onclick = async () => {
-        const qty=+document.getElementById('fqty').value||1, price=+document.getElementById('fprice').value||0;
-        const payload = { client_name: document.getElementById('fclient').value.trim()||'Cliente', currency: document.getElementById('fcur').value, lines:[{description:document.getElementById('fdesc').value.trim(), qty, unit_price:price}], status:'issued', issued_at: new Date().toISOString().slice(0,10) };
-        try { await api('/invoices',{method:'POST',body:JSON.stringify(payload)}); toast('Factura emitida'); render(); }
-        catch(_){ state.queue.push({kind:'invoice',payload}); saveLocal(); toast('Offline'); }
+        const qty = +document.getElementById('fqty').value || 1, price = +document.getElementById('fprice').value || 0;
+        const payload = { client_name: document.getElementById('fclient').value.trim() || 'Cliente', currency: document.getElementById('fcur').value, lines: [{ description: document.getElementById('fdesc').value.trim(), qty, unit_price: price }], status: 'issued', issued_at: new Date().toISOString().slice(0, 10) };
+        try { await api('/invoices', { method: 'POST', body: JSON.stringify(payload) }); toast('Factura emitida'); render(); }
+        catch (_) { state.queue.push({ kind: 'invoice', payload }); saveLocal(); toast('Offline'); }
       };
       main.querySelectorAll('[data-pdf]').forEach(btn => btn.onclick = async () => {
-        const res = await api('/invoices/pdf?id='+encodeURIComponent(btn.dataset.pdf));
+        const res = await api('/invoices/pdf?id=' + encodeURIComponent(btn.dataset.pdf));
         if (!res.ok) { toast('No se pudo generar PDF'); return; }
         const blob = await res.blob(); const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href=url; a.download='factura.pdf'; a.click(); URL.revokeObjectURL(url);
+        const a = document.createElement('a'); a.href = url; a.download = 'factura.pdf'; a.click(); URL.revokeObjectURL(url);
       });
     } else if (state.tab === 'nomina') {
       const data = await api('/payroll/employees');
-      const rows = (data.employees||[]).map(e => `<tr><td>${e.name}</td><td>${e.role||'—'}</td><td class="money">${money(e.salary,e.currency||base)}</td></tr>`).join('');
+      const pays = await api('/payroll/payslips').catch(() => ({ payslips: [] }));
+      const rows = (data.employees || []).filter(e => e.active !== false).map(e => `<tr>
+        <td>${e.name}</td><td>${e.role || '—'}</td>
+        <td class="money">${money(e.salary, e.currency || base)}</td>
+        <td>${((e.vac_rate || 0.09) * 100).toFixed(1)} %</td>
+        <td>${e.license_type || '—'}</td>
+        <td>
+          <button class="btn btn-secondary btn-sm" data-edit="${e.id}">Editar</button>
+          <button class="btn btn-secondary btn-sm" data-liq="${e.id}">Liquidar</button>
+          <button class="btn btn-secondary btn-sm" data-del="${e.id}">Baja</button>
+        </td></tr>`).join('');
       main.innerHTML = `<div class="card">
-        <label>Nombre</label><input id="ename" /><label>Cargo</label><input id="erole" />
-        <label>Salario</label><input id="esal" type="number" step="0.01" />
-        <label>Moneda</label><select id="ecur"><option>CUP</option><option>USD</option></select>
-        <button class="btn btn-primary" id="addEmp">Alta</button>
+        <div class="section-label">Alta de trabajador</div>
+        <p class="muted" style="margin-bottom:.6rem">Vacaciones: provisión 9 % por defecto · SS entidad 12,5 % · SS trabajador 5 % (ajustable).</p>
+        <label>Nombre</label><input id="ename" />
+        <div class="grid-2"><div><label>CI</label><input id="eci" /></div><div><label>Cargo</label><input id="erole" /></div></div>
+        <div class="grid-2"><div><label>Departamento</label><input id="edept" /></div><div><label>Fecha ingreso</label><input id="ehire" type="date" /></div></div>
+        <div class="grid-2"><div><label>Salario</label><input id="esal" type="number" step="0.01" /></div>
+        <div><label>Moneda</label><select id="ecur"><option>CUP</option><option>USD</option></select></div></div>
+        <div class="grid-2"><div><label>Tasa vacaciones (ej. 0.09)</label><input id="evac" type="number" step="0.001" value="0.09" /></div>
+        <div><label>Días vacaciones acumulados</label><input id="evacb" type="number" step="0.5" value="0" /></div></div>
+        <div class="grid-2"><div><label>Certificado médico</label><input id="ecert" placeholder="Descripción" /></div>
+        <div><label>Válido hasta</label><input id="ecertu" type="date" /></div></div>
+        <div class="grid-2"><div><label>Tipo de licencia</label>
+          <select id="elic"><option value="">Ninguna</option><option>maternidad</option><option>enfermedad</option><option>no remunerada</option><option>otra</option></select></div>
+        <div><label>Licencia hasta</label><input id="elict" type="date" /></div></div>
+        <button class="btn btn-primary" id="addEmp">Registrar trabajador</button>
       </div>
-      <div class="card"><table><thead><tr><th>Nombre</th><th>Cargo</th><th>Salario</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      <div class="card"><div class="section-label">Trabajadores</div>
+        <table><thead><tr><th>Nombre</th><th>Cargo</th><th>Salario</th><th>Vac. %</th><th>Licencia</th><th></th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="6" class="muted">Sin trabajadores</td></tr>'}</tbody></table>
+      </div>
+      <div class="card"><div class="section-label">Liquidaciones recientes</div>
+        <table><thead><tr><th>Periodo</th><th>Trabajador</th><th>Bruto</th><th>Vac.</th><th>SS trab.</th><th>Neto</th></tr></thead>
+        <tbody>${(pays.payslips || []).slice().reverse().slice(0, 15).map(p =>
+          `<tr><td>${p.period}</td><td>${p.employee_name || p.employee_id}</td><td class="money">${money(p.gross, p.currency || base)}</td>
+          <td class="money">${money(p.vacation_prov, p.currency || base)}</td>
+          <td class="money">${money(p.ss_worker, p.currency || base)}</td>
+          <td class="money">${money(p.net, p.currency || base)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">—</td></tr>'}</tbody></table>
+      </div>`;
       document.getElementById('addEmp').onclick = async () => {
-        await api('/payroll/employees',{method:'POST',body:JSON.stringify({name:document.getElementById('ename').value.trim(), role:document.getElementById('erole').value.trim(), salary:+document.getElementById('esal').value||0, currency:document.getElementById('ecur').value})});
-        toast('Empleado registrado'); render();
+        await api('/payroll/employees', { method: 'POST', body: JSON.stringify({
+          name: document.getElementById('ename').value.trim(),
+          ci: document.getElementById('eci').value.trim(),
+          role: document.getElementById('erole').value.trim(),
+          department: document.getElementById('edept').value.trim(),
+          hire_date: document.getElementById('ehire').value,
+          salary: +document.getElementById('esal').value || 0,
+          currency: document.getElementById('ecur').value,
+          vac_rate: +document.getElementById('evac').value || 0.09,
+          vacation_balance: +document.getElementById('evacb').value || 0,
+          certificate: document.getElementById('ecert').value.trim(),
+          certificate_until: document.getElementById('ecertu').value,
+          license_type: document.getElementById('elic').value,
+          license_to: document.getElementById('elict').value,
+        })});
+        toast('Trabajador registrado'); render();
       };
+      main.querySelectorAll('[data-liq]').forEach(b => b.onclick = async () => {
+        const period = prompt('Periodo (AAAA-MM)', new Date().toISOString().slice(0, 7));
+        if (!period) return;
+        await api('/payroll/payslips', { method: 'POST', body: JSON.stringify({ employee_id: b.dataset.liq, period }) });
+        toast('Liquidación calculada'); render();
+      });
+      main.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+        if (!confirm('¿Dar de baja?')) return;
+        await api('/payroll/employees?id=' + encodeURIComponent(b.dataset.del), { method: 'DELETE' });
+        toast('Baja registrada'); render();
+      });
+      main.querySelectorAll('[data-edit]').forEach(b => b.onclick = async () => {
+        const emp = (data.employees || []).find(x => x.id === b.dataset.edit);
+        if (!emp) return;
+        const salary = prompt('Salario', emp.salary); if (salary == null) return;
+        const role = prompt('Cargo', emp.role || ''); if (role == null) return;
+        await api('/payroll/employees', { method: 'PUT', body: JSON.stringify({ ...emp, salary: +salary, role, active: true }) });
+        toast('Actualizado'); render();
+      });
     } else if (state.tab === 'cuentas') {
       const data = await api('/accounts');
-      const tipoES = {asset:'Activo',liability:'Pasivo',equity:'Patrimonio',income:'Ingreso',expense:'Gasto'};
-      const rows = (data.accounts||[]).map(a => `<tr><td>${a.code}</td><td>${a.name}</td><td>${tipoES[a.type]||a.type}</td><td class="money">${money(a.balance, base)}</td>
-        <td><button class="btn btn-secondary btn-sm" data-edit="${a.id}" data-code="${a.code}" data-name="${a.name}" data-type="${a.type}">Editar</button>
-        <button class="btn btn-secondary btn-sm" data-del="${a.id}">Eliminar</button></td></tr>`).join('');
+      const tipoES = { asset: 'Activo', liability: 'Pasivo', equity: 'Patrimonio', income: 'Ingreso', expense: 'Gasto' };
+      const rows = (data.accounts || []).filter(a => a.active !== false).map(a => `<tr>
+        <td>${a.code}</td><td>${a.name}</td><td>${tipoES[a.type] || a.type}</td>
+        <td>${a.nature || '—'}</td><td>${a.group || '—'}</td>
+        <td class="money">${money(a.balance, base)}</td>
+        <td><button class="btn btn-secondary btn-sm" data-edit="${a.id}">Editar</button>
+        <button class="btn btn-secondary btn-sm" data-del="${a.id}">Baja</button></td></tr>`).join('');
       main.innerHTML = `<div class="card">
-        <div class="section-label">Nueva cuenta</div>
+        <div class="section-label">Nomenclador de cuentas</div>
+        <p class="muted" style="margin-bottom:.6rem">Catálogo orientado a normativas de Finanzas y Precios (Cuba). Puede ampliarse y editarse por completo.</p>
         <div class="grid-2"><div><label>Código</label><input id="acode" /></div><div><label>Nombre</label><input id="aname" /></div></div>
-        <label>Tipo</label><select id="atype"><option value="asset">Activo</option><option value="liability">Pasivo</option><option value="equity">Patrimonio</option><option value="income">Ingreso</option><option value="expense">Gasto</option></select>
-        <button class="btn btn-primary" id="addAcc">Agregar</button>
+        <div class="grid-2">
+          <div><label>Tipo</label><select id="atype"><option value="asset">Activo</option><option value="liability">Pasivo</option><option value="equity">Patrimonio</option><option value="income">Ingreso</option><option value="expense">Gasto</option></select></div>
+          <div><label>Naturaleza</label><select id="anature"><option value="deudora">Deudora</option><option value="acreedora">Acreedora</option></select></div>
+        </div>
+        <label>Grupo</label><input id="agroup" placeholder="Activo circulante" />
+        <label>Notas</label><input id="anotes" />
+        <button class="btn btn-primary" id="addAcc">Agregar cuenta</button>
       </div>
-      <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th>Saldo</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th>Naturaleza</th><th>Grupo</th><th>Saldo</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
       document.getElementById('addAcc').onclick = async () => {
-        await api('/accounts',{method:'POST',body:JSON.stringify({code:document.getElementById('acode').value.trim(), name:document.getElementById('aname').value.trim(), type:document.getElementById('atype').value})});
+        await api('/accounts', { method: 'POST', body: JSON.stringify({
+          code: document.getElementById('acode').value.trim(), name: document.getElementById('aname').value.trim(),
+          type: document.getElementById('atype').value, nature: document.getElementById('anature').value,
+          group: document.getElementById('agroup').value.trim(), notes: document.getElementById('anotes').value.trim(),
+        })});
         toast('Cuenta creada'); render();
       };
-      main.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if(!confirm('¿Eliminar?'))return; await api('/accounts?id='+encodeURIComponent(b.dataset.del),{method:'DELETE'}); toast('Eliminada'); render(); });
-      main.querySelectorAll('[data-edit]').forEach(b => b.onclick = async () => {
-        const name = prompt('Nombre', b.dataset.name); if(name==null)return;
-        const code = prompt('Código', b.dataset.code); if(code==null)return;
-        await api('/accounts',{method:'PUT',body:JSON.stringify({id:b.dataset.edit, name, code, type:b.dataset.type})});
-        toast('Actualizada'); render();
+      main.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+        if (!confirm('¿Dar de baja la cuenta?')) return;
+        await api('/accounts?id=' + encodeURIComponent(b.dataset.del), { method: 'DELETE' }); toast('Baja'); render();
       });
-    } else if (state.tab === 'cuentas_t') {
-      const data = await api('/accounts');
-      const opts = (data.accounts||[]).map(a=>`<option value="${a.id}">${a.code} — ${a.name}</option>`).join('');
-      main.innerHTML = `<div class="card"><div class="section-label">Cuenta T</div>
-        <label>Cuenta</label><select id="tid">${opts}</select>
-        <button class="btn btn-primary" id="verT">Ver debe / haber</button><div id="tout" style="margin-top:1rem"></div></div>`;
-      document.getElementById('verT').onclick = async () => {
-        const tacc = await api('/accounts/t?id='+encodeURIComponent(document.getElementById('tid').value));
-        const row = (e)=>`<tr><td>${e.date||''}</td><td>${e.description||''}</td><td class="money">${money(e.amount, e.currency||base)}</td><td>${(e.created_by||'').slice(0,8)}</td></tr>`;
-        document.getElementById('tout').innerHTML = `<p class="muted">${tacc.titulo||''} · Saldo <span class="money">${money(tacc.saldo, base)}</span></p>
-          <div class="grid-2">
-            <div class="card"><div class="section-label">Debe</div><table><thead><tr><th>Fecha</th><th>Detalle</th><th>Importe</th><th>User</th></tr></thead><tbody>${(tacc.debe||[]).map(row).join('')||'<tr><td colspan=4 class=muted>—</td></tr>'}</tbody></table></div>
-            <div class="card"><div class="section-label">Haber</div><table><thead><tr><th>Fecha</th><th>Detalle</th><th>Importe</th><th>User</th></tr></thead><tbody>${(tacc.haber||[]).map(row).join('')||'<tr><td colspan=4 class=muted>—</td></tr>'}</tbody></table></div>
-          </div>`;
-      };
+      main.querySelectorAll('[data-edit]').forEach(b => b.onclick = async () => {
+        const a = (data.accounts || []).find(x => x.id === b.dataset.edit); if (!a) return;
+        const name = prompt('Nombre', a.name); if (name == null) return;
+        const code = prompt('Código', a.code); if (code == null) return;
+        const nature = prompt('Naturaleza (deudora/acreedora)', a.nature || 'deudora'); if (nature == null) return;
+        const group = prompt('Grupo', a.group || ''); if (group == null) return;
+        const notes = prompt('Notas', a.notes || ''); if (notes == null) return;
+        await api('/accounts', { method: 'PUT', body: JSON.stringify({ id: a.id, name, code, type: a.type, nature, group, notes, active: true }) });
+        toast('Cuenta actualizada'); render();
+      });
     } else if (state.tab === 'monedas') {
       const data = await api('/currencies');
-      const rows = (data.currencies||[]).map(c=>`<tr><td>${c.code}</td><td>${c.name}</td><td>${c.rate}</td></tr>`).join('');
+      const rows = (data.currencies || []).map(c => `<tr><td>${c.code}</td><td>${c.name}</td><td>${c.rate}</td></tr>`).join('');
       main.innerHTML = `<div class="card"><div class="section-label">Nomenclador de monedas</div>
-        <p class="muted">Base del negocio: <strong>${data.base||base}</strong>. El rate es cuántas unidades de la base equivalen a 1 de esta moneda.</p>
+        <p class="muted">Base del negocio: <strong>${data.base || base}</strong></p>
         <div class="grid-2"><div><label>Código</label><input id="mcode" /></div><div><label>Nombre</label><input id="mname" /></div></div>
         <label>Tipo de cambio</label><input id="mrate" type="number" step="0.0001" value="1" />
         <button class="btn btn-primary" id="saveM">Guardar</button>
       </div>
       <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>Cambio</th></tr></thead><tbody>${rows}</tbody></table></div>`;
       document.getElementById('saveM').onclick = async () => {
-        await api('/currencies',{method:'POST',body:JSON.stringify({code:document.getElementById('mcode').value.trim().toUpperCase(), name:document.getElementById('mname').value.trim(), rate:+document.getElementById('mrate').value||1})});
+        await api('/currencies', { method: 'POST', body: JSON.stringify({ code: document.getElementById('mcode').value.trim().toUpperCase(), name: document.getElementById('mname').value.trim(), rate: +document.getElementById('mrate').value || 1 }) });
         toast('Moneda guardada'); render();
       };
-    } else if (state.tab === 'reportes') {
+    } else if (state.tab === 'informes') {
+      const acc = await api('/accounts');
+      const opts = (acc.accounts || []).map(a => `<option value="${a.id}">${a.code} — ${a.name}</option>`).join('');
       main.innerHTML = `<div class="card">
-        <div class="section-label">Estados financieros</div>
+        <div class="section-label">Informes</div>
+        <div class="tabs" id="infTabs">
+          <button type="button" class="tab ${state.informeSub==='situacion'?'active':''}" data-k="situacion">Estado de situación</button>
+          <button type="button" class="tab ${state.informeSub==='rendimiento'?'active':''}" data-k="rendimiento">Estado de rendimiento</button>
+          <button type="button" class="tab ${state.informeSub==='cuenta_t'?'active':''}" data-k="cuenta_t">Cuentas T</button>
+          <button type="button" class="tab ${state.informeSub==='ecuacion'?'active':''}" data-k="ecuacion">Ecuación ampliada</button>
+        </div>
         <div class="grid-2">
           <div><label>Periodo</label><select id="per"><option value="week">Semanal</option><option value="month" selected>Mensual</option><option value="quarter">Trimestral</option><option value="year">Anual</option><option value="all">Todo</option></select></div>
-          <div><label>Tipo</label><select id="kind"><option value="all">Situación + Rendimiento</option><option value="situacion">Estado de situación</option><option value="rendimiento">Estado de rendimiento</option></select></div>
+          <div id="accWrap" class="${state.informeSub==='cuenta_t'?'':'hidden'}"><label>Cuenta</label><select id="tid">${opts}</select></div>
         </div>
-        <button class="btn btn-primary" id="runRep">Generar</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:.5rem">
+          <button class="btn btn-primary" id="runRep">Consultar</button>
+          <button class="btn btn-secondary" id="pdfRep">Exportar PDF</button>
+        </div>
         <div id="repOut" style="margin-top:1rem"></div>
       </div>`;
-      document.getElementById('runRep').onclick = async () => {
-        const per = document.getElementById('per').value, kind = document.getElementById('kind').value;
-        const d = await api('/reports/financial?period='+per+'&kind='+kind);
-        const ops = (d.operaciones||[]).map(o => `<tr><td>${o.date||''}</td><td>${o.type}</td><td>${o.description||''}</td><td class="money">${money(o.amount, o.currency||d.base_currency)}</td><td>${o.username||o.user_id||'—'}</td></tr>`).join('');
-        document.getElementById('repOut').innerHTML = `
-          <div class="stats-grid">
+      document.querySelectorAll('#infTabs .tab').forEach(t => t.onclick = () => {
+        state.informeSub = t.dataset.k; render();
+      });
+      const fill = async () => {
+        if (state.informeSub === 'cuenta_t') {
+          const tacc = await api('/accounts/t?id=' + encodeURIComponent(document.getElementById('tid').value));
+          document.getElementById('repOut').innerHTML = `<p class="muted">${tacc.titulo || ''} · Saldo <span class="money">${money(tacc.saldo, base)}</span></p>
+            <div class="grid-2">
+              <div class="card"><div class="section-label">Debe</div><table><thead><tr><th>Fecha</th><th>Detalle</th><th>Importe</th></tr></thead>
+              <tbody>${(tacc.debe||[]).map(e=>`<tr><td>${e.date||''}</td><td>${e.description||''}</td><td class="money">${money(e.amount,e.currency||base)}</td></tr>`).join('')||'<tr><td colspan=3 class=muted>—</td></tr>'}</tbody></table></div>
+              <div class="card"><div class="section-label">Haber</div><table><thead><tr><th>Fecha</th><th>Detalle</th><th>Importe</th></tr></thead>
+              <tbody>${(tacc.haber||[]).map(e=>`<tr><td>${e.date||''}</td><td>${e.description||''}</td><td class="money">${money(e.amount,e.currency||base)}</td></tr>`).join('')||'<tr><td colspan=3 class=muted>—</td></tr>'}</tbody></table></div>
+            </div>`;
+          return;
+        }
+        const d = await api('/reports/financial?period=' + document.getElementById('per').value + '&kind=all');
+        if (state.informeSub === 'ecuacion') {
+          document.getElementById('repOut').innerHTML = `<p class="eq">Activo ${money(d.estado_situacion.activo, d.base_currency)} = Pasivo ${money(d.estado_situacion.pasivo, d.base_currency)} + Patrimonio ${money(d.estado_situacion.patrimonio, d.base_currency)} + (Ingresos ${money(d.estado_rendimiento.ingresos, d.base_currency)} − Gastos ${money(d.estado_rendimiento.gastos, d.base_currency)})</p>
+            <table style="margin-top:1rem"><thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle</th><th>Importe</th><th>Ejecutor</th></tr></thead>
+            <tbody>${(d.operaciones||[]).map(o=>`<tr><td>${o.date||''}</td><td>${o.type}</td><td>${o.description||''}</td><td class="money">${money(o.amount,o.currency||d.base_currency)}</td><td>${o.username||'—'}</td></tr>`).join('')}</tbody></table>`;
+        } else if (state.informeSub === 'situacion') {
+          document.getElementById('repOut').innerHTML = `<div class="stats-grid">
             <div class="stat-card"><small>Activo</small><h3 class="money">${money(d.estado_situacion.activo, d.base_currency)}</h3></div>
             <div class="stat-card"><small>Pasivo</small><h3 class="money">${money(d.estado_situacion.pasivo, d.base_currency)}</h3></div>
             <div class="stat-card"><small>Patrimonio</small><h3 class="money">${money(d.estado_situacion.patrimonio, d.base_currency)}</h3></div>
-            <div class="stat-card"><small>Ingresos periodo</small><h3 class="money">${money(d.estado_rendimiento.ingresos, d.base_currency)}</h3></div>
-            <div class="stat-card"><small>Gastos periodo</small><h3 class="money">${money(d.estado_rendimiento.gastos, d.base_currency)}</h3></div>
+          </div>`;
+        } else {
+          document.getElementById('repOut').innerHTML = `<div class="stats-grid">
+            <div class="stat-card"><small>Ingresos</small><h3 class="money">${money(d.estado_rendimiento.ingresos, d.base_currency)}</h3></div>
+            <div class="stat-card"><small>Gastos</small><h3 class="money">${money(d.estado_rendimiento.gastos, d.base_currency)}</h3></div>
             <div class="stat-card"><small>Resultado</small><h3 class="money">${money(d.estado_rendimiento.resultado, d.base_currency)}</h3></div>
           </div>
-          <div class="card"><div class="section-label">Desglose de operaciones</div>
-          <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle</th><th>Importe</th><th>Ejecutor</th></tr></thead><tbody>${ops||'<tr><td colspan=5 class=muted>Sin movimientos en el periodo</td></tr>'}</tbody></table></div>`;
+          <table style="margin-top:1rem"><thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle</th><th>Importe</th><th>Ejecutor</th></tr></thead>
+          <tbody>${(d.operaciones||[]).map(o=>`<tr><td>${o.date||''}</td><td>${o.type}</td><td>${o.description||''}</td><td class="money">${money(o.amount,o.currency||d.base_currency)}</td><td>${o.username||'—'}</td></tr>`).join('')}</tbody></table>`;
+        }
       };
+      document.getElementById('runRep').onclick = fill;
+      document.getElementById('pdfRep').onclick = async () => {
+        const q = '/reports/pdf?kind=' + encodeURIComponent(state.informeSub) + '&period=' + encodeURIComponent(document.getElementById('per').value)
+          + (state.informeSub === 'cuenta_t' ? '&account_id=' + encodeURIComponent(document.getElementById('tid').value) : '');
+        const res = await api(q);
+        if (!res.ok) { toast('No se pudo generar el PDF'); return; }
+        const blob = await res.blob(); const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'informe-' + state.informeSub + '.pdf'; a.click(); URL.revokeObjectURL(url);
+      };
+      fill().catch(() => {});
     } else if (state.tab === 'traza') {
       const data = await api('/audit');
-      const rows = (data.audit||[]).slice(0,150).map(a => `<tr><td>${(a.created_at||'').toString().slice(0,19)}</td><td>${a.username||a.user_id||''}</td><td>${a.action}</td><td>${a.detail||''}</td><td style="font-size:.7rem">${(a.cid||'').slice(0,14)}</td></tr>`).join('');
+      const rows = (data.audit || []).slice(0, 200).map(a => `<tr>
+        <td>${(a.created_at || '').toString().slice(0, 19).replace('T', ' ')}</td>
+        <td>${a.username || a.user_id || ''}</td>
+        <td>${a.action}</td>
+        <td>${a.detail || ''}</td></tr>`).join('');
       main.innerHTML = `<div class="card"><div class="section-label">Traza de operaciones</div>
-        <p class="muted">CID ${(data.root_cid||'—').slice(0,28)}…</p>
-        <table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Detalle</th><th>CID</th></tr></thead><tbody>${rows||'<tr><td colspan=5 class=muted>Sin eventos</td></tr>'}</tbody></table></div>`;
+        <p class="muted">Detalle en español · fecha y hora · origen de cada acción</p>
+        <table><thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Acción</th><th>Detalle</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="4" class="muted">Sin eventos</td></tr>'}</tbody></table></div>`;
     } else if (state.tab === 'salvas') {
       const data = await api('/backups');
-      const rows = (data.backups||[]).map(b => `<tr><td>${(b.created_at||'').toString().slice(0,19)}</td><td>${b.label||'—'}</td><td style="font-size:.75rem">${(b.cid||'').slice(0,20)}…</td><td>${b.rev}</td>
+      const rows = (data.backups || []).map(b => `<tr><td>${(b.created_at || '').toString().slice(0, 19)}</td><td>${b.label || '—'}</td>
+        <td style="font-size:.75rem">${(b.cid || '').slice(0, 18)}…</td><td>${b.rev}</td>
         <td><button class="btn btn-secondary btn-sm" data-restore="${b.cid}">Restaurar</button></td></tr>`).join('');
-      main.innerHTML = `<div class="card"><div class="section-label">Salvas CID / IPFS</div>
-        <p class="muted">Actual: <strong>${(data.current_cid||'—').slice(0,28)}…</strong> · rev ${data.rev||0}</p>
+      main.innerHTML = `<div class="card"><div class="section-label">Salvas</div>
         <label>Etiqueta</label><input id="blabel" placeholder="Cierre mensual" />
-        <button class="btn btn-primary" id="saveB">Guardar salva</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary" id="saveB">Guardar salva (CID)</button>
+          <button class="btn btn-secondary" id="exportZ">Exportar ZIP a disco</button>
+        </div>
+        <div style="margin-top:1rem">
+          <label>Restaurar desde archivo local (.zip o .json)</label>
+          <input type="file" id="impFile" accept=".zip,.json,application/zip,application/json" />
+          <button class="btn btn-secondary" id="importZ">Importar y restaurar</button>
+        </div>
       </div>
-      <div class="card"><table><thead><tr><th>Fecha</th><th>Etiqueta</th><th>CID</th><th>Rev</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan=5 class=muted>Sin salvas</td></tr>'}</tbody></table></div>`;
+      <div class="card"><table><thead><tr><th>Fecha</th><th>Etiqueta</th><th>CID</th><th>Rev</th><th></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="5" class="muted">Sin salvas</td></tr>'}</tbody></table></div>`;
       document.getElementById('saveB').onclick = async () => {
-        await api('/backups',{method:'POST',body:JSON.stringify({label:document.getElementById('blabel').value.trim()})});
+        await api('/backups', { method: 'POST', body: JSON.stringify({ label: document.getElementById('blabel').value.trim() }) });
         toast('Salva anclada'); render();
       };
+      document.getElementById('exportZ').onclick = async () => {
+        const res = await api('/backups/export');
+        if (!res.ok) { toast('No se pudo exportar'); return; }
+        const blob = await res.blob(); const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'abacophy-salva.zip'; a.click(); URL.revokeObjectURL(url);
+      };
+      document.getElementById('importZ').onclick = async () => {
+        const f = document.getElementById('impFile').files[0];
+        if (!f) { toast('Elija un archivo'); return; }
+        const fd = new FormData(); fd.append('file', f);
+        await api('/backups/import', { method: 'POST', body: fd, headers: {} });
+        toast('Restaurado desde disco'); await loadMe(); render();
+      };
       main.querySelectorAll('[data-restore]').forEach(b => b.onclick = async () => {
-        if(!confirm('¿Restaurar esta salva?')) return;
-        await api('/backups/restore',{method:'POST',body:JSON.stringify({cid:b.dataset.restore})});
+        if (!confirm('¿Restaurar esta salva?')) return;
+        await api('/backups/restore', { method: 'POST', body: JSON.stringify({ cid: b.dataset.restore }) });
         toast('Restaurado'); await loadMe(); render();
       });
     } else if (state.tab === 'negocio') {
       const t = state.tenant || {};
       main.innerHTML = `<div class="card">
-        <label>Nombre del negocio</label><input id="tname" value="${t.name||''}" />
-        <label>Moneda base</label><input id="tcur" value="${t.currency||'CUP'}" />
-        <label>Teléfono</label><input id="tphone" value="${t.phone||''}" />
-        <label>Dirección</label><input id="taddr" value="${t.address||''}" />
+        <label>Nombre del negocio</label><input id="tname" value="${t.name || ''}" />
+        <label>Moneda base</label><input id="tcur" value="${t.currency || 'CUP'}" />
+        <label>Teléfono</label><input id="tphone" value="${t.phone || ''}" />
+        <label>Dirección</label><input id="taddr" value="${t.address || ''}" />
         <button class="btn btn-primary" id="saveT">Guardar</button>
       </div>`;
       document.getElementById('saveT').onclick = async () => {
-        const u = await api('/tenant',{method:'PUT',body:JSON.stringify({name:document.getElementById('tname').value.trim(), currency:document.getElementById('tcur').value.trim(), phone:document.getElementById('tphone').value.trim(), address:document.getElementById('taddr').value.trim()})});
+        const u = await api('/tenant', { method: 'PUT', body: JSON.stringify({ name: document.getElementById('tname').value.trim(), currency: document.getElementById('tcur').value.trim(), phone: document.getElementById('tphone').value.trim(), address: document.getElementById('taddr').value.trim() }) });
         state.tenant = u; document.getElementById('sideSub').textContent = u.name; toast('Negocio actualizado');
       };
     } else if (state.tab === 'tema' && state.user && state.user.role === 'master') {
-      // apariencia for admin/master
       const th = await api('/theme');
       const s = th.settings || {};
-      main.innerHTML = `<div class="card"><div class="section-label">Personalización</div>
-        <label>Título de la app</label><input id="apptitle" value="${s.app_title||'ÁbacoPhy'}" />
-        <label>Nombre del negocio</label><input id="thname" value="${th.name||''}" />
-        <label>Color primario</label><input id="thpri" type="color" value="${s.primary||'#F4B400'}" />
-        <label>Color primario oscuro</label><input id="thprid" type="color" value="${s.primary_dark||'#FB8C00'}" />
-        <label>Fondo base</label><input id="thbg" type="color" value="${s.bg||'#0A0A0A'}" />
-        <label>Texto</label><input id="thtext" type="color" value="${s.text||'#FFFFFF'}" />
-        <label>Tarjeta</label><input id="thcard" type="color" value="${s.card||'#141414'}" />
+      main.innerHTML = `<div class="card"><div class="section-label">Apariencia (solo master)</div>
+        <label>Título de la app</label><input id="apptitle" value="${s.app_title || 'ÁbacoPhy'}" />
+        <label>Nombre del negocio por defecto</label><input id="thname" value="${th.name || ''}" />
+        <label>Color primario</label><input id="thpri" type="color" value="${s.primary || '#C9920A'}" />
+        <label>Color primario oscuro</label><input id="thprid" type="color" value="${s.primary_dark || '#A67A08'}" />
         <button class="btn btn-primary" id="saveTh">Aplicar</button>
       </div>`;
       document.getElementById('saveTh').onclick = async () => {
-        const body = {
+        await api('/theme', { method: 'PUT', body: JSON.stringify({
           app_title: document.getElementById('apptitle').value.trim(),
           name: document.getElementById('thname').value.trim(),
           primary: document.getElementById('thpri').value.trim(),
           primary_dark: document.getElementById('thprid').value.trim(),
-          bg: document.getElementById('thbg').value.trim(),
-          text: document.getElementById('thtext').value.trim(),
-          card: document.getElementById('thcard').value.trim(),
-        };
-        const r = await api('/theme',{method:'PUT',body:JSON.stringify(body)});
-        applyTheme(r.settings||body); toast('Apariencia actualizada'); await loadMe(); renderNav();
+        })});
+        toast('Apariencia actualizada'); await loadMe(); renderNav();
       };
-    } else if (state.tab === 'master') {
+    } else if (state.tab === 'master' && state.user && state.user.role === 'master') {
       const tenants = await api('/master/tenants');
-      let errs = {errors:[]};
-      try { errs = await api('/errors'); } catch(_){}
+      let errs = { errors: [] }; try { errs = await api('/errors'); } catch (_) {}
       main.innerHTML = `<div class="card"><div class="section-label">Master · negocios</div>
-        <pre class="muted" style="white-space:pre-wrap;font-size:.8rem">${JSON.stringify(tenants.tenants,null,2)}</pre>
-      </div>
-      <div class="card"><div class="section-label">Errores / averías (solo master)</div>
-        <label>Registrar incidencia</label><input id="errd" placeholder="Descripción del error" />
+        <pre class="muted" style="white-space:pre-wrap;font-size:.8rem">${JSON.stringify(tenants.tenants, null, 2)}</pre></div>
+      <div class="card"><div class="section-label">Errores / averías</div>
+        <label>Registrar incidencia</label><input id="errd" />
         <button class="btn btn-primary" id="logErr">Registrar</button>
         <table style="margin-top:1rem"><thead><tr><th>Fecha</th><th>Detalle</th></tr></thead>
-        <tbody>${(errs.errors||[]).map(e=>`<tr><td>${(e.created_at||'').toString().slice(0,19)}</td><td>${e.detail||''}</td></tr>`).join('')||'<tr><td colspan=2 class=muted>Sin errores registrados</td></tr>'}</tbody></table>
+        <tbody>${(errs.errors || []).map(e => `<tr><td>${(e.created_at || '').toString().slice(0, 19)}</td><td>${e.detail || ''}</td></tr>`).join('') || '<tr><td colspan="2" class="muted">Sin errores</td></tr>'}</tbody></table>
       </div>`;
       document.getElementById('logErr').onclick = async () => {
-        await api('/errors',{method:'POST',body:JSON.stringify({detail:document.getElementById('errd').value.trim()})});
+        await api('/errors', { method: 'POST', body: JSON.stringify({ detail: document.getElementById('errd').value.trim() }) });
         toast('Incidencia registrada'); render();
       };
     }
@@ -706,16 +849,13 @@ async function render() {
 async function boot() {
   document.getElementById('loginOverlay').style.display = 'none';
   document.getElementById('appShell').classList.add('on');
-  await loadMe();
-  renderNav();
-  await render();
+  await loadMe(); renderNav(); await render(); autoSync();
 }
-
 async function trySession() {
   if (!state.token) return;
-  try { await loadMe(); await boot(); } catch(_) { state.token=''; saveLocal(); }
+  try { await loadMe(); await boot(); } catch (_) { state.token = ''; saveLocal(); }
 }
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 trySession();
 </script>
 </body>

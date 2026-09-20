@@ -54,9 +54,13 @@ type Account struct {
 	TenantID  string    `json:"tenant_id"`
 	Code      string    `json:"code"`
 	Name      string    `json:"name"`
-	Type      string    `json:"type"`
+	Type      string    `json:"type"` // asset|liability|equity|income|expense
+	Nature    string    `json:"nature,omitempty"` // deudora|acreedora
+	Group     string    `json:"group,omitempty"`  // grupo NIIF / normativa local
+	Level     int       `json:"level,omitempty"`
 	ParentID  string    `json:"parent_id,omitempty"`
 	Balance   float64   `json:"balance"`
+	Notes     string    `json:"notes,omitempty"`
 	Active    bool      `json:"active"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
@@ -111,27 +115,50 @@ type InventoryMove struct {
 }
 
 type Employee struct {
-	ID        string    `json:"id"`
-	TenantID  string    `json:"tenant_id"`
-	Name      string    `json:"name"`
-	Role      string    `json:"role,omitempty"`
-	Salary    float64   `json:"salary"`
-	Currency  string    `json:"currency"`
-	Active    bool      `json:"active"`
-	CreatedAt time.Time `json:"created_at"`
+	ID              string    `json:"id"`
+	TenantID        string    `json:"tenant_id"`
+	Name            string    `json:"name"`
+	CI              string    `json:"ci,omitempty"` // carné de identidad
+	Role            string    `json:"role,omitempty"`
+	Department      string    `json:"department,omitempty"`
+	HireDate        string    `json:"hire_date,omitempty"`
+	Salary          float64   `json:"salary"`
+	Currency        string    `json:"currency"`
+	// Tasas (normativa cubana, ajustables por trabajador)
+	VacRate         float64   `json:"vac_rate"`          // provisión vacaciones, defecto 0.09 (9 %)
+	SSEmployerRate  float64   `json:"ss_employer_rate"`  // aporte entidad seguridad social ~12.5 %
+	SSWorkerRate    float64   `json:"ss_worker_rate"`    // aporte trabajador ~5 %
+	// Certificados y licencias
+	Certificate     string    `json:"certificate,omitempty"` // certificado médico vigente
+	CertificateUntil string   `json:"certificate_until,omitempty"`
+	LicenseType     string    `json:"license_type,omitempty"` // maternidad, no remunerada, etc.
+	LicenseFrom     string    `json:"license_from,omitempty"`
+	LicenseTo       string    `json:"license_to,omitempty"`
+	VacationBalance float64   `json:"vacation_balance"` // días acumulados
+	Notes           string    `json:"notes,omitempty"`
+	Active          bool      `json:"active"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at,omitempty"`
 }
 
 type Payslip struct {
-	ID         string    `json:"id"`
-	TenantID   string    `json:"tenant_id"`
-	EmployeeID string    `json:"employee_id"`
-	Period     string    `json:"period"`
-	Gross      float64   `json:"gross"`
-	Deductions float64   `json:"deductions"`
-	Net        float64   `json:"net"`
-	Currency   string    `json:"currency"`
-	Status     string    `json:"status"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID             string    `json:"id"`
+	TenantID       string    `json:"tenant_id"`
+	EmployeeID     string    `json:"employee_id"`
+	EmployeeName   string    `json:"employee_name,omitempty"`
+	Period         string    `json:"period"`
+	Gross          float64   `json:"gross"`
+	VacationProv   float64   `json:"vacation_prov"`    // 9 % del salario
+	SSEmployer     float64   `json:"ss_employer"`      // aporte entidad
+	SSWorker       float64   `json:"ss_worker"`        // retención trabajador
+	OtherDeduct    float64   `json:"other_deductions"`
+	Deductions     float64   `json:"deductions"`       // total retenciones al trabajador
+	Net            float64   `json:"net"`
+	EmployerCost   float64   `json:"employer_cost"`    // costo total para la entidad
+	Currency       string    `json:"currency"`
+	Status         string    `json:"status"`
+	CreatedBy      string    `json:"created_by,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 type Invoice struct {

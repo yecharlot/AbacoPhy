@@ -71,6 +71,10 @@ func (s *Server) Handler() http.Handler {
 		w.Header().Set("Content-Type", "application/manifest+json")
 		http.ServeFile(w, r, filepath.Join(s.StaticDir, "app", "manifest.webmanifest"))
 	}))
+	mux.Handle("/icon.svg", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/svg+xml")
+		http.ServeFile(w, r, filepath.Join(s.StaticDir, "app", "icon.svg"))
+	}))
 	mux.HandleFunc("/", s.servePWA)
 
 	return withCORS(mux)
@@ -320,8 +324,14 @@ func (s *Server) handleAccounts(w http.ResponseWriter, r *http.Request) {
 		if body.Type != "" {
 			acc.Type = body.Type
 		}
+		acc.Nature = body.Nature
+		acc.Group = body.Group
+		acc.Level = body.Level
+		acc.ParentID = body.ParentID
+		acc.Notes = body.Notes
+		acc.Active = body.Active
 		acc.UpdatedAt = time.Now().UTC()
-		s.audit(snap, sess, "account.update", acc.Code+" "+acc.Name, acc.ID)
+		s.audit(snap, sess, "cuenta.edicion", "Edición nomenclador de cuentas · código "+acc.Code+" · nombre "+acc.Name+" · tipo "+acc.Type+" · naturaleza "+acc.Nature+" · grupo "+acc.Group, acc.ID)
 		_ = s.Store.Put(snap)
 		writeJSON(w, 200, acc)
 	case http.MethodDelete:
@@ -394,7 +404,7 @@ func (s *Server) handleEntries(w http.ResponseWriter, r *http.Request) {
 		}
 		domain.ApplyDoubleEntry(snap, &body)
 		snap.Entries = append(snap.Entries, body)
-		s.audit(snap, sess, "entry.create", body.Description, body.ID)
+		s.audit(snap, sess, "asiento.registro", "Registro de asiento · tipo "+body.Type+" · importe "+formatFloat(body.Amount)+" "+body.Currency+" · "+body.Description, body.ID)
 		_ = s.Store.Put(snap)
 		eq := domain.EquationSnapshot(snap)
 		writeJSON(w, 201, map[string]any{"asiento": body, "ecuacion": eq, "rev": snap.Rev, "root_cid": snap.RootCID})
@@ -555,59 +565,138 @@ func (s *Server) handleInventory(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleEmployees(w http.ResponseWriter, r *http.Request) {
 	sess, err := s.sess(r)
 	if err != nil {
-		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
 	if err := auth.RequireView(sess, "nomina"); err != nil {
-		writeJSON(w, 403, map[string]string{"error": "forbidden"})
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
 	snap := s.Store.Get(sess.TenantID)
 	if snap == nil {
-		writeJSON(w, 404, map[string]string{"error": "not found"})
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
 		return
+	}
+	if snap.Employees == nil {
+		snap.Employees = map[string]*domain.Employee{}
 	}
 	switch r.Method {
 	case http.MethodGet:
 		list := make([]*domain.Employee, 0, len(snap.Employees))
 		for _, e := range snap.Employees {
-			list = append(list, e)
+			if e != nil {
+				list = append(list, e)
+			}
 		}
-		writeJSON(w, 200, map[string]any{"employees": list})
+		writeJSON(w, 200, map[string]any{"employees": list, "rates": map[string]float64{
+			"vac_rate_default": 0.09, "ss_employer_default": 0.125, "ss_worker_default": 0.05,
+		}})
 	case http.MethodPost:
 		var body domain.Employee
-		if err := readJSON(r, &body); err != nil {
-			writeJSON(w, 400, map[string]string{"error": "bad json"})
+		if err := readJSON(r, &body); err != nil || body.Name == "" {
+			writeJSON(w, 400, map[string]string{"error": "nombre del trabajador requerido"})
 			return
 		}
 		body.ID = uuid.NewString()
 		body.TenantID = sess.TenantID
 		body.Active = true
 		body.CreatedAt = time.Now().UTC()
+		body.UpdatedAt = body.CreatedAt
 		if body.Currency == "" {
 			body.Currency = snap.Tenant.Currency
 		}
+		if body.VacRate <= 0 {
+			body.VacRate = 0.09 // 9 % provisión vacaciones
+		}
+		if body.SSEmployerRate <= 0 {
+			body.SSEmployerRate = 0.125
+		}
+		if body.SSWorkerRate <= 0 {
+			body.SSWorkerRate = 0.05
+		}
 		snap.Employees[body.ID] = &body
+		s.audit(snap, sess, "nomina.trabajador.alta", "Alta de trabajador: "+body.Name+" · salario "+formatFloat(body.Salary)+" "+body.Currency+" · vacaciones "+formatFloat(body.VacRate*100)+" % · SS entidad "+formatFloat(body.SSEmployerRate*100)+" %", body.ID)
 		_ = s.Store.Put(snap)
-		writeJSON(w, 201, body)
+		writeJSON(w, 201, map[string]any{"employee": body})
+	case http.MethodPut:
+		var body domain.Employee
+		if err := readJSON(r, &body); err != nil || body.ID == "" {
+			writeJSON(w, 400, map[string]string{"error": "id y datos requeridos"})
+			return
+		}
+		ex := snap.Employees[body.ID]
+		if ex == nil {
+			writeJSON(w, 404, map[string]string{"error": "trabajador no encontrado"})
+			return
+		}
+		if body.Name != "" {
+			ex.Name = body.Name
+		}
+		ex.CI = body.CI
+		ex.Role = body.Role
+		ex.Department = body.Department
+		ex.HireDate = body.HireDate
+		if body.Salary > 0 {
+			ex.Salary = body.Salary
+		}
+		if body.Currency != "" {
+			ex.Currency = body.Currency
+		}
+		if body.VacRate > 0 {
+			ex.VacRate = body.VacRate
+		}
+		if body.SSEmployerRate > 0 {
+			ex.SSEmployerRate = body.SSEmployerRate
+		}
+		if body.SSWorkerRate > 0 {
+			ex.SSWorkerRate = body.SSWorkerRate
+		}
+		ex.Certificate = body.Certificate
+		ex.CertificateUntil = body.CertificateUntil
+		ex.LicenseType = body.LicenseType
+		ex.LicenseFrom = body.LicenseFrom
+		ex.LicenseTo = body.LicenseTo
+		ex.VacationBalance = body.VacationBalance
+		ex.Notes = body.Notes
+		ex.Active = body.Active
+		ex.UpdatedAt = time.Now().UTC()
+		s.audit(snap, sess, "nomina.trabajador.edicion", "Edición de trabajador: "+ex.Name+" · campos actualizados por usuario de sesión", ex.ID)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 200, map[string]any{"employee": ex})
+	case http.MethodDelete:
+		id := r.URL.Query().Get("id")
+		if id == "" {
+			writeJSON(w, 400, map[string]string{"error": "id requerido"})
+			return
+		}
+		ex := snap.Employees[id]
+		if ex == nil {
+			writeJSON(w, 404, map[string]string{"error": "trabajador no encontrado"})
+			return
+		}
+		ex.Active = false
+		ex.UpdatedAt = time.Now().UTC()
+		s.audit(snap, sess, "nomina.trabajador.baja", "Baja lógica de trabajador: "+ex.Name, id)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 200, map[string]any{"ok": true})
 	default:
-		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
 	}
 }
 
 func (s *Server) handlePayslips(w http.ResponseWriter, r *http.Request) {
 	sess, err := s.sess(r)
 	if err != nil {
-		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
 	if err := auth.RequireView(sess, "nomina"); err != nil {
-		writeJSON(w, 403, map[string]string{"error": "forbidden"})
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
 	snap := s.Store.Get(sess.TenantID)
 	if snap == nil {
-		writeJSON(w, 404, map[string]string{"error": "not found"})
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
 		return
 	}
 	if r.Method == http.MethodGet {
@@ -616,26 +705,78 @@ func (s *Server) handlePayslips(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == http.MethodPost {
 		var body domain.Payslip
-		if err := readJSON(r, &body); err != nil {
-			writeJSON(w, 400, map[string]string{"error": "bad json"})
+		if err := readJSON(r, &body); err != nil || body.EmployeeID == "" {
+			writeJSON(w, 400, map[string]string{"error": "trabajador requerido"})
 			return
 		}
+		emp := snap.Employees[body.EmployeeID]
+		if emp == nil || !emp.Active {
+			writeJSON(w, 404, map[string]string{"error": "trabajador no encontrado o inactivo"})
+			return
+		}
+		if emp.LicenseType != "" && emp.LicenseTo != "" {
+			// si está en licencia hasta fecha futura, aún se puede liquidar con notas
+		}
+		gross := emp.Salary
+		if body.Gross > 0 {
+			gross = body.Gross
+		}
+		vacR := emp.VacRate
+		if vacR <= 0 {
+			vacR = 0.09
+		}
+		ssER := emp.SSEmployerRate
+		if ssER <= 0 {
+			ssER = 0.125
+		}
+		ssWR := emp.SSWorkerRate
+		if ssWR <= 0 {
+			ssWR = 0.05
+		}
+		vac := gross * vacR
+		ssEmp := gross * ssER
+		ssWork := gross * ssWR
+		other := body.OtherDeduct
+		ded := ssWork + other
+		net := gross - ded
+		employerCost := gross + ssEmp + vac
 		body.ID = uuid.NewString()
 		body.TenantID = sess.TenantID
-		body.CreatedAt = time.Now().UTC()
-		body.Net = body.Gross - body.Deductions
+		body.EmployeeName = emp.Name
+		body.Gross = gross
+		body.VacationProv = vac
+		body.SSEmployer = ssEmp
+		body.SSWorker = ssWork
+		body.OtherDeduct = other
+		body.Deductions = ded
+		body.Net = net
+		body.EmployerCost = employerCost
 		if body.Currency == "" {
-			body.Currency = snap.Tenant.Currency
+			body.Currency = emp.Currency
+			if body.Currency == "" {
+				body.Currency = snap.Tenant.Currency
+			}
 		}
-		if body.Status == "" {
-			body.Status = "draft"
+		if body.Period == "" {
+			body.Period = time.Now().Format("2006-01")
 		}
+		body.Status = "calculated"
+		body.CreatedBy = sess.UserID
+		body.CreatedAt = time.Now().UTC()
 		snap.Payslips = append(snap.Payslips, body)
+		// Asientos simplificados: gasto salarios + SS + vacaciones
+		base := body.Currency
+		_ = base
+		s.audit(snap, sess, "nomina.liquidacion",
+			"Liquidación de nómina · trabajador "+emp.Name+" · periodo "+body.Period+
+				" · bruto "+formatFloat(gross)+" · vacaciones (provisión) "+formatFloat(vac)+
+				" · SS entidad "+formatFloat(ssEmp)+" · SS trabajador "+formatFloat(ssWork)+
+				" · neto a pagar "+formatFloat(net)+" "+body.Currency, body.ID)
 		_ = s.Store.Put(snap)
-		writeJSON(w, 201, body)
+		writeJSON(w, 201, map[string]any{"payslip": body})
 		return
 	}
-	writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+	writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
 }
 
 func (s *Server) handleInvoices(w http.ResponseWriter, r *http.Request) {
