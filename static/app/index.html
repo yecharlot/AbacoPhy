@@ -4,760 +4,710 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#f4b400" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>ÁbacoPhy</title>
   <link rel="manifest" href="/manifest.webmanifest" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #0a0a0a;
-      --bg2: #0f0f0f;
-      --panel: #141414;
-      --card: #1a1a1a;
-      --elevated: #222;
-      --text: #ffffff;
-      --muted: #b0b0b0;
-      --faint: #6b6b6b;
-      --accent: #f4b400;
-      --accent-dark: #fb8c00;
-      --accent-soft: rgba(244, 180, 0, 0.15);
-      --ok: #4caf50;
-      --danger: #ff5252;
+      --primary: #F4B400;
+      --primary-dark: #FB8C00;
+      --bg-primary: #0A0A0A;
+      --bg-secondary: #0F0F0F;
+      --bg-card: #141414;
+      --bg-elevated: #1A1A1A;
+      --text-primary: #FFFFFF;
+      --text-secondary: #B0B0B0;
+      --text-muted: #6B6B6B;
+      --accent-green: #4CAF50;
+      --accent-red: #FF5252;
       --border: rgba(244, 180, 0, 0.15);
-      --border-soft: rgba(255, 255, 255, 0.08);
-      --radius: 16px;
-      --radius-sm: 12px;
-      --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-      --font: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-      --display: "DM Sans", system-ui, sans-serif;
+      --shadow: 0 8px 32px rgba(0,0,0,.4);
+      --sidebar-w: 260px;
     }
-    @import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&display=swap");
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html { -webkit-text-size-adjust: 100%; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: var(--font);
-      background: var(--bg);
-      color: var(--text);
+      font-family: Inter, system-ui, sans-serif;
+      background: radial-gradient(ellipse at 20% 30%, #0F0F0F, #050505);
+      color: var(--text-primary);
       min-height: 100dvh;
-      line-height: 1.5;
-      background-image:
-        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(244, 180, 0, 0.12), transparent),
-        radial-gradient(ellipse 60% 40% at 100% 0%, rgba(91, 141, 239, 0.06), transparent);
     }
-    a { color: var(--accent); text-decoration: none; }
-    .app { max-width: 720px; margin: 0 auto; padding: 0 16px 96px; }
-    /* Header estilo marketplace */
-    header.top {
-      position: sticky; top: 0; z-index: 40;
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 12px; padding: 14px 0;
-      background: rgba(10, 10, 10, 0.85);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border-soft);
-      margin: 0 -16px; padding-left: 16px; padding-right: 16px;
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
+    .hidden { display: none !important; }
+
+    /* Login */
+    #loginOverlay {
+      position: fixed; inset: 0; z-index: 1000;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 50% 40%, #121212, #050505);
+      padding: 20px;
     }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.05rem; letter-spacing: -0.02em; }
+    .login-card {
+      width: 100%; max-width: 420px;
+      background: rgba(20,20,20,.92); backdrop-filter: blur(16px);
+      border: 1px solid rgba(244,180,0,.2); border-radius: 28px;
+      padding: 2.25rem; text-align: center;
+      box-shadow: var(--shadow); animation: fadeInUp .5s ease;
+    }
+    .login-card h2 { font-weight: 800; letter-spacing: -.02em; margin: .75rem 0 .35rem; }
+    .login-card .muted { color: var(--text-secondary); font-size: .9rem; margin-bottom: 1.5rem; }
+
+    /* Shell */
+    #appShell { display: none; min-height: 100dvh; }
+    #appShell.on { display: block; }
+
+    .sidebar {
+      width: var(--sidebar-w); position: fixed; inset: 0 auto 0 0;
+      background: rgba(15,15,15,.96); backdrop-filter: blur(12px);
+      border-right: 1px solid rgba(244,180,0,.1);
+      overflow-y: auto; z-index: 100; display: flex; flex-direction: column;
+      transition: transform .25s ease;
+    }
+    .sidebar-header { padding: 1.5rem 1.25rem; border-bottom: 1px solid rgba(244,180,0,.12); }
+    .brand-row { display: flex; align-items: center; gap: 12px; }
     .logo {
       width: 40px; height: 40px; border-radius: 12px;
-      background: linear-gradient(135deg, var(--accent), var(--accent-dark));
-      color: #0a0a0a; display: grid; place-items: center; font-weight: 800; font-size: 1.1rem;
-      box-shadow: 0 4px 16px rgba(244, 180, 0, 0.35);
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      display: grid; place-items: center; color: #0A0A0A;
+      box-shadow: 0 4px 16px rgba(244,180,0,.3);
     }
+    .logo svg { width: 22px; height: 22px; stroke: #0A0A0A; fill: none; stroke-width: 1.8; }
+    .brand-row h3 { font-size: 1rem; font-weight: 800; }
+    .brand-row p { font-size: .65rem; color: var(--text-muted); }
+
+    .nav { padding: .75rem 0 1.5rem; flex: 1; }
+    .nav-item {
+      margin: .2rem .65rem; padding: .75rem 1rem; border-radius: 12px;
+      display: flex; align-items: center; gap: 12px;
+      color: var(--text-secondary); font-weight: 500; font-size: .9rem;
+      cursor: pointer; transition: all .25s ease; border: none; background: transparent;
+      width: calc(100% - 1.3rem); text-align: left; font-family: inherit;
+    }
+    .nav-item svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; flex-shrink: 0; }
+    .nav-item:hover { background: rgba(244,180,0,.1); color: var(--primary); transform: translateX(4px); }
+    .nav-item.active {
+      background: linear-gradient(135deg, rgba(244,180,0,.15), rgba(251,140,0,.08));
+      color: var(--primary); border-left: 3px solid var(--primary);
+    }
+
+    .main { margin-left: var(--sidebar-w); padding: 1.5rem; min-height: 100dvh; animation: fadeInUp .4s ease; }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      margin-bottom: 1.25rem; flex-wrap: wrap;
+    }
+    .topbar h1 { font-size: 1.35rem; font-weight: 800; letter-spacing: -.02em; }
     .badge {
-      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      font-size: .65rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
       padding: 4px 10px; border-radius: 999px;
-      background: var(--accent-soft); color: var(--accent); border: 1px solid var(--border);
+      background: rgba(244,180,0,.12); color: var(--primary); border: 1px solid var(--border);
     }
-    .badge.off { background: rgba(255, 82, 82, 0.12); color: var(--danger); border-color: rgba(255, 82, 82, 0.3); }
-    button, .btn {
-      appearance: none; border: none; border-radius: 12px; padding: 12px 18px;
-      background: linear-gradient(135deg, var(--accent), var(--accent-dark));
-      color: #0a0a0a; font-weight: 700; cursor: pointer; font-size: 0.95rem;
-      font-family: inherit; transition: transform 0.15s ease, box-shadow 0.15s;
-      box-shadow: 0 4px 14px rgba(244, 180, 0, 0.25);
-    }
-    button:hover { transform: translateY(-1px); }
-    button:active { transform: scale(0.97); }
-    button.ghost, .btn.ghost {
-      background: transparent; color: var(--text);
-      border: 1px solid var(--border-soft); box-shadow: none;
-    }
-    button.ghost:hover { border-color: var(--accent); color: var(--accent); }
-    button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
-    input, select, textarea {
-      width: 100%; padding: 14px 16px; border-radius: 14px;
-      border: 1px solid var(--border-soft); background: var(--card);
-      color: var(--text); font-size: 0.95rem; font-family: inherit;
-      outline: none; transition: border-color 0.15s, box-shadow 0.15s;
-    }
-    input:focus, select:focus, textarea:focus {
-      border-color: rgba(244, 180, 0, 0.5);
-      box-shadow: 0 0 0 3px rgba(244, 180, 0, 0.15);
-    }
-    label {
-      display: block; font-size: 0.7rem; font-weight: 700;
-      letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--faint); margin-bottom: 6px;
-    }
-    .field { margin-bottom: 14px; }
+    .badge.off { background: rgba(255,82,82,.12); color: var(--accent-red); border-color: rgba(255,82,82,.3); }
+
     .card {
-      background: var(--card);
-      border: 1px solid var(--border-soft);
-      border-radius: var(--radius);
-      padding: 18px; margin-bottom: 14px;
-      box-shadow: var(--shadow);
+      background: rgba(20,20,20,.85); backdrop-filter: blur(10px);
+      border: 1px solid rgba(244,180,0,.1); border-radius: 20px;
+      padding: 1.25rem; margin-bottom: 1rem;
+      transition: transform .25s ease, border-color .25s;
+      animation: fadeInUp .35s ease;
     }
-    .card.hero-card {
-      background: linear-gradient(160deg, #1a1a1a 0%, #141414 100%);
-      border-color: var(--border);
-      position: relative; overflow: hidden;
+    .card:hover { border-color: rgba(244,180,0,.28); }
+
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem; margin-bottom: 1rem;
     }
-    .card.hero-card::before {
-      content: ""; position: absolute; inset: 0;
-      background: radial-gradient(circle at 90% 10%, rgba(244,180,0,0.18), transparent 50%);
-      pointer-events: none;
+    .stat-card {
+      background: rgba(20,20,20,.7); border: 1px solid rgba(244,180,0,.1);
+      border-radius: 18px; padding: 1.15rem; text-align: center;
+      transition: transform .25s ease, border-color .25s;
     }
-    .section-label {
-      font-size: 0.65rem; font-weight: 800; letter-spacing: 0.18em;
-      text-transform: uppercase; color: var(--accent); margin-bottom: 6px;
-      display: flex; align-items: center; gap: 6px;
+    .stat-card:hover { transform: translateY(-3px); border-color: var(--primary); }
+    .stat-card svg { width: 28px; height: 28px; stroke: var(--primary); fill: none; stroke-width: 1.6; margin-bottom: .5rem; }
+    .stat-card h3 { font-size: 1.45rem; font-weight: 800; color: var(--primary); }
+    .stat-card small { color: var(--text-muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; }
+
+    label {
+      display: block; font-size: .68rem; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;
     }
-    .section-title {
-      font-family: var(--display); font-size: 1.35rem; font-weight: 800;
-      letter-spacing: -0.02em; margin-bottom: 8px;
+    input, select, textarea {
+      width: 100%; padding: 12px 14px; margin-bottom: .85rem;
+      background: rgba(26,26,26,.85); border: 1px solid rgba(244,180,0,.15);
+      border-radius: 12px; color: var(--text-primary); font-family: inherit; font-size: .95rem;
     }
-    .grid { display: grid; gap: 12px; }
-    @media (min-width: 640px) {
-      .grid.cols-2 { grid-template-columns: 1fr 1fr; }
-      .grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
-      .app { max-width: 900px; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); }
+
+    .btn {
+      padding: 11px 20px; border-radius: 40px; border: none; font-weight: 700;
+      cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+      font-family: inherit; font-size: .9rem; transition: all .25s ease;
     }
-    nav.tabs {
-      display: flex; gap: 8px; overflow-x: auto; padding: 12px 0 16px;
-      -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    .btn-primary { background: linear-gradient(135deg, #F4B400, #FB8C00); color: #0A0A0A; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(244,180,0,.3); }
+    .btn-secondary { background: rgba(26,26,26,.9); color: var(--text-primary); border: 1px solid rgba(244,180,0,.2); }
+    .btn-secondary:hover { border-color: var(--primary); }
+    .btn-sm { padding: 6px 12px; font-size: .75rem; border-radius: 20px; }
+    .btn-danger { background: linear-gradient(135deg, #FF5252, #D32F2F); color: #fff; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 700px) {
+      .sidebar { transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+      .main { margin-left: 0; padding: 1rem; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .menu-toggle { display: inline-flex !important; }
     }
-    nav.tabs::-webkit-scrollbar { display: none; }
-    nav.tabs button {
-      flex: 0 0 auto; background: var(--panel); color: var(--muted);
-      border: 1px solid var(--border-soft); font-size: 0.8rem; font-weight: 600;
-      padding: 10px 16px; border-radius: 999px; box-shadow: none;
+    .menu-toggle {
+      display: none; background: transparent; border: 1px solid var(--border);
+      border-radius: 10px; padding: 8px; color: var(--primary); cursor: pointer;
     }
-    nav.tabs button.active {
-      background: linear-gradient(135deg, var(--accent), var(--accent-dark));
-      color: #0a0a0a; border-color: transparent;
-      box-shadow: 0 4px 14px rgba(244, 180, 0, 0.3);
-    }
-    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
-    th, td { text-align: left; padding: 12px 8px; border-bottom: 1px solid var(--border-soft); }
-    th {
-      color: var(--faint); font-weight: 700; font-size: 0.65rem;
-      letter-spacing: 0.12em; text-transform: uppercase;
-    }
-    .login-wrap {
-      min-height: 100dvh; display: grid; place-items: center; padding: 24px;
-      background-image:
-        radial-gradient(ellipse 70% 50% at 50% 0%, rgba(244, 180, 0, 0.14), transparent);
-    }
-    .login-box { width: 100%; max-width: 400px; }
-    .muted { color: var(--muted); font-size: 0.9rem; }
-    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .stat { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; color: var(--accent); }
-    .hidden { display: none !important; }
+    .menu-toggle svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,.06); }
+    th { color: var(--text-muted); font-size: .65rem; letter-spacing: .1em; text-transform: uppercase; }
+
+    .section-label { font-size: .65rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--primary); margin-bottom: 6px; }
+    .muted { color: var(--text-secondary); font-size: .88rem; }
+    .money { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--primary); }
     .toast {
       position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-      background: var(--elevated); border: 1px solid var(--border);
-      padding: 12px 18px; border-radius: 14px; z-index: 50;
-      max-width: 92vw; font-size: 0.9rem; font-weight: 500;
-      box-shadow: var(--shadow);
+      background: rgba(20,20,20,.95); border: 1px solid var(--border);
+      padding: 12px 18px; border-radius: 14px; z-index: 2000; max-width: 92vw;
+      animation: fadeInUp .3s ease;
     }
-    .eq { font-family: ui-monospace, "JetBrains Mono", monospace; font-size: 0.82rem; color: var(--muted); }
-    .hero-title {
-      font-size: clamp(1.5rem, 5vw, 2rem); font-weight: 800;
-      letter-spacing: -0.03em; line-height: 1.15; margin: 8px 0 10px;
+    .eq { font-family: ui-monospace, monospace; font-size: .8rem; color: var(--text-secondary); }
+    .overlay-side {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 90;
     }
-    .pill {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 4px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 700;
-      background: var(--accent-soft); color: var(--accent);
-    }
+    .overlay-side.on { display: block; }
   </style>
 </head>
 <body>
-  <div id="loginView" class="login-wrap">
-    <div class="login-box card hero-card">
-      <div class="brand" style="margin-bottom:16px">
-        <div class="logo">Á</div>
-        <div>
-          <div>ÁbacoPhy</div>
-          <div class="muted">Tu negocio encuentra su orden</div>
-        </div>
+  <div id="loginOverlay">
+    <div class="login-card">
+      <div class="logo" style="margin:0 auto">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
       </div>
-      <form id="loginForm">
-        <div class="field">
-          <label for="campoUsuario">Usuario</label>
-          <input id="campoUsuario" autocomplete="username" required value="admin" />
-        </div>
-        <div class="field">
-          <label for="campoClave">Contraseña</label>
-          <input id="campoClave" type="password" autocomplete="current-password" required value="admin123" />
-        </div>
-        <button type="submit" style="width:100%">Iniciar sesión</button>
+      <h2>Ábaco<span style="color:var(--primary)">Phy</span></h2>
+      <p class="muted">Contabilidad para PyME · PrismaTEC</p>
+      <form id="formAcceso">
+        <label for="campoUsuario">Usuario</label>
+        <input id="campoUsuario" autocomplete="username" required />
+        <label for="campoClave">Contraseña</label>
+        <input id="campoClave" type="password" autocomplete="current-password" required />
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">Iniciar sesión</button>
       </form>
-      </div>
+    </div>
   </div>
 
-  <div id="appView" class="app hidden">
-    <header class="top">
-      <div class="brand">
-        <div class="logo">Á</div>
-        <div>
-          <div id="tenantName">ÁbacoPhy</div>
-          <div class="muted" id="userMeta"></div>
+  <div id="appShell">
+    <div class="overlay-side" id="overlaySide"></div>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-row">
+          <div class="logo"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+          <div>
+            <h3 id="sideTitle">ÁbacoPhy</h3>
+            <p id="sideSub">Contabilidad</p>
+          </div>
+        </div>
+        <p class="muted" style="margin-top:10px;font-size:.75rem" id="sideUser"></p>
+      </div>
+      <nav class="nav" id="sideNav"></nav>
+    </aside>
+    <div class="main">
+      <div class="topbar">
+        <div style="display:flex;align-items:center;gap:10px">
+          <button type="button" class="menu-toggle" id="btnMenu" aria-label="Menú">
+            <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          <h1 id="pageTitle">Inicio</h1>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="badge" id="estadoRed">En línea</span>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnSync">Sincronizar</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnSalir">Salir</button>
         </div>
       </div>
-      <div class="row">
-        <span id="netBadge" class="badge">En línea</span>
-        <button type="button" class="ghost" id="btnSync">Sincronizar</button>
-        <button type="button" class="ghost" id="btnLogout">Salir</button>
-      </div>
-    </header>
-    <nav class="tabs" id="tabs"></nav>
-    <main id="main"></main>
+      <div id="principal"></div>
+    </div>
   </div>
   <div id="toast" class="toast hidden"></div>
 
-  <script>
-  const API = (function () {
-    const h = location.hostname;
-    if (h === "localhost" || h === "127.0.0.1") return location.origin + "/api/v1";
-    if (h.includes("abacophy")) return location.origin + "/api/v1";
-    return "https://abacophy.onrender.com/api/v1";
-  })();
-  const state = {
-    token: localStorage.getItem("ap_token") || "",
-    user: null,
-    tenant: null,
-    views: [],
-    tab: "dashboard",
-    offlineQueue: JSON.parse(localStorage.getItem("ap_queue") || "[]"),
-    cache: JSON.parse(localStorage.getItem("ap_cache") || "{}"),
-  };
+<script>
+const API = (function(){
+  const h = location.hostname;
+  if (h === 'localhost' || h === '127.0.0.1') return location.origin + '/api/v1';
+  if (h.includes('abacophy')) return location.origin + '/api/v1';
+  return 'https://abacophy.onrender.com/api/v1';
+})();
 
-  function toast(msg) {
-    const el = document.getElementById("toast");
-    el.textContent = msg;
-    el.classList.remove("hidden");
-    setTimeout(() => el.classList.add("hidden"), 2800);
+const ICONS = {
+  inicio: '<svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>',
+  ingresos: '<svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 21h14"/></svg>',
+  gastos: '<svg viewBox="0 0 24 24"><path d="M12 21V9m0 0 4 4m-4-4-4 4"/><path d="M5 3h14"/></svg>',
+  inventario: '<svg viewBox="0 0 24 24"><path d="M3 7h18v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><path d="M3 7l2-3h14l2 3"/></svg>',
+  facturas: '<svg viewBox="0 0 24 24"><path d="M7 3h10v18l-2-1-2 1-2-1-2 1-2-1-2 1V3z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
+  nomina: '<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  cuentas: '<svg viewBox="0 0 24 24"><path d="M4 4h16v4H4zM4 10h16v10H4z"/><path d="M8 14h2m4 0h2"/></svg>',
+  cuentas_t: '<svg viewBox="0 0 24 24"><path d="M12 3v18M5 7h14M5 17h14"/></svg>',
+  monedas: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10m-3-7.5c0-1 1.5-1.5 3-1.5s3 .5 3 1.5-1.5 1.5-3 1.5-3 .5-3 1.5 1.5 1.5 3 1.5 3-.5 3-1.5"/></svg>',
+  reportes: '<svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h16"/><path d="M8 17V10m4 7V7m4 10v-4"/></svg>',
+  traza: '<svg viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>',
+  salvas: '<svg viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h9l5 5v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 5v5h5M8 17h8"/></svg>',
+  negocio: '<svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V8l7-4 7 4v13"/><path d="M9 21v-6h6v6"/></svg>',
+  master: '<svg viewBox="0 0 24 24"><path d="M12 3 4 7v5c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V7l-8-4z"/></svg>',
+  tema: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4m11.4-11.4 1.4-1.4"/></svg>',
+};
+
+const NAV = [
+  { id: 'inicio', label: 'Inicio', view: 'dashboard', icon: 'inicio' },
+  { id: 'ingresos', label: 'Ingresos', view: 'ingresos', icon: 'ingresos' },
+  { id: 'gastos', label: 'Gastos', view: 'gastos', icon: 'gastos' },
+  { id: 'inventario', label: 'Inventario', view: 'inventario', icon: 'inventario' },
+  { id: 'facturas', label: 'Facturas', view: 'facturas', icon: 'facturas' },
+  { id: 'nomina', label: 'Nómina', view: 'nomina', icon: 'nomina' },
+  { id: 'cuentas', label: 'Cuentas', view: 'cuentas', icon: 'cuentas' },
+  { id: 'cuentas_t', label: 'Cuenta T', view: 'cuentas_t', icon: 'cuentas_t' },
+  { id: 'monedas', label: 'Monedas', view: 'monedas', icon: 'monedas' },
+  { id: 'reportes', label: 'Estados', view: 'reportes', icon: 'reportes' },
+  { id: 'traza', label: 'Traza', view: 'traza', icon: 'traza' },
+  { id: 'salvas', label: 'Salvas CID', view: 'salvas', icon: 'salvas' },
+  { id: 'negocio', label: 'Negocio', view: 'tenant', icon: 'negocio' },
+  { id: 'tema', label: 'Apariencia', view: 'master', icon: 'tema' },
+  { id: 'master', label: 'Master', view: 'master', icon: 'master' },
+];
+
+const state = {
+  token: localStorage.getItem('ap_token') || '',
+  user: null, tenant: null, views: [], tab: 'inicio',
+  queue: JSON.parse(localStorage.getItem('ap_queue') || '[]'),
+  cache: JSON.parse(localStorage.getItem('ap_cache') || '{}'),
+  theme: {},
+};
+
+function money(n, cur) {
+  const c = cur || (state.tenant && state.tenant.currency) || 'CUP';
+  return `${(Number(n)||0).toFixed(2)} ${c}`;
+}
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 2800);
+}
+function setRed(ok) {
+  const b = document.getElementById('estadoRed');
+  b.textContent = ok ? 'En línea' : 'Sin conexión';
+  b.className = 'badge' + (ok ? '' : ' off');
+}
+function saveLocal() {
+  localStorage.setItem('ap_token', state.token || '');
+  localStorage.setItem('ap_queue', JSON.stringify(state.queue));
+  localStorage.setItem('ap_cache', JSON.stringify(state.cache));
+}
+async function api(path, opts={}) {
+  const headers = Object.assign({'Content-Type':'application/json'}, opts.headers||{});
+  if (state.token) headers.Authorization = 'Bearer ' + state.token;
+  try {
+    const res = await fetch(API + path, {...opts, headers});
+    setRed(true);
+    if (path.includes('/invoices/pdf')) return res;
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    return data;
+  } catch (e) { setRed(false); throw e; }
+}
+function applyTheme(settings) {
+  if (!settings) return;
+  state.theme = settings;
+  if (settings.primary) document.documentElement.style.setProperty('--primary', settings.primary);
+  if (settings.primary_dark) document.documentElement.style.setProperty('--primary-dark', settings.primary_dark);
+  if (settings.bg) document.documentElement.style.setProperty('--bg-primary', settings.bg);
+  if (settings.app_title) {
+    document.getElementById('sideTitle').textContent = settings.app_title;
+    document.title = settings.app_title;
   }
+}
 
-  function setOnline(on) {
-    const b = document.getElementById("netBadge");
-    b.textContent = on ? "En línea" : "Sin conexión";
-    b.className = "badge" + (on ? "" : " off");
-  }
-
-  async function api(path, opts = {}) {
-    const headers = Object.assign({ "Content-Type": "application/json" }, opts.headers || {});
-    if (state.token) headers.Authorization = "Bearer " + state.token;
-    try {
-      const res = await fetch(API + path, { ...opts, headers });
-      setOnline(true);
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || res.statusText);
-      return data;
-    } catch (e) {
-      setOnline(false);
-      throw e;
-    }
-  }
-
-  function saveLocal() {
-    localStorage.setItem("ap_token", state.token || "");
-    localStorage.setItem("ap_queue", JSON.stringify(state.offlineQueue));
-    localStorage.setItem("ap_cache", JSON.stringify(state.cache));
-  }
-
-  function queueAction(action) {
-    state.offlineQueue.push({ ...action, ts: Date.now() });
-    saveLocal();
-    toast("Guardado offline · se sincronizará al conectar");
-  }
-
-  async function flushQueue() {
-    if (!state.token || !navigator.onLine || !state.offlineQueue.length) return;
-    const entries = state.offlineQueue.filter((x) => x.kind === "entry").map((x) => x.payload);
-    const invoices = state.offlineQueue.filter((x) => x.kind === "invoice").map((x) => x.payload);
-    const inventory = state.offlineQueue.filter((x) => x.kind === "inventory").map((x) => x.payload);
-    try {
-      await api("/sync/push", {
-        method: "POST",
-        body: JSON.stringify({ entries, invoices, inventory, client_rev: state.cache.rev || 0 }),
-      });
-      state.offlineQueue = [];
-      saveLocal();
-      toast("Sincronización completa");
-      await loadDashboard();
-    } catch (e) {
-      toast("No se pudo sincronizar aún");
-    }
-  }
-
-  document.getElementById("loginForm").onsubmit = async (ev) => {
-    ev.preventDefault();
-    try {
-      const data = await api("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({
-          username: document.getElementById("campoUsuario").value.trim(),
-          password: document.getElementById("campoClave").value,
-        }),
-      });
-      state.token = data.token;
-      state.user = data.user;
-      state.views = data.views || [];
-      document.getElementById("campoClave") && (document.getElementById("campoClave").value = "");
-      saveLocal();
-      await bootApp();
-    } catch (e) {
-      toast(e.message || "Error de acceso");
-    }
-  };
-
-  document.getElementById("btnLogout").onclick = async () => {
-    try { await api("/auth/logout", { method: "POST" }); } catch (_) {}
-    state.token = "";
-    state.user = null;
-    saveLocal();
-    location.reload();
-  };
-
-  document.getElementById("btnSync").onclick = () => flushQueue();
-
-  window.addEventListener("online", () => { setOnline(true); flushQueue(); });
-  window.addEventListener("offline", () => setOnline(false));
-
-  const TAB_DEFS = [
-    { id: "dashboard", label: "Inicio", view: "dashboard" },
-    { id: "ingresos", label: "Ingresos", view: "ingresos" },
-    { id: "gastos", label: "Gastos", view: "gastos" },
-    { id: "inventario", label: "Inventario", view: "inventario" },
-    { id: "facturas", label: "Facturas", view: "facturas" },
-    { id: "nomina", label: "Nómina", view: "nomina" },
-    { id: "cuentas", label: "Cuentas", view: "cuentas" },
-    { id: "cuentas_t", label: "Cuenta T", view: "cuentas_t" },
-    { id: "monedas", label: "Monedas", view: "monedas" },
-    { id: "traza", label: "Traza", view: "traza" },
-    { id: "salvas", label: "Salvas CID", view: "salvas" },
-    { id: "tenant", label: "Negocio", view: "tenant" },
-    { id: "master", label: "Master", view: "master" },
-  ];
-
-  function renderTabs() {
-    const nav = document.getElementById("tabs");
-    nav.innerHTML = "";
-    TAB_DEFS.filter((t) => state.views.includes(t.view)).forEach((t) => {
-      const b = document.createElement("button");
-      b.textContent = t.label;
-      b.className = state.tab === t.id ? "active" : "";
-      b.onclick = () => { state.tab = t.id; renderTabs(); renderMain(); };
-      nav.appendChild(b);
+document.getElementById('formAcceso').onsubmit = async (ev) => {
+  ev.preventDefault();
+  try {
+    const data = await api('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: document.getElementById('campoUsuario').value.trim(),
+        password: document.getElementById('campoClave').value,
+      }),
     });
-  }
+    state.token = data.token;
+    state.user = data.user;
+    state.views = data.views || [];
+    document.getElementById('campoClave').value = '';
+    saveLocal();
+    await boot();
+  } catch (e) { toast(e.message || 'No se pudo iniciar sesión'); }
+};
 
-  async function loadDashboard() {
-    try {
-      const me = await api("/auth/me");
-      state.user = me.user;
-      state.tenant = me.tenant;
-      state.views = me.views || state.views;
-      state.cache.rev = me.rev;
-      state.cache.root_cid = me.root_cid;
-      document.getElementById("tenantName").textContent = me.tenant.name || "ÁbacoPhy";
-      document.getElementById("userMeta").textContent =
-        (me.user.display_name || me.user.username) + " · " + me.user.role;
-      saveLocal();
-    } catch (_) {}
-  }
+document.getElementById('btnSalir').onclick = async () => {
+  try { await api('/auth/logout', {method:'POST'}); } catch(_){}
+  state.token = ''; saveLocal(); location.reload();
+};
+document.getElementById('btnSync').onclick = async () => {
+  if (!state.queue.length) { toast('Nada pendiente'); return; }
+  try {
+    await api('/sync/push', { method:'POST', body: JSON.stringify({
+      entries: state.queue.filter(x=>x.kind==='entry').map(x=>x.payload),
+      invoices: state.queue.filter(x=>x.kind==='invoice').map(x=>x.payload),
+      inventory: state.queue.filter(x=>x.kind==='inventory').map(x=>x.payload),
+      client_rev: state.cache.rev||0,
+    })});
+    state.queue = []; saveLocal(); toast('Sincronizado'); render();
+  } catch(_) { toast('Sin conexión aún'); }
+};
+document.getElementById('btnMenu').onclick = () => {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('overlaySide').classList.toggle('on');
+};
+document.getElementById('overlaySide').onclick = () => {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('overlaySide').classList.remove('on');
+};
 
-  async function renderMain() {
-    const main = document.getElementById("main");
-    main.innerHTML = "<p class='muted'>Cargando…</p>";
-    try {
-      if (state.tab === "dashboard") {
-        const rep = await api("/reports/summary").catch(() => null);
-        const eq = (rep && rep.ecuacion) || {};
-        const fmt = (n) => (Number(n) || 0).toFixed(2);
-        main.innerHTML = `
-          <div class="card hero-card" style="margin-bottom:16px">
-            <div class="section-label">Panel</div>
-            <div class="hero-title">Tu contabilidad, en un vistazo</div>
-            <p class="muted">Partida doble y ecuación ampliada, con rastro CID.</p>
-          </div>
-          <div class="grid cols-3">
-            <div class="card"><div class="section-label">Ingresos</div><div class="stat">${fmt(rep && rep.income_total)}</div></div>
-            <div class="card"><div class="section-label">Gastos</div><div class="stat">${fmt(rep && rep.expense_total)}</div></div>
-            <div class="card"><div class="section-label">Neto</div><div class="stat">${fmt(rep && rep.net)}</div></div>
-          </div>
-          <div class="card">
-            <div class="section-label">Ecuación ampliada</div>
-            <div class="section-title" style="font-size:1.1rem">Activo = Pasivo + Patrimonio + (I − G)</div>
-            <p class="eq" style="margin-top:10px">
-              Activo ${fmt(eq.activo)} = Pasivo ${fmt(eq.pasivo)} + Patrimonio ${fmt(eq.patrimonio)} + (${fmt(eq.ingresos)} − ${fmt(eq.gastos)})
-            </p>
-            <p class="muted" style="margin-top:12px">Cada movimiento actualiza Caja y la cuenta de resultado a la vez.</p>
-            <div class="row" style="margin-top:12px">
-              <span class="pill">Rev ${state.cache.rev || 0}</span>
-              <span class="muted" style="font-size:0.75rem">CID ${(state.cache.root_cid||"—").slice(0,20)}…</span>
-              <span class="muted" style="font-size:0.75rem">Cola offline: ${state.offlineQueue.length}</span>
-            </div>
-          </div>`;
-      } else if (state.tab === "ingresos" || state.tab === "gastos") {
-        const type = state.tab === "ingresos" ? "income" : "expense";
-        const acc = await api("/accounts");
-        const accounts = (acc.accounts || []).filter((a) =>
-          type === "income" ? a.type === "income" : a.type === "expense"
-        );
-        main.innerHTML = `
-          <div class="card">
-            <h3 style="margin-bottom:12px">${type === "income" ? "Registrar ingreso" : "Registrar gasto"}</h3>
-            <p class="muted" style="margin-bottom:12px">Partida doble: actualiza la cuenta de resultado y la Caja (activo).</p>
-            <h3 style="display:none"></h3>
-            <div class="field"><label>Importe</label><input id="amt" type="number" step="0.01" min="0" /></div>
-            <div class="field"><label>Cuenta</label>
-              <select id="acc">${accounts.map((a) => `<option value="${a.id}">${a.code} — ${a.name}</option>`).join("")}</select>
-            </div>
-            <div class="field"><label>Descripción</label><input id="desc" /></div>
-            <button id="saveEntry">Guardar</button>
-          </div>`;
-        document.getElementById("saveEntry").onclick = async () => {
-          const payload = {
-            type, amount: parseFloat(document.getElementById("amt").value || "0"),
-            account_id: document.getElementById("acc").value,
-            description: document.getElementById("desc").value.trim(),
-          };
-          try {
-            await api("/entries", { method: "POST", body: JSON.stringify(payload) });
-            toast("Registrado");
-            state.tab = "dashboard";
-            renderTabs();
-            renderMain();
-          } catch (_) {
-            queueAction({ kind: "entry", payload });
-          }
-        };
-      } else if (state.tab === "inventario") {
-        const data = await api("/inventory");
-        const rows = (data.items || []).map((i) =>
-          `<tr><td>${i.name}</td><td>${i.qty} ${i.unit}</td><td>${(i.cost||0).toFixed(2)} ${i.currency||""}</td><td>${(i.amount||0).toFixed(2)}</td><td>${(i.amount_base||0).toFixed(2)}</td><td><button type="button" class="ghost" data-out="${i.id}">Salida</button></td></tr>`
-        ).join("");
-        main.innerHTML = `
-          <div class="card">
-            <div class="section-label">Almacén</div>
-            <div class="field"><label>Nombre del producto</label><input id="iname" /></div>
-            <div class="grid cols-2">
-              <div class="field"><label>Unidad de medida</label>
-                <select id="iunit"><option value="ud">Unidad</option><option value="kg">Kg</option><option value="l">Litro</option><option value="caja">Caja</option><option value="m">Metro</option></select>
-              </div>
-              <div class="field"><label>Cantidad</label><input id="iqty" type="number" step="0.01" value="1" /></div>
-            </div>
-            <div class="grid cols-2">
-              <div class="field"><label>Costo unitario</label><input id="icost" type="number" step="0.01" value="0" /></div>
-              <div class="field"><label>Precio de venta</label><input id="iprice" type="number" step="0.01" value="0" /></div>
-            </div>
-            <div class="grid cols-2">
-              <div class="field"><label>Moneda</label><select id="icur"><option value="CUP">CUP</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="MLC">MLC</option></select></div>
-              <div class="field"><label>Importe (cant. × costo)</label><input id="iamount" type="number" step="0.01" value="0" readonly /></div>
-            </div>
-            <button id="addInv">Registrar entrada al almacén</button>
-            <p class="muted" style="margin-top:8px">Actualiza la cuenta Inventario y Caja según el tipo de cambio a la moneda base.</p>
-          </div>
-          <div class="card"><table><thead><tr><th>Producto</th><th>Cant.</th><th>Costo</th><th>Importe</th><th>Base</th><th></th></tr></thead><tbody>${rows || "<tr><td colspan=3 class='muted'>Vacío</td></tr>"}</tbody></table></div>`;
-        const syncAmt = () => {
-            const q = parseFloat(document.getElementById("iqty").value||0);
-            const c = parseFloat(document.getElementById("icost").value||0);
-            document.getElementById("iamount").value = (q*c).toFixed(2);
-          };
-          document.getElementById("iqty").oninput = syncAmt;
-          document.getElementById("icost").oninput = syncAmt;
-          document.getElementById("addInv").onclick = async () => {
-          const qty = parseFloat(document.getElementById("iqty").value || "0");
-          const cost = parseFloat(document.getElementById("icost").value || "0");
-          const payload = {
-            name: document.getElementById("iname").value.trim(),
-            qty, cost,
-            price: parseFloat(document.getElementById("iprice").value || "0"),
-            unit: document.getElementById("iunit").value,
-            currency: document.getElementById("icur").value,
-            amount: qty * cost,
-          };
-          try {
-            await api("/inventory", { method: "POST", body: JSON.stringify(payload) });
-            toast("Producto agregado");
-            renderMain();
-          } catch (_) {
-            queueAction({ kind: "inventory", payload });
-          }
-        };
-        main.querySelectorAll("[data-out]").forEach((btn) => {
-          btn.onclick = async () => {
-            const qty = prompt("Cantidad a dar de baja", "1");
-            if (qty == null) return;
-            try {
-              await api("/inventory/out", { method: "POST", body: JSON.stringify({ id: btn.dataset.out, qty: parseFloat(qty) }) });
-              toast("Salida registrada en cuentas");
-              renderMain();
-            } catch (e) { toast(e.message); }
-          };
-        });
-      } else if (state.tab === "facturas") {
-        const data = await api("/invoices");
-        const rows = (data.invoices || []).map((f) =>
-          `<tr><td>${f.number}</td><td>${f.client_name}</td><td>${f.total}</td><td>${f.status}</td>
-            <td><button type="button" class="ghost" data-pdf="${f.id}">PDF</button></td></tr>`
-        ).join("");
-        main.innerHTML = `
-          <div class="card">
-            <div class="field"><label>Cliente</label><input id="fclient" /></div>
-            <div class="field"><label>Concepto</label><input id="fdesc" value="Servicio" /></div>
-            <div class="grid cols-2">
-              <div class="field"><label>Cantidad</label><input id="fqty" type="number" value="1" /></div>
-              <div class="field"><label>Precio unitario</label><input id="fprice" type="number" step="0.01" value="0" /></div>
-            </div>
-            <button id="addInvF">Emitir factura</button>
-          </div>
-          <div class="card"><table><thead><tr><th>Nº</th><th>Cliente</th><th>Total</th><th>Estado</th><th>PDF</th></tr></thead><tbody>${rows || ""}</tbody></table></div>`;
-        document.getElementById("addInvF").onclick = async () => {
-          const qty = parseFloat(document.getElementById("fqty").value || "1");
-          const price = parseFloat(document.getElementById("fprice").value || "0");
-          const payload = {
-            client_name: document.getElementById("fclient").value.trim() || "Cliente",
-            lines: [{ description: document.getElementById("fdesc").value.trim(), qty, unit_price: price }],
-            status: "issued",
-            issued_at: new Date().toISOString().slice(0, 10),
-          };
-          try {
-            await api("/invoices", { method: "POST", body: JSON.stringify(payload) });
-            toast("Factura creada");
-            renderMain();
-          } catch (_) {
-            queueAction({ kind: "invoice", payload });
-          }
-        };
-      
-        main.querySelectorAll("[data-pdf]").forEach((btn) => {
-          btn.onclick = async () => {
-            try {
-              const res = await fetch(API + "/invoices/pdf?id=" + encodeURIComponent(btn.dataset.pdf), {
-                headers: { Authorization: "Bearer " + state.token },
-              });
-              if (!res.ok) throw new Error("No se pudo generar el PDF");
-              const blob = await res.blob();
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url; a.download = "factura.pdf"; a.click();
-              URL.revokeObjectURL(url);
-            } catch (e) { toast(e.message); }
-          };
-        });
-} else if (state.tab === "nomina") {
-        const data = await api("/payroll/employees");
-        const rows = (data.employees || []).map((e) =>
-          `<tr><td>${e.name}</td><td>${e.role || "—"}</td><td>${e.salary} ${e.currency}</td></tr>`
-        ).join("");
-        main.innerHTML = `
-          <div class="card">
-            <div class="field"><label>Nombre</label><input id="ename" /></div>
-            <div class="field"><label>Cargo</label><input id="erole" /></div>
-            <div class="field"><label>Salario</label><input id="esal" type="number" step="0.01" /></div>
-            <button id="addEmp">Alta empleado</button>
-          </div>
-          <div class="card"><table><thead><tr><th>Nombre</th><th>Cargo</th><th>Salario</th></tr></thead><tbody>${rows || ""}</tbody></table></div>`;
-        document.getElementById("addEmp").onclick = async () => {
-          await api("/payroll/employees", {
-            method: "POST",
-            body: JSON.stringify({
-              name: document.getElementById("ename").value.trim(),
-              role: document.getElementById("erole").value.trim(),
-              salary: parseFloat(document.getElementById("esal").value || "0"),
-            }),
-          });
-          toast("Empleado registrado");
-          renderMain();
-        };
-      } else if (state.tab === "cuentas") {
-        const data = await api("/accounts");
-        const tipoES = { asset: "Activo", liability: "Pasivo", equity: "Patrimonio", income: "Ingreso", expense: "Gasto" };
-        const rows = (data.accounts || []).map((a) =>
-          `<tr><td>${a.code}</td><td>${a.name}</td><td>${tipoES[a.type]||a.type}</td><td>${(a.balance||0).toFixed(2)}</td>
-           <td><button type="button" class="ghost" data-edit="${a.id}" data-code="${a.code}" data-name="${a.name}" data-type="${a.type}">Editar</button>
-           <button type="button" class="ghost" data-del="${a.id}">Eliminar</button></td></tr>`
-        ).join("");
-        main.innerHTML = `
-          <div class="card">
-            <div class="section-label">Plan de cuentas</div>
-            <div class="grid cols-2">
-              <div class="field"><label>Código</label><input id="acode" /></div>
-              <div class="field"><label>Nombre</label><input id="aname" /></div>
-            </div>
-            <div class="field"><label>Tipo</label>
-              <select id="atype"><option value="asset">Activo</option><option value="liability">Pasivo</option><option value="equity">Patrimonio</option><option value="income">Ingreso</option><option value="expense">Gasto</option></select>
-            </div>
-            <button id="addAcc">Agregar cuenta</button>
-          </div>
-          <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th>Saldo</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
-        document.getElementById("addAcc").onclick = async () => {
-          await api("/accounts", { method: "POST", body: JSON.stringify({
-            code: document.getElementById("acode").value.trim(),
-            name: document.getElementById("aname").value.trim(),
-            type: document.getElementById("atype").value,
-          })});
-          toast("Cuenta creada"); renderMain();
-        };
-        main.querySelectorAll("[data-del]").forEach((b) => b.onclick = async () => {
-          if (!confirm("¿Eliminar cuenta?")) return;
-          await api("/accounts?id=" + encodeURIComponent(b.dataset.del), { method: "DELETE" });
-          toast("Cuenta eliminada"); renderMain();
-        });
-        main.querySelectorAll("[data-edit]").forEach((b) => b.onclick = async () => {
-          const name = prompt("Nuevo nombre", b.dataset.name);
-          if (name == null) return;
-          const code = prompt("Nuevo código", b.dataset.code);
-          if (code == null) return;
-          await api("/accounts", { method: "PUT", body: JSON.stringify({ id: b.dataset.edit, name, code, type: b.dataset.type })});
-          toast("Cuenta actualizada"); renderMain();
-        });
-      } else if (state.tab === "cuentas_t") {
-        const data = await api("/accounts");
-        const opts = (data.accounts||[]).map(a => `<option value="${a.id}">${a.code} — ${a.name}</option>`).join("");
-        main.innerHTML = `<div class="card">
-          <div class="section-label">Cuenta T</div>
-          <div class="field"><label>Cuenta</label><select id="tid">${opts}</select></div>
-          <button id="verT">Ver debe / haber</button>
-          <div id="tout" style="margin-top:14px"></div>
-        </div>`;
-        document.getElementById("verT").onclick = async () => {
-          const id = document.getElementById("tid").value;
-          const tacc = await api("/accounts/t?id=" + encodeURIComponent(id));
-          const debe = (tacc.debe||[]).map(e => `<tr><td>${e.date||""}</td><td>${e.description||""}</td><td>${(e.amount||0).toFixed(2)}</td></tr>`).join("");
-          const haber = (tacc.haber||[]).map(e => `<tr><td>${e.date||""}</td><td>${e.description||""}</td><td>${(e.amount||0).toFixed(2)}</td></tr>`).join("");
-          document.getElementById("tout").innerHTML = `
-            <div class="section-title" style="font-size:1rem">${tacc.titulo||""}</div>
-            <p class="muted">Saldo: <strong>${(tacc.saldo||0).toFixed(2)}</strong></p>
-            <div class="grid cols-2">
-              <div class="card"><div class="section-label">Debe</div><table><tbody>${debe||"<tr><td class=muted>—</td></tr>"}</tbody></table></div>
-              <div class="card"><div class="section-label">Haber</div><table><tbody>${haber||"<tr><td class=muted>—</td></tr>"}</tbody></table></div>
-            </div>`;
-        };
-      } else if (state.tab === "monedas") {
-        const data = await api("/currencies");
-        const rows = (data.currencies||[]).map(c =>
-          `<tr><td>${c.code}</td><td>${c.name}</td><td>${c.rate}</td></tr>`).join("");
-        main.innerHTML = `<div class="card">
-          <div class="section-label">Nomenclador</div>
-          <p class="muted">Moneda base del negocio: <strong>${data.base||"CUP"}</strong>. Rate = unidades de base por 1 unidad de esta moneda.</p>
-          <div class="grid cols-2">
-            <div class="field"><label>Código</label><input id="mcode" placeholder="USD" /></div>
-            <div class="field"><label>Nombre</label><input id="mname" placeholder="Dólar" /></div>
-          </div>
-          <div class="field"><label>Tipo de cambio a ${data.base||"base"}</label><input id="mrate" type="number" step="0.0001" value="1" /></div>
-          <button id="saveM">Guardar moneda</button>
+function can(view) {
+  if (view === 'dashboard') return state.views.includes('dashboard') || state.views.length;
+  if (view === 'reportes') return state.views.includes('reportes') || state.views.includes('cuentas');
+  return state.views.includes(view);
+}
+
+function renderNav() {
+  const nav = document.getElementById('sideNav');
+  nav.innerHTML = '';
+  NAV.filter(n => {
+    if (n.id === 'tema') return state.user && (state.user.role === 'master' || state.user.role === 'admin');
+    if (n.id === 'master') return state.user && state.user.role === 'master';
+    return can(n.view);
+  }).forEach(n => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'nav-item' + (state.tab === n.id ? ' active' : '');
+    b.innerHTML = (ICONS[n.icon] || '') + '<span>' + n.label + '</span>';
+    b.onclick = () => {
+      state.tab = n.id;
+      document.getElementById('pageTitle').textContent = n.label;
+      document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('overlaySide').classList.remove('on');
+      renderNav(); render();
+    };
+    nav.appendChild(b);
+  });
+}
+
+async function loadMe() {
+  const me = await api('/auth/me');
+  state.user = me.user;
+  state.tenant = me.tenant;
+  state.views = me.views || state.views;
+  state.cache.rev = me.rev;
+  state.cache.root_cid = me.root_cid;
+  document.getElementById('sideTitle').textContent = (me.tenant.settings && me.tenant.settings.app_title) || me.tenant.name || 'ÁbacoPhy';
+  document.getElementById('sideSub').textContent = me.tenant.name || 'Negocio';
+  const rol = {master:'Master',admin:'Administrador',contador:'Contador',operador:'Operador',readonly:'Solo lectura'}[me.user.role] || me.user.role;
+  document.getElementById('sideUser').textContent = (me.user.display_name || me.user.username) + ' · ' + rol;
+  if (me.tenant.settings) applyTheme(me.tenant.settings);
+  saveLocal();
+}
+
+async function render() {
+  const main = document.getElementById('principal');
+  main.innerHTML = '<div class="card muted">Cargando…</div>';
+  const base = (state.tenant && state.tenant.currency) || 'CUP';
+  try {
+    if (state.tab === 'inicio') {
+      const rep = await api('/reports/summary').catch(()=>null);
+      const eq = (rep && rep.ecuacion) || {};
+      main.innerHTML = `
+        <div class="stats-grid">
+          <div class="stat-card"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 21h14"/></svg><small>Ingresos</small><h3 class="money">${money(rep&&rep.income_total, base)}</h3></div>
+          <div class="stat-card"><svg viewBox="0 0 24 24"><path d="M12 21V9m0 0 4 4m-4-4-4 4"/><path d="M5 3h14"/></svg><small>Gastos</small><h3 class="money">${money(rep&&rep.expense_total, base)}</h3></div>
+          <div class="stat-card"><svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h16"/><path d="M8 17V10m4 7V7m4 10v-4"/></svg><small>Resultado</small><h3 class="money">${money(rep&&rep.net, base)}</h3></div>
         </div>
-        <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>Cambio</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-        document.getElementById("saveM").onclick = async () => {
-          await api("/currencies", { method: "POST", body: JSON.stringify({
-            code: document.getElementById("mcode").value.trim().toUpperCase(),
-            name: document.getElementById("mname").value.trim(),
-            rate: parseFloat(document.getElementById("mrate").value||"1"),
-          })});
-          toast("Moneda actualizada"); renderMain();
-        };
-      } else if (state.tab === "traza") {
-        const data = await api("/audit");
-        const rows = (data.audit||[]).slice(0,100).map(a =>
-          `<tr><td>${(a.created_at||"").toString().slice(0,19)}</td><td>${a.username||a.user_id||""}</td><td>${a.action}</td><td>${a.detail||""}</td><td style="font-size:0.7rem">${(a.cid||"").slice(0,16)}</td></tr>`).join("");
-        main.innerHTML = `<div class="card">
-          <div class="section-label">Traza Alset / CID</div>
-          <p class="muted">Operaciones por fecha y usuario. CID actual: ${(data.root_cid||"—").slice(0,28)}…</p>
-          <table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Detalle</th><th>CID</th></tr></thead><tbody>${rows||"<tr><td colspan=5 class=muted>Sin eventos</td></tr>"}</tbody></table>
+        <div class="card">
+          <div class="section-label">Ecuación ampliada</div>
+          <p class="eq">Activo ${money(eq.activo,base)} = Pasivo ${money(eq.pasivo,base)} + Patrimonio ${money(eq.patrimonio,base)} + (${money(eq.ingresos,base)} − ${money(eq.gastos,base)})</p>
+          <p class="muted" style="margin-top:10px">Rev ${state.cache.rev||0} · CID ${(state.cache.root_cid||'—').slice(0,24)}… · Cola offline ${state.queue.length}</p>
         </div>`;
-      } else if (state.tab === "salvas") {
-        const data = await api("/backups");
-        const rows = (data.backups||[]).map(b =>
-          `<tr><td>${(b.created_at||"").toString().slice(0,19)}</td><td>${b.label||"—"}</td><td style="font-size:0.75rem">${(b.cid||"").slice(0,22)}…</td><td>${b.rev}</td>
-           <td><button type="button" class="ghost" data-restore="${b.cid}">Restaurar</button></td></tr>`).join("");
-        main.innerHTML = `<div class="card">
-          <div class="section-label">Salvas content-addressable</div>
-          <p class="muted">CID actual: <strong>${(data.current_cid||"—").slice(0,28)}…</strong> · rev ${data.rev||0}</p>
-          <div class="field"><label>Etiqueta de la salva</label><input id="blabel" placeholder="Cierre mensual" /></div>
-          <button id="saveB">Guardar salva en almacén CID / IPFS</button>
+    } else if (state.tab === 'ingresos' || state.tab === 'gastos') {
+      const type = state.tab === 'ingresos' ? 'income' : 'expense';
+      const acc = await api('/accounts');
+      const cuentas = (acc.accounts||[]).filter(a => type==='income' ? a.type==='income' : a.type==='expense');
+      main.innerHTML = `<div class="card">
+        <div class="section-label">${type==='income'?'Ingreso':'Gasto'}</div>
+        <label>Importe</label><input id="importe" type="number" step="0.01" />
+        <label>Moneda</label><select id="mon"><option>CUP</option><option>USD</option><option>EUR</option><option>MLC</option></select>
+        <label>Cuenta</label><select id="cuenta">${cuentas.map(a=>`<option value="${a.id}">${a.code} — ${a.name}</option>`).join('')}</select>
+        <label>Descripción</label><input id="desc" />
+        <button class="btn btn-primary" id="saveE">Guardar</button>
+      </div>`;
+      document.getElementById('saveE').onclick = async () => {
+        const payload = { type, amount: parseFloat(document.getElementById('importe').value||0), account_id: document.getElementById('cuenta').value, description: document.getElementById('desc').value.trim(), currency: document.getElementById('mon').value };
+        try { await api('/entries',{method:'POST',body:JSON.stringify(payload)}); toast('Asiento registrado'); state.tab='inicio'; renderNav(); render(); }
+        catch(_){ state.queue.push({kind:'entry',payload}); saveLocal(); toast('Guardado offline'); }
+      };
+    } else if (state.tab === 'inventario') {
+      const data = await api('/inventory');
+      const rows = (data.items||[]).map(i => `<tr>
+        <td>${i.name}</td><td>${i.qty} ${i.unit||'ud'}</td>
+        <td class="money">${money(i.cost, i.currency||base)}</td>
+        <td class="money">${money(i.amount, i.currency||base)}</td>
+        <td class="money">${money(i.amount_base, base)}</td>
+        <td><button class="btn btn-secondary btn-sm" data-out="${i.id}">Rebaja</button></td></tr>`).join('');
+      main.innerHTML = `<div class="card">
+        <div class="section-label">Entrada al almacén</div>
+        <label>Nombre del producto</label><input id="iname" />
+        <div class="grid-2">
+          <div><label>Unidad</label><select id="iunit"><option value="ud">Unidad</option><option value="kg">Kg</option><option value="l">Litro</option><option value="caja">Caja</option></select></div>
+          <div><label>Cantidad</label><input id="iqty" type="number" step="0.01" value="1" /></div>
         </div>
-        <div class="card"><table><thead><tr><th>Fecha</th><th>Etiqueta</th><th>CID</th><th>Rev</th><th></th></tr></thead><tbody>${rows||"<tr><td colspan=5 class=muted>Sin salvas aún</td></tr>"}</tbody></table></div>`;
-        document.getElementById("saveB").onclick = async () => {
-          await api("/backups", { method: "POST", body: JSON.stringify({ label: document.getElementById("blabel").value.trim() })});
-          toast("Salva anclada a CID"); renderMain();
-        };
-        main.querySelectorAll("[data-restore]").forEach((b) => b.onclick = async () => {
-          if (!confirm("¿Restaurar esta salva? Se reemplaza el estado actual del negocio.")) return;
-          await api("/backups/restore", { method: "POST", body: JSON.stringify({ cid: b.dataset.restore })});
-          toast("Estado restaurado"); renderMain();
-        });
-      } else if (state.tab === "tenant") {
-        const t = state.tenant || {};
-        main.innerHTML = `
-          <div class="card">
-            <div class="field"><label>Nombre del negocio</label><input id="tname" value="${t.name || ""}" /></div>
-            <div class="field"><label>Moneda</label><input id="tcur" value="${t.currency || "CUP"}" /></div>
-            <div class="field"><label>Teléfono</label><input id="tphone" value="${t.phone || ""}" /></div>
-            <div class="field"><label>Dirección</label><input id="taddr" value="${t.address || ""}" /></div>
-            <button id="saveT">Guardar personalización</button>
+        <div class="grid-2">
+          <div><label>Costo unitario</label><input id="icost" type="number" step="0.01" /></div>
+          <div><label>Precio venta</label><input id="iprice" type="number" step="0.01" /></div>
+        </div>
+        <div class="grid-2">
+          <div><label>Moneda</label><select id="icur"><option>CUP</option><option>USD</option><option>EUR</option><option>MLC</option></select></div>
+          <div><label>Importe</label><input id="iamount" readonly /></div>
+        </div>
+        <button class="btn btn-primary" id="addInv">Registrar entrada</button>
+      </div>
+      <div class="card"><table><thead><tr><th>Producto</th><th>Cant.</th><th>Costo</th><th>Importe</th><th>En base (${base})</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="6" class="muted">Vacío</td></tr>'}</tbody></table></div>`;
+      const sync = ()=>{ const q=+document.getElementById('iqty').value||0,c=+document.getElementById('icost').value||0; document.getElementById('iamount').value=(q*c).toFixed(2)+' '+(document.getElementById('icur').value); };
+      ['iqty','icost','icur'].forEach(id => document.getElementById(id).oninput = sync);
+      document.getElementById('addInv').onclick = async () => {
+        const qty=+document.getElementById('iqty').value||0, cost=+document.getElementById('icost').value||0;
+        const payload = { name: document.getElementById('iname').value.trim(), qty, cost, price:+document.getElementById('iprice').value||0, unit: document.getElementById('iunit').value, currency: document.getElementById('icur').value, amount: qty*cost };
+        try { await api('/inventory',{method:'POST',body:JSON.stringify(payload)}); toast('Entrada registrada'); render(); }
+        catch(_){ state.queue.push({kind:'inventory',payload}); saveLocal(); toast('Offline'); }
+      };
+      main.querySelectorAll('[data-out]').forEach(btn => btn.onclick = async () => {
+        const qty = prompt('Cantidad a rebajar', '1'); if (qty==null) return;
+        try { await api('/inventory/out',{method:'POST',body:JSON.stringify({id:btn.dataset.out, qty:+qty})}); toast('Rebaja aplicada a cuentas'); render(); }
+        catch(e){ toast(e.message); }
+      });
+    } else if (state.tab === 'facturas') {
+      const data = await api('/invoices');
+      const rows = (data.invoices||[]).map(f => `<tr><td>${f.number}</td><td>${f.client_name}</td><td class="money">${money(f.total,f.currency||base)}</td><td>${f.status}</td>
+        <td><button class="btn btn-secondary btn-sm" data-pdf="${f.id}">PDF</button></td></tr>`).join('');
+      main.innerHTML = `<div class="card">
+        <label>Cliente</label><input id="fclient" />
+        <label>Concepto</label><input id="fdesc" value="Servicio" />
+        <div class="grid-2"><div><label>Cantidad</label><input id="fqty" type="number" value="1" /></div>
+        <div><label>Precio unitario</label><input id="fprice" type="number" step="0.01" /></div></div>
+        <label>Moneda</label><select id="fcur"><option>CUP</option><option>USD</option><option>EUR</option></select>
+        <button class="btn btn-primary" id="emit">Emitir factura</button>
+      </div>
+      <div class="card"><table><thead><tr><th>Nº</th><th>Cliente</th><th>Total</th><th>Estado</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      document.getElementById('emit').onclick = async () => {
+        const qty=+document.getElementById('fqty').value||1, price=+document.getElementById('fprice').value||0;
+        const payload = { client_name: document.getElementById('fclient').value.trim()||'Cliente', currency: document.getElementById('fcur').value, lines:[{description:document.getElementById('fdesc').value.trim(), qty, unit_price:price}], status:'issued', issued_at: new Date().toISOString().slice(0,10) };
+        try { await api('/invoices',{method:'POST',body:JSON.stringify(payload)}); toast('Factura emitida'); render(); }
+        catch(_){ state.queue.push({kind:'invoice',payload}); saveLocal(); toast('Offline'); }
+      };
+      main.querySelectorAll('[data-pdf]').forEach(btn => btn.onclick = async () => {
+        const res = await api('/invoices/pdf?id='+encodeURIComponent(btn.dataset.pdf));
+        if (!res.ok) { toast('No se pudo generar PDF'); return; }
+        const blob = await res.blob(); const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href=url; a.download='factura.pdf'; a.click(); URL.revokeObjectURL(url);
+      });
+    } else if (state.tab === 'nomina') {
+      const data = await api('/payroll/employees');
+      const rows = (data.employees||[]).map(e => `<tr><td>${e.name}</td><td>${e.role||'—'}</td><td class="money">${money(e.salary,e.currency||base)}</td></tr>`).join('');
+      main.innerHTML = `<div class="card">
+        <label>Nombre</label><input id="ename" /><label>Cargo</label><input id="erole" />
+        <label>Salario</label><input id="esal" type="number" step="0.01" />
+        <label>Moneda</label><select id="ecur"><option>CUP</option><option>USD</option></select>
+        <button class="btn btn-primary" id="addEmp">Alta</button>
+      </div>
+      <div class="card"><table><thead><tr><th>Nombre</th><th>Cargo</th><th>Salario</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      document.getElementById('addEmp').onclick = async () => {
+        await api('/payroll/employees',{method:'POST',body:JSON.stringify({name:document.getElementById('ename').value.trim(), role:document.getElementById('erole').value.trim(), salary:+document.getElementById('esal').value||0, currency:document.getElementById('ecur').value})});
+        toast('Empleado registrado'); render();
+      };
+    } else if (state.tab === 'cuentas') {
+      const data = await api('/accounts');
+      const tipoES = {asset:'Activo',liability:'Pasivo',equity:'Patrimonio',income:'Ingreso',expense:'Gasto'};
+      const rows = (data.accounts||[]).map(a => `<tr><td>${a.code}</td><td>${a.name}</td><td>${tipoES[a.type]||a.type}</td><td class="money">${money(a.balance, base)}</td>
+        <td><button class="btn btn-secondary btn-sm" data-edit="${a.id}" data-code="${a.code}" data-name="${a.name}" data-type="${a.type}">Editar</button>
+        <button class="btn btn-secondary btn-sm" data-del="${a.id}">Eliminar</button></td></tr>`).join('');
+      main.innerHTML = `<div class="card">
+        <div class="section-label">Nueva cuenta</div>
+        <div class="grid-2"><div><label>Código</label><input id="acode" /></div><div><label>Nombre</label><input id="aname" /></div></div>
+        <label>Tipo</label><select id="atype"><option value="asset">Activo</option><option value="liability">Pasivo</option><option value="equity">Patrimonio</option><option value="income">Ingreso</option><option value="expense">Gasto</option></select>
+        <button class="btn btn-primary" id="addAcc">Agregar</button>
+      </div>
+      <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th>Saldo</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      document.getElementById('addAcc').onclick = async () => {
+        await api('/accounts',{method:'POST',body:JSON.stringify({code:document.getElementById('acode').value.trim(), name:document.getElementById('aname').value.trim(), type:document.getElementById('atype').value})});
+        toast('Cuenta creada'); render();
+      };
+      main.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if(!confirm('¿Eliminar?'))return; await api('/accounts?id='+encodeURIComponent(b.dataset.del),{method:'DELETE'}); toast('Eliminada'); render(); });
+      main.querySelectorAll('[data-edit]').forEach(b => b.onclick = async () => {
+        const name = prompt('Nombre', b.dataset.name); if(name==null)return;
+        const code = prompt('Código', b.dataset.code); if(code==null)return;
+        await api('/accounts',{method:'PUT',body:JSON.stringify({id:b.dataset.edit, name, code, type:b.dataset.type})});
+        toast('Actualizada'); render();
+      });
+    } else if (state.tab === 'cuentas_t') {
+      const data = await api('/accounts');
+      const opts = (data.accounts||[]).map(a=>`<option value="${a.id}">${a.code} — ${a.name}</option>`).join('');
+      main.innerHTML = `<div class="card"><div class="section-label">Cuenta T</div>
+        <label>Cuenta</label><select id="tid">${opts}</select>
+        <button class="btn btn-primary" id="verT">Ver debe / haber</button><div id="tout" style="margin-top:1rem"></div></div>`;
+      document.getElementById('verT').onclick = async () => {
+        const tacc = await api('/accounts/t?id='+encodeURIComponent(document.getElementById('tid').value));
+        const row = (e)=>`<tr><td>${e.date||''}</td><td>${e.description||''}</td><td class="money">${money(e.amount, e.currency||base)}</td><td>${(e.created_by||'').slice(0,8)}</td></tr>`;
+        document.getElementById('tout').innerHTML = `<p class="muted">${tacc.titulo||''} · Saldo <span class="money">${money(tacc.saldo, base)}</span></p>
+          <div class="grid-2">
+            <div class="card"><div class="section-label">Debe</div><table><thead><tr><th>Fecha</th><th>Detalle</th><th>Importe</th><th>User</th></tr></thead><tbody>${(tacc.debe||[]).map(row).join('')||'<tr><td colspan=4 class=muted>—</td></tr>'}</tbody></table></div>
+            <div class="card"><div class="section-label">Haber</div><table><thead><tr><th>Fecha</th><th>Detalle</th><th>Importe</th><th>User</th></tr></thead><tbody>${(tacc.haber||[]).map(row).join('')||'<tr><td colspan=4 class=muted>—</td></tr>'}</tbody></table></div>
           </div>`;
-        document.getElementById("saveT").onclick = async () => {
-          const updated = await api("/tenant", {
-            method: "PUT",
-            body: JSON.stringify({
-              name: document.getElementById("tname").value.trim(),
-              currency: document.getElementById("tcur").value.trim(),
-              phone: document.getElementById("tphone").value.trim(),
-              address: document.getElementById("taddr").value.trim(),
-            }),
-          });
-          state.tenant = updated;
-          document.getElementById("tenantName").textContent = updated.name;
-          toast("Negocio actualizado");
-        };
-      } else if (state.tab === "master") {
-        const data = await api("/master/tenants");
-        main.innerHTML = `<div class="card"><pre class="muted" style="white-space:pre-wrap">${JSON.stringify(data.tenants, null, 2)}</pre></div>`;
-      }
-    } catch (e) {
-      main.innerHTML = `<div class="card muted">No se pudo cargar la vista (${e.message}). Prueba sincronizar o revisa la conexión.</div>`;
+      };
+    } else if (state.tab === 'monedas') {
+      const data = await api('/currencies');
+      const rows = (data.currencies||[]).map(c=>`<tr><td>${c.code}</td><td>${c.name}</td><td>${c.rate}</td></tr>`).join('');
+      main.innerHTML = `<div class="card"><div class="section-label">Nomenclador de monedas</div>
+        <p class="muted">Base del negocio: <strong>${data.base||base}</strong>. El rate es cuántas unidades de la base equivalen a 1 de esta moneda.</p>
+        <div class="grid-2"><div><label>Código</label><input id="mcode" /></div><div><label>Nombre</label><input id="mname" /></div></div>
+        <label>Tipo de cambio</label><input id="mrate" type="number" step="0.0001" value="1" />
+        <button class="btn btn-primary" id="saveM">Guardar</button>
+      </div>
+      <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>Cambio</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      document.getElementById('saveM').onclick = async () => {
+        await api('/currencies',{method:'POST',body:JSON.stringify({code:document.getElementById('mcode').value.trim().toUpperCase(), name:document.getElementById('mname').value.trim(), rate:+document.getElementById('mrate').value||1})});
+        toast('Moneda guardada'); render();
+      };
+    } else if (state.tab === 'reportes') {
+      main.innerHTML = `<div class="card">
+        <div class="section-label">Estados financieros</div>
+        <div class="grid-2">
+          <div><label>Periodo</label><select id="per"><option value="week">Semanal</option><option value="month" selected>Mensual</option><option value="quarter">Trimestral</option><option value="year">Anual</option><option value="all">Todo</option></select></div>
+          <div><label>Tipo</label><select id="kind"><option value="all">Situación + Rendimiento</option><option value="situacion">Estado de situación</option><option value="rendimiento">Estado de rendimiento</option></select></div>
+        </div>
+        <button class="btn btn-primary" id="runRep">Generar</button>
+        <div id="repOut" style="margin-top:1rem"></div>
+      </div>`;
+      document.getElementById('runRep').onclick = async () => {
+        const per = document.getElementById('per').value, kind = document.getElementById('kind').value;
+        const d = await api('/reports/financial?period='+per+'&kind='+kind);
+        const ops = (d.operaciones||[]).map(o => `<tr><td>${o.date||''}</td><td>${o.type}</td><td>${o.description||''}</td><td class="money">${money(o.amount, o.currency||d.base_currency)}</td><td>${o.username||o.user_id||'—'}</td></tr>`).join('');
+        document.getElementById('repOut').innerHTML = `
+          <div class="stats-grid">
+            <div class="stat-card"><small>Activo</small><h3 class="money">${money(d.estado_situacion.activo, d.base_currency)}</h3></div>
+            <div class="stat-card"><small>Pasivo</small><h3 class="money">${money(d.estado_situacion.pasivo, d.base_currency)}</h3></div>
+            <div class="stat-card"><small>Patrimonio</small><h3 class="money">${money(d.estado_situacion.patrimonio, d.base_currency)}</h3></div>
+            <div class="stat-card"><small>Ingresos periodo</small><h3 class="money">${money(d.estado_rendimiento.ingresos, d.base_currency)}</h3></div>
+            <div class="stat-card"><small>Gastos periodo</small><h3 class="money">${money(d.estado_rendimiento.gastos, d.base_currency)}</h3></div>
+            <div class="stat-card"><small>Resultado</small><h3 class="money">${money(d.estado_rendimiento.resultado, d.base_currency)}</h3></div>
+          </div>
+          <div class="card"><div class="section-label">Desglose de operaciones</div>
+          <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle</th><th>Importe</th><th>Ejecutor</th></tr></thead><tbody>${ops||'<tr><td colspan=5 class=muted>Sin movimientos en el periodo</td></tr>'}</tbody></table></div>`;
+      };
+    } else if (state.tab === 'traza') {
+      const data = await api('/audit');
+      const rows = (data.audit||[]).slice(0,150).map(a => `<tr><td>${(a.created_at||'').toString().slice(0,19)}</td><td>${a.username||a.user_id||''}</td><td>${a.action}</td><td>${a.detail||''}</td><td style="font-size:.7rem">${(a.cid||'').slice(0,14)}</td></tr>`).join('');
+      main.innerHTML = `<div class="card"><div class="section-label">Traza de operaciones</div>
+        <p class="muted">CID ${(data.root_cid||'—').slice(0,28)}…</p>
+        <table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Detalle</th><th>CID</th></tr></thead><tbody>${rows||'<tr><td colspan=5 class=muted>Sin eventos</td></tr>'}</tbody></table></div>`;
+    } else if (state.tab === 'salvas') {
+      const data = await api('/backups');
+      const rows = (data.backups||[]).map(b => `<tr><td>${(b.created_at||'').toString().slice(0,19)}</td><td>${b.label||'—'}</td><td style="font-size:.75rem">${(b.cid||'').slice(0,20)}…</td><td>${b.rev}</td>
+        <td><button class="btn btn-secondary btn-sm" data-restore="${b.cid}">Restaurar</button></td></tr>`).join('');
+      main.innerHTML = `<div class="card"><div class="section-label">Salvas CID / IPFS</div>
+        <p class="muted">Actual: <strong>${(data.current_cid||'—').slice(0,28)}…</strong> · rev ${data.rev||0}</p>
+        <label>Etiqueta</label><input id="blabel" placeholder="Cierre mensual" />
+        <button class="btn btn-primary" id="saveB">Guardar salva</button>
+      </div>
+      <div class="card"><table><thead><tr><th>Fecha</th><th>Etiqueta</th><th>CID</th><th>Rev</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan=5 class=muted>Sin salvas</td></tr>'}</tbody></table></div>`;
+      document.getElementById('saveB').onclick = async () => {
+        await api('/backups',{method:'POST',body:JSON.stringify({label:document.getElementById('blabel').value.trim()})});
+        toast('Salva anclada'); render();
+      };
+      main.querySelectorAll('[data-restore]').forEach(b => b.onclick = async () => {
+        if(!confirm('¿Restaurar esta salva?')) return;
+        await api('/backups/restore',{method:'POST',body:JSON.stringify({cid:b.dataset.restore})});
+        toast('Restaurado'); await loadMe(); render();
+      });
+    } else if (state.tab === 'negocio') {
+      const t = state.tenant || {};
+      main.innerHTML = `<div class="card">
+        <label>Nombre del negocio</label><input id="tname" value="${t.name||''}" />
+        <label>Moneda base</label><input id="tcur" value="${t.currency||'CUP'}" />
+        <label>Teléfono</label><input id="tphone" value="${t.phone||''}" />
+        <label>Dirección</label><input id="taddr" value="${t.address||''}" />
+        <button class="btn btn-primary" id="saveT">Guardar</button>
+      </div>`;
+      document.getElementById('saveT').onclick = async () => {
+        const u = await api('/tenant',{method:'PUT',body:JSON.stringify({name:document.getElementById('tname').value.trim(), currency:document.getElementById('tcur').value.trim(), phone:document.getElementById('tphone').value.trim(), address:document.getElementById('taddr').value.trim()})});
+        state.tenant = u; document.getElementById('sideSub').textContent = u.name; toast('Negocio actualizado');
+      };
+    } else if (state.tab === 'tema' || (state.tab === 'master' && state.user && state.user.role !== 'master')) {
+      // apariencia for admin/master
+      const th = await api('/theme');
+      const s = th.settings || {};
+      main.innerHTML = `<div class="card"><div class="section-label">Personalización</div>
+        <label>Título de la app</label><input id="apptitle" value="${s.app_title||'ÁbacoPhy'}" />
+        <label>Nombre del negocio</label><input id="thname" value="${th.name||''}" />
+        ${state.user.role==='master' ? `
+        <label>Color primario</label><input id="thpri" value="${s.primary||'#F4B400'}" />
+        <label>Color primario oscuro</label><input id="thprid" value="${s.primary_dark||'#FB8C00'}" />
+        ` : ''}
+        <button class="btn btn-primary" id="saveTh">Aplicar</button>
+      </div>`;
+      document.getElementById('saveTh').onclick = async () => {
+        const body = { app_title: document.getElementById('apptitle').value.trim(), name: document.getElementById('thname').value.trim() };
+        if (state.user.role==='master') {
+          body.primary = document.getElementById('thpri').value.trim();
+          body.primary_dark = document.getElementById('thprid').value.trim();
+        }
+        const r = await api('/theme',{method:'PUT',body:JSON.stringify(body)});
+        applyTheme(r.settings||body); toast('Apariencia actualizada'); await loadMe(); renderNav();
+      };
+    } else if (state.tab === 'master') {
+      const tenants = await api('/master/tenants');
+      let errs = {errors:[]};
+      try { errs = await api('/errors'); } catch(_){}
+      main.innerHTML = `<div class="card"><div class="section-label">Master · negocios</div>
+        <pre class="muted" style="white-space:pre-wrap;font-size:.8rem">${JSON.stringify(tenants.tenants,null,2)}</pre>
+      </div>
+      <div class="card"><div class="section-label">Errores / averías (solo master)</div>
+        <label>Registrar incidencia</label><input id="errd" placeholder="Descripción del error" />
+        <button class="btn btn-primary" id="logErr">Registrar</button>
+        <table style="margin-top:1rem"><thead><tr><th>Fecha</th><th>Detalle</th></tr></thead>
+        <tbody>${(errs.errors||[]).map(e=>`<tr><td>${(e.created_at||'').toString().slice(0,19)}</td><td>${e.detail||''}</td></tr>`).join('')||'<tr><td colspan=2 class=muted>Sin errores registrados</td></tr>'}</tbody></table>
+      </div>`;
+      document.getElementById('logErr').onclick = async () => {
+        await api('/errors',{method:'POST',body:JSON.stringify({detail:document.getElementById('errd').value.trim()})});
+        toast('Incidencia registrada'); render();
+      };
     }
+  } catch (e) {
+    main.innerHTML = `<div class="card muted">No se pudo cargar (${e.message})</div>`;
   }
+}
 
-  async function bootApp() {
-    document.getElementById("loginView").classList.add("hidden");
-    document.getElementById("appView").classList.remove("hidden");
-    await loadDashboard();
-    renderTabs();
-    await renderMain();
-    flushQueue();
-  }
+async function boot() {
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('appShell').classList.add('on');
+  await loadMe();
+  renderNav();
+  await render();
+}
 
-  async function trySession() {
-    if (!state.token) return;
-    try {
-      await loadDashboard();
-      await bootApp();
-    } catch (_) {
-      state.token = "";
-      saveLocal();
-    }
-  }
-
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
-  }
-  // serve manifest from same origin path helpers
-  trySession();
-  </script>
+async function trySession() {
+  if (!state.token) return;
+  try { await loadMe(); await boot(); } catch(_) { state.token=''; saveLocal(); }
+}
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+trySession();
+</script>
 </body>
 </html>
