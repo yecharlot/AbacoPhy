@@ -108,3 +108,11 @@ go run ./cmd/abacophy
 | Vendedor + rebajas | Hecho | POS → ingresos + COGS |
 | Fichas de costo | Hecho | Estructura normativa cubana simplificada |
 | Auditoría | Existente | Traza + informes; cada operación deja audit_log |
+
+## 2026-09-20 — Módulos, nomencladores y ACL
+
+- Nomencladores unificados: productos, cargos, monedas, **cuentas contables**, **unidades de medida** (CRUD).
+- Ficha de **costo** ≠ ficha de **precio** (módulos separados).
+- Master puede activar/desactivar módulos por negocio (`EnabledModules`).
+- Pedidos online + Tienda/catálogo (opcionales, estilo La Tati).
+- ACL por rol + módulo habilitado; menú lateral filtrado estrictamente.

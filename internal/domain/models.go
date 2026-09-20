@@ -26,6 +26,7 @@ type Tenant struct {
 	Email       string            `json:"email,omitempty"`
 	LogoCID     string            `json:"logo_cid,omitempty"`
 	Settings    map[string]string `json:"settings,omitempty"`
+	EnabledModules map[string]bool `json:"enabled_modules,omitempty"`
 	CreatedAt   time.Time         `json:"created_at"`
 	UpdatedAt   time.Time         `json:"updated_at"`
 	Active      bool              `json:"active"`
@@ -234,6 +235,9 @@ type StoreSnapshot struct {
 	CostSheets     map[string]*CostSheet      `json:"cost_sheets,omitempty"`
 	DocCounters    DocCounters               `json:"doc_counters,omitempty"`
 	JobPositions   map[string]*JobPosition    `json:"job_positions,omitempty"`
+	MeasureUnits   map[string]*MeasureUnit    `json:"measure_units,omitempty"`
+	PriceSheets     map[string]*PriceSheet     `json:"price_sheets,omitempty"`
+	OnlineOrders    []OnlineOrder              `json:"online_orders,omitempty"`
 	Rev        int64                     `json:"rev"`
 	RootCID    string                    `json:"root_cid,omitempty"`
 	UpdatedAt  time.Time                 `json:"updated_at"`

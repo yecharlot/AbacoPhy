@@ -71,7 +71,8 @@ func BootstrapTenant(name, slug, currency string) *StoreSnapshot {
 	}
 	tenant := Tenant{
 		ID: tid, Slug: slug, Name: name, Currency: currency,
-		Timezone: "America/Havana", Active: true, CreatedAt: now, UpdatedAt: now,
+		Timezone: "America/Havana",
+		EnabledModules: DefaultEnabledModules(), Active: true, CreatedAt: now, UpdatedAt: now,
 		Settings: map[string]string{
 			"brand_name": "ÁbacoPhy",
 			"locale":     "es",
@@ -100,6 +101,9 @@ func BootstrapTenant(name, slug, currency string) *StoreSnapshot {
 		CostSheets: map[string]*CostSheet{},
 		DocCounters: DocCounters{ProductSeq: 15, JobSeq: 10},
 		JobPositions: DefaultJobPositions(tid),
+		MeasureUnits: DefaultMeasureUnits(tid),
+		PriceSheets: map[string]*PriceSheet{},
+		OnlineOrders: []OnlineOrder{},
 		Currencies: DefaultCurrencies(currency),
 		Entries:   []Entry{},
 		Inventory: map[string]*InventoryItem{},
@@ -157,6 +161,32 @@ func DefaultJobPositions(tenantID string) map[string]*JobPosition {
 		code := fmt.Sprintf("C-%02d", i+1)
 		id := "job-" + code
 		out[id] = &JobPosition{ID: id, TenantID: tenantID, Code: code, Name: n, Active: true, CreatedAt: now}
+	}
+	return out
+}
+
+
+func DefaultMeasureUnits(tenantID string) map[string]*MeasureUnit {
+	now := time.Now().UTC()
+	defs := []struct{ code, name, sym string }{
+		{"U", "Unidad", "u"},
+		{"KG", "Kilogramo", "kg"},
+		{"G", "Gramo", "g"},
+		{"L", "Litro", "l"},
+		{"ML", "Mililitro", "ml"},
+		{"M", "Metro", "m"},
+		{"M2", "Metro cuadrado", "m²"},
+		{"CAJA", "Caja", "caja"},
+		{"PAQ", "Paquete", "paq"},
+		{"DOC", "Docena", "doc"},
+	}
+	out := make(map[string]*MeasureUnit, len(defs))
+	for _, d := range defs {
+		id := "mu-" + d.code
+		out[id] = &MeasureUnit{
+			ID: id, TenantID: tenantID, Code: d.code, Name: d.name, Symbol: d.sym,
+			Active: true, CreatedAt: now, UpdatedAt: now,
+		}
 	}
 	return out
 }

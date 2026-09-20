@@ -19,54 +19,45 @@ var (
 	ErrInvalidCred  = errors.New("invalid credentials")
 )
 
-// Vistas / módulos y roles que pueden acceder.
+// ViewACL: roles que pueden ver cada módulo (además debe estar habilitado en el tenant).
 var ViewACL = map[string][]string{
-	"dashboard": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador, domain.RoleEconomico, domain.RoleVendedor, domain.RoleAlmacenero, domain.RoleReadonly},
-	"ingresos":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleOperador},
-	"gastos":    {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleOperador},
-	"cuentas":   {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
-	"inventario": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero, domain.RoleOperador, domain.RoleReadonly},
-	"nomina":    {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
-	"facturas":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleOperador},
-	"reportes":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleReadonly},
-	"usuarios":  {domain.RoleMaster, domain.RoleAdmin},
-	"tenant":    {domain.RoleMaster, domain.RoleAdmin},
-	"master":    {domain.RoleMaster},
-	"sync":      {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador, domain.RoleEconomico, domain.RoleVendedor, domain.RoleAlmacenero},
-	"monedas":   {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
-	"traza":     {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
-	"salvas":    {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
-	"cuentas_t": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleReadonly},
+	"dashboard":     {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador, domain.RoleEconomico, domain.RoleVendedor, domain.RoleAlmacenero, domain.RoleReadonly},
+	"ingresos":      {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleOperador},
+	"gastos":        {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleOperador},
+	"cuentas":       {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
+	"inventario":    {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero, domain.RoleOperador, domain.RoleReadonly},
+	"nomina":        {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
+	"facturas":      {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleOperador},
+	"reportes":      {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleReadonly},
+	"usuarios":      {domain.RoleMaster, domain.RoleAdmin},
+	"tenant":        {domain.RoleMaster, domain.RoleAdmin},
+	"master":        {domain.RoleMaster},
+	"sync":          {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador, domain.RoleEconomico, domain.RoleVendedor, domain.RoleAlmacenero},
+	"monedas":       {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
+	"traza":         {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
+	"salvas":        {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
+	"cuentas_t":     {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleReadonly},
 	"nomencladores": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero, domain.RoleOperador, domain.RoleReadonly},
-	"productos": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero, domain.RoleOperador, domain.RoleReadonly},
-	"cargos":    {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
-	"almacen":   {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero, domain.RoleOperador, domain.RoleReadonly},
-	"unidades":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero},
-	"recepcion": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero},
-	"vendedor":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleVendedor, domain.RoleOperador},
-	"fichas_costo": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
-}
-
-
-func HashPassword(pw string) (string, error) {
-	b, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
-	return string(b), err
-}
-
-func CheckPassword(hash, pw string) bool {
-	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(pw)) == nil
-}
-
-func NewToken() string {
-	var b [24]byte
-	_, _ = rand.Read(b[:])
-	return hex.EncodeToString(b[:])
+	"productos":     {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero, domain.RoleOperador, domain.RoleReadonly},
+	"cargos":        {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
+	"measure_units": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero, domain.RoleOperador},
+	"almacen":       {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero, domain.RoleOperador, domain.RoleReadonly},
+	"unidades":      {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero},
+	"recepcion":     {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero},
+	"vendedor":      {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleVendedor, domain.RoleOperador},
+	"fichas_costo":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
+	"fichas_precio": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleVendedor},
+	"pedidos_online":{domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleVendedor, domain.RoleOperador},
+	"tienda":        {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleVendedor, domain.RoleOperador, domain.RoleReadonly},
 }
 
 func Can(role, view string) bool {
+	if role == domain.RoleMaster {
+		return true
+	}
 	allowed, ok := ViewACL[view]
 	if !ok {
-		return role == domain.RoleMaster
+		return false
 	}
 	for _, r := range allowed {
 		if r == role {
@@ -74,6 +65,61 @@ func Can(role, view string) bool {
 		}
 	}
 	return false
+}
+
+// ModuleEnabled: si el tenant no tiene mapa, se usan los defaults.
+func ModuleEnabled(snap *domain.StoreSnapshot, mod string) bool {
+	if snap == nil {
+		return true
+	}
+	// core siempre
+	for _, meta := range domain.CatalogModules() {
+		if meta.ID == mod && meta.Core {
+			return true
+		}
+	}
+	em := snap.Tenant.EnabledModules
+	if em == nil || len(em) == 0 {
+		def := domain.DefaultEnabledModules()
+		if v, ok := def[mod]; ok {
+			return v
+		}
+		return true
+	}
+	if v, ok := em[mod]; ok {
+		return v
+	}
+	// desconocido: apagado salvo core
+	return false
+}
+
+// CanAccess: rol + módulo habilitado en el tenant.
+func CanAccess(snap *domain.StoreSnapshot, role, view string) bool {
+	if !Can(role, view) {
+		return false
+	}
+	return ModuleEnabled(snap, view)
+}
+
+func HashPassword(pw string) (string, error) {
+	b, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+func CheckPassword(hash, pw string) bool {
+	if hash == "" || pw == "" {
+		return false
+	}
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(pw)) == nil
+}
+
+func NewToken() string {
+	b := make([]byte, 24)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 func Login(st *store.Store, username, password string) (*domain.TokenSession, *domain.User, error) {
@@ -84,7 +130,6 @@ func Login(st *store.Store, username, password string) (*domain.TokenSession, *d
 	if !CheckPassword(user.PasswordHash, password) {
 		return nil, nil, ErrInvalidCred
 	}
-	// Siempre anclar al tenant del snapshot cargado (evita TenantID huérfano en disco).
 	tenantID := snap.Tenant.ID
 	if tenantID == "" {
 		tenantID = user.TenantID
@@ -103,10 +148,7 @@ func Login(st *store.Store, username, password string) (*domain.TokenSession, *d
 	return tok, user, nil
 }
 
-func SessionFromHeader(st *store.Store, authHeader string) (*domain.TokenSession, error) {
-	if authHeader == "" {
-		return nil, ErrUnauthorized
-	}
+func SessionFromRequest(st *store.Store, authHeader string) (*domain.TokenSession, error) {
 	token := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
 	if token == "" {
 		return nil, ErrUnauthorized
@@ -128,10 +170,29 @@ func RequireView(sess *domain.TokenSession, view string) error {
 	return nil
 }
 
+func RequireAccess(snap *domain.StoreSnapshot, sess *domain.TokenSession, view string) error {
+	if sess == nil {
+		return ErrUnauthorized
+	}
+	if !CanAccess(snap, sess.Role, view) {
+		return ErrForbidden
+	}
+	return nil
+}
 
 func ValidRoles() []string {
 	return []string{
 		domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico,
 		domain.RoleVendedor, domain.RoleAlmacenero, domain.RoleOperador, domain.RoleReadonly,
 	}
+}
+
+func ViewsForRole(role string, snap *domain.StoreSnapshot) []string {
+	var out []string
+	for view := range ViewACL {
+		if CanAccess(snap, role, view) {
+			out = append(out, view)
+		}
+	}
+	return out
 }

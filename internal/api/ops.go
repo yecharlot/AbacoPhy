@@ -9,11 +9,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/yecharlot/AbacoPhy/internal/auth"
 	"github.com/yecharlot/AbacoPhy/internal/domain"
-	 
 )
 
 func (s *Server) registerOpsRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/products", s.handleProducts)
+	mux.HandleFunc("/api/v1/measure-units", s.handleMeasureUnits)
+	mux.HandleFunc("/api/v1/price-sheets", s.handlePriceSheets)
+	mux.HandleFunc("/api/v1/modules", s.handleModules)
+	mux.HandleFunc("/api/v1/online-orders", s.handleOnlineOrders)
 	mux.HandleFunc("/api/v1/units", s.handleSalesUnits)
 	mux.HandleFunc("/api/v1/warehouse", s.handleWarehouse)
 	mux.HandleFunc("/api/v1/receptions", s.handleReceptions)

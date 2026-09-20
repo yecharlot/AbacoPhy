@@ -420,9 +420,11 @@ const NAV = [
   { id: 'recepcion', label: 'Recepción', view: 'recepcion', icon: 'recepcion' },
   { id: 'vendedor', label: 'Vendedor', view: 'vendedor', icon: 'vendedor' },
   { id: 'fichas', label: 'Fichas de costo', view: 'fichas_costo', icon: 'fichas' },
+  { id: 'fichas_precio', label: 'Fichas de precio', view: 'fichas_precio', icon: 'fichas' },
+  { id: 'pedidos', label: 'Pedidos online', view: 'pedidos_online', icon: 'vendedor' },
+  { id: 'tienda', label: 'Tienda / catálogo', view: 'tienda', icon: 'productos' },
   { id: 'facturas', label: 'Facturas', view: 'facturas', icon: 'facturas' },
   { id: 'nomina', label: 'Nómina', view: 'nomina', icon: 'nomina' },
-  { id: 'cuentas', label: 'Nomenclador de cuentas', view: 'cuentas', icon: 'cuentas' },
   { id: 'informes', label: 'Informes', view: 'reportes', icon: 'informes' },
   { id: 'traza', label: 'Traza', view: 'traza', icon: 'traza' },
   { id: 'salvas', label: 'Salvas', view: 'salvas', icon: 'salvas' },
@@ -437,7 +439,7 @@ function safeJSON(raw, fallback) {
 }
 const state = {
   token: localStorage.getItem('ap_token') || '',
-  user: null, tenant: null, views: [], tab: 'inicio',
+  user: null, tenant: null, views: [], modules: {}, tab: 'inicio', nomTab: 'productos',
   informeSub: 'situacion',
   nomSub: 'productos',
   queue: safeJSON(localStorage.getItem('ap_queue') || '[]', []),
@@ -567,7 +569,7 @@ setInterval(() => { if (navigator.onLine && state.queue.length) autoSync(); }, 4
           password: document.getElementById('campoClave').value,
         }),
       });
-      state.token = data.token; state.user = data.user; state.views = data.views || [];
+      state.token = data.token; state.user = data.user; state.views = data.views || []; state.modules = data.modules || {};
       const clave = document.getElementById('campoClave');
       if (clave) clave.value = '';
       saveLocal();
@@ -593,9 +595,11 @@ setInterval(() => { if (navigator.onLine && state.queue.length) autoSync(); }, 4
 })();
 
 function can(view) {
-  if (view === 'dashboard') return state.views.includes('dashboard') || state.views.length;
-  if (view === 'reportes') return state.views.includes('reportes') || state.views.includes('cuentas');
-  return state.views.includes(view);
+  if (!state.views || !state.views.length) return false;
+  if (!state.views.includes(view)) return false;
+  const mods = state.modules || {};
+  if (Object.keys(mods).length && mods[view] === false) return false;
+  return true;
 }
 function renderNav() {
   const nav = document.getElementById('sideNav');
@@ -620,7 +624,7 @@ function renderNav() {
 }
 async function loadMe() {
   const me = await api('/auth/me');
-  state.user = me.user; state.tenant = me.tenant; state.views = me.views || state.views;
+  state.user = me.user; state.tenant = me.tenant; state.views = me.views || state.views; state.modules = me.modules || state.modules || {};
   state.cache.rev = me.rev; state.cache.root_cid = me.root_cid;
   document.getElementById('sideTitle').textContent = (me.tenant.settings && me.tenant.settings.app_title) || me.tenant.name || 'ÁbacoPhy';
   document.getElementById('sideSub').textContent = me.tenant.name || 'Negocio';
@@ -1044,113 +1048,143 @@ async function render() {
       });
 
     } else if (state.tab === 'nomencladores') {
-      const sub = state.nomSub || 'productos';
-      const tabs = [['productos','Productos'],['cargos','Cargos'],['monedas','Monedas']];
+      const tab = state.nomTab || 'productos';
+      const tabs = [
+        {id:'productos', label:'Productos'},
+        {id:'cargos', label:'Cargos'},
+        {id:'monedas', label:'Monedas'},
+        {id:'cuentas', label:'Cuentas contables'},
+        {id:'medidas', label:'Unidades de medida'},
+      ];
       let body = '';
-      if (sub === 'productos') {
-        const data = await api('/products');
-        const rows = (data.products || []).map(p => `<tr>
-          <td><strong>${p.code}</strong></td><td>${p.name}</td><td>${p.unit||'u'}</td><td>${p.category||'—'}</td>
-          <td class="money">${money(p.cost_std, p.currency||base)}</td>
-          <td class="money">${money(p.price_sale, p.currency||base)}</td>
+      if (tab === 'productos') {
+        const prods = await api('/products');
+        const mus = await api('/measure-units').catch(()=>({units:[]}));
+        const uopts = (mus.units||[]).filter(u=>u.active!==false).map(u=>`<option value="${u.code}">${u.code} — ${u.name}</option>`).join('');
+        const rows = (prods.products||[]).map(p => `<tr>
+          <td>${p.code}</td><td>${p.name}</td><td>${p.unit||''}</td>
+          <td class="money">${money(p.cost_std||0, state.tenant?.currency||'CUP')}</td>
+          <td class="money">${money(p.price_sale||0, state.tenant?.currency||'CUP')}</td>
+          <td><button class="btn btn-ghost btn-sm" data-edit="${p.id}">Editar</button>
+              <button class="btn btn-ghost btn-sm" data-del="${p.id}">Baja</button></td>
+        </tr>`).join('');
+        body = `<div class="card"><div class="section-label">Alta de producto</div>
+          <label>Código</label><input id="pc" placeholder="auto si vacío"/>
+          <label>Nombre</label><input id="pn"/>
+          <label>Unidad de medida</label><select id="pu">${uopts||'<option value="U">U</option>'}</select>
+          <label>Categoría</label><input id="pcat"/>
+          <label>Costo estándar</label><input id="pcost" type="number" step="0.01"/>
+          <label>Precio venta</label><input id="pprice" type="number" step="0.01"/>
+          <button class="btn btn-primary" id="addP">Registrar producto</button></div>
+          <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>UM</th><th>Costo</th><th>Precio</th><th></th></tr></thead>
+          <tbody>${rows||'<tr><td colspan="6" class="muted">Sin productos</td></tr>'}</tbody></table></div>`;
+      } else if (tab === 'cargos') {
+        const jobs = await api('/job-positions');
+        const rows = (jobs.positions||jobs.jobs||[]).map(j => `<tr><td>${j.code}</td><td>${j.name}</td><td>${j.active?'Activo':'Inactivo'}</td></tr>`).join('');
+        body = `<div class="card"><div class="section-label">Nomenclador de cargos</div>
+          <label>Código</label><input id="jc"/><label>Nombre</label><input id="jn"/>
+          <button class="btn btn-primary" id="addJ">Agregar cargo</button></div>
+          <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>Estado</th></tr></thead>
+          <tbody>${rows||'<tr><td colspan="3" class="muted">—</td></tr>'}</tbody></table></div>`;
+      } else if (tab === 'monedas') {
+        const cur = await api('/currencies');
+        const rows = (cur.currencies||[]).map(c => `<tr><td>${c.code}</td><td>${c.name}</td><td>${c.rate}</td><td>${c.active?'Sí':'No'}</td></tr>`).join('');
+        body = `<div class="card"><div class="section-label">Monedas y cambio</div>
+          <label>Código</label><input id="cc"/><label>Nombre</label><input id="cn"/><label>Tasa</label><input id="cr" type="number" step="0.0001"/>
+          <button class="btn btn-primary" id="addC">Guardar moneda</button></div>
+          <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>Tasa</th><th>Activa</th></tr></thead>
+          <tbody>${rows||'<tr><td colspan="4" class="muted">—</td></tr>'}</tbody></table></div>`;
+      } else if (tab === 'cuentas') {
+        const acc = await api('/accounts');
+        const rows = (acc.accounts||[]).map(a => `<tr>
+          <td>${a.code}</td><td>${a.name}</td><td>${a.type}</td><td>${a.nature||''}</td>
+          <td class="money">${money(a.balance||0, state.tenant?.currency||'CUP')}</td>
+          <td><button class="btn btn-ghost btn-sm" data-ae="${a.id}">Editar</button></td>
+        </tr>`).join('');
+        body = `<div class="card"><div class="section-label">Plan de cuentas</div>
+          <p class="muted">Nomenclador contable. Las operaciones de ingresos, gastos e inventario impactan estos saldos.</p>
+          <label>Código</label><input id="ac"/><label>Nombre</label><input id="an"/>
+          <label>Tipo</label><select id="at"><option value="asset">Activo</option><option value="liability">Pasivo</option><option value="equity">Patrimonio</option><option value="income">Ingreso</option><option value="expense">Gasto</option></select>
+          <label>Naturaleza</label><select id="ana"><option value="deudora">Deudora</option><option value="acreedora">Acreedora</option></select>
+          <button class="btn btn-primary" id="addA">Agregar cuenta</button></div>
+          <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th>Naturaleza</th><th>Saldo</th><th></th></tr></thead>
+          <tbody>${rows||'<tr><td colspan="6" class="muted">—</td></tr>'}</tbody></table></div>`;
+      } else if (tab === 'medidas') {
+        const mus = await api('/measure-units');
+        const rows = (mus.units||[]).map(u => `<tr>
+          <td>${u.code}</td><td>${u.name}</td><td>${u.symbol||''}</td><td>${u.active!==false?'Activa':'Inactiva'}</td>
           <td>
-            <button class="btn btn-secondary btn-sm" data-pe="${p.id}">Editar</button>
-            <button class="btn btn-secondary btn-sm" data-pd="${p.id}">Eliminar</button>
-          </td></tr>`).join('');
-        body = `<div class="card">
-          <div class="section-label">Productos</div>
-          <p class="muted">Código único válido en almacén y todas las unidades. CRUD completo.</p>
-          <div class="grid-2"><div><label>Nombre</label><input id="pn" /></div><div><label>Unidad</label><input id="pu" value="u" /></div></div>
-          <div class="grid-2"><div><label>Categoría</label><input id="pc" /></div><div><label>Precio venta</label><input id="pp" type="number" step="0.01" value="0" /></div></div>
-          <div class="grid-2"><div><label>Costo std.</label><input id="pco" type="number" step="0.01" value="0" /></div><div><label>Código (opcional)</label><input id="pcd" placeholder="auto P-xxxx" /></div></div>
-          <button class="btn btn-primary" id="addP">Agregar producto</button>
-        </div>
-        <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>UM</th><th>Cat.</th><th>Costo</th><th>Precio</th><th></th></tr></thead>
-        <tbody>${rows||'<tr><td colspan="7" class="muted">Sin productos</td></tr>'}</tbody></table></div>`;
-      } else if (sub === 'cargos') {
-        const data = await api('/job-positions');
-        const rows = (data.positions||[]).map(j => `<tr>
-          <td>${j.code}</td><td>${j.name}</td>
-          <td><button class="btn btn-secondary btn-sm" data-je="${j.id}">Editar</button>
-          <button class="btn btn-secondary btn-sm" data-jd="${j.id}">Eliminar</button></td></tr>`).join('');
-        body = `<div class="card">
-          <div class="section-label">Cargos</div>
-          <p class="muted">Nomenclador de puestos de trabajo para nómina y organización.</p>
-          <label>Nombre del cargo</label><input id="jn" />
-          <button class="btn btn-primary" id="addJ">Agregar cargo</button>
-        </div>
-        <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th></th></tr></thead>
-        <tbody>${rows||'<tr><td colspan="3" class="muted">Sin cargos</td></tr>'}</tbody></table></div>`;
-      } else {
-        const data = await api('/currencies');
-        const rows = (data.currencies || []).map(c => {
-          const code = c.code || c.Code; const name = c.name || c.Name; const rate = c.rate != null ? c.rate : c.Rate;
-          return `<tr><td>${code}</td><td>${name}</td><td>${rate}</td></tr>`;
-        }).join('');
-        body = `<div class="card"><div class="section-label">Monedas</div>
-          <p class="muted">Base del negocio: <strong>${data.base || base}</strong></p>
-          <div class="grid-2"><div><label>Código</label><input id="mcode" /></div><div><label>Nombre</label><input id="mname" /></div></div>
-          <label>Tipo de cambio</label><input id="mrate" type="number" step="0.0001" value="1" />
-          <button class="btn btn-primary" id="saveM">Guardar moneda</button>
-        </div>
-        <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>Cambio</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+            <button class="btn btn-ghost btn-sm" data-mue="${u.id}">Editar</button>
+            <button class="btn btn-ghost btn-sm" data-mud="${u.id}">Eliminar</button>
+          </td>
+        </tr>`).join('');
+        body = `<div class="card"><div class="section-label">Unidades de medida</div>
+          <p class="muted">CRUD completo. Use estos códigos al registrar productos e inventarios.</p>
+          <label>Código</label><input id="muc" placeholder="KG"/><label>Nombre</label><input id="mun" placeholder="Kilogramo"/>
+          <label>Símbolo</label><input id="mus" placeholder="kg"/>
+          <button class="btn btn-primary" id="addMU">Agregar unidad</button></div>
+          <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>Símbolo</th><th>Estado</th><th></th></tr></thead>
+          <tbody>${rows||'<tr><td colspan="5" class="muted">—</td></tr>'}</tbody></table></div>`;
       }
+      const tabBar = tabs.map(t => `<button type="button" class="btn ${tab===t.id?'btn-primary':'btn-ghost'} btn-sm" data-nt="${t.id}">${t.label}</button>`).join(' ');
       main.innerHTML = `<div class="card"><div class="section-label">Nomencladores</div>
-        <div class="tabs" id="nomTabs">${tabs.map(([k,l]) => `<button type="button" class="tab ${sub===k?'active':''}" data-k="${k}">${l}</button>`).join('')}</div>
-      </div>${body}`;
-      document.querySelectorAll('#nomTabs .tab').forEach(tb => tb.onclick = () => { state.nomSub = tb.dataset.k; render(); });
-      if (sub === 'productos') {
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">${tabBar}</div>
+        <p class="muted" style="margin:0">Productos, cargos, monedas, plan de cuentas y unidades de medida en un solo lugar.</p></div>${body}`;
+      main.querySelectorAll('[data-nt]').forEach(b => b.onclick = () => { state.nomTab = b.getAttribute('data-nt'); render(); });
+      if (tab === 'productos') {
         document.getElementById('addP').onclick = async () => {
-          await api('/products', { method: 'POST', body: JSON.stringify({
+          await api('/products', { method:'POST', body: JSON.stringify({
+            code: document.getElementById('pc').value.trim(),
             name: document.getElementById('pn').value.trim(),
-            unit: document.getElementById('pu').value.trim()||'u',
-            category: document.getElementById('pc').value.trim(),
-            price_sale: +document.getElementById('pp').value||0,
-            cost_std: +document.getElementById('pco').value||0,
-            code: document.getElementById('pcd').value.trim()||undefined,
+            unit: document.getElementById('pu').value,
+            category: document.getElementById('pcat').value.trim(),
+            cost_std: +document.getElementById('pcost').value||0,
+            price_sale: +document.getElementById('pprice').value||0,
           })});
-          toast('Producto agregado'); render();
+          toast('Producto registrado'); render();
         };
-        document.querySelectorAll('[data-pe]').forEach(b => b.onclick = async () => {
-          const data = await api('/products');
-          const p = (data.products||[]).find(x => x.id === b.dataset.pe); if (!p) return;
-          const name = prompt('Nombre', p.name); if (name == null) return;
-          const unit = prompt('Unidad', p.unit||'u'); if (unit == null) return;
-          const category = prompt('Categoría', p.category||''); if (category == null) return;
-          const code = prompt('Código', p.code); if (code == null) return;
-          const cost_std = prompt('Costo std.', String(p.cost_std||0)); if (cost_std == null) return;
-          const price_sale = prompt('Precio venta', String(p.price_sale||0)); if (price_sale == null) return;
-          await api('/products', { method: 'PUT', body: JSON.stringify({ ...p, name, unit, category, code, cost_std: +cost_std, price_sale: +price_sale }) });
-          toast('Producto actualizado'); render();
-        });
-        document.querySelectorAll('[data-pd]').forEach(b => b.onclick = async () => {
-          if (!confirm('¿Eliminar producto del nomenclador?')) return;
-          await api('/products?id=' + encodeURIComponent(b.dataset.pd), { method: 'DELETE' });
-          toast('Producto eliminado'); render();
-        });
-      } else if (sub === 'cargos') {
-        document.getElementById('addJ').onclick = async () => {
-          await api('/job-positions', { method: 'POST', body: JSON.stringify({ name: document.getElementById('jn').value.trim() }) });
+      } else if (tab === 'cargos') {
+        const btn = document.getElementById('addJ');
+        if (btn) btn.onclick = async () => {
+          await api('/job-positions', { method:'POST', body: JSON.stringify({ code: document.getElementById('jc').value.trim(), name: document.getElementById('jn').value.trim() })});
           toast('Cargo agregado'); render();
         };
-        document.querySelectorAll('[data-je]').forEach(b => b.onclick = async () => {
-          const data = await api('/job-positions');
-          const j = (data.positions||[]).find(x => x.id === b.dataset.je); if (!j) return;
-          const name = prompt('Nombre', j.name); if (name == null) return;
-          await api('/job-positions', { method: 'PUT', body: JSON.stringify({ id: j.id, name }) });
-          toast('Cargo actualizado'); render();
-        });
-        document.querySelectorAll('[data-jd]').forEach(b => b.onclick = async () => {
-          if (!confirm('¿Eliminar cargo?')) return;
-          await api('/job-positions?id=' + encodeURIComponent(b.dataset.jd), { method: 'DELETE' });
-          toast('Cargo eliminado'); render();
-        });
-      } else {
-        document.getElementById('saveM').onclick = async () => {
-          await api('/currencies', { method: 'POST', body: JSON.stringify({ code: document.getElementById('mcode').value.trim().toUpperCase(), name: document.getElementById('mname').value.trim(), rate: +document.getElementById('mrate').value || 1 }) });
+      } else if (tab === 'monedas') {
+        const btn = document.getElementById('addC');
+        if (btn) btn.onclick = async () => {
+          await api('/currencies', { method:'POST', body: JSON.stringify({ code: document.getElementById('cc').value.trim(), name: document.getElementById('cn').value.trim(), rate: +document.getElementById('cr').value||1 })});
           toast('Moneda guardada'); render();
         };
+      } else if (tab === 'cuentas') {
+        const btn = document.getElementById('addA');
+        if (btn) btn.onclick = async () => {
+          await api('/accounts', { method:'POST', body: JSON.stringify({
+            code: document.getElementById('ac').value.trim(), name: document.getElementById('an').value.trim(),
+            type: document.getElementById('at').value, nature: document.getElementById('ana').value,
+          })});
+          toast('Cuenta agregada'); render();
+        };
+      } else if (tab === 'medidas') {
+        document.getElementById('addMU').onclick = async () => {
+          await api('/measure-units', { method:'POST', body: JSON.stringify({
+            code: document.getElementById('muc').value.trim(), name: document.getElementById('mun').value.trim(),
+            symbol: document.getElementById('mus').value.trim(),
+          })});
+          toast('Unidad de medida agregada'); render();
+        };
+        main.querySelectorAll('[data-mud]').forEach(b => b.onclick = async () => {
+          if (!confirm('¿Eliminar unidad?')) return;
+          await api('/measure-units?id='+b.getAttribute('data-mud'), { method:'DELETE' });
+          toast('Eliminada'); render();
+        });
+        main.querySelectorAll('[data-mue]').forEach(b => b.onclick = async () => {
+          const name = prompt('Nuevo nombre');
+          if (!name) return;
+          await api('/measure-units', { method:'PUT', body: JSON.stringify({ id: b.getAttribute('data-mue'), name })});
+          toast('Actualizada'); render();
+        });
       }
+
     } else if (state.tab === 'unidades') {
       const data = await api('/units');
       const rows = (data.units||[]).map(u => `<tr><td>${u.code}</td><td>${u.name}</td><td>${u.address||'—'}</td><td>${u.phone||'—'}</td></tr>`).join('');
@@ -1425,23 +1459,140 @@ async function render() {
         })});
         toast('Apariencia actualizada'); await loadMe(); renderNav();
       };
+    
+    } else if (state.tab === 'fichas_precio') {
+      const sheets = await api('/price-sheets');
+      const prods = await api('/products');
+      const popts = (prods.products||[]).map(p=>`<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
+      const rows = (sheets.sheets||[]).map(s => `<tr>
+        <td>${s.product_code}</td><td>${s.product_name}</td>
+        <td class="money">${money(s.cost_ref, s.currency)}</td>
+        <td>${s.margin_pct}%</td>
+        <td class="money">${money(s.price, s.currency)}</td>
+        <td><button class="btn btn-ghost btn-sm" data-psd="${s.id}">Eliminar</button></td>
+      </tr>`).join('');
+      main.innerHTML = `<div class="card"><div class="section-label">Fichas de precio</div>
+        <p class="muted">Distinto de la ficha de costo: aquí define precio de venta y margen. El costo de producción se calcula en Fichas de costo.</p>
+        <label>Producto</label><select id="psP">${popts}</select>
+        <label>Costo referencia</label><input id="psC" type="number" step="0.01"/>
+        <label>Margen %</label><input id="psM" type="number" step="0.1" value="20"/>
+        <label>Precio venta (opcional; si vacío se calcula)</label><input id="psPr" type="number" step="0.01"/>
+        <button class="btn btn-primary" id="addPS">Registrar ficha de precio</button></div>
+        <div class="card"><table><thead><tr><th>Código</th><th>Producto</th><th>Costo ref.</th><th>Margen</th><th>Precio</th><th></th></tr></thead>
+        <tbody>${rows||'<tr><td colspan="6" class="muted">Sin fichas de precio</td></tr>'}</tbody></table></div>`;
+      document.getElementById('addPS').onclick = async () => {
+        await api('/price-sheets', { method:'POST', body: JSON.stringify({
+          product_id: document.getElementById('psP').value,
+          cost_ref: +document.getElementById('psC').value||0,
+          margin_pct: +document.getElementById('psM').value||0,
+          price: +document.getElementById('psPr').value||0,
+        })});
+        toast('Ficha de precio creada'); render();
+      };
+      main.querySelectorAll('[data-psd]').forEach(b => b.onclick = async () => {
+        await api('/price-sheets?id='+b.getAttribute('data-psd'), { method:'DELETE' });
+        toast('Eliminada'); render();
+      });
+    } else if (state.tab === 'pedidos') {
+      const data = await api('/online-orders');
+      const prods = await api('/products');
+      const popts = (prods.products||[]).map(p=>`<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
+      const stLabel = {pending:'Pendiente', confirmed:'Confirmado', cancelled:'Cancelado', delivered:'Entregado'};
+      const rows = (data.orders||[]).slice().reverse().map(o => `<tr>
+        <td>${o.number}</td><td>${o.customer}</td><td>${o.phone||''}</td>
+        <td class="money">${money(o.total, o.currency)}</td>
+        <td>${stLabel[o.status]||o.status}</td>
+        <td>
+          <button class="btn btn-ghost btn-sm" data-oc="${o.id}">Confirmar</button>
+          <button class="btn btn-ghost btn-sm" data-ox="${o.id}">Cancelar</button>
+        </td>
+      </tr>`).join('');
+      main.innerHTML = `<div class="card"><div class="section-label">Pedidos online</div>
+        <p class="muted">Módulo tipo La Tati: el cliente pide y usted confirma. Active o desactive este módulo desde Master.</p>
+        <label>Cliente</label><input id="ocN"/>
+        <label>Teléfono</label><input id="ocT"/>
+        <label>Producto</label><select id="ocP">${popts}</select>
+        <label>Cantidad</label><input id="ocQ" type="number" value="1" min="1"/>
+        <button class="btn btn-primary" id="addO">Registrar pedido</button></div>
+        <div class="card"><table><thead><tr><th>Nº</th><th>Cliente</th><th>Tel.</th><th>Total</th><th>Estado</th><th></th></tr></thead>
+        <tbody>${rows||'<tr><td colspan="6" class="muted">Sin pedidos</td></tr>'}</tbody></table></div>`;
+      document.getElementById('addO').onclick = async () => {
+        await api('/online-orders', { method:'POST', body: JSON.stringify({
+          customer: document.getElementById('ocN').value.trim(),
+          phone: document.getElementById('ocT').value.trim(),
+          lines: [{ product_id: document.getElementById('ocP').value, qty: +document.getElementById('ocQ').value||1 }],
+        })});
+        toast('Pedido registrado'); render();
+      };
+      main.querySelectorAll('[data-oc]').forEach(b => b.onclick = async () => {
+        await api('/online-orders', { method:'PUT', body: JSON.stringify({ id: b.getAttribute('data-oc'), status: 'confirmed' })});
+        toast('Confirmado'); render();
+      });
+      main.querySelectorAll('[data-ox]').forEach(b => b.onclick = async () => {
+        await api('/online-orders', { method:'PUT', body: JSON.stringify({ id: b.getAttribute('data-ox'), status: 'cancelled' })});
+        toast('Cancelado'); render();
+      });
+    } else if (state.tab === 'tienda') {
+      const prods = await api('/products');
+      const cards = (prods.products||[]).filter(p=>p.active!==false).map(p => `
+        <div class="card" style="margin:0">
+          <div class="section-label">${p.name}</div>
+          <p class="muted">${p.code} · ${p.unit||''}</p>
+          <p class="money" style="font-size:1.2rem">${money(p.price_sale||0, state.tenant?.currency||'CUP')}</p>
+        </div>`).join('');
+      main.innerHTML = `<div class="card"><div class="section-label">Tienda / catálogo público</div>
+        <p class="muted">Vista de catálogo para compartir con clientes (similar a La Tati). Los pedidos se gestionan en Pedidos online.</p></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px">${cards||'<p class="muted">Sin productos</p>'}</div>`;
+
     } else if (state.tab === 'master' && state.user && state.user.role === 'master') {
       const tenants = await api('/master/tenants');
       let errs = { errors: [] };
       try { errs = await api('/errors'); } catch (_) {}
-      main.innerHTML = `<div class="card"><div class="section-label">Master · negocios</div>
+      let modData = { modules: {}, catalog: [] };
+      try { modData = await api('/modules'); } catch (_) {}
+      const modRows = (modData.catalog || []).map(m => {
+        const on = modData.modules && modData.modules[m.id] !== false;
+        const dis = m.core ? 'disabled' : '';
+        return `<tr>
+          <td>${m.name}</td><td class="muted">${m.description||''}</td>
+          <td>${m.core ? 'Núcleo' : (m.group||'')}</td>
+          <td><label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" data-mod="${m.id}" ${on?'checked':''} ${dis}/>
+            ${m.core ? 'siempre' : (on?'activo':'off')}
+          </label></td>
+        </tr>`;
+      }).join('');
+      main.innerHTML = `<div class="card"><div class="section-label">Módulos del negocio</div>
+        <p class="muted" style="margin-bottom:.75rem">Active o desactive módulos según lo que necesite el negocio. Los de núcleo no se pueden apagar. Los cambios aplican al menú y a la API (roles siguen limitando el acceso).</p>
+        <table><thead><tr><th>Módulo</th><th>Descripción</th><th>Grupo</th><th>Estado</th></tr></thead>
+        <tbody id="modList">${modRows||'<tr><td colspan="4" class="muted">—</td></tr>'}</tbody></table>
+        <button class="btn btn-primary" id="btnSaveMods" style="margin-top:12px">Guardar módulos</button>
+      </div>
+      <div class="card"><div class="section-label">Master · negocios</div>
         <p class="muted" style="margin-bottom:.5rem">Vista de tenants de la instancia. Transparente para el usuario final del negocio.</p>
         <pre class="muted" style="white-space:pre-wrap;font-size:.8rem">${JSON.stringify(tenants.tenants, null, 2)}</pre>
       </div>
       <div class="card"><div class="section-label">Errores registrados por el sistema</div>
-        <p class="muted" style="margin-bottom:.75rem">El sistema documenta de forma autónoma fallos de API, sincronización y operaciones. También se reflejan en la traza. No es un formulario de reportes manuales.</p>
+        <p class="muted" style="margin-bottom:.75rem">El sistema documenta de forma autónoma fallos de API, sincronización y operaciones. También se reflejan en la traza.</p>
         <table><thead><tr><th>Fecha</th><th>Detalle</th></tr></thead>
         <tbody>${(errs.errors || []).map(e => `<tr><td>${(e.created_at || '').toString().slice(0, 19).replace('T',' ')}</td><td>${e.detail || e.action || ''}</td></tr>`).join('') || '<tr><td colspan="2" class="muted">Sin errores capturados aún</td></tr>'}</tbody></table>
       </div>
       <div class="card"><div class="section-label">Restaurar aplicación</div>
-        <p class="muted" style="margin-bottom:.75rem">Reinicia la instancia a estado inicial (cero datos de negocio). Las claves master/admin vuelven a las documentadas en LOGIN.md. Esta acción no se puede deshacer.</p>
+        <p class="muted" style="margin-bottom:.75rem">Reinicia la instancia a estado inicial (cero datos de negocio). Las claves master/admin vuelven a las documentadas en LOGIN.md.</p>
         <button class="btn btn-danger" id="btnFactoryReset">Restaurar a estado inicial</button>
       </div>`;
+      const btnMods = document.getElementById('btnSaveMods');
+      if (btnMods) btnMods.onclick = async () => {
+        const modules = {};
+        main.querySelectorAll('[data-mod]').forEach(cb => {
+          modules[cb.getAttribute('data-mod')] = !!cb.checked;
+        });
+        await api('/modules', { method: 'PUT', body: JSON.stringify({ modules }) });
+        toast('Módulos actualizados');
+        await loadMe();
+        renderNav();
+        render();
+      };
       document.getElementById('btnFactoryReset').onclick = async () => {
         if (!confirm('¿Restaurar la aplicación a cero datos? Se perderán todos los negocios y operaciones de esta instancia.')) return;
         const conf = prompt('Escriba REINICIAR para confirmar');

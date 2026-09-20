@@ -111,7 +111,7 @@ func readJSON(r *http.Request, dst any) error {
 }
 
 func (s *Server) sess(r *http.Request) (*domain.TokenSession, error) {
-	return auth.SessionFromHeader(s.Store, r.Header.Get("Authorization"))
+	return auth.SessionFromRequest(s.Store, r.Header.Get("Authorization"))
 }
 
 func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
@@ -152,7 +152,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			"id": user.ID, "username": user.Username, "display_name": user.DisplayName,
 			"role": user.Role, "tenant_id": user.TenantID,
 		},
-		"views": viewsForRole(user.Role),
+		"views": viewsForRole(user.Role, s.Store.Get(tok.TenantID)), "modules": modulesPayload(s.Store.Get(tok.TenantID)),
 	})
 }
 
@@ -168,14 +168,18 @@ func publicUser(u *domain.User) map[string]any {
 	}
 }
 
-func viewsForRole(role string) []string {
-	var out []string
-	for view := range auth.ViewACL {
-		if auth.Can(role, view) {
-			out = append(out, view)
-		}
+func viewsForRole(role string, snap *domain.StoreSnapshot) []string {
+	return auth.ViewsForRole(role, snap)
+}
+
+func modulesPayload(snap *domain.StoreSnapshot) map[string]bool {
+	if snap == nil {
+		return domain.DefaultEnabledModules()
 	}
-	return out
+	if snap.Tenant.EnabledModules != nil && len(snap.Tenant.EnabledModules) > 0 {
+		return snap.Tenant.EnabledModules
+	}
+	return domain.DefaultEnabledModules()
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -213,7 +217,7 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]any{
 		"user": publicUser(user), "tenant": snap.Tenant, "rev": snap.Rev, "root_cid": snap.RootCID,
-		"views": viewsForRole(sess.Role),
+		"views": viewsForRole(sess.Role, snap), "modules": modulesPayload(snap),
 	})
 }
 
@@ -1197,6 +1201,18 @@ func EnsureBootstrap(st *store.Store) error {
 				return err
 			}
 			u.PasswordHash = h
+			changed = true
+		}
+		if snap.Tenant.EnabledModules == nil || len(snap.Tenant.EnabledModules) == 0 {
+			snap.Tenant.EnabledModules = domain.DefaultEnabledModules()
+			changed = true
+		}
+		if snap.MeasureUnits == nil || len(snap.MeasureUnits) == 0 {
+			snap.MeasureUnits = domain.DefaultMeasureUnits(snap.Tenant.ID)
+			changed = true
+		}
+		if snap.PriceSheets == nil {
+			snap.PriceSheets = map[string]*domain.PriceSheet{}
 			changed = true
 		}
 		if changed {
