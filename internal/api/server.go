@@ -38,6 +38,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/auth/login", s.handleLogin)
 	mux.HandleFunc("/api/v1/auth/logout", s.handleLogout)
 	mux.HandleFunc("/api/v1/auth/me", s.handleMe)
+	mux.HandleFunc("/api/v1/auth/password", s.handleChangePassword)
 
 	// Tenant / customización
 	mux.HandleFunc("/api/v1/tenant", s.handleTenant)

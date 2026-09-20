@@ -84,3 +84,14 @@ go run ./cmd/abacophy
 - Servicio: `https://abacophy.onrender.com`
 - Nodo ANS: `https://prisma-tec.onrender.com/w/abacophy.app.ans`
 - Repo: `https://github.com/yecharlot/AbacoPhy`
+
+
+## Multiplataforma y operaciones (2026-09)
+
+| Hito | Estado |
+|------|--------|
+| Cambio de contraseña UI (Negocio) | Hecho |
+| API `/auth/password` | Hecho |
+| Shell Electron + build Linux/Windows | Scaffold en `desktop/` |
+| Guía DEPLOY.md (Cloudflare, offline, APK/PWA) | Hecho |
+| Binario portable Win7 sin Electron | Documentado |

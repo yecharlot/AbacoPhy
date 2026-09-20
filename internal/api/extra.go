@@ -905,3 +905,98 @@ func (s *Server) handleMasterReset(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]any{"ok": true, "message": "Aplicación restaurada a estado inicial sin datos de negocio"})
 }
+
+
+// POST /api/v1/auth/password — el usuario cambia su propia contraseña.
+// Body: { "current_password": "...", "new_password": "..." }
+// Admin/master también puede forzar cambio de otro usuario del mismo tenant:
+// { "username": "admin", "new_password": "...", "current_password": "<clave del solicitante>" }
+func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+		return
+	}
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	var body struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+		Username        string `json:"username"` // opcional: cambiar a otro (solo admin/master)
+	}
+	if err := readJSON(r, &body); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "json invalido"})
+		return
+	}
+	if len(body.NewPassword) < 6 {
+		writeJSON(w, 400, map[string]string{"error": "la nueva contraseña debe tener al menos 6 caracteres"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "tenant no encontrado"})
+		return
+	}
+	actor := snap.Users[sess.UserID]
+	if actor == nil {
+		writeJSON(w, 401, map[string]string{"error": "usuario no encontrado"})
+		return
+	}
+	if !auth.CheckPassword(actor.PasswordHash, body.CurrentPassword) {
+		writeJSON(w, 401, map[string]string{"error": "contraseña actual incorrecta"})
+		return
+	}
+	target := actor
+	if body.Username != "" && body.Username != actor.Username {
+		if sess.Role != domain.RoleAdmin && sess.Role != domain.RoleMaster {
+			writeJSON(w, 403, map[string]string{"error": "solo admin o master puede cambiar la clave de otro usuario"})
+			return
+		}
+		// buscar en el mismo tenant
+		found := false
+		for _, u := range snap.Users {
+			if u != nil && u.Username == body.Username {
+				target = u
+				found = true
+				break
+			}
+		}
+		// master puede buscar en todos los tenants
+		if !found && sess.Role == domain.RoleMaster {
+			for _, tid := range s.Store.ListTenantIDs() {
+				sn := s.Store.Get(tid)
+				if sn == nil {
+					continue
+				}
+				for _, u := range sn.Users {
+					if u != nil && u.Username == body.Username {
+						target = u
+						snap = sn
+						found = true
+						break
+					}
+				}
+				if found {
+					break
+				}
+			}
+		}
+		if !found {
+			writeJSON(w, 404, map[string]string{"error": "usuario objetivo no encontrado"})
+			return
+		}
+	}
+	hash, err := auth.HashPassword(body.NewPassword)
+	if err != nil {
+		writeJSON(w, 500, map[string]string{"error": "no se pudo generar hash"})
+		return
+	}
+	target.PasswordHash = hash
+	target.UpdatedAt = time.Now().UTC()
+	detail := "Cambio de contraseña del usuario " + target.Username + " por " + actor.Username
+	s.audit(snap, sess, "auth.password_change", detail, target.ID)
+	_ = s.Store.Put(snap)
+	writeJSON(w, 200, map[string]any{"ok": true, "username": target.Username})
+}

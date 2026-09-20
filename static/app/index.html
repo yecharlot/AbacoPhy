@@ -1043,16 +1043,44 @@ async function render() {
       });
     } else if (state.tab === 'negocio') {
       const t = state.tenant || {};
+      const isAdmin = state.user && (state.user.role === 'admin' || state.user.role === 'master');
       main.innerHTML = `<div class="card">
+        <div class="section-label">Datos del negocio</div>
         <label>Nombre del negocio</label><input id="tname" value="${t.name || ''}" />
         <label>Moneda base</label><input id="tcur" value="${t.currency || 'CUP'}" />
         <label>Teléfono</label><input id="tphone" value="${t.phone || ''}" />
         <label>Dirección</label><input id="taddr" value="${t.address || ''}" />
         <button class="btn btn-primary" id="saveT">Guardar</button>
+      </div>
+      <div class="card">
+        <div class="section-label">Seguridad · cambiar contraseña</div>
+        <p class="muted" style="margin-bottom:.75rem;font-size:.85rem">Cambia la clave de tu usuario actual. ${isAdmin ? 'Como administrador también puedes indicar otro nombre de usuario del negocio para restablecer su clave.' : 'Solo afecta a tu cuenta.'}</p>
+        <label>Contraseña actual (la tuya)</label><input id="pwCur" type="password" autocomplete="current-password" />
+        <label>Nueva contraseña</label><input id="pwNew" type="password" autocomplete="new-password" />
+        <label>Confirmar nueva contraseña</label><input id="pwNew2" type="password" autocomplete="new-password" />
+        ${isAdmin ? '<label>Usuario objetivo (opcional, dejar vacío = tú)</label><input id="pwUser" placeholder="ej. admin" />' : ''}
+        <button class="btn btn-primary" id="savePw">Actualizar contraseña</button>
       </div>`;
       document.getElementById('saveT').onclick = async () => {
         const u = await api('/tenant', { method: 'PUT', body: JSON.stringify({ name: document.getElementById('tname').value.trim(), currency: document.getElementById('tcur').value.trim(), phone: document.getElementById('tphone').value.trim(), address: document.getElementById('taddr').value.trim() }) });
-        state.tenant = u; document.getElementById('sideSub').textContent = u.name; toast('Negocio actualizado');
+        state.tenant = u.tenant || u; document.getElementById('sideSub').textContent = (state.tenant && state.tenant.name) || ''; toast('Negocio actualizado');
+      };
+      document.getElementById('savePw').onclick = async () => {
+        const cur = document.getElementById('pwCur').value;
+        const n1 = document.getElementById('pwNew').value;
+        const n2 = document.getElementById('pwNew2').value;
+        if (!cur || !n1) { toast('Complete contraseña actual y nueva'); return; }
+        if (n1 !== n2) { toast('La confirmación no coincide'); return; }
+        if (n1.length < 6) { toast('Mínimo 6 caracteres'); return; }
+        const body = { current_password: cur, new_password: n1 };
+        const pu = document.getElementById('pwUser');
+        if (pu && pu.value.trim()) body.username = pu.value.trim();
+        await api('/auth/password', { method: 'POST', body: JSON.stringify(body) });
+        document.getElementById('pwCur').value = '';
+        document.getElementById('pwNew').value = '';
+        document.getElementById('pwNew2').value = '';
+        if (pu) pu.value = '';
+        toast('Contraseña actualizada');
       };
     } else if (state.tab === 'tema' && state.user && state.user.role === 'master') {
       const th = await api('/theme');

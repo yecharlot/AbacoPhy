@@ -123,3 +123,13 @@ Content-Type: application/json
 ```
 
 Tras el reinicio use de nuevo `master` / `AbacoPhy#Master1` y `admin` / `admin123`.
+
+
+## Cambiar contraseñas desde la aplicación
+
+1. Inicie sesión con el usuario cuya clave desea cambiar (o con `admin` / `master`).
+2. Menú **Negocio** → sección **Seguridad · cambiar contraseña**.
+3. Indique la contraseña actual del usuario en sesión y la nueva (mínimo 6 caracteres).
+4. Si es admin/master, el campo **Usuario objetivo** permite restablecer la clave de otro usuario del negocio sin conocer la anterior del objetivo (sí debe conocer la suya propia).
+
+Endpoint: `POST /api/v1/auth/password`

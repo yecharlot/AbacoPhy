@@ -217,3 +217,14 @@ func (s *Store) ResetAll() error {
 	}
 	return nil
 }
+
+
+func (s *Store) ListTenantIDs() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]string, 0, len(s.tenants))
+	for id := range s.tenants {
+		out = append(out, id)
+	}
+	return out
+}

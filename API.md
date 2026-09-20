@@ -349,3 +349,19 @@ Solo rol `master`. Borra todos los tenants y vuelve a bootstrap (demo + claves d
 
 `GET /api/v1/errors` — solo master; lista incidencias capturadas.  
 `POST /api/v1/errors` — el cliente/API puede registrar fallos de forma autónoma (también se anotan en traza vía auditoría).
+
+
+## Cambio de contraseña
+
+`POST /api/v1/auth/password`  
+Headers: `Authorization: Bearer <token>`
+
+```json
+{
+  "current_password": "clave-actual-del-solicitante",
+  "new_password": "nueva-clave-min-6",
+  "username": "opcional-otro-usuario"
+}
+```
+
+Solo admin/master pueden indicar `username` distinto al propio.
