@@ -38,6 +38,7 @@ func New(dataDir string) *Store {
 	}
 	_ = os.MkdirAll(dataDir, 0755)
 	s.loadAll()
+	s.loadTokens()
 	return s
 }
 
@@ -141,10 +142,50 @@ func (s *Store) ListTenants() []domain.Tenant {
 	return out
 }
 
+func (s *Store) tokensPath() string {
+	return filepath.Join(s.dataDir, "tokens.json")
+}
+
+func (s *Store) loadTokens() {
+	b, err := os.ReadFile(s.tokensPath())
+	if err != nil {
+		return
+	}
+	var m map[string]*domain.TokenSession
+	if json.Unmarshal(b, &m) != nil {
+		return
+	}
+	now := time.Now()
+	for k, t := range m {
+		if t == nil || now.After(t.ExpiresAt) {
+			continue
+		}
+		s.tokens[k] = t
+	}
+}
+
+func (s *Store) persistTokensLocked() {
+	// caller holds s.mu
+	clean := make(map[string]*domain.TokenSession, len(s.tokens))
+	now := time.Now()
+	for k, t := range s.tokens {
+		if t != nil && now.Before(t.ExpiresAt) {
+			clean[k] = t
+		}
+	}
+	s.tokens = clean
+	b, err := json.MarshalIndent(clean, "", "  ")
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(s.tokensPath(), b, 0600)
+}
+
 func (s *Store) SaveToken(tok *domain.TokenSession) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.tokens[tok.Token] = tok
+	s.persistTokensLocked()
 }
 
 func (s *Store) GetToken(token string) *domain.TokenSession {
@@ -161,6 +202,7 @@ func (s *Store) RevokeToken(token string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.tokens, token)
+	s.persistTokensLocked()
 }
 
 func (s *Store) FindUserByUsername(username string) (*domain.User, *domain.StoreSnapshot) {
@@ -235,6 +277,7 @@ func (s *Store) ResetAll() error {
 	defer s.mu.Unlock()
 	s.tenants = make(map[string]*domain.StoreSnapshot)
 	s.tokens = make(map[string]*domain.TokenSession)
+	_ = os.Remove(s.tokensPath())
 	dir := filepath.Join(s.dataDir, "tenants")
 	entries, _ := os.ReadDir(dir)
 	for _, e := range entries {

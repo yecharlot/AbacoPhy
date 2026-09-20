@@ -68,6 +68,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/w/"+s.AppAlias, s.servePWA)
 	mux.HandleFunc("/w/"+s.AppAlias+"/", s.servePWA)
 	mux.Handle("/sw.js", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
 		http.ServeFile(w, r, filepath.Join(s.StaticDir, "app", "sw.js"))
 	}))
 	mux.Handle("/manifest.webmanifest", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1138,7 +1140,8 @@ func (s *Server) servePWA(w http.ResponseWriter, r *http.Request) {
 	// Preferir static/app/index.html
 	path := filepath.Join(s.StaticDir, "app", "index.html")
 	if _, err := os.Stat(path); err == nil {
-		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
 		http.ServeFile(w, r, path)
 		return
 	}

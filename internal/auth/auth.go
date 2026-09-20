@@ -142,7 +142,7 @@ func Login(st *store.Store, username, password string) (*domain.TokenSession, *d
 		UserID:    user.ID,
 		TenantID:  tenantID,
 		Role:      user.Role,
-		ExpiresAt: time.Now().UTC().Add(72 * time.Hour),
+		ExpiresAt: time.Now().UTC().Add(30 * 24 * time.Hour), // 30 días · sesión durable
 	}
 	st.SaveToken(tok)
 	return tok, user, nil

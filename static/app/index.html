@@ -512,9 +512,11 @@ async function api(path, opts={}) {
     if (path.includes('/pdf') || path.includes('/export') || path.includes('/payroll/pdf')) return res;
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const errMsg = data.error || res.statusText || 'error HTTP';
-      if (!path.includes('/auth/') && path !== '/errors') {
-        reportSystemError('Error de API · ' + path + ' · ' + errMsg, path);
+      let errMsg = data.error || res.statusText || 'error HTTP';
+      if (res.status === 401) errMsg = 'unauthorized';
+      if (res.status === 403) errMsg = errMsg || 'forbidden';
+      if (!path.includes('/auth/') && path !== '/errors' && res.status !== 401) {
+        try { reportSystemError('Error de API · ' + path + ' · ' + errMsg, path); } catch(_) {}
       }
       throw new Error(errMsg);
     }
@@ -1645,20 +1647,53 @@ async function startApp() {
     try {
       await boot();
       setSplash('Listo');
-      await sleep(250);
+      await sleep(200);
       hideSplash();
       return;
     } catch (err) {
-      console.warn('[ÁbacoPhy] sesión inválida', err);
-      state.token = '';
-      state.user = null;
-      saveLocal();
-      setSplash('Sesión no válida · acceso…');
-      await sleep(350);
+      const msg = (err && err.message) ? String(err.message) : '';
+      const unauthorized = /unauthor|401|inválid|incorrect|forbidden|tenant not found/i.test(msg);
+      console.warn('[ÁbacoPhy] restaurar sesión', msg);
+      if (unauthorized) {
+        state.token = '';
+        state.user = null;
+        saveLocal();
+        setSplash('Sesión no válida · acceso…');
+        await sleep(350);
+      } else {
+        // Red caída o servidor reiniciando: mantener token y reintentar
+        setSplash('Sin respuesta del servidor · reintentando…');
+        await sleep(800);
+        try {
+          await boot();
+          hideSplash();
+          return;
+        } catch (err2) {
+          const m2 = (err2 && err2.message) ? String(err2.message) : '';
+          if (/unauthor|401|inválid|incorrect|forbidden|tenant not found/i.test(m2)) {
+            state.token = ''; state.user = null; saveLocal();
+          } else {
+            // Seguir con shell; el usuario puede reintentar sin perder token
+            hideSplash();
+            document.getElementById('appShell')?.classList.add('on');
+            document.getElementById('loginOverlay').style.display = 'none';
+            const main = document.getElementById('main');
+            if (main) main.innerHTML = `<div class="card"><div class="section-label">Sin conexión con el servidor</div>
+              <p class="muted">La sesión se conserva. Compruebe que ÁbacoPhy esté en marcha y pulse reintentar.</p>
+              <button class="btn btn-primary" id="btnRetryBoot">Reintentar</button>
+              <button class="btn btn-ghost" id="btnForceLogin">Ir al acceso</button></div>`;
+            document.getElementById('btnRetryBoot').onclick = () => location.reload();
+            document.getElementById('btnForceLogin').onclick = () => {
+              state.token = ''; state.user = null; saveLocal(); location.reload();
+            };
+            return;
+          }
+        }
+      }
     }
   } else {
     setSplash('Preparando acceso…');
-    await sleep(350);
+    await sleep(300);
   }
   hideSplash();
   const lo = document.getElementById('loginOverlay');
@@ -1667,9 +1702,21 @@ async function startApp() {
   if (sh) sh.classList.remove('on');
 }
 
-if ('serviceWorker'
- in navigator) {
-  navigator.serviceWorker.register('/sw.js').catch(() => {});
+if ('serviceWorker' in navigator) {
+  // En local: actualizar SW en cada carga para no quedarse con HTML viejo
+  navigator.serviceWorker.register('/sw.js').then((reg) => {
+    reg.update().catch(() => {});
+    if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      // Una sola recarga controlada tras actualizar SW (evita bucle)
+      if (!sessionStorage.getItem('ap_sw_reloaded')) {
+        sessionStorage.setItem('ap_sw_reloaded', '1');
+        location.reload();
+      }
+    });
+  }).catch(() => {});
+  // Limpiar bandera tras unos segundos (permite futuras actualizaciones)
+  setTimeout(() => sessionStorage.removeItem('ap_sw_reloaded'), 5000);
 }
 startApp().catch((err) => {
   console.error('[ÁbacoPhy] startApp fatal', err);
