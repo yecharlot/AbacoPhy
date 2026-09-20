@@ -141,7 +141,12 @@
   <div id="toast" class="toast hidden"></div>
 
   <script>
-  const API = location.origin + "/api/v1";
+  const API = (function () {
+    const h = location.hostname;
+    if (h === "localhost" || h === "127.0.0.1") return location.origin + "/api/v1";
+    if (h.includes("abacophy")) return location.origin + "/api/v1";
+    return "https://abacophy.onrender.com/api/v1";
+  })();
   const state = {
     token: localStorage.getItem("ap_token") || "",
     user: null,
