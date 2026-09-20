@@ -108,3 +108,18 @@ URLs de referencia:
 - En nodo Alset: https://prisma-tec.onrender.com/w/abacophy.app.ans  
 
 Tras el despliegue, documente aquí (o en un gestor de secretos) las claves **reales** del entorno y elimine o rote las de demostración.
+
+
+## Reinicio de fábrica (solo master)
+
+Desde el panel Master → **Restaurar a estado inicial**, o:
+
+```http
+POST /api/v1/master/reset
+Authorization: Bearer <token-master>
+Content-Type: application/json
+
+{ "confirm": "REINICIAR" }
+```
+
+Tras el reinicio use de nuevo `master` / `AbacoPhy#Master1` y `admin` / `admin123`.

@@ -327,3 +327,25 @@ curl -s "$BASE/reports/summary" -H "Authorization: Bearer $TOKEN" | jq .
 ```
 
 Las credenciales de arranque **no** se documentan en este archivo; ver `LOGIN.md` (uso interno).
+
+
+## Nómina PDF
+
+`GET /api/v1/payroll/pdf?period=AAAA-MM` (o `all`)  
+Respuesta: `application/pdf` (formato Carta). Requiere vista `nomina`.
+
+## Cuentas T (todas)
+
+`GET /api/v1/accounts/t/all`  
+Lista cuentas con movimientos numerados por orden de ejecución de asientos.
+
+## Master · reinicio de fábrica
+
+`POST /api/v1/master/reset`  
+Body: `{ "confirm": "REINICIAR" }`  
+Solo rol `master`. Borra todos los tenants y vuelve a bootstrap (demo + claves de LOGIN.md).
+
+## Errores de sistema
+
+`GET /api/v1/errors` — solo master; lista incidencias capturadas.  
+`POST /api/v1/errors` — el cliente/API puede registrar fallos de forma autónoma (también se anotan en traza vía auditoría).

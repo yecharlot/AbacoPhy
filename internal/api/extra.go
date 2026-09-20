@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"archive/zip"
 	"bytes"
 	"io"
@@ -827,4 +828,80 @@ func (s *Server) handleAccountsTAll(w http.ResponseWriter, r *http.Request) {
 		"base_currency": base,
 		"negocio": snap.Tenant.Name,
 	})
+}
+
+
+func (s *Server) handlePayrollPDF(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if err := auth.RequireView(sess, "nomina"); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	period := r.URL.Query().Get("period")
+	if period == "" {
+		period = time.Now().Format("2006-01")
+	}
+	var slips []domain.Payslip
+	for _, p := range snap.Payslips {
+		if period == "all" || strings.HasPrefix(p.Period, period) || p.Period == period {
+			slips = append(slips, p)
+		}
+	}
+	// si no hay del periodo, usar las últimas 50
+	if len(slips) == 0 && len(snap.Payslips) > 0 {
+		slips = snap.Payslips
+		if len(slips) > 50 {
+			slips = slips[len(slips)-50:]
+		}
+	}
+	data := pdf.PayrollPDF(snap.Tenant, slips, period)
+	s.audit(snap, sess, "nomina.exportacion_pdf", "Exportación PDF de nómina · periodo "+period+" · "+fmt.Sprintf("%d", len(slips))+" liquidaciones · negocio "+snap.Tenant.Name, period)
+	_ = s.Store.Put(snap)
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", "attachment; filename=nomina-"+period+".pdf")
+	w.Write(data)
+}
+
+func (s *Server) handleMasterReset(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+		return
+	}
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if sess.Role != domain.RoleMaster {
+		writeJSON(w, 403, map[string]string{"error": "solo master"})
+		return
+	}
+	var body struct {
+		Confirm string `json:"confirm"`
+	}
+	_ = readJSON(r, &body)
+	if body.Confirm != "REINICIAR" {
+		writeJSON(w, 400, map[string]string{"error": "debe enviar confirm=REINICIAR"})
+		return
+	}
+	// Reinicio a estado inicial: nuevo tenant demo, mismas claves master/admin
+	if err := s.Store.ResetAll(); err != nil {
+		// fallback: borrar tenants en memoria y bootstrap
+		writeJSON(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	if err := EnsureBootstrap(s.Store); err != nil {
+		writeJSON(w, 500, map[string]string{"error": "bootstrap tras reinicio: " + err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true, "message": "Aplicación restaurada a estado inicial sin datos de negocio"})
 }

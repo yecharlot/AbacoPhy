@@ -193,3 +193,27 @@ func (s *Store) LoadCID(cid string) (*domain.StoreSnapshot, error) {
 	}
 	return &snap, nil
 }
+
+
+// ResetAll elimina todos los tenants y tokens (reinicio de fábrica).
+func (s *Store) ResetAll() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tenants = make(map[string]*domain.StoreSnapshot)
+	s.tokens = make(map[string]*domain.TokenSession)
+	dir := filepath.Join(s.dataDir, "tenants")
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if !e.IsDir() {
+			_ = os.Remove(filepath.Join(dir, e.Name()))
+		}
+	}
+	cidDir := filepath.Join(s.dataDir, "cids")
+	cids, _ := os.ReadDir(cidDir)
+	for _, e := range cids {
+		if !e.IsDir() {
+			_ = os.Remove(filepath.Join(cidDir, e.Name()))
+		}
+	}
+	return nil
+}

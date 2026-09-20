@@ -45,7 +45,11 @@ sin depender de software cerrado extranjero ni de un LLM.
 | Splash + estados de carga | Estable | Sesión / login con mensajes legibles |
 | Informes auto (sin Consultar) | Estable | Cuentas T globales por orden de ejecución |
 | PDF factura Carta | Estable | Márgenes 1" · estado en español |
-| Tema sol/luna | Estable | Gestos swipe menú móvil |
+| Tema sol/luna | Estable | Iconos sol/luna visibles en la barra |
+| Errores autónomos + reset master | Estable | Fallos de API en traza; reinicio a cero |
+| Nómina PDF imprimible | Estable | Para gestión de pago en banco |
+| Cuentas T: vista global por defecto | Estable | Detalle al elegir una cuenta |
+| Alta trabajador en dos pasos | Estable | Datos básicos primero; SS/vacaciones después |
 
 ## Estructura del menú (optimizada)
 - Inicio, Ingresos, Gastos, Inventario, Facturas, Nómina  

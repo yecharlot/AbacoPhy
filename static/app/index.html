@@ -227,13 +227,16 @@
       background: var(--bg); border: 1px solid var(--border); border-radius: 999px;
     }
     .theme-toggle button {
-      width: 36px; height: 36px; border-radius: 50%; border: none;
-      background: transparent; color: var(--text-muted); cursor: pointer;
+      width: 38px; height: 38px; border-radius: 50%; border: none;
+      background: transparent; color: var(--text-secondary); cursor: pointer;
       display: grid; place-items: center;
     }
+    .theme-toggle button:hover { color: var(--primary); }
     .theme-toggle button.active {
       background: var(--primary-soft); color: var(--primary);
+      box-shadow: inset 0 0 0 1px var(--primary);
     }
+    .theme-toggle button svg { display: block; }
     .theme-toggle svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; }
 
     /* Safe areas mobile native */
@@ -345,7 +348,14 @@
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <span class="badge" id="estadoRed">En línea</span>
-          <button type="button" class="btn btn-secondary btn-sm" id="btnTema" title="Tema">Tema</button>
+          <div class="theme-toggle" role="group" aria-label="Tema claro u oscuro">
+            <button type="button" id="btnThemeLight" class="active" title="Tema claro" aria-label="Tema claro">
+              <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4m11.4-11.4 1.4-1.4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+            </button>
+            <button type="button" id="btnThemeDark" title="Tema oscuro" aria-label="Tema oscuro">
+              <svg viewBox="0 0 24 24" width="18" height="18"><path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+            </button>
+          </div>
           <button type="button" class="btn btn-secondary btn-sm" id="btnSalir">Salir</button>
         </div>
       </div>
@@ -427,6 +437,16 @@ function money(n, cur) {
   const c = cur || (state.tenant && state.tenant.currency) || 'CUP';
   return `${(Number(n)||0).toFixed(2)} ${c}`;
 }
+async function reportSystemError(detail, ref) {
+  try {
+    if (!state.token) return;
+    await fetch(API + '/errors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + state.token },
+      body: JSON.stringify({ detail: detail, ref: ref || '' }),
+    });
+  } catch (_) {}
+}
 function toast(msg) {
   const el = document.getElementById('toast');
   el.textContent = msg; el.classList.remove('hidden');
@@ -452,7 +472,11 @@ async function api(path, opts={}) {
     setRed(true);
     if (path.includes('/pdf') || path.includes('/export')) return res;
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || res.statusText);
+    if (!res.ok) {
+      const errMsg = data.error || res.statusText || 'error HTTP';
+      reportSystemError('Error de API · ' + path + ' · ' + errMsg, path);
+      throw new Error(errMsg);
+    }
     return data;
   } catch (e) { setRed(false); throw e; }
 }
@@ -662,8 +686,9 @@ async function render() {
           <button class="btn btn-secondary btn-sm" data-del="${e.id}">Baja</button>
         </td></tr>`).join('');
       main.innerHTML = `<div class="card">
-        <div class="section-label">Alta de trabajador</div>
-        <p class="muted" style="margin-bottom:.6rem">Vacaciones: provisión 9 % por defecto · SS entidad 12,5 % · SS trabajador 5 % (ajustable).</p>
+        <div class="section-label">1. Alta de trabajador</div>
+        <p class="muted" style="margin-bottom:.6rem">Primero registre al trabajador (nombre, CI, cargo, salario). Después, con <strong>Editar</strong>, podrá actualizar vacaciones, seguridad social, certificados y licencias. Valores por defecto según prácticas cubanas: vacaciones <strong>9 %</strong>, SS entidad <strong>12,5 %</strong>, SS trabajador <strong>5 %</strong> (configurables).</p>
+        <div style="margin-bottom:.75rem"><button class="btn btn-secondary" id="pdfNom">Exportar / imprimir nómina (PDF)</button></div>
         <label>Nombre</label><input id="ename" />
         <div class="grid-2"><div><label>CI</label><input id="eci" /></div><div><label>Cargo</label><input id="erole" /></div></div>
         <div class="grid-2"><div><label>Departamento</label><input id="edept" /></div><div><label>Fecha ingreso</label><input id="ehire" type="date" /></div></div>
@@ -708,6 +733,15 @@ async function render() {
         })});
         toast('Trabajador registrado'); render();
       };
+      document.getElementById('pdfNom') && (document.getElementById('pdfNom').onclick = async () => {
+        const period = prompt('Periodo de la nómina (AAAA-MM o all)', new Date().toISOString().slice(0, 7));
+        if (period == null) return;
+        const res = await api('/payroll/pdf?period=' + encodeURIComponent(period || 'all'));
+        if (!res.ok) { toast('No se pudo generar la nómina PDF'); return; }
+        const blob = await res.blob(); const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'nomina-' + (period || 'all') + '.pdf'; a.click(); URL.revokeObjectURL(url);
+        toast('Nómina lista para imprimir o llevar al banco');
+      });
       main.querySelectorAll('[data-liq]').forEach(b => b.onclick = async () => {
         const period = prompt('Periodo (AAAA-MM)', new Date().toISOString().slice(0, 7));
         if (!period) return;
@@ -739,6 +773,7 @@ async function render() {
       main.innerHTML = `<div class="card">
         <div class="section-label">Nomenclador de cuentas</div>
         <p class="muted" style="margin-bottom:.6rem">Catálogo orientado a normativas de Finanzas y Precios (Cuba). Puede ampliarse y editarse por completo.</p>
+        <p class="muted" style="margin-bottom:.75rem;font-size:.82rem"><strong>Ingresos:</strong> la cuenta <em>4000 Ingresos por ventas</em> concentra las ventas del negocio; <em>4100 Otros ingresos</em> agrupa ingresos no operativos (intereses, donaciones, etc.). Al registrar un ingreso elija la cuenta según el origen para que los estados financieros se lean con claridad.</p>
         <div class="grid-2"><div><label>Código</label><input id="acode" /></div><div><label>Nombre</label><input id="aname" /></div></div>
         <div class="grid-2">
           <div><label>Tipo</label><select id="atype"><option value="asset">Activo</option><option value="liability">Pasivo</option><option value="equity">Patrimonio</option><option value="income">Ingreso</option><option value="expense">Gasto</option></select></div>
@@ -825,7 +860,11 @@ async function render() {
         </div>
         <div class="grid-2">
           <div><label>Periodo</label><select id="per"><option value="week">Semanal</option><option value="month" selected>Mensual</option><option value="quarter">Trimestral</option><option value="year">Anual</option><option value="all">Todo</option></select></div>
-          <div id="accWrap" class="${state.informeSub==='cuenta_t'?'':'hidden'}"><label>Cuenta</label><select id="tid">${opts}</select></div>
+          <div id="accWrap" class="${state.informeSub==='cuenta_t'?'':'hidden'}">
+            <label>Cuenta T</label>
+            <select id="tid"><option value="">Todas las cuentas con movimientos</option>${opts}</select>
+            <p class="muted" style="font-size:.78rem;margin-top:.35rem">Por defecto se muestran todas las cuentas T generadas por operaciones (numeradas). Elija una cuenta solo si desea el detalle Debe/Haber de esa cuenta.</p>
+          </div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:.5rem">
           <button class="btn btn-secondary" id="pdfRep">Exportar PDF</button>
@@ -998,18 +1037,29 @@ async function render() {
       };
     } else if (state.tab === 'master' && state.user && state.user.role === 'master') {
       const tenants = await api('/master/tenants');
-      let errs = { errors: [] }; try { errs = await api('/errors'); } catch (_) {}
+      let errs = { errors: [] };
+      try { errs = await api('/errors'); } catch (_) {}
       main.innerHTML = `<div class="card"><div class="section-label">Master · negocios</div>
-        <pre class="muted" style="white-space:pre-wrap;font-size:.8rem">${JSON.stringify(tenants.tenants, null, 2)}</pre></div>
-      <div class="card"><div class="section-label">Errores / averías</div>
-        <label>Registrar incidencia</label><input id="errd" />
-        <button class="btn btn-primary" id="logErr">Registrar</button>
-        <table style="margin-top:1rem"><thead><tr><th>Fecha</th><th>Detalle</th></tr></thead>
-        <tbody>${(errs.errors || []).map(e => `<tr><td>${(e.created_at || '').toString().slice(0, 19)}</td><td>${e.detail || ''}</td></tr>`).join('') || '<tr><td colspan="2" class="muted">Sin errores</td></tr>'}</tbody></table>
+        <p class="muted" style="margin-bottom:.5rem">Vista de tenants de la instancia. Transparente para el usuario final del negocio.</p>
+        <pre class="muted" style="white-space:pre-wrap;font-size:.8rem">${JSON.stringify(tenants.tenants, null, 2)}</pre>
+      </div>
+      <div class="card"><div class="section-label">Errores registrados por el sistema</div>
+        <p class="muted" style="margin-bottom:.75rem">El sistema documenta de forma autónoma fallos de API, sincronización y operaciones. También se reflejan en la traza. No es un formulario de reportes manuales.</p>
+        <table><thead><tr><th>Fecha</th><th>Detalle</th></tr></thead>
+        <tbody>${(errs.errors || []).map(e => `<tr><td>${(e.created_at || '').toString().slice(0, 19).replace('T',' ')}</td><td>${e.detail || e.action || ''}</td></tr>`).join('') || '<tr><td colspan="2" class="muted">Sin errores capturados aún</td></tr>'}</tbody></table>
+      </div>
+      <div class="card"><div class="section-label">Restaurar aplicación</div>
+        <p class="muted" style="margin-bottom:.75rem">Reinicia la instancia a estado inicial (cero datos de negocio). Las claves master/admin vuelven a las documentadas en LOGIN.md. Esta acción no se puede deshacer.</p>
+        <button class="btn btn-danger" id="btnFactoryReset">Restaurar a estado inicial</button>
       </div>`;
-      document.getElementById('logErr').onclick = async () => {
-        await api('/errors', { method: 'POST', body: JSON.stringify({ detail: document.getElementById('errd').value.trim() }) });
-        toast('Incidencia registrada'); render();
+      document.getElementById('btnFactoryReset').onclick = async () => {
+        if (!confirm('¿Restaurar la aplicación a cero datos? Se perderán todos los negocios y operaciones de esta instancia.')) return;
+        const conf = prompt('Escriba REINICIAR para confirmar');
+        if (conf !== 'REINICIAR') { toast('Cancelado'); return; }
+        await api('/master/reset', { method: 'POST', body: JSON.stringify({ confirm: 'REINICIAR' }) });
+        state.token = ''; saveLocal();
+        toast('Instancia reiniciada · inicie sesión de nuevo');
+        location.reload();
       };
     }
   } catch (e) {

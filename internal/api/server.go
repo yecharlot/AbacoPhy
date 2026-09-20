@@ -48,6 +48,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/inventory", s.handleInventory)
 	mux.HandleFunc("/api/v1/payroll/employees", s.handleEmployees)
 	mux.HandleFunc("/api/v1/payroll/payslips", s.handlePayslips)
+	mux.HandleFunc("/api/v1/payroll/pdf", s.handlePayrollPDF)
+	mux.HandleFunc("/api/v1/master/reset", s.handleMasterReset)
 	mux.HandleFunc("/api/v1/invoices", s.handleInvoices)
 	mux.HandleFunc("/api/v1/invoices/pdf", s.handleInvoicePDF)
 
