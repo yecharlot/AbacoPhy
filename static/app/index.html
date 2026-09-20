@@ -7,7 +7,6 @@
   <title>ÁbacoPhy</title>
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     :root, [data-theme="light"] {
       /* Paleta PrismaTEC / TCP sobre fondo claro sereno (hito buscopincha) */
@@ -43,7 +42,7 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: Inter, system-ui, sans-serif;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100dvh;
@@ -181,6 +180,82 @@
       border-radius: 10px; padding: 7px; color: var(--primary); cursor: pointer;
     }
     .menu-toggle svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+
+    /* Splash */
+    #splash {
+      position: fixed; inset: 0; z-index: 3000;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: var(--bg); color: var(--text);
+      transition: opacity .35s ease;
+    }
+    #splash.hide { opacity: 0; pointer-events: none; }
+    .splash-logo {
+      width: 72px; height: 72px; border-radius: 18px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      display: grid; place-items: center; margin-bottom: 1.25rem;
+      box-shadow: 0 12px 32px var(--primary-soft);
+    }
+    .splash-logo img { width: 40px; height: 40px; }
+    .splash-title { font-weight: 800; font-size: 1.35rem; letter-spacing: -.02em; }
+    .splash-spin {
+      width: 36px; height: 36px; margin: 1.25rem auto .75rem;
+      border: 3px solid var(--border); border-top-color: var(--primary);
+      border-radius: 50%; animation: spin 0.85s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .splash-status {
+      font-size: .88rem; color: var(--text-secondary); text-align: center;
+      max-width: 280px; min-height: 2.6em; padding: 0 1rem;
+      transition: opacity .25s ease;
+    }
+
+    /* File input styled */
+    .file-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 16px; border-radius: 40px; cursor: pointer;
+      background: var(--bg); border: 1px solid var(--border);
+      color: var(--text); font-weight: 600; font-size: .88rem;
+      transition: border-color .2s, transform .2s;
+    }
+    .file-btn:hover { border-color: var(--primary); }
+    .file-btn input[type=file] { display: none; }
+    .file-name { font-size: .8rem; color: var(--text-muted); margin-top: 6px; }
+
+    /* Theme sun/moon */
+    .theme-toggle {
+      display: inline-flex; gap: 4px; padding: 3px;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 999px;
+    }
+    .theme-toggle button {
+      width: 36px; height: 36px; border-radius: 50%; border: none;
+      background: transparent; color: var(--text-muted); cursor: pointer;
+      display: grid; place-items: center;
+    }
+    .theme-toggle button.active {
+      background: var(--primary-soft); color: var(--primary);
+    }
+    .theme-toggle svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+
+    /* Safe areas mobile native */
+    body {
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .sidebar {
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .main {
+      padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+    }
+    @media (max-width: 900px) {
+      .nav-item { min-height: 44px; font-size: .92rem; }
+      .nav-item svg { width: 22px; height: 22px; }
+      .topbar h1 { font-size: 1.15rem; }
+      .logo-mark, .logo { width: 44px; height: 44px; }
+    }
+
     .overlay-side { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 90; }
     .overlay-side.on { display: block; }
     .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1rem; }
@@ -224,6 +299,12 @@
   </style>
 </head>
 <body>
+  <div id="splash">
+    <div class="splash-logo"><img src="/icon.svg" alt="" width="40" height="40" /></div>
+    <div class="splash-title">Ábaco<span style="color:var(--primary)">Phy</span></div>
+    <div class="splash-spin" aria-hidden="true"></div>
+    <p class="splash-status" id="splashStatus">Iniciando sistema contable…</p>
+  </div>
   <div id="loginOverlay">
     <div class="login-card">
       <div class="logo-mark"><img src="/icon.svg" alt="" width="28" height="28" /></div>
@@ -328,9 +409,20 @@ function applyThemeMode(mode) {
   state.themeMode = mode || 'light';
   document.documentElement.setAttribute('data-theme', state.themeMode);
   localStorage.setItem('ap_theme', state.themeMode);
+  const bl = document.getElementById('btnThemeLight');
+  const bd = document.getElementById('btnThemeDark');
+  if (bl && bd) {
+    bl.classList.toggle('active', state.themeMode === 'light');
+    bd.classList.toggle('active', state.themeMode === 'dark');
+  }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = state.themeMode === 'dark' ? '#0A0A0A' : '#F4B400';
 }
 applyThemeMode(state.themeMode);
 
+function statusES(s) {
+  return ({ draft: 'Borrador', issued: 'Emitida', paid: 'Pagada', void: 'Anulada', cancelled: 'Anulada' })[s] || s || '—';
+}
 function money(n, cur) {
   const c = cur || (state.tenant && state.tenant.currency) || 'CUP';
   return `${(Number(n)||0).toFixed(2)} ${c}`;
@@ -533,7 +625,7 @@ async function render() {
       });
     } else if (state.tab === 'facturas') {
       const data = await api('/invoices');
-      const rows = (data.invoices || []).map(f => `<tr><td>${f.number}</td><td>${f.client_name}</td><td class="money">${money(f.total, f.currency || base)}</td><td>${f.status}</td>
+      const rows = (data.invoices || []).map(f => `<tr><td>${f.number}</td><td>${f.client_name}</td><td class="money">${money(f.total, f.currency || base)}</td><td>${statusES(f.status)}</td>
         <td><button class="btn btn-secondary btn-sm" data-pdf="${f.id}">PDF</button></td></tr>`).join('');
       main.innerHTML = `<div class="card">
         <label>Cliente</label><input id="fclient" />
@@ -736,24 +828,46 @@ async function render() {
           <div id="accWrap" class="${state.informeSub==='cuenta_t'?'':'hidden'}"><label>Cuenta</label><select id="tid">${opts}</select></div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:.5rem">
-          <button class="btn btn-primary" id="runRep">Consultar</button>
           <button class="btn btn-secondary" id="pdfRep">Exportar PDF</button>
         </div>
+        <p class="muted" style="font-size:.8rem;margin-top:.4rem">La consulta se actualiza al cambiar el tipo de informe, el periodo o la cuenta.</p>
         <div id="repOut" style="margin-top:1rem"></div>
       </div>`;
-      document.querySelectorAll('#infTabs .tab').forEach(t => t.onclick = () => {
-        state.informeSub = t.dataset.k; render();
+      document.querySelectorAll('#infTabs .tab').forEach(tb => tb.onclick = () => {
+        state.informeSub = tb.dataset.k; render();
       });
       const fill = async () => {
         if (state.informeSub === 'cuenta_t') {
-          const tacc = await api('/accounts/t?id=' + encodeURIComponent(document.getElementById('tid').value));
-          document.getElementById('repOut').innerHTML = `<p class="muted">${tacc.titulo || ''} · Saldo <span class="money">${money(tacc.saldo, base)}</span></p>
+          let html = '';
+          const tid = document.getElementById('tid') && document.getElementById('tid').value;
+          if (tid) {
+            const tacc = await api('/accounts/t?id=' + encodeURIComponent(tid));
+            html += `<p class="muted">${tacc.titulo || ''} · Saldo <span class="money">${money(tacc.saldo, base)}</span></p>
             <div class="grid-2">
               <div class="card"><div class="section-label">Debe</div><table><thead><tr><th>Fecha</th><th>Detalle</th><th>Importe</th></tr></thead>
               <tbody>${(tacc.debe||[]).map(e=>`<tr><td>${e.date||''}</td><td>${e.description||''}</td><td class="money">${money(e.amount,e.currency||base)}</td></tr>`).join('')||'<tr><td colspan=3 class=muted>—</td></tr>'}</tbody></table></div>
               <div class="card"><div class="section-label">Haber</div><table><thead><tr><th>Fecha</th><th>Detalle</th><th>Importe</th></tr></thead>
               <tbody>${(tacc.haber||[]).map(e=>`<tr><td>${e.date||''}</td><td>${e.description||''}</td><td class="money">${money(e.amount,e.currency||base)}</td></tr>`).join('')||'<tr><td colspan=3 class=muted>—</td></tr>'}</tbody></table></div>
             </div>`;
+          }
+          try {
+            const all = await api('/accounts/t/all');
+            html += `<div class="section-label" style="margin-top:1.25rem">Todas las cuentas T (orden de ejecución de operaciones)</div>
+              <p class="muted">${all.total_operaciones || 0} operaciones registradas · ${all.negocio || ''}</p>`;
+            html += (all.cuentas_t || []).map(c => {
+              const moves = (c.moves || []).map(m =>
+                `<tr><td>${m.n}</td><td>${m.date||''}</td><td>${m.description||''}</td><td>${m.side === 'debe' ? 'Debe' : 'Haber'}</td><td class="money">${money(m.amount, m.currency||all.base_currency)}</td></tr>`
+              ).join('') || '<tr><td colspan="5" class="muted">Sin movimientos</td></tr>';
+              return `<div class="card" style="margin-top:.65rem">
+                <div class="section-label">${c.code} — ${c.name}</div>
+                <p class="muted">Saldo <span class="money">${money(c.balance, all.base_currency)}</span></p>
+                <table><thead><tr><th>#</th><th>Fecha</th><th>Operación</th><th>Lado</th><th>Importe</th></tr></thead>
+                <tbody>${moves}</tbody></table></div>`;
+            }).join('') || '<p class="muted">Aún no hay cuentas T generadas.</p>';
+          } catch (e) {
+            html += `<p class="muted">No se pudieron listar todas las cuentas T (${e.message})</p>`;
+          }
+          document.getElementById('repOut').innerHTML = html;
           return;
         }
         const d = await api('/reports/financial?period=' + document.getElementById('per').value + '&kind=all');
@@ -777,7 +891,9 @@ async function render() {
           <tbody>${(d.operaciones||[]).map(o=>`<tr><td>${o.date||''}</td><td>${o.type}</td><td>${o.description||''}</td><td class="money">${money(o.amount,o.currency||d.base_currency)}</td><td>${o.username||'—'}</td></tr>`).join('')}</tbody></table>`;
         }
       };
-      document.getElementById('runRep').onclick = fill;
+      document.getElementById('per').onchange = () => fill().catch(()=>{});
+      const tidEl = document.getElementById('tid');
+      if (tidEl) tidEl.onchange = () => fill().catch(()=>{});
       document.getElementById('pdfRep').onclick = async () => {
         const q = '/reports/pdf?kind=' + encodeURIComponent(state.informeSub) + '&period=' + encodeURIComponent(document.getElementById('per').value)
           + (state.informeSub === 'cuenta_t' ? '&account_id=' + encodeURIComponent(document.getElementById('tid').value) : '');
@@ -811,8 +927,13 @@ async function render() {
         </div>
         <div style="margin-top:1rem">
           <label>Restaurar desde archivo local (.zip o .json)</label>
-          <input type="file" id="impFile" accept=".zip,.json,application/zip,application/json" />
-          <button class="btn btn-secondary" id="importZ">Importar y restaurar</button>
+          <label class="file-btn" for="impFile">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3h5v5M20 3 10 13"/><path d="M12 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"/></svg>
+            Elegir archivo
+            <input type="file" id="impFile" accept=".zip,.json,application/zip,application/json" />
+          </label>
+          <div class="file-name" id="impFileName">Ningún archivo seleccionado</div>
+          <button class="btn btn-secondary" id="importZ" style="margin-top:.5rem">Importar y restaurar</button>
         </div>
       </div>
       <div class="card"><table><thead><tr><th>Fecha</th><th>Etiqueta</th><th>CID</th><th>Rev</th><th></th></tr></thead>
@@ -826,6 +947,10 @@ async function render() {
         if (!res.ok) { toast('No se pudo exportar'); return; }
         const blob = await res.blob(); const url = URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url; a.download = 'abacophy-salva.zip'; a.click(); URL.revokeObjectURL(url);
+      };
+      document.getElementById('impFile').onchange = (ev) => {
+        const f = ev.target.files && ev.target.files[0];
+        document.getElementById('impFileName').textContent = f ? f.name : 'Ningún archivo seleccionado';
       };
       document.getElementById('importZ').onclick = async () => {
         const f = document.getElementById('impFile').files[0];
@@ -892,17 +1017,108 @@ async function render() {
   }
 }
 
+function setSplash(msg) {
+  const el = document.getElementById('splashStatus');
+  if (el) { el.style.opacity = '0'; setTimeout(() => { el.textContent = msg; el.style.opacity = '1'; }, 180); }
+}
+function hideSplash() {
+  const sp = document.getElementById('splash');
+  if (!sp) return;
+  sp.classList.add('hide');
+  setTimeout(() => { sp.style.display = 'none'; }, 400);
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
 async function boot() {
   document.getElementById('loginOverlay').style.display = 'none';
   document.getElementById('appShell').classList.add('on');
-  await loadMe(); renderNav(); await render(); autoSync();
+  await loadMe();
+  renderNav();
+  applyThemeMode(state.themeMode);
+  await render();
+  autoSync();
 }
-async function trySession() {
-  if (!state.token) return;
-  try { await loadMe(); await boot(); } catch (_) { state.token = ''; saveLocal(); }
+
+async function startApp() {
+  applyThemeMode(state.themeMode);
+  const bl = document.getElementById('btnThemeLight');
+  const bd = document.getElementById('btnThemeDark');
+  if (bl) bl.onclick = () => { applyThemeMode('light'); toast('Tema claro'); };
+  if (bd) bd.onclick = () => { applyThemeMode('dark'); toast('Tema oscuro'); };
+
+  // Gestos menú lateral (móvil / tablet)
+  let touchX0 = null;
+  document.addEventListener('touchstart', (e) => {
+    if (e.touches[0]) touchX0 = e.touches[0].clientX;
+  }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    if (touchX0 == null || !e.changedTouches[0]) return;
+    const dx = e.changedTouches[0].clientX - touchX0;
+    touchX0 = null;
+    const side = document.getElementById('sidebar');
+    const ov = document.getElementById('overlaySide');
+    if (dx > 60 && touchX0 === null && e.changedTouches[0].clientX > 0) {
+      // open from left edge swipe
+      if (window.innerWidth <= 900 && e.changedTouches[0].clientX - dx < 40) {
+        side.classList.add('open'); ov.classList.add('on');
+      }
+    }
+    if (dx < -60 && side.classList.contains('open')) {
+      side.classList.remove('open'); ov.classList.remove('on');
+    }
+  }, { passive: true });
+  // Fix open from left: store start edge
+  let edgeStart = false;
+  document.addEventListener('touchstart', (e) => {
+    edgeStart = e.touches[0] && e.touches[0].clientX < 28;
+    touchX0 = e.touches[0] ? e.touches[0].clientX : null;
+  }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    if (touchX0 == null || !e.changedTouches[0]) return;
+    const dx = e.changedTouches[0].clientX - touchX0;
+    const side = document.getElementById('sidebar');
+    const ov = document.getElementById('overlaySide');
+    if (edgeStart && dx > 50 && window.innerWidth <= 900) {
+      side.classList.add('open'); ov.classList.add('on');
+    } else if (dx < -50 && side.classList.contains('open')) {
+      side.classList.remove('open'); ov.classList.remove('on');
+    }
+    touchX0 = null; edgeStart = false;
+  }, { passive: true });
+
+  setSplash('Comprobando sesión guardada…');
+  await sleep(900);
+  if (state.token) {
+    setSplash('Restaurando sesión…');
+    await sleep(700);
+    try {
+      setSplash('Cargando panel del negocio…');
+      await sleep(600);
+      await boot();
+      setSplash('Listo');
+      await sleep(400);
+      hideSplash();
+      return;
+    } catch (_) {
+      state.token = '';
+      saveLocal();
+      setSplash('Sesión no válida · preparando acceso…');
+      await sleep(900);
+    }
+  } else {
+    setSplash('Preparando acceso seguro…');
+    await sleep(1000);
+  }
+  setSplash('Listo para iniciar sesión');
+  await sleep(500);
+  hideSplash();
+  document.getElementById('loginOverlay').style.display = 'flex';
 }
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-trySession();
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+startApp();
 </script>
 </body>
 </html>

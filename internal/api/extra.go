@@ -46,6 +46,7 @@ func (s *Server) ensureCurrencies(snap *domain.StoreSnapshot) {
 func (s *Server) registerExtraRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/currencies", s.handleCurrencies)
 	mux.HandleFunc("/api/v1/accounts/t", s.handleAccountT)
+	mux.HandleFunc("/api/v1/accounts/t/all", s.handleAccountsTAll)
 	mux.HandleFunc("/api/v1/audit", s.handleAudit)
 	mux.HandleFunc("/api/v1/backups", s.handleBackups)
 	mux.HandleFunc("/api/v1/backups/restore", s.handleBackupRestore)
@@ -718,4 +719,112 @@ func (s *Server) handleSyncNotify(w http.ResponseWriter, r *http.Request) {
 	s.audit(snap, sess, "sincronizacion."+body.Status, msg, "")
 	_ = s.Store.Put(snap)
 	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+
+// handleAccountsTAll lista todas las cuentas T con movimientos, en orden de ejecución de asientos.
+func (s *Server) handleAccountsTAll(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if err := auth.RequireView(sess, "cuentas_t"); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	base := snap.Tenant.Currency
+	if base == "" {
+		base = "CUP"
+	}
+	type move struct {
+		N           int     `json:"n"`
+		Date        string  `json:"date"`
+		Description string  `json:"description"`
+		Side        string  `json:"side"` // debe|haber
+		Amount      float64 `json:"amount"`
+		Currency    string  `json:"currency"`
+		EntryID     string  `json:"entry_id"`
+		CreatedBy   string  `json:"created_by"`
+	}
+	type tAcc struct {
+		Code    string  `json:"code"`
+		Name    string  `json:"name"`
+		Type    string  `json:"type"`
+		Balance float64 `json:"balance"`
+		Moves   []move  `json:"moves"`
+	}
+	// Index accounts
+	byID := map[string]*domain.Account{}
+	for _, a := range snap.Accounts {
+		if a != nil && a.Active {
+			byID[a.ID] = a
+		}
+	}
+	accMoves := map[string][]move{}
+	n := 0
+	for _, e := range snap.Entries {
+		n++
+		cur := e.Currency
+		if cur == "" {
+			cur = base
+		}
+		if e.AccountID != "" && byID[e.AccountID] != nil {
+			side := "debe"
+			// ingreso/pasivo/patrimonio: haber; gasto/activo: debe (simplificado por tipo de asiento)
+			acc := byID[e.AccountID]
+			if acc.Type == "income" || acc.Type == "liability" || acc.Type == "equity" {
+				side = "haber"
+			}
+			if e.Type == "expense" || e.Type == "inventory" {
+				if acc.Type == "expense" {
+					side = "debe"
+				}
+			}
+			accMoves[e.AccountID] = append(accMoves[e.AccountID], move{
+				N: n, Date: e.Date, Description: e.Description, Side: side,
+				Amount: e.Amount, Currency: cur, EntryID: e.ID, CreatedBy: e.CreatedBy,
+			})
+		}
+		if e.Counterpart != "" && byID[e.Counterpart] != nil {
+			side := "haber"
+			acc := byID[e.Counterpart]
+			if acc.Type == "asset" || acc.Type == "expense" {
+				side = "haber"
+			}
+			accMoves[e.Counterpart] = append(accMoves[e.Counterpart], move{
+				N: n, Date: e.Date, Description: e.Description + " (contrapartida)", Side: side,
+				Amount: e.Amount, Currency: cur, EntryID: e.ID, CreatedBy: e.CreatedBy,
+			})
+		}
+	}
+	var list []tAcc
+	for id, moves := range accMoves {
+		a := byID[id]
+		if a == nil {
+			continue
+		}
+		list = append(list, tAcc{
+			Code: a.Code, Name: a.Name, Type: a.Type, Balance: a.Balance, Moves: moves,
+		})
+	}
+	// ordenar por código
+	for i := 0; i < len(list); i++ {
+		for j := i + 1; j < len(list); j++ {
+			if list[j].Code < list[i].Code {
+				list[i], list[j] = list[j], list[i]
+			}
+		}
+	}
+	writeJSON(w, 200, map[string]any{
+		"cuentas_t": list,
+		"total_operaciones": n,
+		"base_currency": base,
+		"negocio": snap.Tenant.Name,
+	})
 }

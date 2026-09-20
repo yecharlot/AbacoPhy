@@ -27,6 +27,7 @@ func InvoicePDF(tenant domain.Tenant, inv domain.Invoice) []byte {
 	}
 	lines = append(lines, "")
 	lines = append(lines, "FACTURA  "+safe(inv.Number))
+	lines = append(lines, "Formato: Carta (Letter) 8.5 x 11 in")
 	lines = append(lines, "Fecha: "+safe(inv.IssuedAt))
 	lines = append(lines, "Estado: "+safe(estadoES(inv.Status)))
 	lines = append(lines, "")
@@ -98,7 +99,7 @@ func truncate(s string, n int) string {
 
 func buildTextPDF(lines []string) []byte {
 	var content bytes.Buffer
-	content.WriteString("BT\n/F1 11 Tf\n14 TL\n50 780 Td\n")
+	content.WriteString("BT\n/F1 10 Tf\n13 TL\n72 720 Td\n")
 	for i, line := range lines {
 		esc := strings.ReplaceAll(line, "\\", "\\\\")
 		esc = strings.ReplaceAll(esc, "(", "\\(")

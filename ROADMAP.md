@@ -42,6 +42,10 @@ sin depender de software cerrado extranjero ni de un LLM.
 | PWA + icono Ábaco | Estable | Instalable en móvil |
 | Embed permanente en nodo | Estable | `/w/abacophy.app.ans` vía `ensureAbacoPhyApp` |
 | Auto-deploy Render | **Off** | Solo bajo orden |
+| Splash + estados de carga | Estable | Sesión / login con mensajes legibles |
+| Informes auto (sin Consultar) | Estable | Cuentas T globales por orden de ejecución |
+| PDF factura Carta | Estable | Márgenes 1" · estado en español |
+| Tema sol/luna | Estable | Gestos swipe menú móvil |
 
 ## Estructura del menú (optimizada)
 - Inicio, Ingresos, Gastos, Inventario, Facturas, Nómina  
