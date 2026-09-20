@@ -1,0 +1,613 @@
+package api
+
+import (
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/yecharlot/AbacoPhy/internal/auth"
+	"github.com/yecharlot/AbacoPhy/internal/domain"
+	 
+)
+
+func (s *Server) registerOpsRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/api/v1/products", s.handleProducts)
+	mux.HandleFunc("/api/v1/units", s.handleSalesUnits)
+	mux.HandleFunc("/api/v1/warehouse", s.handleWarehouse)
+	mux.HandleFunc("/api/v1/receptions", s.handleReceptions)
+	mux.HandleFunc("/api/v1/transfers", s.handleTransfers)
+	mux.HandleFunc("/api/v1/pos/sales", s.handlePOSSales)
+	mux.HandleFunc("/api/v1/cost-sheets", s.handleCostSheets)
+}
+
+func ensureOpsMaps(snap *domain.StoreSnapshot) {
+	if snap.Products == nil {
+		snap.Products = map[string]*domain.Product{}
+	}
+	if snap.SalesUnits == nil {
+		snap.SalesUnits = map[string]*domain.SalesUnit{}
+	}
+	if snap.WarehouseStock == nil {
+		snap.WarehouseStock = map[string]*domain.WarehouseStock{}
+	}
+	if snap.CostSheets == nil {
+		snap.CostSheets = map[string]*domain.CostSheet{}
+	}
+	// Semilla de nomenclador si el tenant es antiguo sin productos
+	if len(snap.Products) == 0 {
+		for id, p := range domain.DefaultProducts(snap.Tenant.ID) {
+			snap.Products[id] = p
+		}
+		snap.DocCounters.ProductSeq = 15
+	}
+}
+
+func nextCode(prefix string, seq *int) string {
+	*seq++
+	return fmt.Sprintf("%s-%04d", prefix, *seq)
+}
+
+func (s *Server) handleProducts(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if err := auth.RequireView(sess, "productos"); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	ensureOpsMaps(snap)
+	switch r.Method {
+	case http.MethodGet:
+		list := make([]*domain.Product, 0, len(snap.Products))
+		for _, p := range snap.Products {
+			if p != nil && p.Active {
+				list = append(list, p)
+			}
+		}
+		writeJSON(w, 200, map[string]any{"products": list})
+	case http.MethodPost:
+		var body domain.Product
+		if err := readJSON(r, &body); err != nil || strings.TrimSpace(body.Name) == "" {
+			writeJSON(w, 400, map[string]string{"error": "nombre requerido"})
+			return
+		}
+		body.ID = uuid.NewString()
+		body.TenantID = sess.TenantID
+		if body.Code == "" {
+			body.Code = nextCode("P", &snap.DocCounters.ProductSeq)
+		}
+		// evitar código duplicado
+		for _, p := range snap.Products {
+			if p != nil && p.Active && strings.EqualFold(p.Code, body.Code) {
+				writeJSON(w, 409, map[string]string{"error": "código de producto ya existe: " + body.Code})
+				return
+			}
+		}
+		if body.Unit == "" {
+			body.Unit = "u"
+		}
+		if body.Currency == "" {
+			body.Currency = snap.Tenant.Currency
+		}
+		body.Active = true
+		body.CreatedAt = time.Now().UTC()
+		body.UpdatedAt = body.CreatedAt
+		snap.Products[body.ID] = &body
+		s.audit(snap, sess, "producto.alta", "Alta nomenclador "+body.Code+" — "+body.Name, body.ID)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 201, map[string]any{"product": body})
+	case http.MethodPut:
+		var body domain.Product
+		if err := readJSON(r, &body); err != nil || body.ID == "" {
+			writeJSON(w, 400, map[string]string{"error": "id requerido"})
+			return
+		}
+		ex := snap.Products[body.ID]
+		if ex == nil {
+			writeJSON(w, 404, map[string]string{"error": "producto no encontrado"})
+			return
+		}
+		if body.Name != "" {
+			ex.Name = body.Name
+		}
+		if body.Unit != "" {
+			ex.Unit = body.Unit
+		}
+		ex.Category = body.Category
+		ex.CostStd = body.CostStd
+		ex.PriceSale = body.PriceSale
+		if body.Currency != "" {
+			ex.Currency = body.Currency
+		}
+		ex.Barcode = body.Barcode
+		ex.UpdatedAt = time.Now().UTC()
+		s.audit(snap, sess, "producto.edicion", "Edición "+ex.Code+" — "+ex.Name, ex.ID)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 200, map[string]any{"product": ex})
+	default:
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+	}
+}
+
+func (s *Server) handleSalesUnits(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if err := auth.RequireView(sess, "unidades"); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	ensureOpsMaps(snap)
+	switch r.Method {
+	case http.MethodGet:
+		list := make([]*domain.SalesUnit, 0, len(snap.SalesUnits))
+		for _, u := range snap.SalesUnits {
+			if u != nil && u.Active {
+				list = append(list, u)
+			}
+		}
+		writeJSON(w, 200, map[string]any{"units": list, "stocks": snap.UnitStocks})
+	case http.MethodPost:
+		var body domain.SalesUnit
+		if err := readJSON(r, &body); err != nil || strings.TrimSpace(body.Name) == "" {
+			writeJSON(w, 400, map[string]string{"error": "nombre de unidad requerido"})
+			return
+		}
+		body.ID = uuid.NewString()
+		body.TenantID = sess.TenantID
+		if body.Code == "" {
+			body.Code = nextCode("U", &snap.DocCounters.UnitSeq)
+		}
+		body.Active = true
+		body.CreatedAt = time.Now().UTC()
+		snap.SalesUnits[body.ID] = &body
+		s.audit(snap, sess, "unidad.alta", "Unidad de venta "+body.Code+" — "+body.Name+" · "+body.Address, body.ID)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 201, map[string]any{"unit": body})
+	default:
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+	}
+}
+
+func (s *Server) handleWarehouse(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if err := auth.RequireView(sess, "almacen"); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	ensureOpsMaps(snap)
+	if r.Method != http.MethodGet {
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+		return
+	}
+	type row struct {
+		ProductID   string  `json:"product_id"`
+		Code        string  `json:"code"`
+		Name        string  `json:"name"`
+		Unit        string  `json:"unit"`
+		Qty         float64 `json:"qty"`
+		AvgCost     float64 `json:"avg_cost"`
+		AmountBase  float64 `json:"amount_base"`
+		Currency    string  `json:"currency"`
+	}
+	out := []row{}
+	for pid, st := range snap.WarehouseStock {
+		p := snap.Products[pid]
+		name, code, unit, cur := pid, "", "u", snap.Tenant.Currency
+		if p != nil {
+			name, code, unit = p.Name, p.Code, p.Unit
+			if p.Currency != "" {
+				cur = p.Currency
+			}
+		}
+		out = append(out, row{ProductID: pid, Code: code, Name: name, Unit: unit, Qty: st.Qty, AvgCost: st.AvgCost, AmountBase: st.AmountBase, Currency: cur})
+	}
+	writeJSON(w, 200, map[string]any{"warehouse": out, "unit_stocks": snap.UnitStocks})
+}
+
+func (s *Server) handleReceptions(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if err := auth.RequireView(sess, "recepcion"); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	ensureOpsMaps(snap)
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, 200, map[string]any{"receptions": snap.Receptions})
+	case http.MethodPost:
+		var body domain.ReceptionNote
+		if err := readJSON(r, &body); err != nil || len(body.Lines) == 0 {
+			writeJSON(w, 400, map[string]string{"error": "líneas de recepción requeridas"})
+			return
+		}
+		body.ID = uuid.NewString()
+		body.TenantID = sess.TenantID
+		body.Number = nextCode("IR", &snap.DocCounters.ReceptionSeq)
+		if body.Date == "" {
+			body.Date = time.Now().Format("2006-01-02")
+		}
+		if body.Currency == "" {
+			body.Currency = snap.Tenant.Currency
+		}
+		body.Status = "confirmado"
+		body.CreatedBy = sess.UserID
+		body.CreatedAt = time.Now().UTC()
+		var total float64
+		for i := range body.Lines {
+			ln := &body.Lines[i]
+			p := snap.Products[ln.ProductID]
+			if p == nil {
+				writeJSON(w, 400, map[string]string{"error": "producto no encontrado en línea"})
+				return
+			}
+			ln.ProductCode, ln.ProductName = p.Code, p.Name
+			if ln.Qty <= 0 {
+				writeJSON(w, 400, map[string]string{"error": "cantidad inválida"})
+				return
+			}
+			ln.Amount = ln.Qty * ln.UnitCost
+			total += ln.Amount
+			// promedio ponderado en almacén
+			st := snap.WarehouseStock[ln.ProductID]
+			if st == nil {
+				st = &domain.WarehouseStock{ProductID: ln.ProductID}
+				snap.WarehouseStock[ln.ProductID] = st
+			}
+			newQty := st.Qty + ln.Qty
+			if newQty > 0 {
+				st.AvgCost = (st.AmountBase + ln.Amount) / newQty
+			}
+			st.Qty = newQty
+			st.AmountBase = st.Qty * st.AvgCost
+			p.CostStd = st.AvgCost
+			p.UpdatedAt = time.Now().UTC()
+			// espejo inventario clásico (compatibilidad)
+			s.mirrorInventoryFromProduct(snap, p, st)
+		}
+		body.TotalCost = total
+		// Contabilidad: Debe Inventario, Haber Caja (pago al contado simplificado)
+		domain.ApplyInventoryIn(snap, total)
+		// asiento de traza
+		snap.Entries = append(snap.Entries, domain.Entry{
+			ID: uuid.NewString(), TenantID: sess.TenantID, Date: body.Date, Type: "inventory",
+			Amount: total, Currency: body.Currency, Description: "Recepción "+body.Number+" · "+body.Supplier,
+			CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
+		})
+		snap.Receptions = append(snap.Receptions, body)
+		s.audit(snap, sess, "recepcion.confirmada",
+			fmt.Sprintf("Informe recepción %s · proveedor %s · total %.2f %s · %d líneas",
+				body.Number, body.Supplier, body.TotalCost, body.Currency, len(body.Lines)), body.ID)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 201, map[string]any{"reception": body})
+	default:
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+	}
+}
+
+func (s *Server) mirrorInventoryFromProduct(snap *domain.StoreSnapshot, p *domain.Product, st *domain.WarehouseStock) {
+	if snap.Inventory == nil {
+		snap.Inventory = map[string]*domain.InventoryItem{}
+	}
+	key := "inv-" + p.Code
+	it := snap.Inventory[key]
+	if it == nil {
+		it = &domain.InventoryItem{ID: key, TenantID: snap.Tenant.ID, SKU: p.Code, Name: p.Name, Unit: p.Unit, Currency: p.Currency, Active: true}
+		snap.Inventory[key] = it
+	}
+	it.Qty = st.Qty
+	it.Cost = st.AvgCost
+	it.Amount = st.AmountBase
+	it.AmountBase = st.AmountBase
+	it.UpdatedAt = time.Now().UTC()
+}
+
+func findUnitStock(snap *domain.StoreSnapshot, unitID, productID string) *domain.UnitStock {
+	for i := range snap.UnitStocks {
+		if snap.UnitStocks[i].UnitID == unitID && snap.UnitStocks[i].ProductID == productID {
+			return &snap.UnitStocks[i]
+		}
+	}
+	return nil
+}
+
+func (s *Server) handleTransfers(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if err := auth.RequireView(sess, "almacen"); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	ensureOpsMaps(snap)
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, 200, map[string]any{"transfers": snap.Transfers})
+	case http.MethodPost:
+		var body domain.StockTransfer
+		if err := readJSON(r, &body); err != nil || body.UnitID == "" || len(body.Lines) == 0 {
+			writeJSON(w, 400, map[string]string{"error": "unidad y líneas requeridas"})
+			return
+		}
+		unit := snap.SalesUnits[body.UnitID]
+		if unit == nil || !unit.Active {
+			writeJSON(w, 400, map[string]string{"error": "unidad de venta no válida"})
+			return
+		}
+		body.ID = uuid.NewString()
+		body.TenantID = sess.TenantID
+		body.Number = nextCode("TR", &snap.DocCounters.TransferSeq)
+		if body.Date == "" {
+			body.Date = time.Now().Format("2006-01-02")
+		}
+		body.UnitName = unit.Name
+		body.Status = "confirmado"
+		body.CreatedBy = sess.UserID
+		body.CreatedAt = time.Now().UTC()
+		for i := range body.Lines {
+			ln := &body.Lines[i]
+			p := snap.Products[ln.ProductID]
+			st := snap.WarehouseStock[ln.ProductID]
+			if p == nil || st == nil || ln.Qty <= 0 || st.Qty < ln.Qty {
+				writeJSON(w, 400, map[string]string{"error": "stock insuficiente o producto inválido"})
+				return
+			}
+			ln.ProductCode, ln.ProductName = p.Code, p.Name
+			ln.UnitCost = st.AvgCost
+			ln.Amount = ln.Qty * ln.UnitCost
+			st.Qty -= ln.Qty
+			st.AmountBase = st.Qty * st.AvgCost
+			us := findUnitStock(snap, body.UnitID, ln.ProductID)
+			if us == nil {
+				snap.UnitStocks = append(snap.UnitStocks, domain.UnitStock{
+					UnitID: body.UnitID, ProductID: ln.ProductID, Qty: ln.Qty, AvgCost: ln.UnitCost, AmountBase: ln.Amount,
+				})
+			} else {
+				nq := us.Qty + ln.Qty
+				if nq > 0 {
+					us.AvgCost = (us.AmountBase + ln.Amount) / nq
+				}
+				us.Qty = nq
+				us.AmountBase = us.Qty * us.AvgCost
+			}
+			s.mirrorInventoryFromProduct(snap, p, st)
+		}
+		snap.Transfers = append(snap.Transfers, body)
+		s.audit(snap, sess, "almacen.transferencia",
+			fmt.Sprintf("Transferencia %s a unidad %s (%s) · %d líneas", body.Number, unit.Code, unit.Name, len(body.Lines)), body.ID)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 201, map[string]any{"transfer": body})
+	default:
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+	}
+}
+
+func (s *Server) handlePOSSales(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if err := auth.RequireView(sess, "vendedor"); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	ensureOpsMaps(snap)
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, 200, map[string]any{"sales": snap.POSSales})
+	case http.MethodPost:
+		var body domain.POSSale
+		if err := readJSON(r, &body); err != nil || len(body.Lines) == 0 {
+			writeJSON(w, 400, map[string]string{"error": "líneas de venta requeridas"})
+			return
+		}
+		body.ID = uuid.NewString()
+		body.TenantID = sess.TenantID
+		body.Number = nextCode("VT", &snap.DocCounters.POSSaleSeq)
+		if body.Date == "" {
+			body.Date = time.Now().Format("2006-01-02")
+		}
+		if body.Currency == "" {
+			body.Currency = snap.Tenant.Currency
+		}
+		if body.UnitID != "" {
+			if u := snap.SalesUnits[body.UnitID]; u != nil {
+				body.UnitName = u.Name
+			}
+		}
+		body.Status = "confirmada"
+		body.CreatedBy = sess.UserID
+		body.CreatedAt = time.Now().UTC()
+		var sub, disc, costT float64
+		for i := range body.Lines {
+			ln := &body.Lines[i]
+			p := snap.Products[ln.ProductID]
+			if p == nil || ln.Qty <= 0 {
+				writeJSON(w, 400, map[string]string{"error": "producto o cantidad inválida"})
+				return
+			}
+			ln.ProductCode, ln.ProductName = p.Code, p.Name
+			if ln.UnitPrice <= 0 {
+				ln.UnitPrice = p.PriceSale
+			}
+			gross := ln.Qty * ln.UnitPrice
+			if ln.DiscountPct > 0 {
+				ln.DiscountAmt = gross * (ln.DiscountPct / 100)
+			}
+			ln.LineTotal = gross - ln.DiscountAmt
+			if ln.LineTotal < 0 {
+				ln.LineTotal = 0
+			}
+			// descontar stock de unidad si hay, si no del almacén
+			var unitCost float64
+			if body.UnitID != "" {
+				us := findUnitStock(snap, body.UnitID, ln.ProductID)
+				if us == nil || us.Qty < ln.Qty {
+					writeJSON(w, 400, map[string]string{"error": "stock insuficiente en unidad para " + p.Code})
+					return
+				}
+				unitCost = us.AvgCost
+				us.Qty -= ln.Qty
+				us.AmountBase = us.Qty * us.AvgCost
+			} else {
+				st := snap.WarehouseStock[ln.ProductID]
+				if st == nil || st.Qty < ln.Qty {
+					writeJSON(w, 400, map[string]string{"error": "stock insuficiente en almacén para " + p.Code})
+					return
+				}
+				unitCost = st.AvgCost
+				st.Qty -= ln.Qty
+				st.AmountBase = st.Qty * st.AvgCost
+				s.mirrorInventoryFromProduct(snap, p, st)
+			}
+			ln.UnitCost = unitCost
+			ln.CostAmount = unitCost * ln.Qty
+			sub += gross
+			disc += ln.DiscountAmt
+			costT += ln.CostAmount
+		}
+		body.Subtotal = sub
+		body.Discount = disc
+		body.Total = sub - disc
+		body.CostTotal = costT
+		// Contabilidad: ingreso + COGS
+		domain.ApplyIncome(snap, body.Total, "Venta vendedor "+body.Number+" · rebaja "+formatFloat(disc), sess.UserID)
+		if costT > 0 {
+			domain.ApplyInventoryOut(snap, costT)
+			snap.Entries = append(snap.Entries, domain.Entry{
+				ID: uuid.NewString(), TenantID: sess.TenantID, Date: body.Date, Type: "inventory",
+				Amount: costT, Currency: body.Currency, Description: "Costo venta "+body.Number,
+				CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
+			})
+		}
+		snap.POSSales = append(snap.POSSales, body)
+		s.audit(snap, sess, "venta.vendedor",
+			fmt.Sprintf("Venta %s · total %.2f %s · rebaja %.2f · costo %.2f · unidad %s",
+				body.Number, body.Total, body.Currency, body.Discount, body.CostTotal, body.UnitName), body.ID)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 201, map[string]any{"sale": body})
+	default:
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+	}
+}
+
+func (s *Server) handleCostSheets(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if err := auth.RequireView(sess, "fichas_costo"); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	ensureOpsMaps(snap)
+	switch r.Method {
+	case http.MethodGet:
+		list := make([]*domain.CostSheet, 0, len(snap.CostSheets))
+		for _, c := range snap.CostSheets {
+			if c != nil {
+				list = append(list, c)
+			}
+		}
+		writeJSON(w, 200, map[string]any{"cost_sheets": list})
+	case http.MethodPost:
+		var body domain.CostSheet
+		if err := readJSON(r, &body); err != nil || body.ProductID == "" {
+			writeJSON(w, 400, map[string]string{"error": "product_id requerido"})
+			return
+		}
+		p := snap.Products[body.ProductID]
+		if p == nil {
+			writeJSON(w, 404, map[string]string{"error": "producto no encontrado"})
+			return
+		}
+		// Automatizar materia prima desde costo de almacén si no viene
+		if body.MateriaPrima <= 0 {
+			if st := snap.WarehouseStock[body.ProductID]; st != nil && st.AvgCost > 0 {
+				body.MateriaPrima = st.AvgCost
+			} else if p.CostStd > 0 {
+				body.MateriaPrima = p.CostStd
+			}
+		}
+		body.CostoUnitario = body.MateriaPrima + body.MatAuxiliares + body.Energia +
+			body.SalarioDirecto + body.OtrosDirectos + body.GastosIndirectos
+		if body.PrecioSugerido <= 0 && body.CostoUnitario > 0 {
+			body.PrecioSugerido = body.CostoUnitario * 1.3 // margen orientativo 30 %
+		}
+		body.ID = uuid.NewString()
+		body.TenantID = sess.TenantID
+		body.ProductCode, body.ProductName = p.Code, p.Name
+		if body.Currency == "" {
+			body.Currency = snap.Tenant.Currency
+		}
+		body.CreatedBy = sess.UserID
+		body.CreatedAt = time.Now().UTC()
+		body.UpdatedAt = body.CreatedAt
+		snap.CostSheets[body.ProductID] = &body
+		p.CostStd = body.CostoUnitario
+		if body.PrecioSugerido > 0 {
+			p.PriceSale = body.PrecioSugerido
+		}
+		p.UpdatedAt = time.Now().UTC()
+		s.audit(snap, sess, "ficha_costo",
+			fmt.Sprintf("Ficha de costo %s %s · unitario %.2f %s (MP %.2f + ind %.2f)",
+				p.Code, p.Name, body.CostoUnitario, body.Currency, body.MateriaPrima, body.GastosIndirectos), body.ID)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 201, map[string]any{"cost_sheet": body})
+	default:
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+	}
+}

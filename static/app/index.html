@@ -397,6 +397,12 @@ const ICONS = {
   monedas: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10m-3-7.5c0-1 1.5-1.5 3-1.5s3 .5 3 1.5-1.5 1.5-3 1.5-3 .5-3 1.5 1.5 1.5 3 1.5 3-.5 3-1.5"/></svg>',
   informes: '<svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h16"/><path d="M8 17V10m4 7V7m4 10v-4"/></svg>',
   traza: '<svg viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>',
+  productos: '<svg viewBox="0 0 24 24"><path d="M4 7h16v12H4z"/><path d="M8 7V5h8v2"/></svg>',
+  almacen: '<svg viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-8h6v8"/></svg>',
+  unidades: '<svg viewBox="0 0 24 24"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M3 21v-2a4 4 0 0 1 4-4h2a4 4 0 0 1 4 4v2M13 21v-2a4 4 0 0 1 4-4h0a4 4 0 0 1 4 4v2"/></svg>',
+  recepcion: '<svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 21h14"/></svg>',
+  vendedor: '<svg viewBox="0 0 24 24"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 7h14m-9-7v7m5-7v7"/></svg>',
+  fichas: '<svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
   salvas: '<svg viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h9l5 5v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 5v5h5M8 17h8"/></svg>',
   negocio: '<svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V8l7-4 7 4v13"/><path d="M9 21v-6h6v6"/></svg>',
   master: '<svg viewBox="0 0 24 24"><path d="M12 3 4 7v5c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V7l-8-4z"/></svg>',
@@ -408,6 +414,12 @@ const NAV = [
   { id: 'ingresos', label: 'Ingresos', view: 'ingresos', icon: 'ingresos' },
   { id: 'gastos', label: 'Gastos', view: 'gastos', icon: 'gastos' },
   { id: 'inventario', label: 'Inventario', view: 'inventario', icon: 'inventario' },
+  { id: 'productos', label: 'Nomenclador', view: 'productos', icon: 'productos' },
+  { id: 'almacen', label: 'Almacén', view: 'almacen', icon: 'almacen' },
+  { id: 'unidades', label: 'Unidades venta', view: 'unidades', icon: 'unidades' },
+  { id: 'recepcion', label: 'Recepción', view: 'recepcion', icon: 'recepcion' },
+  { id: 'vendedor', label: 'Vendedor', view: 'vendedor', icon: 'vendedor' },
+  { id: 'fichas', label: 'Fichas de costo', view: 'fichas_costo', icon: 'fichas' },
   { id: 'facturas', label: 'Facturas', view: 'facturas', icon: 'facturas' },
   { id: 'nomina', label: 'Nómina', view: 'nomina', icon: 'nomina' },
   { id: 'cuentas', label: 'Nomenclador de cuentas', view: 'cuentas', icon: 'cuentas' },
@@ -1041,6 +1053,204 @@ async function render() {
         await api('/backups/restore', { method: 'POST', body: JSON.stringify({ cid: b.dataset.restore }) });
         toast('Restaurado'); await loadMe(); render();
       });
+
+    } else if (state.tab === 'productos') {
+      const data = await api('/products');
+      const rows = (data.products || []).map(p => `<tr>
+        <td><strong>${p.code}</strong></td><td>${p.name}</td><td>${p.unit||'u'}</td><td>${p.category||'—'}</td>
+        <td class="money">${money(p.cost_std, p.currency||base)}</td>
+        <td class="money">${money(p.price_sale, p.currency||base)}</td>
+      </tr>`).join('');
+      main.innerHTML = `<div class="card">
+        <div class="section-label">Nomenclador de productos</div>
+        <p class="muted" style="margin-bottom:.75rem">Código único por producto, válido en almacén y todas las unidades de venta. Evita errores de nomenclatura al inventariar.</p>
+        <div class="grid-2"><div><label>Nombre</label><input id="pn" /></div><div><label>Unidad</label><input id="pu" value="u" /></div></div>
+        <div class="grid-2"><div><label>Categoría</label><input id="pc" /></div><div><label>Precio venta</label><input id="pp" type="number" step="0.01" value="0" /></div></div>
+        <button class="btn btn-primary" id="addP">Agregar producto (código automático)</button>
+      </div>
+      <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>UM</th><th>Categoría</th><th>Costo</th><th>Precio</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="6" class="muted">Sin productos</td></tr>'}</tbody></table></div>`;
+      document.getElementById('addP').onclick = async () => {
+        await api('/products', { method: 'POST', body: JSON.stringify({
+          name: document.getElementById('pn').value.trim(),
+          unit: document.getElementById('pu').value.trim()||'u',
+          category: document.getElementById('pc').value.trim(),
+          price_sale: +document.getElementById('pp').value||0,
+        })});
+        toast('Producto agregado al nomenclador'); render();
+      };
+    } else if (state.tab === 'unidades') {
+      const data = await api('/units');
+      const rows = (data.units||[]).map(u => `<tr><td>${u.code}</td><td>${u.name}</td><td>${u.address||'—'}</td><td>${u.phone||'—'}</td></tr>`).join('');
+      const stocks = (data.stocks||[]).map(s => {
+        return `<tr><td>${s.unit_id.slice(0,8)}…</td><td>${s.product_id.slice(0,8)}…</td><td>${s.qty}</td><td class="money">${money(s.avg_cost)}</td></tr>`;
+      }).join('');
+      main.innerHTML = `<div class="card">
+        <div class="section-label">Unidades de venta</div>
+        <p class="muted">Puntos de venta del mismo negocio en distintas ubicaciones.</p>
+        <label>Nombre</label><input id="un" />
+        <label>Dirección</label><input id="ua" />
+        <label>Teléfono</label><input id="up" />
+        <button class="btn btn-primary" id="addU">Registrar unidad</button>
+      </div>
+      <div class="card"><table><thead><tr><th>Código</th><th>Nombre</th><th>Dirección</th><th>Tel.</th></tr></thead><tbody>${rows||'<tr><td colspan="4" class="muted">Sin unidades</td></tr>'}</tbody></table></div>
+      <div class="card"><div class="section-label">Stock en unidades</div>
+        <table><thead><tr><th>Unidad</th><th>Producto</th><th>Cant.</th><th>Costo prom.</th></tr></thead>
+        <tbody>${stocks||'<tr><td colspan="4" class="muted">Sin existencias en unidades</td></tr>'}</tbody></table></div>`;
+      document.getElementById('addU').onclick = async () => {
+        await api('/units', { method: 'POST', body: JSON.stringify({
+          name: document.getElementById('un').value.trim(),
+          address: document.getElementById('ua').value.trim(),
+          phone: document.getElementById('up').value.trim(),
+        })});
+        toast('Unidad registrada'); render();
+      };
+    } else if (state.tab === 'almacen') {
+      const wh = await api('/warehouse');
+      const units = await api('/units');
+      const prods = await api('/products');
+      const rows = (wh.warehouse||[]).map(r => `<tr>
+        <td>${r.code}</td><td>${r.name}</td><td>${r.qty} ${r.unit||''}</td>
+        <td class="money">${money(r.avg_cost, r.currency)}</td>
+        <td class="money">${money(r.amount_base, r.currency)}</td>
+      </tr>`).join('');
+      const uopts = (units.units||[]).map(u=>`<option value="${u.id}">${u.code} — ${u.name}</option>`).join('');
+      const popts = (prods.products||[]).map(p=>`<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
+      main.innerHTML = `<div class="card">
+        <div class="section-label">Almacén central</div>
+        <p class="muted">Existencias del almacén. Distribuya a unidades de venta con el mismo código de producto.</p>
+        <table><thead><tr><th>Código</th><th>Producto</th><th>Cantidad</th><th>Costo prom.</th><th>Importe</th></tr></thead>
+        <tbody>${rows||'<tr><td colspan="5" class="muted">Almacén vacío — use Recepción</td></tr>'}</tbody></table>
+      </div>
+      <div class="card">
+        <div class="section-label">Distribuir a unidad de venta</div>
+        <label>Unidad destino</label><select id="trU">${uopts||'<option value="">— registre unidades —</option>'}</select>
+        <label>Producto</label><select id="trP">${popts}</select>
+        <label>Cantidad</label><input id="trQ" type="number" step="0.01" min="0.01" />
+        <button class="btn btn-primary" id="doTr">Confirmar transferencia</button>
+      </div>`;
+      document.getElementById('doTr').onclick = async () => {
+        const unit_id = document.getElementById('trU').value;
+        const product_id = document.getElementById('trP').value;
+        const qty = +document.getElementById('trQ').value;
+        if (!unit_id || !product_id || !qty) { toast('Complete unidad, producto y cantidad'); return; }
+        await api('/transfers', { method: 'POST', body: JSON.stringify({ unit_id, lines: [{ product_id, qty }] }) });
+        toast('Transferencia confirmada'); render();
+      };
+    } else if (state.tab === 'recepcion') {
+      const prods = await api('/products');
+      const rec = await api('/receptions');
+      const popts = (prods.products||[]).map(p=>`<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
+      const hist = (rec.receptions||[]).slice().reverse().slice(0,30).map(r => `<tr>
+        <td>${r.number}</td><td>${r.date}</td><td>${r.supplier||'—'}</td>
+        <td class="money">${money(r.total_cost, r.currency)}</td><td>${(r.lines||[]).length} líneas</td>
+      </tr>`).join('');
+      main.innerHTML = `<div class="card">
+        <div class="section-label">Informe de recepción</div>
+        <p class="muted">Entrada de mercancía al almacén. Actualiza stock, costo promedio y cuentas de inventario.</p>
+        <label>Proveedor</label><input id="rs" />
+        <label>Documento / factura proveedor</label><input id="rd" />
+        <label>Producto</label><select id="rp">${popts}</select>
+        <div class="grid-2"><div><label>Cantidad</label><input id="rq" type="number" step="0.01" /></div>
+        <div><label>Costo unitario</label><input id="rc" type="number" step="0.01" /></div></div>
+        <button class="btn btn-primary" id="doR">Registrar recepción</button>
+      </div>
+      <div class="card"><div class="section-label">Histórico de recepciones</div>
+        <table><thead><tr><th>No.</th><th>Fecha</th><th>Proveedor</th><th>Total</th><th>Líneas</th></tr></thead>
+        <tbody>${hist||'<tr><td colspan="5" class="muted">Sin recepciones</td></tr>'}</tbody></table></div>`;
+      document.getElementById('doR').onclick = async () => {
+        const product_id = document.getElementById('rp').value;
+        const qty = +document.getElementById('rq').value;
+        const unit_cost = +document.getElementById('rc').value;
+        if (!product_id || !qty) { toast('Producto y cantidad requeridos'); return; }
+        await api('/receptions', { method: 'POST', body: JSON.stringify({
+          supplier: document.getElementById('rs').value.trim(),
+          doc_ref: document.getElementById('rd').value.trim(),
+          lines: [{ product_id, qty, unit_cost }],
+        })});
+        toast('Recepción registrada y contabilidad actualizada'); render();
+      };
+    } else if (state.tab === 'vendedor') {
+      const prods = await api('/products');
+      const units = await api('/units');
+      const sales = await api('/pos/sales');
+      const popts = (prods.products||[]).map(p=>`<option value="${p.id}" data-price="${p.price_sale||0}">${p.code} — ${p.name}</option>`).join('');
+      const uopts = '<option value="">Almacén (sin unidad)</option>' + (units.units||[]).map(u=>`<option value="${u.id}">${u.code} — ${u.name}</option>`).join('');
+      const hist = (sales.sales||[]).slice().reverse().slice(0,25).map(s => `<tr>
+        <td>${s.number}</td><td>${s.date}</td><td>${s.unit_name||'Almacén'}</td>
+        <td class="money">${money(s.discount, s.currency)}</td>
+        <td class="money">${money(s.total, s.currency)}</td>
+      </tr>`).join('');
+      main.innerHTML = `<div class="card">
+        <div class="section-label">Punto de venta · vendedor</div>
+        <p class="muted">La venta descuenta stock, aplica rebajas y genera asientos de ingreso y costo de ventas.</p>
+        <label>Unidad de venta</label><select id="vu">${uopts}</select>
+        <label>Vendedor</label><input id="vs" placeholder="Nombre de quien atiende" />
+        <label>Producto</label><select id="vp">${popts}</select>
+        <div class="grid-2"><div><label>Cantidad</label><input id="vq" type="number" step="0.01" value="1" /></div>
+        <div><label>Precio unitario</label><input id="vpr" type="number" step="0.01" /></div></div>
+        <label>Rebaja %</label><input id="vd" type="number" step="0.01" value="0" min="0" max="100" />
+        <button class="btn btn-primary" id="doV">Registrar venta</button>
+      </div>
+      <div class="card"><div class="section-label">Ventas recientes</div>
+        <table><thead><tr><th>No.</th><th>Fecha</th><th>Unidad</th><th>Rebaja</th><th>Total</th></tr></thead>
+        <tbody>${hist||'<tr><td colspan="5" class="muted">Sin ventas</td></tr>'}</tbody></table></div>`;
+      const vp = document.getElementById('vp');
+      const syncPrice = () => {
+        const opt = vp.options[vp.selectedIndex];
+        if (opt) document.getElementById('vpr').value = opt.getAttribute('data-price') || '0';
+      };
+      vp.onchange = syncPrice; syncPrice();
+      document.getElementById('doV').onclick = async () => {
+        const product_id = document.getElementById('vp').value;
+        const qty = +document.getElementById('vq').value;
+        const unit_price = +document.getElementById('vpr').value;
+        const discount_pct = +document.getElementById('vd').value || 0;
+        await api('/pos/sales', { method: 'POST', body: JSON.stringify({
+          unit_id: document.getElementById('vu').value || undefined,
+          seller: document.getElementById('vs').value.trim(),
+          lines: [{ product_id, qty, unit_price, discount_pct }],
+        })});
+        toast('Venta registrada · contabilidad actualizada'); render();
+      };
+    } else if (state.tab === 'fichas') {
+      const prods = await api('/products');
+      const sheets = await api('/cost-sheets');
+      const popts = (prods.products||[]).map(p=>`<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
+      const rows = (sheets.cost_sheets||[]).map(c => `<tr>
+        <td>${c.product_code}</td><td>${c.product_name}</td>
+        <td class="money">${money(c.materia_prima, c.currency)}</td>
+        <td class="money">${money(c.gastos_indirectos, c.currency)}</td>
+        <td class="money"><strong>${money(c.costo_unitario, c.currency)}</strong></td>
+        <td class="money">${money(c.precio_sugerido, c.currency)}</td>
+      </tr>`).join('');
+      main.innerHTML = `<div class="card">
+        <div class="section-label">Ficha de costo</div>
+        <p class="muted">Estructura orientada a normas cubanas: materia prima, materiales auxiliares, energía, salario directo, otros directos e indirectos. La materia prima se puede tomar del costo promedio de almacén.</p>
+        <label>Producto</label><select id="fp">${popts}</select>
+        <div class="grid-2"><div><label>Materia prima</label><input id="fmp" type="number" step="0.01" placeholder="auto desde almacén" /></div>
+        <div><label>Materiales auxiliares</label><input id="fma" type="number" step="0.01" value="0" /></div></div>
+        <div class="grid-2"><div><label>Energía / combustible</label><input id="fen" type="number" step="0.01" value="0" /></div>
+        <div><label>Salario directo</label><input id="fsd" type="number" step="0.01" value="0" /></div></div>
+        <div class="grid-2"><div><label>Otros directos</label><input id="fod" type="number" step="0.01" value="0" /></div>
+        <div><label>Gastos indirectos</label><input id="fgi" type="number" step="0.01" value="0" /></div></div>
+        <button class="btn btn-primary" id="doF">Calcular y guardar ficha</button>
+      </div>
+      <div class="card"><table><thead><tr><th>Código</th><th>Producto</th><th>MP</th><th>Indirectos</th><th>Costo unit.</th><th>Precio sug.</th></tr></thead>
+        <tbody>${rows||'<tr><td colspan="6" class="muted">Sin fichas</td></tr>'}</tbody></table></div>`;
+      document.getElementById('doF').onclick = async () => {
+        await api('/cost-sheets', { method: 'POST', body: JSON.stringify({
+          product_id: document.getElementById('fp').value,
+          materia_prima: +document.getElementById('fmp').value || 0,
+          materiales_auxiliares: +document.getElementById('fma').value || 0,
+          energia: +document.getElementById('fen').value || 0,
+          salario_directo: +document.getElementById('fsd').value || 0,
+          otros_directos: +document.getElementById('fod').value || 0,
+          gastos_indirectos: +document.getElementById('fgi').value || 0,
+        })});
+        toast('Ficha de costo guardada'); render();
+      };
+    }
     } else if (state.tab === 'negocio') {
       const t = state.tenant || {};
       const isAdmin = state.user && (state.user.role === 'admin' || state.user.role === 'master');

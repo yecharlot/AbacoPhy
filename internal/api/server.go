@@ -80,6 +80,7 @@ func (s *Server) Handler() http.Handler {
 	}))
 	mux.HandleFunc("/", s.servePWA)
 
+	s.registerOpsRoutes(mux)
 	return withCORS(mux)
 }
 
@@ -121,7 +122,7 @@ func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 		"api":         "REST /api/v1",
 		"persistence": []string{"local", "cid", "durable_object_optional"},
 		"offline":     true,
-		"modules":     []string{"ingresos", "gastos", "inventario", "nomina", "facturacion", "cuentas"},
+		"modules":     []string{"ingresos", "gastos", "inventario", "nomina", "facturacion", "cuentas", "productos", "almacen", "unidades", "recepcion", "vendedor", "fichas_costo"},
 		"roles":       []string{domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador, domain.RoleReadonly},
 	})
 }

@@ -365,3 +365,36 @@ Headers: `Authorization: Bearer <token>`
 ```
 
 Solo admin/master pueden indicar `username` distinto al propio.
+
+
+## Operaciones comerciales (nomenclador, almacén, vendedor)
+
+### Productos (nomenclador)
+- `GET /api/v1/products`
+- `POST /api/v1/products` — body: `{ "name", "unit?", "category?", "price_sale?" }` → código automático `P-xxxx`
+- `PUT /api/v1/products` — editar por `id`
+
+### Unidades de venta
+- `GET /api/v1/units` — unidades + stocks por unidad
+- `POST /api/v1/units` — `{ "name", "address?", "phone?" }`
+
+### Almacén
+- `GET /api/v1/warehouse` — existencias centrales (código único de producto)
+
+### Informe de recepción
+- `GET /api/v1/receptions`
+- `POST /api/v1/receptions` — `{ "supplier?", "doc_ref?", "lines":[{ "product_id", "qty", "unit_cost" }] }`  
+  Actualiza stock, promedio ponderado, inventario clásico y cuenta 1300.
+
+### Transferencias almacén → unidad
+- `GET /api/v1/transfers`
+- `POST /api/v1/transfers` — `{ "unit_id", "lines":[{ "product_id", "qty" }] }`
+
+### Vendedor (POS)
+- `GET /api/v1/pos/sales`
+- `POST /api/v1/pos/sales` — `{ "unit_id?", "seller?", "lines":[{ "product_id", "qty", "unit_price?", "discount_pct?" }] }`  
+  Aplica rebajas, descuenta stock, asiento de ingreso y costo de ventas.
+
+### Fichas de costo
+- `GET /api/v1/cost-sheets`
+- `POST /api/v1/cost-sheets` — materia prima, auxiliares, energía, salario directo, otros, indirectos → costo unitario y precio sugerido (margen orientativo 30 %).

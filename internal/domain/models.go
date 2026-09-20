@@ -220,6 +220,16 @@ type StoreSnapshot struct {
 	Currencies map[string]*CurrencyRate  `json:"currencies,omitempty"`
 	AuditLog   []AuditEntry              `json:"audit_log,omitempty"`
 	Backups    []BackupMeta              `json:"backups,omitempty"`
+	// Módulos operativos (aditivos)
+	Products       map[string]*Product        `json:"products,omitempty"`
+	SalesUnits     map[string]*SalesUnit      `json:"sales_units,omitempty"`
+	WarehouseStock map[string]*WarehouseStock `json:"warehouse_stock,omitempty"`
+	UnitStocks     []UnitStock                `json:"unit_stocks,omitempty"`
+	Receptions     []ReceptionNote            `json:"receptions,omitempty"`
+	Transfers      []StockTransfer            `json:"transfers,omitempty"`
+	POSSales       []POSSale                  `json:"pos_sales,omitempty"`
+	CostSheets     map[string]*CostSheet      `json:"cost_sheets,omitempty"`
+	DocCounters    DocCounters               `json:"doc_counters,omitempty"`
 	Rev        int64                     `json:"rev"`
 	RootCID    string                    `json:"root_cid,omitempty"`
 	UpdatedAt  time.Time                 `json:"updated_at"`

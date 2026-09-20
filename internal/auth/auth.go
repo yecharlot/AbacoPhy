@@ -37,7 +37,14 @@ var ViewACL = map[string][]string{
 	"traza":      {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador},
 	"salvas":     {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador},
 	"cuentas_t":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleReadonly},
+	"productos":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador, domain.RoleReadonly},
+	"almacen":    {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador, domain.RoleReadonly},
+	"unidades":   {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador, domain.RoleReadonly},
+	"recepcion":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador},
+	"vendedor":   {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleOperador},
+	"fichas_costo": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador},
 }
+
 
 func HashPassword(pw string) (string, error) {
 	b, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)

@@ -188,6 +188,30 @@ func ToBase(snap *StoreSnapshot, amount float64, currency string) float64 {
 	return amount * c.Rate
 }
 
+// ApplyIncome registra venta al contado: Debe Caja, Haber Ingresos.
+func ApplyIncome(snap *StoreSnapshot, amountBase float64, desc, userID string) *Entry {
+	if amountBase <= 0 {
+		return nil
+	}
+	incomeAcc := FindAccountByCode(snap.Accounts, "4000")
+	if incomeAcc == nil {
+		incomeAcc = FindAccountByType(snap.Accounts, "income")
+	}
+	cash := FindAccountByCode(snap.Accounts, "1000")
+	if incomeAcc == nil {
+		return nil
+	}
+	e := Entry{
+		Type: "income", AccountID: incomeAcc.ID, Amount: amountBase,
+		Currency: snap.Tenant.Currency, Description: desc, CreatedBy: userID,
+	}
+	if cash != nil {
+		e.Counterpart = cash.ID
+	}
+	ApplyDoubleEntry(snap, &e)
+	return &e
+}
+
 // ApplyInventoryIn entrada a almacén: Debe Inventario, Haber Caja (o CxP simplificado como Caja).
 func ApplyInventoryIn(snap *StoreSnapshot, amountBase float64) {
 	inv := FindAccountByCode(snap.Accounts, "1300")

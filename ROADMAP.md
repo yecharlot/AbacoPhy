@@ -95,3 +95,16 @@ go run ./cmd/abacophy
 | Shell Electron + build Linux/Windows | Scaffold en `desktop/` |
 | Guía DEPLOY.md (Cloudflare, offline, APK/PWA) | Hecho |
 | Binario portable Win7 sin Electron | Documentado |
+
+
+## Operaciones comerciales (2026-09)
+
+| Módulo | Estado | Notas |
+|--------|--------|-------|
+| Nomenclador de productos | Hecho | Código único P-xxxx, seed 15 productos |
+| Unidades de venta | Hecho | Multi-punto por negocio |
+| Almacén + transferencias | Hecho | Stock central → unidades |
+| Informe de recepción | Hecho | Entrada + contabilidad 1300 |
+| Vendedor + rebajas | Hecho | POS → ingresos + COGS |
+| Fichas de costo | Hecho | Estructura normativa cubana simplificada |
+| Auditoría | Existente | Traza + informes; cada operación deja audit_log |
