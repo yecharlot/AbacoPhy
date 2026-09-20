@@ -192,12 +192,25 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	snap := s.Store.Get(sess.TenantID)
+	snap := s.Store.ResolveTenant(sess.TenantID, sess.UserID)
 	if snap == nil {
 		writeJSON(w, 404, map[string]string{"error": "tenant not found"})
 		return
 	}
+	// sanear sesión si el TenantID estaba desfasado
+	if sess.TenantID != snap.Tenant.ID {
+		sess.TenantID = snap.Tenant.ID
+	}
 	user := snap.Users[sess.UserID]
+	if user == nil {
+		// buscar por id en mapa
+		for _, u := range snap.Users {
+			if u != nil && u.ID == sess.UserID {
+				user = u
+				break
+			}
+		}
+	}
 	writeJSON(w, 200, map[string]any{
 		"user": publicUser(user), "tenant": snap.Tenant, "rev": snap.Rev, "root_cid": snap.RootCID,
 		"views": viewsForRole(sess.Role),
@@ -1160,7 +1173,14 @@ func EnsureBootstrap(st *store.Store) error {
 		}
 		changed := false
 		for _, u := range snap.Users {
-			if u == nil || u.PasswordHash != "" {
+			if u == nil {
+				continue
+			}
+			if u.TenantID != snap.Tenant.ID && snap.Tenant.ID != "" {
+				u.TenantID = snap.Tenant.ID
+				changed = true
+			}
+			if u.PasswordHash != "" {
 				continue
 			}
 			var pw string

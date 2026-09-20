@@ -168,13 +168,47 @@ func (s *Store) FindUserByUsername(username string) (*domain.User, *domain.Store
 	defer s.mu.RUnlock()
 	u := strings.ToLower(strings.TrimSpace(username))
 	for _, snap := range s.tenants {
+		if snap == nil {
+			continue
+		}
 		for _, user := range snap.Users {
+			if user == nil {
+				continue
+			}
 			if strings.ToLower(user.Username) == u {
 				return user, snap
 			}
 		}
 	}
 	return nil, nil
+}
+
+// ResolveTenant devuelve el snapshot del tenant o, si el id no existe, busca por userID.
+func (s *Store) ResolveTenant(tenantID, userID string) *domain.StoreSnapshot {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if tenantID != "" {
+		if snap := s.tenants[tenantID]; snap != nil {
+			return snap
+		}
+	}
+	if userID != "" {
+		for _, snap := range s.tenants {
+			if snap == nil {
+				continue
+			}
+			if u := snap.Users[userID]; u != nil {
+				return snap
+			}
+		}
+	}
+	// último recurso: único tenant
+	if len(s.tenants) == 1 {
+		for _, snap := range s.tenants {
+			return snap
+		}
+	}
+	return nil
 }
 
 

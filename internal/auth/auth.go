@@ -77,19 +77,27 @@ func Can(role, view string) bool {
 }
 
 func Login(st *store.Store, username, password string) (*domain.TokenSession, *domain.User, error) {
-	user, _ := st.FindUserByUsername(username)
-	if user == nil || !user.Active {
+	user, snap := st.FindUserByUsername(username)
+	if user == nil || snap == nil || !user.Active {
 		return nil, nil, ErrInvalidCred
 	}
 	if !CheckPassword(user.PasswordHash, password) {
 		return nil, nil, ErrInvalidCred
 	}
+	// Siempre anclar al tenant del snapshot cargado (evita TenantID huérfano en disco).
+	tenantID := snap.Tenant.ID
+	if tenantID == "" {
+		tenantID = user.TenantID
+	}
+	if user.TenantID != tenantID {
+		user.TenantID = tenantID
+	}
 	tok := &domain.TokenSession{
 		Token:     NewToken(),
 		UserID:    user.ID,
-		TenantID:  user.TenantID,
+		TenantID:  tenantID,
 		Role:      user.Role,
-		ExpiresAt: time.Now().Add(72 * time.Hour),
+		ExpiresAt: time.Now().UTC().Add(72 * time.Hour),
 	}
 	st.SaveToken(tok)
 	return tok, user, nil
