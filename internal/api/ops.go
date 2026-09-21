@@ -848,16 +848,22 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 			u.Modules = auth.DefaultModulesForRole(body.Role)
 		}
 		if body.Modules != nil && !roleChanged {
-			// Solo master (o admin) personaliza módulos sin cambiar rol
 			if sess.Role != domain.RoleMaster && sess.Role != domain.RoleAdmin {
 				writeJSON(w, 403, map[string]string{"error": "solo master o admin pueden asignar módulos"})
 				return
 			}
-			// Intersección con lo que el rol permite
+			if snap.Tenant.EnabledModules == nil {
+				snap.Tenant.EnabledModules = domain.DefaultEnabledModules()
+			}
 			clean := map[string]bool{}
 			for k, v := range body.Modules {
-				if auth.Can(u.Role, k) {
-					clean[k] = v
+				if !auth.Can(u.Role, k) {
+					continue
+				}
+				clean[k] = v
+				// Si se asigna el módulo al usuario, asegurar que el negocio lo tenga activo
+				if v {
+					snap.Tenant.EnabledModules[k] = true
 				}
 			}
 			u.Modules = clean

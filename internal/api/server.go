@@ -995,9 +995,12 @@ func (s *Server) handleReportsSummary(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := s.gate(sess, "reportes"); err != nil {
-		writeJSON(w, 403, map[string]string{"error": "forbidden"})
-		return
+	// Inicio del panel: basta dashboard (vendedor/almacenero también ven números)
+	if err := s.gate(sess, "dashboard"); err != nil {
+		if err2 := s.gate(sess, "reportes"); err2 != nil {
+			writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+			return
+		}
 	}
 	snap := s.Store.Get(sess.TenantID)
 	if snap == nil {
@@ -1226,6 +1229,15 @@ func EnsureBootstrap(st *store.Store) error {
 		if snap.Tenant.EnabledModules == nil || len(snap.Tenant.EnabledModules) == 0 {
 			snap.Tenant.EnabledModules = domain.DefaultEnabledModules()
 			changed = true
+		} else {
+			// Completar claves faltantes (mapas antiguos incompletos no deben bloquear módulos)
+			def := domain.DefaultEnabledModules()
+			for k, v := range def {
+				if _, ok := snap.Tenant.EnabledModules[k]; !ok {
+					snap.Tenant.EnabledModules[k] = v
+					changed = true
+				}
+			}
 		}
 		if snap.MeasureUnits == nil || len(snap.MeasureUnits) == 0 {
 			snap.MeasureUnits = domain.DefaultMeasureUnits(snap.Tenant.ID)

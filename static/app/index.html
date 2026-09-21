@@ -299,6 +299,18 @@
       table { font-size: .76rem; }
       .nav-item { font-size: .84rem; padding: .7rem .9rem; }
     }
+  
+    .mod-group { margin-bottom: 1.1rem; }
+    .mod-group-title { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted, #6b7280); margin-bottom: .45rem; }
+    .mod-grid { display: flex; flex-wrap: wrap; gap: .45rem; }
+    .mod-chip { display: inline-flex; align-items: center; gap: .4rem; padding: .45rem .7rem; border: 1px solid var(--border, #e5e7eb); border-radius: 999px; background: var(--card, #fff); cursor: pointer; font-size: .82rem; transition: border-color .15s, background .15s; user-select: none; }
+    .mod-chip.on { border-color: var(--accent, #F4B400); background: color-mix(in srgb, var(--accent, #F4B400) 12%, transparent); }
+    .mod-chip.core { opacity: .85; cursor: default; }
+    .mod-chip input { accent-color: var(--accent, #F4B400); }
+    .mod-chip-name { font-weight: 600; }
+    .mod-chip-tag { font-size: .65rem; opacity: .7; text-transform: uppercase; }
+    .danger-zone { border-color: #fca5a5; }
+
   </style>
 </head>
 <body>
@@ -1418,16 +1430,17 @@ async function render() {
         panel.style.display = 'block';
         document.getElementById('umName').textContent = '«'+(u.display_name||u.username)+'» · '+(roleLabel[u.role]||u.role);
         const mods = u.modules || {};
-        const catalog = (modCat.catalog || []).filter(m => !m.core || true);
-        // Solo módulos que el rol puede tener en el ACL se muestran (si no están en mods, asumir false si personalizado)
+        const catalog = (modCat.catalog || []);
+        // Solo módulos que el rol puede usar (según catálogo; el servidor valida)
         const checks = catalog.map(m => {
-          const on = Object.keys(mods).length ? !!mods[m.id] : true;
-          return `<label style="display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--border,#3333);border-radius:8px">
+          // Si no hay mapa: todo activo. Si hay mapa: solo false apaga.
+          const on = mods[m.id] !== false;
+          return `<label class="mod-chip ${on?'on':''} ${m.core?'core':''}">
             <input type="checkbox" data-umk="${m.id}" ${on?'checked':''}/>
-            <span><strong>${m.name}</strong><br/><span class="muted" style="font-size:.75rem">${m.description||m.id}</span></span>
+            <span class="mod-chip-name">${m.name}</span>
           </label>`;
         }).join('');
-        document.getElementById('umChecks').innerHTML = checks || '<p class="muted">Sin catálogo de módulos</p>';
+        document.getElementById('umChecks').innerHTML = '<div class="mod-grid">'+(checks || '<p class="muted">Sin catálogo</p>')+'</div>';
         document.getElementById('saveUm').onclick = async () => {
           const modules = {};
           document.querySelectorAll('[data-umk]').forEach(cb => {
@@ -1595,51 +1608,63 @@ async function render() {
       try { errs = await api('/errors'); } catch (_) {}
       let modData = { modules: {}, catalog: [] };
       try { modData = await api('/modules'); } catch (_) {}
-      const modRows = (modData.catalog || []).map(m => {
-        const on = modData.modules && modData.modules[m.id] !== false;
-        const dis = m.core ? 'disabled' : '';
-        return `<tr>
-          <td>${m.name}</td><td class="muted">${m.description||''}</td>
-          <td>${m.core ? 'Núcleo' : (m.group||'')}</td>
-          <td><label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-            <input type="checkbox" data-mod="${m.id}" ${on?'checked':''} ${dis}/>
-            ${m.core ? 'siempre' : (on?'activo':'off')}
-          </label></td>
-        </tr>`;
+      const groups = {};
+      (modData.catalog || []).forEach(m => {
+        const g = m.group || 'otros';
+        if (!groups[g]) groups[g] = [];
+        groups[g].push(m);
+      });
+      const groupTitle = { core: 'Núcleo', contabilidad: 'Contabilidad', ops: 'Operaciones', nomencladores: 'Nomencladores', comercio: 'Comercio', otros: 'Otros' };
+      const groupHtml = Object.keys(groups).map(g => {
+        const cards = groups[g].map(m => {
+          const on = modData.modules && modData.modules[m.id] !== false;
+          return `<label class="mod-chip ${m.core?'core':''} ${on?'on':''}" title="${(m.description||'').replace(/"/g,'&quot;')}">
+            <input type="checkbox" data-mod="${m.id}" ${on?'checked':''} ${m.core?'disabled':''}/>
+            <span class="mod-chip-name">${m.name}</span>
+            ${m.core ? '<span class="mod-chip-tag">fijo</span>' : ''}
+          </label>`;
+        }).join('');
+        return `<div class="mod-group"><div class="mod-group-title">${groupTitle[g]||g}</div><div class="mod-grid">${cards}</div></div>`;
       }).join('');
-      main.innerHTML = `<div class="card"><div class="section-label">Módulos del negocio</div>
-        <p class="muted" style="margin-bottom:.75rem">Active o desactive módulos según lo que necesite el negocio. Los de núcleo no se pueden apagar. Los cambios aplican al menú y a la API (roles siguen limitando el acceso).</p>
-        <table><thead><tr><th>Módulo</th><th>Descripción</th><th>Grupo</th><th>Estado</th></tr></thead>
-        <tbody id="modList">${modRows||'<tr><td colspan="4" class="muted">—</td></tr>'}</tbody></table>
-        <button class="btn btn-primary" id="btnSaveMods" style="margin-top:12px">Guardar módulos</button>
+      const errRows = (errs.errors||[]).slice(0,30).map(e =>
+        `<tr><td>${(e.at||e.ts||'').toString().slice(0,19)}</td><td>${e.detail||e.message||'—'}</td><td class="muted">${e.ref||''}</td></tr>`
+      ).join('');
+      main.innerHTML = `
+      <div class="card">
+        <div class="section-label">Módulos del negocio</div>
+        <p class="muted" style="margin-bottom:1rem;font-size:.85rem">Encienda solo lo que el negocio necesita. Los módulos <strong>fijos</strong> no se apagan. Luego, en <strong>Usuarios → Módulos</strong>, puede limitar qué ve cada persona.</p>
+        ${groupHtml}
+        <button class="btn btn-primary" id="btnSaveMods" style="margin-top:1rem">Guardar módulos del negocio</button>
       </div>
-      <div class="card"><div class="section-label">Master · negocios</div>
-        <p class="muted" style="margin-bottom:.5rem">Vista de tenants de la instancia. Transparente para el usuario final del negocio.</p>
-        <pre class="muted" style="white-space:pre-wrap;font-size:.8rem">${JSON.stringify(tenants.tenants, null, 2)}</pre>
+      <div class="card">
+        <div class="section-label">Negocios en esta instancia</div>
+        <p class="muted" style="font-size:.85rem;margin-bottom:.5rem">${(tenants.tenants||[]).length} tenant(s)</p>
+        <ul class="muted" style="font-size:.85rem;padding-left:1.1rem">${(tenants.tenants||[]).map(t => `<li><strong>${t.name||t.id}</strong> · ${t.slug||t.id}</li>`).join('') || '<li>—</li>'}</ul>
       </div>
-      <div class="card"><div class="section-label">Errores registrados por el sistema</div>
-        <p class="muted" style="margin-bottom:.75rem">El sistema documenta de forma autónoma fallos de API, sincronización y operaciones. También se reflejan en la traza.</p>
-        <table><thead><tr><th>Fecha</th><th>Detalle</th></tr></thead>
-        <tbody>${(errs.errors || []).map(e => `<tr><td>${(e.created_at || '').toString().slice(0, 19).replace('T',' ')}</td><td>${e.detail || e.action || ''}</td></tr>`).join('') || '<tr><td colspan="2" class="muted">Sin errores capturados aún</td></tr>'}</tbody></table>
+      <div class="card">
+        <div class="section-label">Errores del sistema</div>
+        <p class="muted" style="font-size:.8rem;margin-bottom:.5rem">Registro automático (solo visible para master).</p>
+        <div style="overflow:auto;max-height:220px"><table><thead><tr><th>Cuándo</th><th>Detalle</th><th>Ref.</th></tr></thead>
+        <tbody>${errRows||'<tr><td colspan="3" class="muted">Sin errores recientes</td></tr>'}</tbody></table></div>
       </div>
-      <div class="card"><div class="section-label">Restaurar aplicación</div>
-        <p class="muted" style="margin-bottom:.75rem">Reinicia la instancia a estado inicial (cero datos de negocio). Las claves master/admin vuelven a las documentadas en LOGIN.md.</p>
-        <button class="btn btn-danger" id="btnFactoryReset">Restaurar a estado inicial</button>
+      <div class="card danger-zone">
+        <div class="section-label">Zona sensible</div>
+        <p class="muted" style="font-size:.85rem">Reinicia la instancia a cero. No se puede deshacer.</p>
+        <button class="btn btn-secondary" id="btnResetAll">Reiniciar instancia</button>
       </div>`;
-      const btnMods = document.getElementById('btnSaveMods');
-      if (btnMods) btnMods.onclick = async () => {
+      document.getElementById('btnSaveMods').onclick = async () => {
         const modules = {};
-        main.querySelectorAll('[data-mod]').forEach(cb => {
+        document.querySelectorAll('[data-mod]').forEach(cb => {
           modules[cb.getAttribute('data-mod')] = !!cb.checked;
         });
+        // Core always true
+        (modData.catalog||[]).forEach(m => { if (m.core) modules[m.id] = true; });
         await api('/modules', { method: 'PUT', body: JSON.stringify({ modules }) });
-        toast('Módulos actualizados');
-        await loadMe();
-        renderNav();
-        render();
+        toast('Módulos del negocio guardados');
+        await loadMe(); renderNav(); render();
       };
-      document.getElementById('btnFactoryReset').onclick = async () => {
-        if (!confirm('¿Restaurar la aplicación a cero datos? Se perderán todos los negocios y operaciones de esta instancia.')) return;
+      document.getElementById('btnResetAll').onclick = async () => {
+        if (!confirm('¿Reiniciar todos los negocios y operaciones de esta instancia?')) return;
         const conf = prompt('Escriba REINICIAR para confirmar');
         if (conf !== 'REINICIAR') { toast('Cancelado'); return; }
         await api('/master/reset', { method: 'POST', body: JSON.stringify({ confirm: 'REINICIAR' }) });
@@ -1647,7 +1672,7 @@ async function render() {
         toast('Instancia reiniciada · inicie sesión de nuevo');
         location.reload();
       };
-    }
+
   } catch (e) {
     main.innerHTML = `<div class="card muted">No se pudo cargar (${e.message})</div>`;
   }

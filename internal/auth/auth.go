@@ -67,7 +67,9 @@ func Can(role, view string) bool {
 	return false
 }
 
-// ModuleEnabled: si el tenant no tiene mapa, se usan los defaults.
+// ModuleEnabled: módulo activo en el negocio.
+// Core siempre true. Si el mapa del tenant no tiene la clave (datos antiguos),
+// se usa el valor por defecto del catálogo — no se bloquea por ausencia.
 func ModuleEnabled(snap *domain.StoreSnapshot, mod string) bool {
 	if snap == nil {
 		return true
@@ -77,9 +79,9 @@ func ModuleEnabled(snap *domain.StoreSnapshot, mod string) bool {
 			return true
 		}
 	}
+	def := domain.DefaultEnabledModules()
 	em := snap.Tenant.EnabledModules
 	if em == nil || len(em) == 0 {
-		def := domain.DefaultEnabledModules()
 		if v, ok := def[mod]; ok {
 			return v
 		}
@@ -88,7 +90,11 @@ func ModuleEnabled(snap *domain.StoreSnapshot, mod string) bool {
 	if v, ok := em[mod]; ok {
 		return v
 	}
-	return false
+	// Clave ausente en mapa incompleto: no bloquear
+	if v, ok := def[mod]; ok {
+		return v
+	}
+	return true
 }
 
 // DefaultModulesForRole: módulos que el rol puede usar (todos en true).
@@ -102,14 +108,15 @@ func DefaultModulesForRole(role string) map[string]bool {
 	return out
 }
 
-// UserModuleAllowed: si el usuario tiene mapa explícito, manda sobre el rol.
+// UserModuleAllowed: solo un false explícito quita el acceso.
+// true o clave ausente → no restringe (manda el rol + el negocio).
 func UserModuleAllowed(user *domain.User, view string) bool {
 	if user == nil || user.Modules == nil {
-		return true // sin personalización → solo rol + tenant
+		return true
 	}
 	v, ok := user.Modules[view]
 	if !ok {
-		return false
+		return true
 	}
 	return v
 }
