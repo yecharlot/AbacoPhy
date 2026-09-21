@@ -1,6 +1,5 @@
 /**
- * Minimal “active screen” state for phase 0 (no router library yet).
- * Replace with a real router when features land.
+ * Minimal “active screen” state (no router library yet).
  */
 
 export type ScreenId = string;
@@ -27,6 +26,7 @@ export function subscribeScreen(fn: (id: ScreenId) => void): () => void {
 export function screenTitle(id: ScreenId): string {
   const map: Record<string, string> = {
     home: 'Inicio',
+    tenant: 'Negocio',
     'demo-a': 'Pantalla A',
     'demo-b': 'Pantalla B',
   };

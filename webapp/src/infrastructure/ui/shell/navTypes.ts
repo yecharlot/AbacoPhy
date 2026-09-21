@@ -15,9 +15,10 @@ export function filterNavByViews(items: NavItem[], views: string[] | null | unde
   return items.filter((i) => !i.view || set.has(i.view));
 }
 
-/** Placeholder nav for phase 0 shell smoke (real items come with features later). */
+/** Nav items phase 1–2 (placeholders + tenant). UI definitiva más adelante. */
 export const PLACEHOLDER_NAV: NavItem[] = [
   { id: 'home', label: 'Inicio', view: 'dashboard' },
+  { id: 'tenant', label: 'Negocio', view: 'tenant' },
   { id: 'demo-a', label: 'Pantalla A' },
   { id: 'demo-b', label: 'Pantalla B' },
 ];
