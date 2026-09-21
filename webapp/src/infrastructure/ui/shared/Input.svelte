@@ -1,4 +1,6 @@
 <script lang="ts">
+  import type { HTMLInputAttributes } from 'svelte/elements';
+
   interface Props {
     id?: string;
     label?: string;
@@ -6,9 +8,10 @@
     value?: string;
     placeholder?: string;
     required?: boolean;
-    autocomplete?: string;
+    autocomplete?: HTMLInputAttributes['autocomplete'];
     disabled?: boolean;
-    oninput?: (event: InputEvent & { currentTarget: HTMLInputElement }) => void;
+    step?: string;
+    oninput?: (e: Event) => void;
   }
 
   let {
@@ -20,6 +23,7 @@
     required = false,
     autocomplete,
     disabled = false,
+    step,
     oninput,
   }: Props = $props();
 </script>
@@ -27,44 +31,45 @@
 {#if label}
   <label class="lbl" for={id}>{label}</label>
 {/if}
-
 <input
-        class="inp"
-        {id}
-        {type}
-        bind:value
-        {placeholder}
-        {required}
-        {autocomplete}
-        {disabled}
-        {oninput}
+  class="inp"
+  {id}
+  {type}
+  bind:value
+  {placeholder}
+  {required}
+  {autocomplete}
+  {disabled}
+  {step}
+  {oninput}
 />
 
 <style>
   .lbl {
     display: block;
     font-size: 0.65rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--ap-text-muted);
-    margin-bottom: 5px;
+    color: var(--color-text-muted, var(--ap-text-muted));
+    margin-bottom: 6px;
   }
-
   .inp {
     width: 100%;
-    padding: 11px 13px;
+    padding: 12px 14px;
     margin-bottom: 0.75rem;
-    background: var(--ap-bg);
-    border: 1px solid var(--ap-border);
-    border-radius: 12px;
-    color: var(--ap-text);
+    background: var(--color-surface-soft, var(--ap-bg));
+    border: 1px solid var(--color-border, var(--ap-border));
+    border-radius: var(--radius-md, 12px);
+    color: var(--color-text-primary, var(--ap-text));
     font-family: inherit;
     font-size: 0.92rem;
   }
-
   .inp:focus {
     outline: none;
-    border-color: var(--ap-primary);
+    border-color: var(--accent-cyan, var(--ap-primary));
+  }
+  .inp:disabled {
+    opacity: 0.6;
   }
 </style>

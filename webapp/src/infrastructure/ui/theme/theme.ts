@@ -3,9 +3,11 @@ import { StorageKeys } from '../../data/storage';
 
 export type ThemeMode = 'light' | 'dark';
 
+/** Product default is dark (DESIGN.md ethereal language). */
 export function readStoredTheme(storage: KeyValueStorage): ThemeMode {
   const v = storage.get(StorageKeys.theme);
-  return v === 'dark' ? 'dark' : 'light';
+  if (v === 'light') return 'light';
+  return 'dark';
 }
 
 export function applyTheme(mode: ThemeMode, storage?: KeyValueStorage): void {

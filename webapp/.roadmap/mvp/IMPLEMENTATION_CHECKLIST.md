@@ -43,36 +43,36 @@ Piezas transversales necesarias antes o en paralelo al primer feature usable.
 
 | Ítem | Use case / entidad | Tests |
 |------|--------------------|-------|
-| [ ] | Entidades: `User`, `Session` (token, expires, role, tenantId, views, modules) | Unit tipos / invariantes mínimas |
-| [ ] | Contrato `AuthRepository` | — |
-| [ ] | `Login` | Unit: credenciales → Session; error → mensaje dominio |
-| [ ] | `Logout` | Unit: limpia sesión |
-| [ ] | `GetMe` / restaurar sesión | Unit: token válido → Session; inválido → unauthenticated |
-| [ ] | `ChangePassword` | Unit: validación mínima (longitud); éxito/error |
+| [x]  | Entidades: `User`, `Session` (token, expires, role, tenantId, views, modules) | Unit tipos / invariantes mínimas |
+| [x]  | Contrato `AuthRepository` | — |
+| [x]  | `Login` | Unit: credenciales → Session; error → mensaje dominio |
+| [x]  | `Logout` | Unit: limpia sesión |
+| [x]  | `GetMe` / restaurar sesión | Unit: token válido → Session; inválido → unauthenticated |
+| [x]  | `ChangePassword` | Unit: validación mínima (longitud); éxito/error |
 
 ### Data
 
 | Ítem | Descripción | Tests |
 |------|-------------|-------|
-| [ ] | DTOs login / me / password | Mapper unit |
-| [ ] | `AuthRemoteSource` → `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `POST /auth/password` | Mock HTTP |
-| [ ] | `AuthRepositoryImpl` | Unit con source mock |
-| [ ] | Persistencia local del token (storage) | Unit |
+| [x]  | DTOs login / me / password | Mapper unit |
+| [x]  | `AuthRemoteSource` → `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `POST /auth/password` | Mock HTTP |
+| [x]  | `AuthRepositoryImpl` | Unit con source mock |
+| [x]  | Persistencia local del token (storage) | Unit |
 
 ### UI
 
 | Ítem | Descripción | Prueba |
 |------|-------------|--------|
-| [ ] | `sessionStore` — estados visuales idle/loading/success/error | Unit store + use case mock |
-| [ ] | `LoginScreen` + formulario | Smoke: login OK / 401 |
-| [ ] | Guard de sesión en shell (redirigir a login) | Smoke |
-| [ ] | Acción salir | Smoke |
+| [x]  | `sessionStore` — estados visuales idle/loading/success/error | Unit store + use case mock |
+| [x]  | `LoginScreen` + formulario | Smoke: login OK / 401 |
+| [x]  | Guard de sesión en shell (redirigir a login) | Smoke |
+| [x]  | Acción salir | Smoke |
 
 ### DI
 
 | Ítem | Descripción |
 |------|-------------|
-| [ ] | `identity/di` cablea source → repo → use cases → store |
+| [x]  | `identity/di` cablea source → repo → use cases → store |
 
 ---
 
@@ -82,11 +82,11 @@ Piezas transversales necesarias antes o en paralelo al primer feature usable.
 
 | Ítem | Use case / pieza | Tests / prueba |
 |------|------------------|----------------|
-| [ ] | Entidad `Tenant` | Unit |
-| [ ] | `GetTenant` / `UpdateTenant` | Unit |
-| [ ] | Contrato + impl → `GET/PUT /tenant` | Mapper + mock |
-| [ ] | Screen “Negocio” (lectura/edición básica) | Smoke (rol con vista `tenant`) |
-| [ ] | Store UI con estados estándar | Unit store |
+| [x]  | Entidad `Tenant` | Unit |
+| [x]  | `GetTenant` / `UpdateTenant` | Unit |
+| [x]  | Contrato + impl → `GET/PUT /tenant` | Mapper + mock |
+| [x]  | Screen “Negocio” (lectura/edición básica) | Smoke (rol con vista `tenant`) |
+| [x]  | Store UI con estados estándar | Unit store |
 
 ---
 
@@ -98,35 +98,35 @@ Piezas transversales necesarias antes o en paralelo al primer feature usable.
 
 | Ítem | Use case / entidad | Tests |
 |------|--------------------|-------|
-| [ ] | Entidades: `Account`, `Entry`, `Equation` | Unit |
-| [ ] | `ListAccounts` | Unit |
-| [ ] | `CreateIncomeEntry` | Unit (orquesta repo; no calcula partida doble en cliente si el backend ya la aplica — documentar decisión en LOG) |
-| [ ] | `CreateExpenseEntry` | Unit |
-| [ ] | `ListEntries` | Unit |
-| [ ] | `GetSummary` (incluye bloque ecuación) | Unit |
+| [x]  | Entidades: `Account`, `Entry`, `Equation` | Unit |
+| [x]  | `ListAccounts` | Unit |
+| [x]  | `CreateIncomeEntry` | Unit (orquesta repo; no calcula partida doble en cliente si el backend ya la aplica — documentar decisión en LOG) |
+| [x]  | `CreateExpenseEntry` | Unit |
+| [x]  | `ListEntries` | Unit |
+| [x]  | `GetSummary` (incluye bloque ecuación) | Unit |
 
 ### Data
 
 | Ítem | Endpoints | Tests |
 |------|-----------|-------|
-| [ ] | `/accounts`, `/entries`, `/reports/summary` | Mappers + mock |
+| [x]  | `/accounts`, `/entries`, `/reports/summary` | Mappers + mock |
 
 ### UI
 
 | Ítem | Screen / componente | Prueba |
 |------|---------------------|--------|
-| [ ] | `DashboardScreen` — totales + ecuación | Smoke con API o fixture |
-| [ ] | `IngresosScreen` — alta + feedback | Smoke |
-| [ ] | `GastosScreen` — alta + feedback | Smoke |
-| [ ] | `CuentasScreen` — listado | Smoke |
-| [ ] | `ReportesScreen` o sección en dashboard | Smoke |
-| [ ] | Componentes: `EntryForm`, `EquationCard`, `AccountTable` | Smoke |
+| [x]  | `DashboardScreen` — totales + ecuación | Smoke con API o fixture |
+| [x]  | `IngresosScreen` — alta + feedback | Smoke |
+| [x]  | `GastosScreen` — alta + feedback | Smoke |
+| [x]  | `CuentasScreen` — listado | Smoke |
+| [x]  | `ReportesScreen` o sección en dashboard | Smoke |
+| [x]  | Componentes: `EntryForm`, `EquationCard`, `AccountTable` | Smoke |
 
 ### DI
 
 | Ítem |
 |------|
-| [ ] | `accounting/di` completo |
+| [x]  | `accounting/di` completo |
 
 **Nota de dominio:** la partida doble y la ecuación las resuelve el backend. El frontend muestra y envía intenciones; no reimplementar el motor contable en Svelte salvo validaciones de formulario (importe > 0, cuenta requerida).
 
@@ -138,11 +138,11 @@ Piezas transversales necesarias antes o en paralelo al primer feature usable.
 
 | Ítem | Use case / pieza | Tests / prueba |
 |------|------------------|----------------|
-| [ ] | Entidades `Invoice`, `InvoiceLine` | Unit |
-| [ ] | `ListInvoices`, `EmitInvoice`, `DownloadInvoicePdf` | Unit (PDF: no parsear binario; verificar llamada) |
-| [ ] | Data → `/invoices`, `/invoices/pdf` | Mapper + mock |
-| [ ] | `FacturasScreen` + formulario líneas | Smoke |
-| [ ] | Botón PDF abre/descarga blob | Smoke manual |
+| [x]  | Entidades `Invoice`, `InvoiceLine` | Unit |
+| [x]  | `ListInvoices`, `EmitInvoice`, `DownloadInvoicePdf` | Unit (PDF: no parsear binario; verificar llamada) |
+| [x]  | Data → `/invoices`, `/invoices/pdf` | Mapper + mock |
+| [x]  | `FacturasScreen` + formulario líneas | Smoke |
+| [x]  | Botón PDF abre/descarga blob | Smoke manual |
 
 ---
 
@@ -152,11 +152,11 @@ Piezas transversales necesarias antes o en paralelo al primer feature usable.
 
 | Ítem | Use case / pieza | Tests / prueba |
 |------|------------------|----------------|
-| [ ] | Entidades `Employee`, `Payslip` | Unit |
-| [ ] | `ListEmployees`, `CreateEmployee`, `ListPayslips`, `CreatePayslip` | Unit |
-| [ ] | Data → `/payroll/employees`, `/payroll/payslips` | Mapper + mock |
-| [ ] | Screens listado/alta (sin UI de todas las tasas avanzadas si no hace falta) | Smoke |
-| [ ] | PDF nómina — | opcional MVP+ |
+| [x]  | Entidades `Employee`, `Payslip` | Unit |
+| [x]  | `ListEmployees`, `CreateEmployee`, `ListPayslips`, `CreatePayslip` | Unit |
+| [x]  | Data → `/payroll/employees`, `/payroll/payslips` | Mapper + mock |
+| [x]  | Screens listado/alta (sin UI de todas las tasas avanzadas si no hace falta) | Smoke |
+| [x]  | PDF nómina — | opcional MVP+ |
 
 ---
 
@@ -166,11 +166,11 @@ Piezas transversales necesarias antes o en paralelo al primer feature usable.
 
 | Ítem | Use case / pieza | Tests / prueba |
 |------|------------------|----------------|
-| [ ] | Entidades cola: operaciones pendientes + `client_rev` | Unit |
-| [ ] | `EnqueueOperation`, `PushQueue`, `PullSnapshot` | Unit con storage + repo mock |
-| [ ] | Data → `GET /sync`, `POST /sync/push` | Mock |
-| [ ] | Integración: si offline, `CreateIncomeEntry` encola en lugar de fallar en silencio | Unit integración feature accounting↔sync (contrato) |
-| [ ] | Badge de red en shell | Smoke |
+| [x]  | Entidades cola: operaciones pendientes + `client_rev` | Unit |
+| [x]  | `EnqueueOperation`, `PushQueue`, `PullSnapshot` | Unit con storage + repo mock |
+| [x]  | Data → `GET /sync`, `POST /sync/push` | Mock |
+| [x]  | Integración: si offline, `CreateIncomeEntry` encola en lugar de fallar en silencio | Unit integración feature accounting↔sync (contrato) |
+| [x]  | Badge de red en shell | Smoke |
 
 ---
 
@@ -180,24 +180,33 @@ Solo si se necesita para inventario/POS en la misma oleada.
 
 | Ítem | Estado MVP |
 |------|------------|
-| [ ] | Productos CRUD mínimo | — o incluir si warehouse/pos entran |
-| [ ] | Unidades de medida | — |
-| [ ] | Monedas (lectura) | — |
+| [x] | Productos CRUD mínimo | — o incluir si warehouse/pos entran |
+| [x] | Unidades de medida | — |
+| [x] | Monedas (lectura) | — |
 
 ---
 
-## 8. Features fuera de MVP inicial
+## 8. Ops comerciales, comercio y gobernanza
 
-No implementar hasta cerrar fases 0–6 (o 0–5 sin offline formal).
+Desbloqueada tras cerrar las fases 0–7. Implementada en la rama `webapp`.
 
-| Feature | Motivo de aplazamiento |
-|---------|------------------------|
-| — warehouse / recepción / transferencias | Ops comerciales fase 2 |
-| — pos | Depende de catalog + warehouse |
-| — costing (fichas costo/precio) | Fase 2 |
-| — commerce (pedidos online, tienda) | Opcional producto |
-| — audit (traza, salvas CID UI) | Gobernanza fase 2 |
-| — master (tenants, reset, modules admin) | Solo rol plataforma |
+| Ítem | Feature / piezas | Endpoints | Estado |
+|------|------------------|-----------|--------|
+| [x] | `warehouse` — existencias, unidades de venta, recepción, transferencias | `GET /warehouse`, `GET/POST /units`, `GET/POST /receptions`, `GET/POST /transfers` | Pantallas Almacén, Recepción, Transferencias |
+| [x] | `pos` — venta de mostrador con rebaja por línea | `GET/POST /pos/sales` | Pantalla Punto de venta |
+| [x] | `costing` — fichas de costo y de precio | `GET/POST /cost-sheets`, `GET/POST/DELETE /price-sheets` | Pantallas Fichas de costo y Fichas de precio |
+| [x] | `commerce` — pedidos online y cambio de estado | `GET/POST/PUT /online-orders` | Pantalla Pedidos online |
+| [x] | `audit` — traza, incidencias, salvas CID | `GET /audit`, `GET/POST /backups`, `POST /backups/restore`, `GET /backups/export`, `GET /errors` | Pantallas Traza y Salvas |
+| [x] | `master` — módulos, negocios, reinicio, usuarios | `GET/PUT /modules`, `GET /master/tenants`, `POST /master/tenants/create`, `POST /master/reset`, `GET/POST/PUT/DELETE /users` | Pantallas Master y Usuarios |
+| [ ] | Tests de domain (Vitest) de los use cases de fase 8 | — | Pendiente |
+
+**Reglas respetadas:** ninguna regla contable en `.svelte`; comunicación entre features solo por contratos de `domain/`; DI manual por feature; menú filtrado por `views` del backend.
+
+Fuera de alcance por ahora:
+
+| Feature | Motivo |
+|---------|--------|
+| — tienda / catálogo público | Producto, no MVP interno |
 
 ---
 

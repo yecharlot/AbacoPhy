@@ -30,10 +30,24 @@ function extractMessage(body: unknown, fallback: string): string {
 export function createHttpClient(config: HttpClientConfig) {
   const base = config.baseUrl.replace(/\/$/, '');
 
+  function buildUrl(path: string): string {
+    return path.startsWith('http') ? path : `${base}${path.startsWith('/') ? path : `/${path}`}`;
+  }
+
+  function authHeaders(skipAuth?: boolean): Record<string, string> {
+    const headers: Record<string, string> = {};
+    if (!skipAuth && config.getToken) {
+      const token = config.getToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+    }
+    return headers;
+  }
+
   async function request<T>(path: string, options: HttpRequestOptions = {}): Promise<T> {
     const method = options.method ?? 'GET';
     const headers: Record<string, string> = {
       Accept: 'application/json',
+      ...authHeaders(options.skipAuth),
       ...options.headers,
     };
 
@@ -41,18 +55,9 @@ export function createHttpClient(config: HttpClientConfig) {
       headers['Content-Type'] = 'application/json';
     }
 
-    if (!options.skipAuth && config.getToken) {
-      const token = config.getToken();
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-      }
-    }
-
-    const url = path.startsWith('http') ? path : `${base}${path.startsWith('/') ? path : `/${path}`}`;
-
     let response: Response;
     try {
-      response = await fetch(url, {
+      response = await fetch(buildUrl(path), {
         method,
         headers,
         body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
@@ -75,8 +80,42 @@ export function createHttpClient(config: HttpClientConfig) {
     return body as T;
   }
 
+  /** Binary download (PDF, etc.). */
+  async function getBlob(path: string, options?: Omit<HttpRequestOptions, 'method' | 'body'>): Promise<Blob> {
+    const headers: Record<string, string> = {
+      Accept: 'application/pdf, application/octet-stream, */*',
+      ...authHeaders(options?.skipAuth),
+      ...options?.headers,
+    };
+
+    let response: Response;
+    try {
+      response = await fetch(buildUrl(path), {
+        method: 'GET',
+        headers,
+        signal: options?.signal,
+      });
+    } catch {
+      throw new HttpError('network', 'Sin conexión o red no disponible', 0);
+    }
+
+    if (!response.ok) {
+      let message = `Error HTTP ${response.status}`;
+      try {
+        const j = await response.json();
+        message = extractMessage(j, message);
+      } catch {
+        /* ignore */
+      }
+      throw new HttpError(mapStatusToKind(response.status), message, response.status);
+    }
+
+    return response.blob();
+  }
+
   return {
     request,
+    getBlob,
     get: <T>(path: string, options?: Omit<HttpRequestOptions, 'method' | 'body'>) =>
       request<T>(path, { ...options, method: 'GET' }),
     post: <T>(path: string, body?: unknown, options?: Omit<HttpRequestOptions, 'method' | 'body'>) =>

@@ -13,22 +13,72 @@
   } from '../infrastructure/ui/theme/theme';
   import { getScreen, setScreen, subscribeScreen, screenTitle } from './navigation';
   import { createIdentityModule } from '../features/identity/di';
+  import { createTenantModule } from '../features/tenant/di';
+  import { createCatalogModule } from '../features/catalog/di/catalogModule';
+  import { createAccountingModule } from '../features/accounting/di/accountingModule';
+  import { createInvoicingModule } from '../features/invoicing/di/invoicingModule';
+  import { createPayrollModule } from '../features/payroll/di/payrollModule';
+  import { createWarehouseModule } from '../features/warehouse/di';
+  import { createPosModule } from '../features/pos/di';
+  import { createCostingModule } from '../features/costing/di';
+  import { createCommerceModule } from '../features/commerce/di';
+  import { createAuditModule } from '../features/audit/di';
+  import { createMasterModule } from '../features/master/di';
   import LoginScreen from '../features/identity/ui/screens/LoginScreen.svelte';
+  import TenantScreen from '../features/tenant/ui/screens/TenantScreen.svelte';
+  import CatalogScreen from '../features/catalog/ui/screens/CatalogScreen.svelte';
+  import DashboardScreen from '../features/accounting/ui/screens/DashboardScreen.svelte';
+  import IngresosScreen from '../features/accounting/ui/screens/IngresosScreen.svelte';
+  import GastosScreen from '../features/accounting/ui/screens/GastosScreen.svelte';
+  import CuentasScreen from '../features/accounting/ui/screens/CuentasScreen.svelte';
+  import ReportesScreen from '../features/accounting/ui/screens/ReportesScreen.svelte';
+  import FacturasScreen from '../features/invoicing/ui/screens/FacturasScreen.svelte';
+  import EmpleadosScreen from '../features/payroll/ui/screens/EmpleadosScreen.svelte';
+  import LiquidacionesScreen from '../features/payroll/ui/screens/LiquidacionesScreen.svelte';
+  import AlmacenScreen from '../features/warehouse/ui/screens/AlmacenScreen.svelte';
+  import RecepcionScreen from '../features/warehouse/ui/screens/RecepcionScreen.svelte';
+  import TransferenciasScreen from '../features/warehouse/ui/screens/TransferenciasScreen.svelte';
+  import PosScreen from '../features/pos/ui/screens/PosScreen.svelte';
+  import FichasCostoScreen from '../features/costing/ui/screens/FichasCostoScreen.svelte';
+  import FichasPrecioScreen from '../features/costing/ui/screens/FichasPrecioScreen.svelte';
+  import PedidosOnlineScreen from '../features/commerce/ui/screens/PedidosOnlineScreen.svelte';
+  import TrazaScreen from '../features/audit/ui/screens/TrazaScreen.svelte';
+  import SalvasScreen from '../features/audit/ui/screens/SalvasScreen.svelte';
+  import MasterScreen from '../features/master/ui/screens/MasterScreen.svelte';
+  import UsuariosScreen from '../features/master/ui/screens/UsuariosScreen.svelte';
   import type { SessionState } from '../features/identity/ui/stores/sessionStore';
 
   const container = createAppContainer({
     apiBaseUrl: import.meta.env.VITE_API_BASE ?? '/api/v1',
   });
   const { sessionStore } = createIdentityModule(container);
+  const { tenantStore } = createTenantModule(container);
+  const { catalogStore, repository: catalogRepository } = createCatalogModule(container);
+  const { accountingStore } = createAccountingModule(container);
+  const { invoicingStore } = createInvoicingModule(container);
+  const { payrollStore } = createPayrollModule(container);
+  // Fase 8 — las features reciben contratos de dominio, nunca implementaciones ajenas
+  const { warehouseStore, repository: warehouseRepository } = createWarehouseModule(container, {
+    catalog: catalogRepository,
+  });
+  const { posStore } = createPosModule(container, {
+    catalog: catalogRepository,
+    warehouse: warehouseRepository,
+  });
+  const { costingStore } = createCostingModule(container, { catalog: catalogRepository });
+  const { commerceStore } = createCommerceModule(container, { catalog: catalogRepository });
+  const { auditStore } = createAuditModule(container);
+  const { masterStore } = createMasterModule(container);
 
   let activeId = $state(getScreen());
   let online = $state(true);
-  let theme = $state<ThemeMode>('light');
+  let theme: ThemeMode = $state('light');
   let toastMsg = $state('');
-  let sessionState = $state<SessionState>(sessionStore.getState());
+  let sessionState: SessionState = $state(sessionStore.getState());
+  let loginAttempted = $state(false);
 
   const navItems = $derived(
-    filterNavByViews(PLACEHOLDER_NAV, sessionState.session?.views ?? ['dashboard']),
+    filterNavByViews(PLACEHOLDER_NAV, sessionState.session?.views ?? null),
   );
 
   const userLabel = $derived(
@@ -38,6 +88,27 @@
   );
 
   const brandSubtitle = $derived(sessionState.session?.tenantName ?? 'Negocio');
+
+  const isMaster = $derived(sessionState.session?.user.role === 'master');
+
+  const canEditTenant = $derived(
+    (sessionState.session?.views ?? []).includes('tenant'),
+  );
+
+  const isAuthenticated = $derived(
+    sessionState.status === 'authenticated' && sessionState.session !== null,
+  );
+
+  /** Initial bootstrap only (not login-in-progress) */
+  const isBooting = $derived(
+    sessionState.status === 'idle' ||
+      (sessionState.status === 'loading' &&
+        sessionState.session === null &&
+        sessionState.error === null &&
+        !loginAttempted),
+  );
+
+  const loginLoading = $derived(sessionState.status === 'loading' && loginAttempted);
 
   onMount(() => {
     theme = readStoredTheme(container.storage);
@@ -78,32 +149,24 @@
   }
 
   async function handleLogin(username: string, password: string) {
+    loginAttempted = true;
     try {
       await sessionStore.login(username, password);
       showToast('Sesión iniciada');
     } catch {
-      /* error already in sessionState */
+      /* error in sessionState */
     }
   }
 
   async function handleLogout() {
     await sessionStore.logout();
+    loginAttempted = false;
     setScreen('home');
     showToast('Sesión cerrada');
   }
 </script>
 
-{#if sessionState.status === 'idle' || (sessionState.status === 'loading' && !sessionState.session)}
-  <div class="boot">
-    <p>Cargando…</p>
-  </div>
-{:else if sessionState.status === 'anonymous' || sessionState.status === 'error'}
-  <LoginScreen
-    loading={sessionState.status === 'loading'}
-    error={sessionState.error}
-    onSubmit={handleLogin}
-  />
-{:else if sessionState.status === 'authenticated' && sessionState.session}
+{#if isAuthenticated && sessionState.session}
   <AppShell
     {navItems}
     {activeId}
@@ -115,29 +178,68 @@
     onNavigate={handleNavigate}
     onToggleTheme={handleTheme}
   >
-    {#if activeId === 'home'}
+    {#if activeId === 'dashboard' || activeId === 'home'}
+      <DashboardScreen store={accountingStore} />
+    {:else if activeId === 'ingresos'}
+      <IngresosScreen store={accountingStore} />
+    {:else if activeId === 'gastos'}
+      <GastosScreen store={accountingStore} />
+    {:else if activeId === 'cuentas'}
+      <CuentasScreen store={accountingStore} />
+    {:else if activeId === 'reportes'}
+      <ReportesScreen />
+    {:else if activeId === 'facturas'}
+      <FacturasScreen store={invoicingStore} />
+    {:else if activeId === 'empleados'}
+      <EmpleadosScreen store={payrollStore} />
+    {:else if activeId === 'liquidaciones'}
+      <LiquidacionesScreen store={payrollStore} />
+    {:else if activeId === 'tenant'}
+      <TenantScreen store={tenantStore} canEdit={canEditTenant} />
+    {:else if activeId === 'catalog'}
+      <CatalogScreen store={catalogStore} currencyCode="CUP" />
+    {:else if activeId === 'almacen'}
+      <AlmacenScreen store={warehouseStore} />
+    {:else if activeId === 'recepcion'}
+      <RecepcionScreen store={warehouseStore} />
+    {:else if activeId === 'transferencias'}
+      <TransferenciasScreen store={warehouseStore} />
+    {:else if activeId === 'pos'}
+      <PosScreen store={posStore} />
+    {:else if activeId === 'fichas-costo'}
+      <FichasCostoScreen store={costingStore} />
+    {:else if activeId === 'fichas-precio'}
+      <FichasPrecioScreen store={costingStore} />
+    {:else if activeId === 'pedidos'}
+      <PedidosOnlineScreen store={commerceStore} />
+    {:else if activeId === 'traza'}
+      <TrazaScreen store={auditStore} {isMaster} />
+    {:else if activeId === 'salvas'}
+      <SalvasScreen store={auditStore} />
+    {:else if activeId === 'usuarios'}
+      <UsuariosScreen store={masterStore} />
+    {:else if activeId === 'master'}
+      <MasterScreen store={masterStore} />
+    {:else}
       <Card>
         <h2 style="margin-top:0">Inicio</h2>
         <p style="color:var(--ap-text-secondary);font-size:0.9rem">
-          Sesión activa. Fase 1 · identity lista. UI definitiva más adelante.
+          Sesión activa. Seleccione una opción del menú.
         </p>
-        <p style="font-size:0.85rem;color:var(--ap-text-muted)">
-          Vistas: {(sessionState.session.views ?? []).join(', ') || '—'}
-        </p>
-        <Button variant="secondary" onclick={handleLogout}>Salir</Button>
-      </Card>
-    {:else if activeId === 'demo-a'}
-      <Card>
-        <h2 style="margin-top:0">Pantalla A</h2>
-        <p style="color:var(--ap-text-secondary)">Placeholder de navegación.</p>
-      </Card>
-    {:else}
-      <Card>
-        <h2 style="margin-top:0">Pantalla B</h2>
-        <p style="color:var(--ap-text-secondary)">Placeholder de navegación.</p>
+        <Button variant="secondary" on:click={handleLogout}>Salir</Button>
       </Card>
     {/if}
   </AppShell>
+{:else if isBooting}
+  <div class="boot">
+    <p>Cargando…</p>
+  </div>
+{:else}
+  <LoginScreen
+    loading={loginLoading}
+    error={sessionState.error}
+    onSubmit={handleLogin}
+  />
 {/if}
 
 <Toast message={toastMsg} visible={!!toastMsg} />

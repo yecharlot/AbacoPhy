@@ -1,58 +1,143 @@
-/* ÁbacoPhy design tokens — light default, dark via [data-theme="dark"] */
+/* ÁbacoPhy — Ethereal-inspired design tokens
+   Dark is the primary product theme. Light is optional.
+   Legacy --ap-* aliases kept so existing components keep working.
+*/
 
 :root,
-[data-theme='light'] {
-  --ap-primary: #f4b400;
-  --ap-primary-dark: #d49a00;
-  --ap-primary-soft: rgba(244, 180, 0, 0.16);
-  --ap-bg: #f7f4ec;
-  --ap-bg-elevated: #ffffff;
-  --ap-bg-sidebar: #fffcf5;
-  --ap-text: #1a1a1a;
-  --ap-text-secondary: #4a4a4a;
-  --ap-text-muted: #7a7a7a;
-  --ap-border: rgba(26, 26, 26, 0.09);
-  --ap-shadow: 0 8px 28px rgba(26, 26, 26, 0.07);
-  --ap-ok: #2e7d32;
-  --ap-danger: #c62828;
-  --ap-sidebar-w: 260px;
-  --ap-radius: 14px;
-  --ap-radius-pill: 40px;
-  --ap-font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-}
-
 [data-theme='dark'] {
-  --ap-primary: #f4b400;
-  --ap-primary-dark: #fb8c00;
-  --ap-primary-soft: rgba(244, 180, 0, 0.14);
-  --ap-bg: #0a0a0a;
-  --ap-bg-elevated: #141414;
-  --ap-bg-sidebar: #0f0f0f;
-  --ap-text: #ffffff;
-  --ap-text-secondary: #b0b0b0;
-  --ap-text-muted: #6b6b6b;
-  --ap-border: rgba(244, 180, 0, 0.15);
-  --ap-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  --ap-ok: #4caf50;
-  --ap-danger: #ff5252;
+  --color-bg: #050812;
+  --color-surface: #171b29;
+  --color-surface-raised: #202536;
+  --color-surface-soft: #282d3d;
+  --color-border: rgba(255, 255, 255, 0.08);
+
+  --color-text-primary: #f7f8fc;
+  --color-text-secondary: #b7bdcc;
+  --color-text-muted: #858c9d;
+
+  --accent-cyan: #61e6e1;
+  --accent-green: #b7f56a;
+  --accent-yellow: #ffe35a;
+  --accent-pink: #f36ba6;
+  --accent-purple: #9c82ff;
+  --accent-blue: #76a7ff;
+  --accent-red: #f17b7b;
+
+  --gradient-hero: linear-gradient(135deg, #61e6e1 0%, #8ef0b0 42%, #d6f56e 100%);
+  --gradient-primary-btn: linear-gradient(135deg, #61e6e1 0%, #b7f56a 100%);
+
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
+  --radius-pill: 999px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --page-padding: 24px;
+  --dashboard-gap: 12px;
+  --sidebar-w: 260px;
+
+  --shadow-soft: 0 12px 40px rgba(0, 0, 0, 0.18);
+  --shadow-float: 0 20px 60px rgba(0, 0, 0, 0.28);
+
+  --motion-fast: 160ms ease-out;
+  --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+
+  --ap-bg: var(--color-bg);
+  --ap-bg-elevated: var(--color-surface);
+  --ap-bg-sidebar: #0c101c;
+  --ap-text: var(--color-text-primary);
+  --ap-text-secondary: var(--color-text-secondary);
+  --ap-text-muted: var(--color-text-muted);
+  --ap-border: var(--color-border);
+  --ap-shadow: var(--shadow-soft);
+  --ap-primary: var(--accent-cyan);
+  --ap-primary-dark: #3dd4cf;
+  --ap-primary-soft: rgba(97, 230, 225, 0.14);
+  --ap-ok: var(--accent-green);
+  --ap-danger: var(--accent-red);
+  --ap-sidebar-w: var(--sidebar-w);
+  --ap-radius: var(--radius-lg);
+  --ap-radius-pill: var(--radius-pill);
+  --ap-font: var(--font-sans);
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+[data-theme='light'] {
+  --color-bg: #f3f5f9;
+  --color-surface: #ffffff;
+  --color-surface-raised: #f7f8fc;
+  --color-surface-soft: #eef1f7;
+  --color-border: rgba(15, 20, 35, 0.08);
+  --color-text-primary: #12151f;
+  --color-text-secondary: #4a5163;
+  --color-text-muted: #7a8296;
+  --gradient-hero: linear-gradient(135deg, #61e6e1 0%, #8ef0b0 42%, #d6f56e 100%);
+  --gradient-primary-btn: linear-gradient(135deg, #3dd4cf 0%, #8fd84a 100%);
+  --shadow-soft: 0 12px 40px rgba(18, 21, 31, 0.08);
+  --shadow-float: 0 20px 50px rgba(18, 21, 31, 0.12);
+  --ap-bg: var(--color-bg);
+  --ap-bg-elevated: var(--color-surface);
+  --ap-bg-sidebar: #eef1f7;
+  --ap-text: var(--color-text-primary);
+  --ap-text-secondary: var(--color-text-secondary);
+  --ap-text-muted: var(--color-text-muted);
+  --ap-border: var(--color-border);
+  --ap-shadow: var(--shadow-soft);
+  --ap-primary: #1aa8a3;
+  --ap-primary-dark: #0f8f8b;
+  --ap-primary-soft: rgba(26, 168, 163, 0.12);
+  --ap-ok: #3d9a2e;
+  --ap-danger: #d64545;
 }
 
-html,
-body {
+@media (max-width: 1279px) {
+  :root { --page-padding: 20px; }
+}
+@media (max-width: 899px) {
+  :root { --page-padding: 16px; --dashboard-gap: 10px; }
+}
+@media (max-width: 599px) {
+  :root { --page-padding: 12px; }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
   margin: 0;
   padding: 0;
   min-height: 100%;
   font-family: var(--ap-font);
-  background: var(--ap-bg);
-  color: var(--ap-text);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
 }
 
-#app {
-  min-height: 100dvh;
+#app { min-height: 100dvh; }
+
+@media (min-width: 1280px) {
+  body {
+    background: #03050c;
+    padding: 12px;
+  }
+  #app {
+    min-height: calc(100dvh - 24px);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    background: var(--color-bg);
+    box-shadow: var(--shadow-float);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

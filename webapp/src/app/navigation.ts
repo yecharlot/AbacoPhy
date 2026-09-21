@@ -1,6 +1,5 @@
 /**
- * Minimal “active screen” state for phase 0 (no router library yet).
- * Replace with a real router when features land.
+ * Minimal “active screen” state (no router library yet).
  */
 
 export type ScreenId = string;
@@ -26,9 +25,28 @@ export function subscribeScreen(fn: (id: ScreenId) => void): () => void {
 
 export function screenTitle(id: ScreenId): string {
   const map: Record<string, string> = {
+    dashboard: 'Tablero de Control',
+    ingresos: 'Registro de Ingresos',
+    gastos: 'Registro de Gastos',
+    facturas: 'Gestión de Facturas',
+    empleados: 'Gestión de Empleados',
+    liquidaciones: 'Liquidación de Nómina',
+    catalog: 'Catálogo / Nomencladores',
+    cuentas: 'Plan de Cuentas',
+    reportes: 'Reportes y Balances',
+    tenant: 'Configuración del Negocio',
     home: 'Inicio',
-    'demo-a': 'Pantalla A',
-    'demo-b': 'Pantalla B',
+    almacen: 'Almacén Central',
+    recepcion: 'Informes de Recepción',
+    transferencias: 'Transferencias a Unidades',
+    pos: 'Punto de Venta',
+    'fichas-costo': 'Fichas de Costo',
+    'fichas-precio': 'Fichas de Precio',
+    pedidos: 'Pedidos Online',
+    traza: 'Traza de Operaciones',
+    salvas: 'Salvas del Negocio',
+    usuarios: 'Usuarios y Roles',
+    master: 'Configuración Master',
   };
   return map[id] ?? id;
 }
