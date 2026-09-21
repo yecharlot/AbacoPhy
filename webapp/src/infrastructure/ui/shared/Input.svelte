@@ -8,7 +8,7 @@
     required?: boolean;
     autocomplete?: string;
     disabled?: boolean;
-    oninput?: (event: InputEvent & { currentTarget: HTMLInputElement }) => void;
+    oninput?: (e: Event) => void;
   }
 
   let {
@@ -27,7 +27,6 @@
 {#if label}
   <label class="lbl" for={id}>{label}</label>
 {/if}
-
 <input
         class="inp"
         {id}
@@ -50,7 +49,6 @@
     color: var(--ap-text-muted);
     margin-bottom: 5px;
   }
-
   .inp {
     width: 100%;
     padding: 11px 13px;
@@ -62,7 +60,6 @@
     font-family: inherit;
     font-size: 0.92rem;
   }
-
   .inp:focus {
     outline: none;
     border-color: var(--ap-primary);
