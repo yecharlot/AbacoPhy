@@ -20,16 +20,16 @@ Piezas transversales necesarias antes o en paralelo al primer feature usable.
 
 | Ítem | Descripción | Tests / prueba |
 |------|-------------|----------------|
-| [ ] | `infrastructure/data/http` — cliente HTTP base (base URL, JSON, errores tipados) | Unit: construye request, mapea 401/403/5xx |
-| [ ] | Interceptor / helper de `Authorization: Bearer` | Unit: adjunta token si existe sesión |
-| [ ] | Detección básica online/offline (`navigator.onLine` + eventos) | Unit o smoke: flag de red |
-| [ ] | `infrastructure/data/storage` — abstracción mínima (token, preferencias) | Unit: get/set/clear |
-| [ ] | `infrastructure/ui/theme` — tokens CSS claro/oscuro | Smoke visual |
-| [ ] | `infrastructure/ui/shared` — Button, Card, Input, Toast, Badge, Money (mínimo viable) | Smoke visual |
-| [ ] | `infrastructure/ui/shell` — AppShell + Sidebar + Topbar (menú filtrable por views) | Smoke: render sin sesión / con sesión mock |
-| [ ] | `infrastructure/di` — composición raíz (http, storage) | Wiring manual verificable |
-| [ ] | Router mínimo o estado de “pantalla activa” en app shell | Navegación entre 2 pantallas dummy |
-| [ ] | `npm run check` en verde tras scaffold de carpetas | CI local |
+| [x]  | `infrastructure/data/http` — cliente HTTP base (base URL, JSON, errores tipados) | Unit: construye request, mapea 401/403/5xx |
+| [x]  | Interceptor / helper de `Authorization: Bearer` | Unit: adjunta token si existe sesión |
+| [x]  | Detección básica online/offline (`navigator.onLine` + eventos) | Unit o smoke: flag de red |
+| [x]  | `infrastructure/data/storage` — abstracción mínima (token, preferencias) | Unit: get/set/clear |
+| [x]  | `infrastructure/ui/theme` — tokens CSS claro/oscuro | Smoke visual |
+| [x]  | `infrastructure/ui/shared` — Button, Card, Input, Toast, Badge, Money (mínimo viable) | Smoke visual |
+| [x]  | `infrastructure/ui/shell` — AppShell + Sidebar + Topbar (menú filtrable por views) | Smoke: render sin sesión / con sesión mock |
+| [x]  | `infrastructure/di` — composición raíz (http, storage) | Wiring manual verificable |
+| [x]  | Router mínimo o estado de “pantalla activa” en app shell | Navegación entre 2 pantallas dummy |
+| [x]  | `npm run check` en verde tras scaffold de carpetas | CI local |
 
 **Dependencias npm nuevas (solo si se aprueban en LOG):** ninguna obligatoria en esta fase. Vitest cuando llegue el primer test.
 

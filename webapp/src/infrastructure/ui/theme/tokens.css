@@ -1,0 +1,58 @@
+/* ÁbacoPhy design tokens — light default, dark via [data-theme="dark"] */
+
+:root,
+[data-theme='light'] {
+  --ap-primary: #f4b400;
+  --ap-primary-dark: #d49a00;
+  --ap-primary-soft: rgba(244, 180, 0, 0.16);
+  --ap-bg: #f7f4ec;
+  --ap-bg-elevated: #ffffff;
+  --ap-bg-sidebar: #fffcf5;
+  --ap-text: #1a1a1a;
+  --ap-text-secondary: #4a4a4a;
+  --ap-text-muted: #7a7a7a;
+  --ap-border: rgba(26, 26, 26, 0.09);
+  --ap-shadow: 0 8px 28px rgba(26, 26, 26, 0.07);
+  --ap-ok: #2e7d32;
+  --ap-danger: #c62828;
+  --ap-sidebar-w: 260px;
+  --ap-radius: 14px;
+  --ap-radius-pill: 40px;
+  --ap-font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+[data-theme='dark'] {
+  --ap-primary: #f4b400;
+  --ap-primary-dark: #fb8c00;
+  --ap-primary-soft: rgba(244, 180, 0, 0.14);
+  --ap-bg: #0a0a0a;
+  --ap-bg-elevated: #141414;
+  --ap-bg-sidebar: #0f0f0f;
+  --ap-text: #ffffff;
+  --ap-text-secondary: #b0b0b0;
+  --ap-text-muted: #6b6b6b;
+  --ap-border: rgba(244, 180, 0, 0.15);
+  --ap-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --ap-ok: #4caf50;
+  --ap-danger: #ff5252;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  font-family: var(--ap-font);
+  background: var(--ap-bg);
+  color: var(--ap-text);
+}
+
+#app {
+  min-height: 100dvh;
+}
