@@ -166,11 +166,11 @@ Piezas transversales necesarias antes o en paralelo al primer feature usable.
 
 | Ítem | Use case / pieza | Tests / prueba |
 |------|------------------|----------------|
-| [ ]  | Entidades cola: operaciones pendientes + `client_rev` | Unit |
-| [ ]  | `EnqueueOperation`, `PushQueue`, `PullSnapshot` | Unit con storage + repo mock |
-| [ ]  | Data → `GET /sync`, `POST /sync/push` | Mock |
-| [ ]  | Integración: si offline, `CreateIncomeEntry` encola en lugar de fallar en silencio | Unit integración feature accounting↔sync (contrato) |
-| [ ]  | Badge de red en shell | Smoke |
+| [x]  | Entidades cola: operaciones pendientes + `client_rev` | Unit |
+| [x]  | `EnqueueOperation`, `PushQueue`, `PullSnapshot` | Unit con storage + repo mock |
+| [x]  | Data → `GET /sync`, `POST /sync/push` | Mock |
+| [x]  | Integración: si offline, `CreateIncomeEntry` encola en lugar de fallar en silencio | Unit integración feature accounting↔sync (contrato) |
+| [x]  | Badge de red en shell | Smoke |
 
 ---
 
