@@ -5,3 +5,6 @@ abacophy_data/
 .env
 .idea/
 .vscode/
+
+webapp/node_modules
+webapp/dist
