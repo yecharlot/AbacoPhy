@@ -89,6 +89,11 @@ func (s *Server) handleProducts(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, 200, map[string]any{"products": list})
 	case http.MethodPost:
+		// Vendedor solo consulta catálogo; no crea productos
+		if sess.Role == domain.RoleVendedor || sess.Role == domain.RoleReadonly {
+			writeJSON(w, 403, map[string]string{"error": "sin permiso para modificar productos"})
+			return
+		}
 		var body domain.Product
 		if err := readJSON(r, &body); err != nil || strings.TrimSpace(body.Name) == "" {
 			writeJSON(w, 400, map[string]string{"error": "nombre requerido"})
@@ -120,6 +125,10 @@ func (s *Server) handleProducts(w http.ResponseWriter, r *http.Request) {
 		_ = s.Store.Put(snap)
 		writeJSON(w, 201, map[string]any{"product": body})
 	case http.MethodPut:
+		if sess.Role == domain.RoleVendedor || sess.Role == domain.RoleReadonly {
+			writeJSON(w, 403, map[string]string{"error": "sin permiso para modificar productos"})
+			return
+		}
 		var body domain.Product
 		if err := readJSON(r, &body); err != nil || body.ID == "" {
 			writeJSON(w, 400, map[string]string{"error": "id requerido"})
@@ -157,6 +166,10 @@ func (s *Server) handleProducts(w http.ResponseWriter, r *http.Request) {
 		_ = s.Store.Put(snap)
 		writeJSON(w, 200, map[string]any{"product": ex})
 	case http.MethodDelete:
+		if sess.Role == domain.RoleVendedor || sess.Role == domain.RoleReadonly {
+			writeJSON(w, 403, map[string]string{"error": "sin permiso para modificar productos"})
+			return
+		}
 		id := r.URL.Query().Get("id")
 		if id == "" {
 			writeJSON(w, 400, map[string]string{"error": "id requerido"})
