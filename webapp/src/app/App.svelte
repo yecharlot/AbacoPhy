@@ -99,21 +99,21 @@
   </div>
 {:else if sessionState.status === 'anonymous' || sessionState.status === 'error'}
   <LoginScreen
-    loading={sessionState.status === 'loading'}
-    error={sessionState.error}
-    onSubmit={handleLogin}
+          loading={false}
+          error={sessionState.error}
+          onSubmit={handleLogin}
   />
 {:else if sessionState.status === 'authenticated' && sessionState.session}
   <AppShell
-    {navItems}
-    {activeId}
-    pageTitle={screenTitle(activeId)}
-    {online}
-    brandTitle="ÁbacoPhy"
-    {brandSubtitle}
-    {userLabel}
-    onNavigate={handleNavigate}
-    onToggleTheme={handleTheme}
+          {navItems}
+          {activeId}
+          pageTitle={screenTitle(activeId)}
+          {online}
+          brandTitle="ÁbacoPhy"
+          {brandSubtitle}
+          {userLabel}
+          onNavigate={handleNavigate}
+          onToggleTheme={handleTheme}
   >
     {#if activeId === 'home'}
       <Card>

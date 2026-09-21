@@ -43,36 +43,36 @@ Piezas transversales necesarias antes o en paralelo al primer feature usable.
 
 | Ítem | Use case / entidad | Tests |
 |------|--------------------|-------|
-| [ ] | Entidades: `User`, `Session` (token, expires, role, tenantId, views, modules) | Unit tipos / invariantes mínimas |
-| [ ] | Contrato `AuthRepository` | — |
-| [ ] | `Login` | Unit: credenciales → Session; error → mensaje dominio |
-| [ ] | `Logout` | Unit: limpia sesión |
-| [ ] | `GetMe` / restaurar sesión | Unit: token válido → Session; inválido → unauthenticated |
-| [ ] | `ChangePassword` | Unit: validación mínima (longitud); éxito/error |
+| [x]  | Entidades: `User`, `Session` (token, expires, role, tenantId, views, modules) | Unit tipos / invariantes mínimas |
+| [x]  | Contrato `AuthRepository` | — |
+| [x]  | `Login` | Unit: credenciales → Session; error → mensaje dominio |
+| [x]  | `Logout` | Unit: limpia sesión |
+| [x]  | `GetMe` / restaurar sesión | Unit: token válido → Session; inválido → unauthenticated |
+| [x]  | `ChangePassword` | Unit: validación mínima (longitud); éxito/error |
 
 ### Data
 
 | Ítem | Descripción | Tests |
 |------|-------------|-------|
-| [ ] | DTOs login / me / password | Mapper unit |
-| [ ] | `AuthRemoteSource` → `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `POST /auth/password` | Mock HTTP |
-| [ ] | `AuthRepositoryImpl` | Unit con source mock |
-| [ ] | Persistencia local del token (storage) | Unit |
+| [x]  | DTOs login / me / password | Mapper unit |
+| [x]  | `AuthRemoteSource` → `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `POST /auth/password` | Mock HTTP |
+| [x]  | `AuthRepositoryImpl` | Unit con source mock |
+| [x]  | Persistencia local del token (storage) | Unit |
 
 ### UI
 
 | Ítem | Descripción | Prueba |
 |------|-------------|--------|
-| [ ] | `sessionStore` — estados visuales idle/loading/success/error | Unit store + use case mock |
-| [ ] | `LoginScreen` + formulario | Smoke: login OK / 401 |
-| [ ] | Guard de sesión en shell (redirigir a login) | Smoke |
-| [ ] | Acción salir | Smoke |
+| [x]  | `sessionStore` — estados visuales idle/loading/success/error | Unit store + use case mock |
+| [x]  | `LoginScreen` + formulario | Smoke: login OK / 401 |
+| [x]  | Guard de sesión en shell (redirigir a login) | Smoke |
+| [x]  | Acción salir | Smoke |
 
 ### DI
 
 | Ítem | Descripción |
 |------|-------------|
-| [ ] | `identity/di` cablea source → repo → use cases → store |
+| [x]  | `identity/di` cablea source → repo → use cases → store |
 
 ---
 
