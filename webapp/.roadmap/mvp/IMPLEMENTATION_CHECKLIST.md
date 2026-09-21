@@ -98,35 +98,35 @@ Piezas transversales necesarias antes o en paralelo al primer feature usable.
 
 | Ítem | Use case / entidad | Tests |
 |------|--------------------|-------|
-| [ ] | Entidades: `Account`, `Entry`, `Equation` | Unit |
-| [ ] | `ListAccounts` | Unit |
-| [ ] | `CreateIncomeEntry` | Unit (orquesta repo; no calcula partida doble en cliente si el backend ya la aplica — documentar decisión en LOG) |
-| [ ] | `CreateExpenseEntry` | Unit |
-| [ ] | `ListEntries` | Unit |
-| [ ] | `GetSummary` (incluye bloque ecuación) | Unit |
+| [x]  | Entidades: `Account`, `Entry`, `Equation` | Unit |
+| [x]  | `ListAccounts` | Unit |
+| [x]  | `CreateIncomeEntry` | Unit (orquesta repo; no calcula partida doble en cliente si el backend ya la aplica — documentar decisión en LOG) |
+| [x]  | `CreateExpenseEntry` | Unit |
+| [x]  | `ListEntries` | Unit |
+| [x]  | `GetSummary` (incluye bloque ecuación) | Unit |
 
 ### Data
 
 | Ítem | Endpoints | Tests |
 |------|-----------|-------|
-| [ ] | `/accounts`, `/entries`, `/reports/summary` | Mappers + mock |
+| [x]  | `/accounts`, `/entries`, `/reports/summary` | Mappers + mock |
 
 ### UI
 
 | Ítem | Screen / componente | Prueba |
 |------|---------------------|--------|
-| [ ] | `DashboardScreen` — totales + ecuación | Smoke con API o fixture |
-| [ ] | `IngresosScreen` — alta + feedback | Smoke |
-| [ ] | `GastosScreen` — alta + feedback | Smoke |
-| [ ] | `CuentasScreen` — listado | Smoke |
-| [ ] | `ReportesScreen` o sección en dashboard | Smoke |
-| [ ] | Componentes: `EntryForm`, `EquationCard`, `AccountTable` | Smoke |
+| [x]  | `DashboardScreen` — totales + ecuación | Smoke con API o fixture |
+| [x]  | `IngresosScreen` — alta + feedback | Smoke |
+| [x]  | `GastosScreen` — alta + feedback | Smoke |
+| [x]  | `CuentasScreen` — listado | Smoke |
+| [x]  | `ReportesScreen` o sección en dashboard | Smoke |
+| [x]  | Componentes: `EntryForm`, `EquationCard`, `AccountTable` | Smoke |
 
 ### DI
 
 | Ítem |
 |------|
-| [ ] | `accounting/di` completo |
+| [x]  | `accounting/di` completo |
 
 **Nota de dominio:** la partida doble y la ecuación las resuelve el backend. El frontend muestra y envía intenciones; no reimplementar el motor contable en Svelte salvo validaciones de formulario (importe > 0, cuenta requerida).
 
@@ -138,11 +138,11 @@ Piezas transversales necesarias antes o en paralelo al primer feature usable.
 
 | Ítem | Use case / pieza | Tests / prueba |
 |------|------------------|----------------|
-| [ ] | Entidades `Invoice`, `InvoiceLine` | Unit |
-| [ ] | `ListInvoices`, `EmitInvoice`, `DownloadInvoicePdf` | Unit (PDF: no parsear binario; verificar llamada) |
-| [ ] | Data → `/invoices`, `/invoices/pdf` | Mapper + mock |
-| [ ] | `FacturasScreen` + formulario líneas | Smoke |
-| [ ] | Botón PDF abre/descarga blob | Smoke manual |
+| [x]  | Entidades `Invoice`, `InvoiceLine` | Unit |
+| [x]  | `ListInvoices`, `EmitInvoice`, `DownloadInvoicePdf` | Unit (PDF: no parsear binario; verificar llamada) |
+| [x]  | Data → `/invoices`, `/invoices/pdf` | Mapper + mock |
+| [x]  | `FacturasScreen` + formulario líneas | Smoke |
+| [x]  | Botón PDF abre/descarga blob | Smoke manual |
 
 ---
 
@@ -152,11 +152,11 @@ Piezas transversales necesarias antes o en paralelo al primer feature usable.
 
 | Ítem | Use case / pieza | Tests / prueba |
 |------|------------------|----------------|
-| [ ] | Entidades `Employee`, `Payslip` | Unit |
-| [ ] | `ListEmployees`, `CreateEmployee`, `ListPayslips`, `CreatePayslip` | Unit |
-| [ ] | Data → `/payroll/employees`, `/payroll/payslips` | Mapper + mock |
-| [ ] | Screens listado/alta (sin UI de todas las tasas avanzadas si no hace falta) | Smoke |
-| [ ] | PDF nómina — | opcional MVP+ |
+| [x]  | Entidades `Employee`, `Payslip` | Unit |
+| [x]  | `ListEmployees`, `CreateEmployee`, `ListPayslips`, `CreatePayslip` | Unit |
+| [x]  | Data → `/payroll/employees`, `/payroll/payslips` | Mapper + mock |
+| [x]  | Screens listado/alta (sin UI de todas las tasas avanzadas si no hace falta) | Smoke |
+| [x]  | PDF nómina — | opcional MVP+ |
 
 ---
 
@@ -166,11 +166,11 @@ Piezas transversales necesarias antes o en paralelo al primer feature usable.
 
 | Ítem | Use case / pieza | Tests / prueba |
 |------|------------------|----------------|
-| [ ] | Entidades cola: operaciones pendientes + `client_rev` | Unit |
-| [ ] | `EnqueueOperation`, `PushQueue`, `PullSnapshot` | Unit con storage + repo mock |
-| [ ] | Data → `GET /sync`, `POST /sync/push` | Mock |
-| [ ] | Integración: si offline, `CreateIncomeEntry` encola en lugar de fallar en silencio | Unit integración feature accounting↔sync (contrato) |
-| [ ] | Badge de red en shell | Smoke |
+| [ ]  | Entidades cola: operaciones pendientes + `client_rev` | Unit |
+| [ ]  | `EnqueueOperation`, `PushQueue`, `PullSnapshot` | Unit con storage + repo mock |
+| [ ]  | Data → `GET /sync`, `POST /sync/push` | Mock |
+| [ ]  | Integración: si offline, `CreateIncomeEntry` encola en lugar de fallar en silencio | Unit integración feature accounting↔sync (contrato) |
+| [ ]  | Badge de red en shell | Smoke |
 
 ---
 
