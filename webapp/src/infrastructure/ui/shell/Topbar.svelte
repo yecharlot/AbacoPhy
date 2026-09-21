@@ -20,7 +20,7 @@
 
 <div class="topbar">
   <div class="left">
-    <button type="button" class="menu-toggle" aria-label="Menú" onclick={() => onMenu?.()}>
+    <button type="button" class="menu-toggle" aria-label="Menú" on:click={() => onMenu?.()}>
       ☰
     </button>
     <h1>{title}</h1>
@@ -28,7 +28,7 @@
   <div class="right">
     <Badge tone={online ? 'ok' : 'off'}>{online ? 'En línea' : 'Sin conexión'}</Badge>
     {#if onToggleTheme}
-      <button type="button" class="theme-btn" aria-label="Cambiar tema" onclick={onToggleTheme}>
+      <button type="button" class="theme-btn" aria-label="Cambiar tema" on:click={onToggleTheme}>
         Tema
       </button>
     {/if}

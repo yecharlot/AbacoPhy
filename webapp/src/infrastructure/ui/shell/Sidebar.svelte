@@ -38,7 +38,7 @@
         type="button"
         class="nav-item"
         class:active={item.id === activeId}
-        onclick={() => {
+        on:click={() => {
           onNavigate?.(item.id);
           onClose?.();
         }}

@@ -37,7 +37,7 @@
   <div
     class="overlay"
     class:on={sidebarOpen}
-    onclick={() => (sidebarOpen = false)}
+    on:click={() => (sidebarOpen = false)}
   ></div>
   <Sidebar
     items={navItems}

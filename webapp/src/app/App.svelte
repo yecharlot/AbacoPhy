@@ -139,7 +139,7 @@
         <p style="font-size:0.85rem;color:var(--ap-text-muted)">
           Vistas: {(sessionState.session.views ?? []).join(', ') || '—'}
         </p>
-        <Button variant="secondary" onclick={handleLogout}>Salir</Button>
+        <Button variant="secondary" on:click={handleLogout}>Salir</Button>
       </Card>
     {:else if activeId === 'tenant'}
       <TenantScreen store={tenantStore} canEdit={canEditTenant} />

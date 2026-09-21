@@ -82,11 +82,11 @@ Piezas transversales necesarias antes o en paralelo al primer feature usable.
 
 | Ítem | Use case / pieza | Tests / prueba |
 |------|------------------|----------------|
-| [ ] | Entidad `Tenant` | Unit |
-| [ ] | `GetTenant` / `UpdateTenant` | Unit |
-| [ ] | Contrato + impl → `GET/PUT /tenant` | Mapper + mock |
-| [ ] | Screen “Negocio” (lectura/edición básica) | Smoke (rol con vista `tenant`) |
-| [ ] | Store UI con estados estándar | Unit store |
+| [x]  | Entidad `Tenant` | Unit |
+| [x]  | `GetTenant` / `UpdateTenant` | Unit |
+| [x]  | Contrato + impl → `GET/PUT /tenant` | Mapper + mock |
+| [x]  | Screen “Negocio” (lectura/edición básica) | Smoke (rol con vista `tenant`) |
+| [x]  | Store UI con estados estándar | Unit store |
 
 ---
 

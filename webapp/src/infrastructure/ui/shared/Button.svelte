@@ -1,26 +1,21 @@
 <script lang="ts">
+  import { createEventDispatcher } from 'svelte';
+
   type Variant = 'primary' | 'secondary' | 'danger';
   type Size = 'md' | 'sm';
 
-  interface Props {
-    variant?: Variant;
-    size?: Size;
-    type?: 'button' | 'submit' | 'reset';
-    disabled?: boolean;
-    fullWidth?: boolean;
-    onclick?: (e: MouseEvent) => void;
-    children?: import('svelte').Snippet;
-  }
+  export let variant: Variant = 'primary';
+  export let size: Size = 'md';
+  export let type: 'button' | 'submit' | 'reset' = 'button';
+  export let disabled = false;
+  export let fullWidth = false;
 
-  let {
-    variant = 'primary',
-    size = 'md',
-    type = 'button',
-    disabled = false,
-    fullWidth = false,
-    onclick,
-    children,
-  }: Props = $props();
+  const dispatch = createEventDispatcher<{ click: MouseEvent }>();
+
+  function handleClick(e: MouseEvent) {
+    // forward the native click event as a component event
+    dispatch('click', e);
+  }
 </script>
 
 <button
@@ -28,11 +23,9 @@
   class:full={fullWidth}
   {type}
   {disabled}
-  {onclick}
+  on:click={handleClick}
 >
-  {#if children}
-    {@render children()}
-  {/if}
+  <slot />
 </button>
 
 <style>
