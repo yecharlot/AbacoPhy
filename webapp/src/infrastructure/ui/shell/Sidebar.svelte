@@ -50,6 +50,9 @@
 </aside>
 
 <style>
+  .image-icon {
+
+  }
   .sidebar {
     width: var(--sidebar-w, var(--ap-sidebar-w));
     position: fixed;
