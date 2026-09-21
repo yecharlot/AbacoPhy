@@ -18,6 +18,12 @@
   import { createAccountingModule } from '../features/accounting/di/accountingModule';
   import { createInvoicingModule } from '../features/invoicing/di/invoicingModule';
   import { createPayrollModule } from '../features/payroll/di/payrollModule';
+  import { createWarehouseModule } from '../features/warehouse/di';
+  import { createPosModule } from '../features/pos/di';
+  import { createCostingModule } from '../features/costing/di';
+  import { createCommerceModule } from '../features/commerce/di';
+  import { createAuditModule } from '../features/audit/di';
+  import { createMasterModule } from '../features/master/di';
   import LoginScreen from '../features/identity/ui/screens/LoginScreen.svelte';
   import TenantScreen from '../features/tenant/ui/screens/TenantScreen.svelte';
   import CatalogScreen from '../features/catalog/ui/screens/CatalogScreen.svelte';
@@ -29,6 +35,17 @@
   import FacturasScreen from '../features/invoicing/ui/screens/FacturasScreen.svelte';
   import EmpleadosScreen from '../features/payroll/ui/screens/EmpleadosScreen.svelte';
   import LiquidacionesScreen from '../features/payroll/ui/screens/LiquidacionesScreen.svelte';
+  import AlmacenScreen from '../features/warehouse/ui/screens/AlmacenScreen.svelte';
+  import RecepcionScreen from '../features/warehouse/ui/screens/RecepcionScreen.svelte';
+  import TransferenciasScreen from '../features/warehouse/ui/screens/TransferenciasScreen.svelte';
+  import PosScreen from '../features/pos/ui/screens/PosScreen.svelte';
+  import FichasCostoScreen from '../features/costing/ui/screens/FichasCostoScreen.svelte';
+  import FichasPrecioScreen from '../features/costing/ui/screens/FichasPrecioScreen.svelte';
+  import PedidosOnlineScreen from '../features/commerce/ui/screens/PedidosOnlineScreen.svelte';
+  import TrazaScreen from '../features/audit/ui/screens/TrazaScreen.svelte';
+  import SalvasScreen from '../features/audit/ui/screens/SalvasScreen.svelte';
+  import MasterScreen from '../features/master/ui/screens/MasterScreen.svelte';
+  import UsuariosScreen from '../features/master/ui/screens/UsuariosScreen.svelte';
   import type { SessionState } from '../features/identity/ui/stores/sessionStore';
 
   const container = createAppContainer({
@@ -36,10 +53,22 @@
   });
   const { sessionStore } = createIdentityModule(container);
   const { tenantStore } = createTenantModule(container);
-  const { catalogStore } = createCatalogModule(container);
+  const { catalogStore, repository: catalogRepository } = createCatalogModule(container);
   const { accountingStore } = createAccountingModule(container);
   const { invoicingStore } = createInvoicingModule(container);
   const { payrollStore } = createPayrollModule(container);
+  // Fase 8 — las features reciben contratos de dominio, nunca implementaciones ajenas
+  const { warehouseStore, repository: warehouseRepository } = createWarehouseModule(container, {
+    catalog: catalogRepository,
+  });
+  const { posStore } = createPosModule(container, {
+    catalog: catalogRepository,
+    warehouse: warehouseRepository,
+  });
+  const { costingStore } = createCostingModule(container, { catalog: catalogRepository });
+  const { commerceStore } = createCommerceModule(container, { catalog: catalogRepository });
+  const { auditStore } = createAuditModule(container);
+  const { masterStore } = createMasterModule(container);
 
   let activeId = $state(getScreen());
   let online = $state(true);
@@ -59,6 +88,8 @@
   );
 
   const brandSubtitle = $derived(sessionState.session?.tenantName ?? 'Negocio');
+
+  const isMaster = $derived(sessionState.session?.user.role === 'master');
 
   const canEditTenant = $derived(
     (sessionState.session?.views ?? []).includes('tenant'),
@@ -167,6 +198,28 @@
       <TenantScreen store={tenantStore} canEdit={canEditTenant} />
     {:else if activeId === 'catalog'}
       <CatalogScreen store={catalogStore} currencyCode="CUP" />
+    {:else if activeId === 'almacen'}
+      <AlmacenScreen store={warehouseStore} />
+    {:else if activeId === 'recepcion'}
+      <RecepcionScreen store={warehouseStore} />
+    {:else if activeId === 'transferencias'}
+      <TransferenciasScreen store={warehouseStore} />
+    {:else if activeId === 'pos'}
+      <PosScreen store={posStore} />
+    {:else if activeId === 'fichas-costo'}
+      <FichasCostoScreen store={costingStore} />
+    {:else if activeId === 'fichas-precio'}
+      <FichasPrecioScreen store={costingStore} />
+    {:else if activeId === 'pedidos'}
+      <PedidosOnlineScreen store={commerceStore} />
+    {:else if activeId === 'traza'}
+      <TrazaScreen store={auditStore} {isMaster} />
+    {:else if activeId === 'salvas'}
+      <SalvasScreen store={auditStore} />
+    {:else if activeId === 'usuarios'}
+      <UsuariosScreen store={masterStore} />
+    {:else if activeId === 'master'}
+      <MasterScreen store={masterStore} />
     {:else}
       <Card>
         <h2 style="margin-top:0">Inicio</h2>

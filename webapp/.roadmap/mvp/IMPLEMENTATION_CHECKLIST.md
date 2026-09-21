@@ -186,18 +186,27 @@ Solo si se necesita para inventario/POS en la misma oleada.
 
 ---
 
-## 8. Features fuera de MVP inicial
+## 8. Ops comerciales, comercio y gobernanza
 
-No implementar hasta cerrar fases 0–6 (o 0–5 sin offline formal).
+Desbloqueada tras cerrar las fases 0–7. Implementada en la rama `webapp`.
 
-| Feature | Motivo de aplazamiento |
-|---------|------------------------|
-| — warehouse / recepción / transferencias | Ops comerciales fase 2 |
-| — pos | Depende de catalog + warehouse |
-| — costing (fichas costo/precio) | Fase 2 |
-| — commerce (pedidos online, tienda) | Opcional producto |
-| — audit (traza, salvas CID UI) | Gobernanza fase 2 |
-| — master (tenants, reset, modules admin) | Solo rol plataforma |
+| Ítem | Feature / piezas | Endpoints | Estado |
+|------|------------------|-----------|--------|
+| [x] | `warehouse` — existencias, unidades de venta, recepción, transferencias | `GET /warehouse`, `GET/POST /units`, `GET/POST /receptions`, `GET/POST /transfers` | Pantallas Almacén, Recepción, Transferencias |
+| [x] | `pos` — venta de mostrador con rebaja por línea | `GET/POST /pos/sales` | Pantalla Punto de venta |
+| [x] | `costing` — fichas de costo y de precio | `GET/POST /cost-sheets`, `GET/POST/DELETE /price-sheets` | Pantallas Fichas de costo y Fichas de precio |
+| [x] | `commerce` — pedidos online y cambio de estado | `GET/POST/PUT /online-orders` | Pantalla Pedidos online |
+| [x] | `audit` — traza, incidencias, salvas CID | `GET /audit`, `GET/POST /backups`, `POST /backups/restore`, `GET /backups/export`, `GET /errors` | Pantallas Traza y Salvas |
+| [x] | `master` — módulos, negocios, reinicio, usuarios | `GET/PUT /modules`, `GET /master/tenants`, `POST /master/tenants/create`, `POST /master/reset`, `GET/POST/PUT/DELETE /users` | Pantallas Master y Usuarios |
+| [ ] | Tests de domain (Vitest) de los use cases de fase 8 | — | Pendiente |
+
+**Reglas respetadas:** ninguna regla contable en `.svelte`; comunicación entre features solo por contratos de `domain/`; DI manual por feature; menú filtrado por `views` del backend.
+
+Fuera de alcance por ahora:
+
+| Feature | Motivo |
+|---------|--------|
+| — tienda / catálogo público | Producto, no MVP interno |
 
 ---
 

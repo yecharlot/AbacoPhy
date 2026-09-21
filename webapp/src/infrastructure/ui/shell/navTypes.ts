@@ -27,4 +27,16 @@ export const PLACEHOLDER_NAV: NavItem[] = [
   { id: 'cuentas', label: 'Cuentas', view: 'accounting' },
   { id: 'reportes', label: 'Reportes', view: 'accounting' },
   { id: 'tenant', label: 'Negocio', view: 'tenant' },
+  // Fase 8 — operaciones comerciales, comercio y gobernanza
+  { id: 'almacen', label: 'Almacén', view: 'almacen' },
+  { id: 'recepcion', label: 'Recepción', view: 'recepcion' },
+  { id: 'transferencias', label: 'Transferencias', view: 'almacen' },
+  { id: 'pos', label: 'Punto de venta', view: 'vendedor' },
+  { id: 'fichas-costo', label: 'Fichas de costo', view: 'fichas_costo' },
+  { id: 'fichas-precio', label: 'Fichas de precio', view: 'fichas_precio' },
+  { id: 'pedidos', label: 'Pedidos online', view: 'pedidos_online' },
+  { id: 'traza', label: 'Traza', view: 'traza' },
+  { id: 'salvas', label: 'Salvas', view: 'salvas' },
+  { id: 'usuarios', label: 'Usuarios', view: 'usuarios' },
+  { id: 'master', label: 'Master', view: 'master' },
 ];

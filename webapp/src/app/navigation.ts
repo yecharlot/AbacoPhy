@@ -36,6 +36,17 @@ export function screenTitle(id: ScreenId): string {
     reportes: 'Reportes y Balances',
     tenant: 'Configuración del Negocio',
     home: 'Inicio',
+    almacen: 'Almacén Central',
+    recepcion: 'Informes de Recepción',
+    transferencias: 'Transferencias a Unidades',
+    pos: 'Punto de Venta',
+    'fichas-costo': 'Fichas de Costo',
+    'fichas-precio': 'Fichas de Precio',
+    pedidos: 'Pedidos Online',
+    traza: 'Traza de Operaciones',
+    salvas: 'Salvas del Negocio',
+    usuarios: 'Usuarios y Roles',
+    master: 'Configuración Master',
   };
   return map[id] ?? id;
 }
