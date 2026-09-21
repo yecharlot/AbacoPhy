@@ -9,32 +9,20 @@
     children?: import('svelte').Snippet;
   }
 
-  let {
-    title,
-    online = true,
-    onMenu,
-    onToggleTheme,
-    children,
-  }: Props = $props();
+  let { title, online = true, onMenu, onToggleTheme, children }: Props = $props();
 </script>
 
 <div class="topbar">
   <div class="left">
-    <button type="button" class="menu-toggle" aria-label="Menú" on:click={() => onMenu?.()}>
-      ☰
-    </button>
+    <button type="button" class="menu-toggle" aria-label="Menú" on:click={() => onMenu?.()}>☰</button>
     <h1>{title}</h1>
   </div>
   <div class="right">
     <Badge tone={online ? 'ok' : 'off'}>{online ? 'En línea' : 'Sin conexión'}</Badge>
     {#if onToggleTheme}
-      <button type="button" class="theme-btn" aria-label="Cambiar tema" on:click={onToggleTheme}>
-        Tema
-      </button>
+      <button type="button" class="theme-btn" aria-label="Cambiar tema" on:click={onToggleTheme}>Tema</button>
     {/if}
-    {#if children}
-      {@render children()}
-    {/if}
+    {#if children}{@render children()}{/if}
   </div>
 </div>
 
@@ -44,7 +32,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    margin-bottom: 1rem;
+    margin-bottom: 1.25rem;
     flex-wrap: wrap;
   }
   .left {
@@ -54,9 +42,9 @@
   }
   h1 {
     margin: 0;
-    font-size: 1.25rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
+    font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+    font-weight: 500;
+    letter-spacing: -0.03em;
   }
   .right {
     display: flex;
@@ -66,27 +54,32 @@
   }
   .menu-toggle {
     display: none;
-    background: transparent;
-    border: 1px solid var(--ap-border);
-    border-radius: 10px;
-    padding: 7px 10px;
-    color: var(--ap-primary);
+    background: var(--color-surface, var(--ap-bg-elevated));
+    border: 1px solid var(--color-border, var(--ap-border));
+    border-radius: 12px;
+    padding: 8px 12px;
+    color: var(--color-text-primary, var(--ap-text));
     cursor: pointer;
     font-size: 1.1rem;
+    min-width: 44px;
+    min-height: 44px;
   }
   .theme-btn {
-    padding: 6px 12px;
-    border-radius: 20px;
-    border: 1px solid var(--ap-border);
-    background: transparent;
-    color: var(--ap-text-secondary);
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--color-border, var(--ap-border));
+    background: var(--color-surface, var(--ap-bg-elevated));
+    color: var(--color-text-secondary, var(--ap-text-secondary));
     cursor: pointer;
     font-size: 0.8rem;
     font-family: inherit;
+    min-height: 40px;
   }
-  @media (max-width: 900px) {
+  @media (max-width: 899px) {
     .menu-toggle {
       display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
   }
 </style>

@@ -51,30 +51,30 @@
 
 <style>
   .sidebar {
-    width: var(--ap-sidebar-w);
+    width: var(--sidebar-w, var(--ap-sidebar-w));
     position: fixed;
     inset: 0 auto 0 0;
     background: var(--ap-bg-sidebar);
-    border-right: 1px solid var(--ap-border);
+    border-right: 1px solid var(--color-border, var(--ap-border));
     display: flex;
     flex-direction: column;
     z-index: 100;
-    transition: transform 0.25s ease;
+    transition: transform 160ms ease-out;
   }
   .header {
-    padding: 1.15rem 1.1rem;
-    border-bottom: 1px solid var(--ap-border);
+    padding: 1.15rem 1rem;
+    border-bottom: 1px solid var(--color-border, var(--ap-border));
   }
   .header h3 {
     margin: 0;
-    font-size: 0.95rem;
-    font-weight: 800;
+    font-size: 1rem;
+    font-weight: 600;
   }
   .sub,
   .user {
     margin: 0.25rem 0 0;
     font-size: 0.75rem;
-    color: var(--ap-text-muted);
+    color: var(--color-text-muted, var(--ap-text-muted));
   }
   .nav {
     flex: 1;
@@ -82,12 +82,12 @@
     padding: 0.55rem 0 1.25rem;
   }
   .nav-item {
-    margin: 0.15rem 0.55rem;
-    padding: 0.7rem 0.9rem;
-    border-radius: 12px;
+    margin: 0.15rem 0.45rem;
+    padding: 0.7rem 0.95rem;
+    border-radius: 999px;
     display: flex;
-    width: calc(100% - 1.1rem);
-    color: var(--ap-text-secondary);
+    width: calc(100% - 0.9rem);
+    color: var(--color-text-secondary, var(--ap-text-secondary));
     font-weight: 500;
     font-size: 0.88rem;
     cursor: pointer;
@@ -97,16 +97,19 @@
     text-align: left;
   }
   .nav-item:hover {
-    background: var(--ap-primary-soft);
-    color: var(--ap-primary);
+    background: var(--color-surface-soft, var(--ap-primary-soft));
+    color: var(--color-text-primary, var(--ap-text));
   }
   .nav-item.active {
-    background: var(--ap-primary-soft);
-    color: var(--ap-primary);
-    border-left: 3px solid var(--ap-primary);
+    background: #f7f8fc;
+    color: #0a1210;
     font-weight: 600;
   }
-  @media (max-width: 900px) {
+  :global([data-theme='light']) .nav-item.active {
+    background: #12151f;
+    color: #f7f8fc;
+  }
+  @media (max-width: 899px) {
     .sidebar {
       transform: translateX(-100%);
       width: min(300px, 88vw);

@@ -34,11 +34,7 @@
 
 <div class="shell">
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div
-    class="overlay"
-    class:on={sidebarOpen}
-    on:click={() => (sidebarOpen = false)}
-  ></div>
+  <div class="overlay" class:on={sidebarOpen} on:click={() => (sidebarOpen = false)}></div>
   <Sidebar
     items={navItems}
     {activeId}
@@ -56,7 +52,7 @@
       onMenu={() => (sidebarOpen = !sidebarOpen)}
       {onToggleTheme}
     />
-    <div class="content">
+    <div class="content dashboard-container">
       {#if children}
         {@render children()}
       {/if}
@@ -67,26 +63,30 @@
 <style>
   .shell {
     min-height: 100dvh;
+    background: var(--color-bg, var(--ap-bg));
   }
   .overlay {
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.55);
     z-index: 90;
   }
   .overlay.on {
     display: block;
   }
   .main {
-    margin-left: var(--ap-sidebar-w);
-    padding: 1.25rem;
+    margin-left: var(--sidebar-w, var(--ap-sidebar-w));
+    padding: var(--page-padding, 1.25rem);
     min-height: 100dvh;
   }
-  @media (max-width: 900px) {
+  .dashboard-container {
+    width: min(100%, 1500px);
+    margin-inline: auto;
+  }
+  @media (max-width: 899px) {
     .main {
       margin-left: 0;
-      padding: 1rem;
     }
   }
 </style>
