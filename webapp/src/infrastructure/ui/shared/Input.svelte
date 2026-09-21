@@ -10,6 +10,7 @@
     required?: boolean;
     autocomplete?: HTMLInputAttributes['autocomplete'];
     disabled?: boolean;
+    step?: string;
     oninput?: (e: Event) => void;
   }
 
@@ -22,6 +23,7 @@
     required = false,
     autocomplete,
     disabled = false,
+    step,
     oninput,
   }: Props = $props();
 </script>
@@ -38,6 +40,7 @@
   {required}
   {autocomplete}
   {disabled}
+  {step}
   {oninput}
 />
 

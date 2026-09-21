@@ -18,6 +18,7 @@ export function filterNavByViews(items: NavItem[], views: string[] | null | unde
 /** Nav items phase 1–2 (placeholders + tenant). UI definitiva más adelante. */
 export const PLACEHOLDER_NAV: NavItem[] = [
   { id: 'home', label: 'Inicio', view: 'dashboard' },
+  { id: 'catalog', label: 'Catálogo', view: 'nomencladores' },
   { id: 'tenant', label: 'Negocio', view: 'tenant' },
   { id: 'demo-a', label: 'Pantalla A' },
   { id: 'demo-b', label: 'Pantalla B' },

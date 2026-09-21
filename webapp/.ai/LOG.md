@@ -43,6 +43,46 @@ Cada entrada relevante debe incluir: fecha, qué se hizo, por qué, archivos toc
 
 ---
 
+## 2026-10-24 — Implementación del Feature 7: Catalog (Catálogo / Nomencladores)
+
+### Qué
+- Implementación completa de la arquitectura Clean + Feature-First para la característica de Catálogo (`catalog`).
+- Creación de entidades de dominio: `Product`, `MeasureUnit` y `Currency`.
+- Implementación de los casos de uso (`GetProducts`, `CreateProduct`, `UpdateProduct`, `GetMeasureUnits`, `CreateMeasureUnit`, `DeleteMeasureUnit`, `GetCurrencies`).
+- Capa de datos con DTOs, mappers (`catalogMapper`), fuente remota (`CatalogRemoteSource`) e implementación del repositorio (`CatalogRepositoryImpl`).
+- Interfaz de usuario reactiva en Svelte 5 (`CatalogScreen.svelte`) organizada en pestañas utilizando los runes `$state` y `$derived`.
+- Integración en la navegación global y el shell de la aplicación (`App.svelte` y `navigation.ts`).
+
+### Por qué
+- Habilitar el mantenimiento del catálogo de productos y nomencladores base como prerrequisito para las futuras pantallas de inventario, facturación avanzada y POS.
+- Seguir los lineamientos estrictos de `AGENTS.md` (Clean Architecture, Feature-First, inyección manual, idioma inglés en código y español en UI).
+
+### Archivos
+| Ruta | Acción |
+|------|--------|
+| `webapp/src/features/catalog/domain/entities/Product.ts` | Creado |
+| `webapp/src/features/catalog/domain/entities/MeasureUnit.ts` | Creado |
+| `webapp/src/features/catalog/domain/entities/Currency.ts` | Creado |
+| `webapp/src/features/catalog/domain/repositories/CatalogRepository.ts` | Creado |
+| `webapp/src/features/catalog/domain/usecases/*` | Creados |
+| `webapp/src/features/catalog/data/dto/CatalogDto.ts` | Creado |
+| `webapp/src/features/catalog/data/mappers/catalogMapper.ts` | Creado |
+| `webapp/src/features/catalog/data/sources/CatalogRemoteSource.ts` | Creado |
+| `webapp/src/features/catalog/data/repositories/CatalogRepositoryImpl.ts` | Creado |
+| `webapp/src/features/catalog/ui/stores/catalogStore.ts` | Creado |
+| `webapp/src/features/catalog/ui/screens/CatalogScreen.svelte` | Creado |
+| `webapp/src/features/catalog/di/catalogModule.ts` | Creado |
+| `webapp/src/infrastructure/ui/shell/navTypes.ts` | Modificado |
+| `webapp/src/app/navigation.ts` | Modificado |
+| `webapp/src/app/App.svelte` | Modificado |
+| `webapp/.roadmap/mvp/IMPLEMENTATION_CHECKLIST.md` | Modificado |
+
+### Decisiones
+- Se separó la vista en tres pestañas dinámicas modernas dentro de la misma pantalla `CatalogScreen.svelte`.
+- El manejo de errores delega al estado visual del store para respetar la especificación de `idle | loading | success | error | empty`.
+
+---
+
 <!-- Plantilla para entradas futuras:
 
 ## YYYY-MM-DD — Título corto

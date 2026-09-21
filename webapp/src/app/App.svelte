@@ -14,8 +14,10 @@
   import { getScreen, setScreen, subscribeScreen, screenTitle } from './navigation';
   import { createIdentityModule } from '../features/identity/di';
   import { createTenantModule } from '../features/tenant/di';
+  import { createCatalogModule } from '../features/catalog/di/catalogModule';
   import LoginScreen from '../features/identity/ui/screens/LoginScreen.svelte';
   import TenantScreen from '../features/tenant/ui/screens/TenantScreen.svelte';
+  import CatalogScreen from '../features/catalog/ui/screens/CatalogScreen.svelte';
   import type { SessionState } from '../features/identity/ui/stores/sessionStore';
 
   const container = createAppContainer({
@@ -23,6 +25,7 @@
   });
   const { sessionStore } = createIdentityModule(container);
   const { tenantStore } = createTenantModule(container);
+  const { catalogStore } = createCatalogModule(container);
 
   let activeId = $state(getScreen());
   let online = $state(true);
@@ -143,6 +146,8 @@
       </Card>
     {:else if activeId === 'tenant'}
       <TenantScreen store={tenantStore} canEdit={canEditTenant} />
+    {:else if activeId === 'catalog'}
+      <CatalogScreen store={catalogStore} currencyCode="CUP" />
     {:else if activeId === 'demo-a'}
       <Card>
         <h2 style="margin-top:0">Pantalla A</h2>

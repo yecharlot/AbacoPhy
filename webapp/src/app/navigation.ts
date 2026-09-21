@@ -26,6 +26,7 @@ export function subscribeScreen(fn: (id: ScreenId) => void): () => void {
 export function screenTitle(id: ScreenId): string {
   const map: Record<string, string> = {
     home: 'Inicio',
+    catalog: 'Catálogo',
     tenant: 'Negocio',
     'demo-a': 'Pantalla A',
     'demo-b': 'Pantalla B',

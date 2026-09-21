@@ -180,9 +180,9 @@ Solo si se necesita para inventario/POS en la misma oleada.
 
 | Ítem | Estado MVP |
 |------|------------|
-| [ ] | Productos CRUD mínimo | — o incluir si warehouse/pos entran |
-| [ ] | Unidades de medida | — |
-| [ ] | Monedas (lectura) | — |
+| [x] | Productos CRUD mínimo | — o incluir si warehouse/pos entran |
+| [x] | Unidades de medida | — |
+| [x] | Monedas (lectura) | — |
 
 ---
 
