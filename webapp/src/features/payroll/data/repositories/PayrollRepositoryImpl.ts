@@ -1,21 +1,16 @@
 import type { HttpClient, HttpError } from '../../../../infrastructure/data/http';
-import type { CreateEmployeeInput, Employee } from '../../domain/entities/Employee';
-import type { CreatePayslipInput, Payslip } from '../../domain/entities/Payslip';
+import type { Employee } from '../../domain/entities/Employee';
+import type { Payslip } from '../../domain/entities/Payslip';
 import type { PayrollRepository } from '../../domain/repositories/PayrollRepository';
-import {
-  createEmployeeToDto,
-  createPayslipToDto,
-  employeeDtoToEntity,
-  payslipDtoToEntity,
-} from '../mappers/payrollMapper';
 import { PayrollRemoteSource } from '../sources/PayrollRemoteSource';
+import { payrollMapper } from '../mappers/payrollMapper';
 
 function toUserMessage(err: unknown): string {
   if (err && typeof err === 'object' && 'message' in err) {
     const msg = (err as HttpError).message;
     if (typeof msg === 'string' && msg.trim()) return msg;
   }
-  return 'No se pudo completar la operación';
+  return 'Error en gestión de nómina';
 }
 
 export class PayrollRepositoryImpl implements PayrollRepository {
@@ -25,47 +20,37 @@ export class PayrollRepositoryImpl implements PayrollRepository {
     this.remote = new PayrollRemoteSource(http);
   }
 
-  async listEmployees(): Promise<Employee[]> {
+  async getEmployees(): Promise<Employee[]> {
     try {
-      const dto = await this.remote.listEmployees();
-      const raw = dto.employees ?? dto.trabajadores ?? [];
-      return raw.map(employeeDtoToEntity);
+      const res = await this.remote.getEmployees();
+      return (res.employees || []).map(payrollMapper.toEmployee);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
   }
 
-  async createEmployee(input: CreateEmployeeInput): Promise<Employee> {
+  async createEmployee(employee: Omit<Employee, 'id' | 'active'>): Promise<Employee> {
     try {
-      const dto = await this.remote.createEmployee(createEmployeeToDto(input));
-      return employeeDtoToEntity(dto);
+      const dto = await this.remote.createEmployee(payrollMapper.toEmployeeDto(employee));
+      return payrollMapper.toEmployee(dto);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
   }
 
-  async listPayslips(): Promise<Payslip[]> {
+  async getPayslips(employeeId?: string): Promise<Payslip[]> {
     try {
-      const dto = await this.remote.listPayslips();
-      const raw = dto.payslips ?? dto.liquidaciones ?? [];
-      return raw.map(payslipDtoToEntity);
+      const res = await this.remote.getPayslips(employeeId);
+      return (res.payslips || []).map(payrollMapper.toPayslip);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
   }
 
-  async createPayslip(input: CreatePayslipInput): Promise<Payslip> {
+  async createPayslip(payslip: Omit<Payslip, 'id' | 'dateEmitted'>): Promise<Payslip> {
     try {
-      const dto = await this.remote.createPayslip(createPayslipToDto(input));
-      return payslipDtoToEntity(dto);
-    } catch (err) {
-      throw new Error(toUserMessage(err));
-    }
-  }
-
-  async downloadPdf(period: string): Promise<Blob> {
-    try {
-      return await this.remote.downloadPdf(period);
+      const dto = await this.remote.createPayslip(payrollMapper.toPayslipDto(payslip));
+      return payrollMapper.toPayslip(dto);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }

@@ -1,21 +1,18 @@
-import type { CreateEmployeeInput, Employee } from '../../domain/entities/Employee';
-import type { CreatePayslipInput, Payslip } from '../../domain/entities/Payslip';
-import type { CreateEmployee } from '../../domain/usecases/CreateEmployee';
-import type { CreatePayslip } from '../../domain/usecases/CreatePayslip';
-import type { DownloadPayrollPdf } from '../../domain/usecases/DownloadPayrollPdf';
+import type { Employee } from '../../domain/entities/Employee';
+import type { Payslip } from '../../domain/entities/Payslip';
 import type { ListEmployees } from '../../domain/usecases/ListEmployees';
+import type { CreateEmployee } from '../../domain/usecases/CreateEmployee';
 import type { ListPayslips } from '../../domain/usecases/ListPayslips';
+import type { CreatePayslip } from '../../domain/usecases/CreatePayslip';
 
-export type LoadStatus = 'idle' | 'loading' | 'success' | 'error' | 'empty';
+export type PayrollStatus = 'idle' | 'loading' | 'success' | 'error' | 'empty';
 
 export type PayrollState = {
-  employeesStatus: LoadStatus;
+  status: PayrollStatus;
   employees: Employee[];
-  payslipsStatus: LoadStatus;
   payslips: Payslip[];
   error: string | null;
   saving: boolean;
-  downloading: boolean;
 };
 
 type Deps = {
@@ -23,18 +20,15 @@ type Deps = {
   createEmployee: CreateEmployee;
   listPayslips: ListPayslips;
   createPayslip: CreatePayslip;
-  downloadPdf: DownloadPayrollPdf;
 };
 
 export function createPayrollStore(deps: Deps) {
   let state: PayrollState = {
-    employeesStatus: 'idle',
+    status: 'idle',
     employees: [],
-    payslipsStatus: 'idle',
     payslips: [],
     error: null,
     saving: false,
-    downloading: false,
   };
   const listeners = new Set<(s: PayrollState) => void>();
 
@@ -57,79 +51,54 @@ export function createPayrollStore(deps: Deps) {
       return state;
     },
     async loadEmployees(): Promise<void> {
-      set({ employeesStatus: 'loading', error: null });
+      set({ status: 'loading', error: null });
       try {
         const employees = await deps.listEmployees.execute();
         set({
+          status: employees.length ? 'success' : 'empty',
           employees,
-          employeesStatus: employees.length ? 'success' : 'empty',
+          error: null,
         });
       } catch (err) {
-        set({
-          employeesStatus: 'error',
-          error: err instanceof Error ? err.message : 'Error al cargar trabajadores',
-        });
+        const message = err instanceof Error ? err.message : 'Error al cargar empleados';
+        set({ status: 'error', error: message });
       }
     },
-    async loadPayslips(): Promise<void> {
-      set({ payslipsStatus: 'loading', error: null });
+    async loadPayslips(employeeId?: string): Promise<void> {
+      set({ status: 'loading', error: null });
       try {
-        const payslips = await deps.listPayslips.execute();
+        const payslips = await deps.listPayslips.execute(employeeId);
         set({
+          status: payslips.length ? 'success' : 'empty',
           payslips,
-          payslipsStatus: payslips.length ? 'success' : 'empty',
+          error: null,
         });
       } catch (err) {
-        set({
-          payslipsStatus: 'error',
-          error: err instanceof Error ? err.message : 'Error al cargar liquidaciones',
-        });
+        const message = err instanceof Error ? err.message : 'Error al cargar liquidaciones';
+        set({ status: 'error', error: message });
       }
     },
-    async createEmployee(input: CreateEmployeeInput): Promise<void> {
+    async addEmployee(employee: Omit<Employee, 'id' | 'active'>): Promise<void> {
       set({ saving: true, error: null });
       try {
-        await deps.createEmployee.execute(input);
+        await deps.createEmployee.execute(employee);
         set({ saving: false });
         await this.loadEmployees();
       } catch (err) {
-        set({
-          saving: false,
-          error: err instanceof Error ? err.message : 'Error al crear trabajador',
-        });
+        const message = err instanceof Error ? err.message : 'Error al registrar empleado';
+        set({ saving: false, error: message });
         throw err;
       }
     },
-    async createPayslip(input: CreatePayslipInput): Promise<void> {
+    async addPayslip(payslip: Omit<Payslip, 'id' | 'dateEmitted'>): Promise<void> {
       set({ saving: true, error: null });
       try {
-        await deps.createPayslip.execute(input);
+        await deps.createPayslip.execute(payslip);
         set({ saving: false });
         await this.loadPayslips();
       } catch (err) {
-        set({
-          saving: false,
-          error: err instanceof Error ? err.message : 'Error al crear liquidación',
-        });
-        throw err;
-      }
-    },
-    async downloadPdf(period: string): Promise<void> {
-      set({ downloading: true, error: null });
-      try {
-        const blob = await deps.downloadPdf.execute(period);
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `nomina-${period || 'all'}.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
-        set({ downloading: false });
-      } catch (err) {
-        set({
-          downloading: false,
-          error: err instanceof Error ? err.message : 'Error al descargar PDF',
-        });
+        const message = err instanceof Error ? err.message : 'Error al generar liquidación';
+        set({ saving: false, error: message });
         throw err;
       }
     },

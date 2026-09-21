@@ -15,11 +15,16 @@ export function filterNavByViews(items: NavItem[], views: string[] | null | unde
   return items.filter((i) => !i.view || set.has(i.view));
 }
 
-/** Nav items phase 1–2 (placeholders + tenant). UI definitiva más adelante. */
+/** Nav items phase 1–5 (MVPs). UI definitiva más adelante. */
 export const PLACEHOLDER_NAV: NavItem[] = [
-  { id: 'home', label: 'Inicio', view: 'dashboard' },
+  { id: 'dashboard', label: 'Resumen', view: 'dashboard' },
+  { id: 'ingresos', label: 'Ingresos', view: 'accounting' },
+  { id: 'gastos', label: 'Gastos', view: 'accounting' },
+  { id: 'facturas', label: 'Facturación', view: 'invoicing' },
+  { id: 'empleados', label: 'Empleados', view: 'payroll' },
+  { id: 'liquidaciones', label: 'Nómina', view: 'payroll' },
   { id: 'catalog', label: 'Catálogo', view: 'nomencladores' },
+  { id: 'cuentas', label: 'Cuentas', view: 'accounting' },
+  { id: 'reportes', label: 'Reportes', view: 'accounting' },
   { id: 'tenant', label: 'Negocio', view: 'tenant' },
-  { id: 'demo-a', label: 'Pantalla A' },
-  { id: 'demo-b', label: 'Pantalla B' },
 ];

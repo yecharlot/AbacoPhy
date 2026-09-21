@@ -1,34 +1,23 @@
 import type { HttpClient } from '../../../../infrastructure/data/http';
-import type {
-  CreateEmployeeRequestDto,
-  CreatePayslipRequestDto,
-  EmployeeDto,
-  EmployeesResponseDto,
-  PayslipDto,
-  PayslipsResponseDto,
-} from '../dto/PayrollDto';
+import type { EmployeeDto, PayslipDto } from '../dto/PayrollDto';
 
 export class PayrollRemoteSource {
   constructor(private readonly http: HttpClient) {}
 
-  listEmployees(): Promise<EmployeesResponseDto> {
-    return this.http.get<EmployeesResponseDto>('/payroll/employees');
+  getEmployees(): Promise<{ employees: EmployeeDto[] }> {
+    return this.http.get<{ employees: EmployeeDto[] }>('/payroll/employees');
   }
 
-  createEmployee(body: CreateEmployeeRequestDto): Promise<EmployeeDto> {
+  createEmployee(body: Partial<EmployeeDto>): Promise<EmployeeDto> {
     return this.http.post<EmployeeDto>('/payroll/employees', body);
   }
 
-  listPayslips(): Promise<PayslipsResponseDto> {
-    return this.http.get<PayslipsResponseDto>('/payroll/payslips');
+  getPayslips(employeeId?: string): Promise<{ payslips: PayslipDto[] }> {
+    const path = employeeId ? `/payroll/payslips?employee_id=${employeeId}` : '/payroll/payslips';
+    return this.http.get<{ payslips: PayslipDto[] }>(path);
   }
 
-  createPayslip(body: CreatePayslipRequestDto): Promise<PayslipDto> {
+  createPayslip(body: Partial<PayslipDto>): Promise<PayslipDto> {
     return this.http.post<PayslipDto>('/payroll/payslips', body);
-  }
-
-  downloadPdf(period: string): Promise<Blob> {
-    const q = encodeURIComponent(period);
-    return this.http.getBlob(`/payroll/pdf?period=${q}`);
   }
 }

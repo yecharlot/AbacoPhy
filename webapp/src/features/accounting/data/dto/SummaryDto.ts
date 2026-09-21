@@ -1,8 +1,8 @@
-export interface Equation {
+export interface SummaryDto {
   assets: number;
   liabilities: number;
   equity: number;
   income: number;
   expenses: number;
-  netProfit: number;
+  net_profit: number;
 }

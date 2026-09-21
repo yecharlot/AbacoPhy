@@ -1,65 +1,42 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Card } from '../../../../infrastructure/ui/shared';
-  import EntryForm from '../components/EntryForm.svelte';
   import type { AccountingStore, AccountingState } from '../stores/accountingStore';
+  import EntryForm from '../components/EntryForm.svelte';
 
   export let store: AccountingStore;
 
-  let state: AccountingState = store.getState();
-  let formError: string | null = null;
-  let okMsg = '';
+  let state: AccountingState = {
+    status: 'idle',
+    accounts: [],
+    entries: [],
+    summary: null,
+    error: null,
+    saving: false
+  };
 
   onMount(() => {
-    const unsub = store.subscribe((s) => {
-      state = s;
-    });
+    const unsub = store.subscribe(s => state = s);
     void store.loadAccounts();
     return unsub;
   });
 
-  async function handleSubmit(data: {
-    accountId: string;
-    amount: number;
-    description: string;
-    date?: string;
-  }) {
-    formError = null;
-    okMsg = '';
-    try {
-      await store.createIncome(data);
-      okMsg = 'Ingreso registrado';
-      setTimeout(() => {
-        okMsg = '';
-      }, 2500);
-    } catch (err) {
-      formError = err instanceof Error ? err.message : 'Error';
-    }
+  async function handleSubmit(data: any) {
+    await store.addIncome(data);
+    alert('Ingreso registrado correctamente');
   }
 </script>
 
 <Card>
-  <h2 style="margin-top:0">Ingresos</h2>
-  <p class="muted">La partida doble la aplica el backend.</p>
+  <h2 style="margin-top:0">Registrar Ingreso</h2>
+  <p style="color:var(--ap-text-secondary); margin-bottom:20px;">
+    Capture entradas de efectivo, cobros o cualquier incremento de activos.
+  </p>
+
   <EntryForm
+    type="income"
     accounts={state.accounts}
-    accountTypeFilter="income"
     saving={state.saving}
-    error={formError}
     onSubmit={handleSubmit}
   />
-  {#if okMsg}
-    <p class="ok">{okMsg}</p>
-  {/if}
 </Card>
-
-<style>
-  .muted {
-    color: var(--ap-text-secondary);
-    font-size: 0.9rem;
-  }
-  .ok {
-    color: var(--ap-ok);
-    font-size: 0.88rem;
-  }
-</style>

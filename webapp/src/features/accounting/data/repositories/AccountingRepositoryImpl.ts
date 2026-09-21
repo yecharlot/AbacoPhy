@@ -1,19 +1,10 @@
 import type { HttpClient, HttpError } from '../../../../infrastructure/data/http';
 import type { Account } from '../../domain/entities/Account';
-import type { CreateEntryInput, Entry } from '../../domain/entities/Entry';
-import type { Summary } from '../../domain/entities/Equation';
-import type {
-  AccountingRepository,
-  CreateEntryResult,
-} from '../../domain/repositories/AccountingRepository';
-import {
-  accountDtoToEntity,
-  createInputToDto,
-  createResponseToResult,
-  entryDtoToEntity,
-  summaryDtoToEntity,
-} from '../mappers/accountingMapper';
+import type { Entry } from '../../domain/entities/Entry';
+import type { Equation } from '../../domain/entities/Equation';
+import type { AccountingRepository } from '../../domain/repositories/AccountingRepository';
 import { AccountingRemoteSource } from '../sources/AccountingRemoteSource';
+import { accountingMapper } from '../mappers/accountingMapper';
 
 function toUserMessage(err: unknown): string {
   if (err && typeof err === 'object' && 'message' in err) {
@@ -30,38 +21,37 @@ export class AccountingRepositoryImpl implements AccountingRepository {
     this.remote = new AccountingRemoteSource(http);
   }
 
-  async listAccounts(): Promise<Account[]> {
+  async getAccounts(): Promise<Account[]> {
     try {
-      const dto = await this.remote.listAccounts();
-      return (dto.accounts ?? []).map(accountDtoToEntity);
+      const res = await this.remote.getAccounts();
+      return (res.accounts || []).map(accountingMapper.toAccount);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
   }
 
-  async listEntries(): Promise<Entry[]> {
+  async getEntries(params?: { type?: string; limit?: number }): Promise<Entry[]> {
     try {
-      const dto = await this.remote.listEntries();
-      const raw = dto.entries ?? dto.asientos ?? [];
-      return raw.map(entryDtoToEntity);
+      const res = await this.remote.getEntries(params);
+      return (res.entries || []).map(accountingMapper.toEntry);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
   }
 
-  async createEntry(input: CreateEntryInput): Promise<CreateEntryResult> {
-    try {
-      const dto = await this.remote.createEntry(createInputToDto(input));
-      return createResponseToResult(dto);
-    } catch (err) {
-      throw new Error(toUserMessage(err));
-    }
-  }
-
-  async getSummary(): Promise<Summary> {
+  async getSummary(): Promise<Equation> {
     try {
       const dto = await this.remote.getSummary();
-      return summaryDtoToEntity(dto);
+      return accountingMapper.toEquation(dto);
+    } catch (err) {
+      throw new Error(toUserMessage(err));
+    }
+  }
+
+  async createEntry(entry: Omit<Entry, 'id'>): Promise<Entry> {
+    try {
+      const dto = await this.remote.createEntry(accountingMapper.toEntryDto(entry));
+      return accountingMapper.toEntry(dto);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }

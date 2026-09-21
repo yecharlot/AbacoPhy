@@ -1,35 +1,15 @@
-export type InvoiceStatus = 'draft' | 'issued' | 'paid' | 'cancelled';
+import type { InvoiceLine } from './InvoiceLine';
 
-export type InvoiceLine = {
-  description: string;
-  qty: number;
-  unitPrice: number;
-};
-
-export type Invoice = {
+export interface Invoice {
   id: string;
   number: string;
-  clientName: string;
-  clientTax: string;
+  date: string;
+  customerId: string;
+  customerName: string;
   lines: InvoiceLine[];
-  tax: number;
   subtotal: number;
+  tax: number;
   total: number;
-  status: InvoiceStatus;
-  issuedAt: string;
-  cid?: string;
-};
-
-export type EmitInvoiceInput = {
-  clientName: string;
-  clientTax?: string;
-  lines: InvoiceLine[];
-  tax?: number;
-  status?: 'issued' | 'paid' | 'draft';
-  issuedAt?: string;
-};
-
-export type EmitInvoiceResult = {
-  invoice: Invoice;
-  entryId?: string;
-};
+  currency: string;
+  status: 'draft' | 'emitted' | 'paid' | 'cancelled';
+}

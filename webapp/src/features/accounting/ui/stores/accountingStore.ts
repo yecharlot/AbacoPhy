@@ -1,21 +1,19 @@
 import type { Account } from '../../domain/entities/Account';
 import type { Entry } from '../../domain/entities/Entry';
-import type { Summary } from '../../domain/entities/Equation';
-import type { CreateExpenseEntry } from '../../domain/usecases/CreateExpenseEntry';
-import type { CreateIncomeEntry } from '../../domain/usecases/CreateIncomeEntry';
-import type { GetSummary } from '../../domain/usecases/GetSummary';
+import type { Equation } from '../../domain/entities/Equation';
 import type { ListAccounts } from '../../domain/usecases/ListAccounts';
 import type { ListEntries } from '../../domain/usecases/ListEntries';
+import type { GetSummary } from '../../domain/usecases/GetSummary';
+import type { CreateIncomeEntry } from '../../domain/usecases/CreateIncomeEntry';
+import type { CreateExpenseEntry } from '../../domain/usecases/CreateExpenseEntry';
 
-export type LoadStatus = 'idle' | 'loading' | 'success' | 'error' | 'empty';
+export type AccountingStatus = 'idle' | 'loading' | 'success' | 'error' | 'empty';
 
 export type AccountingState = {
-  accountsStatus: LoadStatus;
+  status: AccountingStatus;
   accounts: Account[];
-  entriesStatus: LoadStatus;
   entries: Entry[];
-  summaryStatus: LoadStatus;
-  summary: Summary | null;
+  summary: Equation | null;
   error: string | null;
   saving: boolean;
 };
@@ -23,18 +21,16 @@ export type AccountingState = {
 type Deps = {
   listAccounts: ListAccounts;
   listEntries: ListEntries;
+  getSummary: GetSummary;
   createIncome: CreateIncomeEntry;
   createExpense: CreateExpenseEntry;
-  getSummary: GetSummary;
 };
 
 export function createAccountingStore(deps: Deps) {
   let state: AccountingState = {
-    accountsStatus: 'idle',
+    status: 'idle',
     accounts: [],
-    entriesStatus: 'idle',
     entries: [],
-    summaryStatus: 'idle',
     summary: null,
     error: null,
     saving: false,
@@ -59,83 +55,73 @@ export function createAccountingStore(deps: Deps) {
     getState(): AccountingState {
       return state;
     },
+    async loadDashboard(): Promise<void> {
+      set({ status: 'loading', error: null });
+      try {
+        const [accounts, entries, summary] = await Promise.all([
+          deps.listAccounts.execute().catch(() => []),
+          deps.listEntries.execute({ limit: 10 }).catch(() => []),
+          deps.getSummary.execute(),
+        ]);
+        set({
+          status: 'success',
+          accounts,
+          entries,
+          summary,
+          error: null,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Error al cargar resumen contable';
+        set({ status: 'error', error: message });
+      }
+    },
     async loadAccounts(): Promise<void> {
-      set({ accountsStatus: 'loading', error: null });
+      set({ status: 'loading', error: null });
       try {
         const accounts = await deps.listAccounts.execute();
         set({
+          status: accounts.length ? 'success' : 'empty',
           accounts,
-          accountsStatus: accounts.length ? 'success' : 'empty',
+          error: null,
         });
       } catch (err) {
-        set({
-          accountsStatus: 'error',
-          error: err instanceof Error ? err.message : 'Error al cargar cuentas',
-        });
+        const message = err instanceof Error ? err.message : 'Error al cargar cuentas';
+        set({ status: 'error', error: message });
       }
     },
-    async loadEntries(): Promise<void> {
-      set({ entriesStatus: 'loading', error: null });
+    async loadEntries(params?: { type?: string; limit?: number }): Promise<void> {
+      set({ status: 'loading', error: null });
       try {
-        const entries = await deps.listEntries.execute();
+        const entries = await deps.listEntries.execute(params);
         set({
+          status: entries.length ? 'success' : 'empty',
           entries,
-          entriesStatus: entries.length ? 'success' : 'empty',
+          error: null,
         });
       } catch (err) {
-        set({
-          entriesStatus: 'error',
-          error: err instanceof Error ? err.message : 'Error al cargar asientos',
-        });
+        const message = err instanceof Error ? err.message : 'Error al cargar asientos';
+        set({ status: 'error', error: message });
       }
     },
-    async loadSummary(): Promise<void> {
-      set({ summaryStatus: 'loading', error: null });
-      try {
-        const summary = await deps.getSummary.execute();
-        set({ summary, summaryStatus: 'success' });
-      } catch (err) {
-        set({
-          summaryStatus: 'error',
-          error: err instanceof Error ? err.message : 'Error al cargar resumen',
-        });
-      }
-    },
-    async createIncome(input: {
-      accountId: string;
-      amount: number;
-      description: string;
-      date?: string;
-    }): Promise<void> {
+    async addIncome(entry: Omit<Entry, 'id' | 'type'>): Promise<void> {
       set({ saving: true, error: null });
       try {
-        await deps.createIncome.execute(input);
+        await deps.createIncome.execute(entry);
         set({ saving: false });
-        await Promise.all([this.loadSummary(), this.loadEntries(), this.loadAccounts()]);
       } catch (err) {
-        set({
-          saving: false,
-          error: err instanceof Error ? err.message : 'Error al registrar ingreso',
-        });
+        const message = err instanceof Error ? err.message : 'Error al registrar ingreso';
+        set({ saving: false, error: message });
         throw err;
       }
     },
-    async createExpense(input: {
-      accountId: string;
-      amount: number;
-      description: string;
-      date?: string;
-    }): Promise<void> {
+    async addExpense(entry: Omit<Entry, 'id' | 'type'>): Promise<void> {
       set({ saving: true, error: null });
       try {
-        await deps.createExpense.execute(input);
+        await deps.createExpense.execute(entry);
         set({ saving: false });
-        await Promise.all([this.loadSummary(), this.loadEntries(), this.loadAccounts()]);
       } catch (err) {
-        set({
-          saving: false,
-          error: err instanceof Error ? err.message : 'Error al registrar gasto',
-        });
+        const message = err instanceof Error ? err.message : 'Error al registrar gasto';
+        set({ saving: false, error: message });
         throw err;
       }
     },

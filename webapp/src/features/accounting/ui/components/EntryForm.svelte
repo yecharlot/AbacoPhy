@@ -2,98 +2,95 @@
   import { Button, Input } from '../../../../infrastructure/ui/shared';
   import type { Account } from '../../domain/entities/Account';
 
+  export let type: 'income' | 'expense' = 'income';
   export let accounts: Account[] = [];
-  export let accountTypeFilter: 'income' | 'expense' = 'income';
   export let saving = false;
-  export let error: string | null = null;
-  export let onSubmit: (data: {
-    accountId: string;
-    amount: number;
-    description: string;
-    date?: string;
-  }) => void | Promise<void>;
+  export let onSubmit: (data: any) => Promise<void>;
 
+  let date = new Date().toISOString().split('T')[0];
+  let concept = '';
+  let amount = '';
   let accountId = '';
-  let amountStr = '';
-  let description = '';
-  let date = '';
+  let category = '';
+  let error = '';
 
-  $: filtered = accounts.filter((a) => a.type === accountTypeFilter);
+  $: filteredAccounts = accounts.filter(a =>
+    type === 'income' ? (a.type === 'asset' || a.type === 'income') : (a.type === 'asset' || a.type === 'expense')
+  );
 
-  async function handleSubmit() {
-    if (saving) return;
-    const amount = Number(amountStr.replace(',', '.'));
-    await onSubmit({
-      accountId,
-      amount,
-      description,
-      date: date || undefined,
-    });
-    amountStr = '';
-    description = '';
+  async function handleSubmit(e: Event) {
+    e.preventDefault();
+    if (!concept || !amount || !accountId) {
+      error = 'Complete los campos obligatorios';
+      return;
+    }
+    error = '';
+    try {
+      await onSubmit({
+        date,
+        concept,
+        amount: parseFloat(amount),
+        currency: accounts.find(a => a.id === accountId)?.currency || 'CUP',
+        accountId,
+        category
+      });
+      concept = '';
+      amount = '';
+      category = '';
+    } catch (err: any) {
+      error = err.message || 'Error al guardar';
+    }
   }
 </script>
 
-<form
-  on:submit|preventDefault={handleSubmit}
->
-  <label class="lbl" for="entry-account">Cuenta</label>
-  <select id="entry-account" class="sel" bind:value={accountId} disabled={saving} required>
-    <option value="">— seleccionar —</option>
-    {#each filtered as a (a.id)}
-      <option value={a.id}>{a.code} · {a.name}</option>
-    {/each}
-  </select>
+<form on:submit={handleSubmit} class="form">
+  <Input id="e-date" label="Fecha" type="date" bind:value={date} required disabled={saving} />
+  <Input id="e-concept" label="Concepto / Detalle" bind:value={concept} required disabled={saving} />
 
-  <Input
-    id="entry-amount"
-    label="Importe"
-    type="number"
-    bind:value={amountStr}
-    disabled={saving}
-    required
-  />
-  <Input
-    id="entry-desc"
-    label="Descripción"
-    bind:value={description}
-    disabled={saving}
-    required
-  />
-  <Input id="entry-date" label="Fecha (opcional)" type="text" placeholder="YYYY-MM-DD" bind:value={date} disabled={saving} />
+  <div class="row">
+    <Input id="e-amount" label="Importe" type="number" step="0.01" bind:value={amount} required disabled={saving} />
+    <div class="field">
+      <label class="lbl" for="e-acc">Cuenta</label>
+      <select id="e-acc" class="select-inp" bind:value={accountId} required disabled={saving}>
+        <option value="">Seleccionar...</option>
+        {#each filteredAccounts as acc}
+          <option value={acc.id}>{acc.name} ({acc.currency})</option>
+        {/each}
+      </select>
+    </div>
+  </div>
+
+  <Input id="e-cat" label="Categoría (opcional)" bind:value={category} disabled={saving} />
 
   {#if error}
-    <p class="err" role="alert">{error}</p>
+    <p class="err">{error}</p>
   {/if}
 
   <Button type="submit" disabled={saving}>
-    {saving ? 'Guardando…' : accountTypeFilter === 'income' ? 'Registrar ingreso' : 'Registrar gasto'}
+    {saving ? 'Guardando...' : type === 'income' ? 'Registrar Ingreso' : 'Registrar Gasto'}
   </Button>
 </form>
 
 <style>
+  .form { display: flex; flex-direction: column; gap: 8px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .lbl {
     display: block;
     font-size: 0.65rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--ap-text-muted);
-    margin-bottom: 5px;
+    margin-bottom: 6px;
   }
-  .sel {
+  .select-inp {
     width: 100%;
-    padding: 11px 13px;
-    margin-bottom: 0.75rem;
-    background: var(--ap-bg);
+    padding: 12px 14px;
+    background: var(--color-surface-soft, var(--ap-bg));
     border: 1px solid var(--ap-border);
     border-radius: 12px;
     color: var(--ap-text);
     font-family: inherit;
-    font-size: 0.92rem;
   }
-  .err {
-    color: var(--ap-danger);
-    font-size: 0.88rem;
-  }
+  .err { color: var(--ap-danger); font-size: 0.85rem; margin: 4px 0; }
 </style>

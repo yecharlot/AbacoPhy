@@ -1,9 +1,10 @@
-import type { Employee } from '../entities/Employee';
 import type { PayrollRepository } from '../repositories/PayrollRepository';
+import type { Employee } from '../entities/Employee';
 
 export class ListEmployees {
-  constructor(private readonly repo: PayrollRepository) {}
-  execute(): Promise<Employee[]> {
-    return this.repo.listEmployees();
+  constructor(private repository: PayrollRepository) {}
+
+  async execute(): Promise<Employee[]> {
+    return this.repository.getEmployees();
   }
 }

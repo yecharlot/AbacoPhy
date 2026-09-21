@@ -1,9 +1,8 @@
-export type AccountType = 'asset' | 'liability' | 'equity' | 'income' | 'expense';
-
-export type Account = {
+export interface Account {
   id: string;
   code: string;
   name: string;
-  type: AccountType;
+  type: 'asset' | 'liability' | 'equity' | 'income' | 'expense';
   balance: number;
-};
+  currency: string;
+}

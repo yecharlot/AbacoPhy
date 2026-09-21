@@ -1,20 +1,13 @@
-export type PayslipStatus = 'draft' | 'paid' | 'cancelled';
-
-export type Payslip = {
+export interface Payslip {
   id: string;
   employeeId: string;
-  employeeName?: string;
-  period: string;
-  gross: number;
+  employeeName: string;
+  periodStart: string;
+  periodEnd: string;
+  baseAmount: number;
+  bonus: number;
   deductions: number;
-  net: number;
-  status: PayslipStatus;
-};
-
-export type CreatePayslipInput = {
-  employeeId: string;
-  period: string;
-  gross: number;
-  deductions?: number;
-  status?: PayslipStatus;
-};
+  totalNet: number;
+  currency: string;
+  dateEmitted: string;
+}

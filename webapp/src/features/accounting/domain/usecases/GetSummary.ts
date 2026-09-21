@@ -1,10 +1,10 @@
-import type { Summary } from '../entities/Equation';
 import type { AccountingRepository } from '../repositories/AccountingRepository';
+import type { Equation } from '../entities/Equation';
 
 export class GetSummary {
-  constructor(private readonly repo: AccountingRepository) {}
+  constructor(private repository: AccountingRepository) {}
 
-  execute(): Promise<Summary> {
-    return this.repo.getSummary();
+  async execute(): Promise<Equation> {
+    return this.repository.getSummary();
   }
 }

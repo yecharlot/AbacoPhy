@@ -1,10 +1,9 @@
-import type { InvoiceRepository } from '../repositories/InvoiceRepository';
+import type { InvoicingRepository } from '../repositories/InvoicingRepository';
 
 export class DownloadInvoicePdf {
-  constructor(private readonly repo: InvoiceRepository) {}
+  constructor(private repository: InvoicingRepository) {}
 
-  execute(id: string): Promise<Blob> {
-    if (!id) throw new Error('Factura no válida');
-    return this.repo.downloadPdf(id);
+  async execute(id: string): Promise<Blob> {
+    return this.repository.getInvoicePdf(id);
   }
 }

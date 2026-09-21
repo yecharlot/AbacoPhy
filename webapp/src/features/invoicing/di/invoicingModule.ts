@@ -1,23 +1,24 @@
 import type { AppContainer } from '../../../infrastructure/di';
-import { InvoiceRepositoryImpl } from '../data/repositories/InvoiceRepositoryImpl';
-import { DownloadInvoicePdf, EmitInvoice, ListInvoices } from '../domain/usecases';
-import { createInvoiceStore, type InvoiceStore } from '../ui/stores/invoiceStore';
+import { InvoicingRepositoryImpl } from '../data/repositories/InvoicingRepositoryImpl';
+import { ListInvoices } from '../domain/usecases/ListInvoices';
+import { EmitInvoice } from '../domain/usecases/EmitInvoice';
+import { DownloadInvoicePdf } from '../domain/usecases/DownloadInvoicePdf';
+import { createInvoicingStore } from '../ui/stores/invoicingStore';
 
-export type InvoicingModule = {
-  invoiceStore: InvoiceStore;
-};
+export function createInvoicingModule(container: AppContainer) {
+  const repository = new InvoicingRepositoryImpl(container.http);
 
-export function createInvoicingModule(container: AppContainer): InvoicingModule {
-  const repo = new InvoiceRepositoryImpl(container.http);
-  const listInvoices = new ListInvoices(repo);
-  const emitInvoice = new EmitInvoice(repo);
-  const downloadPdf = new DownloadInvoicePdf(repo);
+  const listInvoices = new ListInvoices(repository);
+  const emitInvoice = new EmitInvoice(repository);
+  const downloadPdf = new DownloadInvoicePdf(repository);
 
-  const invoiceStore = createInvoiceStore({
+  const invoicingStore = createInvoicingStore({
     listInvoices,
     emitInvoice,
     downloadPdf,
   });
 
-  return { invoiceStore };
+  return {
+    invoicingStore,
+  };
 }

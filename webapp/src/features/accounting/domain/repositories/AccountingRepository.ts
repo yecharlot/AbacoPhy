@@ -1,17 +1,10 @@
 import type { Account } from '../entities/Account';
-import type { CreateEntryInput, Entry } from '../entities/Entry';
-import type { Equation, Summary } from '../entities/Equation';
-
-export type CreateEntryResult = {
-  entry: Entry;
-  equation: Equation | null;
-  rev?: number;
-  rootCid?: string;
-};
+import type { Entry } from '../entities/Entry';
+import type { Equation } from '../entities/Equation';
 
 export interface AccountingRepository {
-  listAccounts(): Promise<Account[]>;
-  listEntries(): Promise<Entry[]>;
-  createEntry(input: CreateEntryInput): Promise<CreateEntryResult>;
-  getSummary(): Promise<Summary>;
+  getAccounts(): Promise<Account[]>;
+  getEntries(params?: { type?: string; limit?: number }): Promise<Entry[]>;
+  getSummary(): Promise<Equation>;
+  createEntry(entry: Omit<Entry, 'id'>): Promise<Entry>;
 }

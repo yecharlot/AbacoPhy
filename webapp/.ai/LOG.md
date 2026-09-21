@@ -83,6 +83,37 @@ Cada entrada relevante debe incluir: fecha, qué se hizo, por qué, archivos toc
 
 ---
 
+## 2024-10-27 — Implementación Fases 3, 4 y 5: Accounting, Invoicing y Payroll
+
+### Qué
+- Consolidación de extremo a extremo de las características contables, facturación y nómina.
+- **Accounting:** Dashboard con ecuación contable, registro de ingresos/gastos, plan de cuentas y reportes.
+- **Invoicing:** Listado de facturas, emisión con líneas de detalle y descarga de PDF.
+- **Payroll:** Gestión de empleados y procesamiento de liquidaciones de nómina.
+- Arquitectura Clean: Entidades, Casos de Uso, Repositorios (Impl + Remote Source), Mappers y Stores UI.
+- Integración global en `App.svelte` con navegación filtrada por permisos.
+
+### Por qué
+- Completar el núcleo funcional del MVP según el roadmap definido.
+- Asegurar la consistencia arquitectónica y el cumplimiento de las reglas de gobernanza en `AGENTS.md`.
+
+### Archivos
+| Ruta | Acción |
+|------|--------|
+| `webapp/src/features/accounting/**/*` | Creados |
+| `webapp/src/features/invoicing/**/*` | Creados |
+| `webapp/src/features/payroll/**/*` | Creados |
+| `webapp/src/infrastructure/ui/shell/navTypes.ts` | Modificado |
+| `webapp/src/app/navigation.ts` | Modificado |
+| `webapp/src/app/App.svelte` | Modificado |
+
+### Decisiones
+- Se eliminaron archivos legacy y duplicados en las carpetas de las features para evitar conflictos de tipos.
+- Se ajustaron los tipos de entrada en los componentes compartidos (`Input`) para manejar strings y evitar errores de asignación de Svelte 5.
+- La navegación se expandió para incluir todas las nuevas pantallas operativas.
+
+---
+
 <!-- Plantilla para entradas futuras:
 
 ## YYYY-MM-DD — Título corto

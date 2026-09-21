@@ -1,22 +1,12 @@
-export type EntryType = 'income' | 'expense' | 'transfer';
-
-export type Entry = {
+export interface Entry {
   id: string;
-  type: EntryType;
-  accountId: string;
-  amount: number;
-  description: string;
-  counterpart?: string;
   date: string;
-  currency: string;
-};
-
-export type CreateEntryInput = {
-  type: 'income' | 'expense';
-  accountId: string;
+  concept: string;
+  type: 'income' | 'expense' | 'transfer' | 'adjustment';
   amount: number;
-  description: string;
-  counterpart?: string;
-  date?: string;
-  currency?: string;
-};
+  currency: string;
+  accountId: string;
+  accountName?: string;
+  category?: string;
+  tags?: string[];
+}

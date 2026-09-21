@@ -1,59 +1,62 @@
-import type { CreateEmployeeInput, Employee } from '../../domain/entities/Employee';
-import type { CreatePayslipInput, Payslip, PayslipStatus } from '../../domain/entities/Payslip';
-import type {
-  CreateEmployeeRequestDto,
-  CreatePayslipRequestDto,
-  EmployeeDto,
-  PayslipDto,
-} from '../dto/PayrollDto';
+import type { EmployeeDto, PayslipDto } from '../dto/PayrollDto';
+import type { Employee } from '../../domain/entities/Employee';
+import type { Payslip } from '../../domain/entities/Payslip';
 
-const STATUSES: PayslipStatus[] = ['draft', 'paid', 'cancelled'];
+export const payrollMapper = {
+  toEmployee(dto: EmployeeDto): Employee {
+    return {
+      id: dto.id,
+      code: dto.code,
+      firstName: dto.first_name,
+      lastName: dto.last_name,
+      identityCard: dto.identity_card,
+      position: dto.position,
+      salaryBase: dto.salary_base,
+      currency: dto.currency,
+      hiringDate: dto.hiring_date,
+      active: dto.active,
+    };
+  },
 
-function asStatus(v: string | undefined): PayslipStatus {
-  return STATUSES.includes(v as PayslipStatus) ? (v as PayslipStatus) : 'paid';
-}
+  toEmployeeDto(entity: Omit<Employee, 'id' | 'active'>): Partial<EmployeeDto> {
+    return {
+      code: entity.code,
+      first_name: entity.firstName,
+      last_name: entity.lastName,
+      identity_card: entity.identityCard,
+      position: entity.position,
+      salary_base: entity.salaryBase,
+      currency: entity.currency,
+      hiring_date: entity.hiringDate,
+    };
+  },
 
-export function employeeDtoToEntity(dto: EmployeeDto): Employee {
-  return {
-    id: String(dto.id ?? ''),
-    name: String(dto.name ?? ''),
-    idNumber: String(dto.id_number ?? dto.idNumber ?? ''),
-    position: String(dto.position ?? ''),
-    salary: Number(dto.salary ?? 0),
-    active: dto.active !== false,
-  };
-}
+  toPayslip(dto: PayslipDto): Payslip {
+    return {
+      id: dto.id,
+      employeeId: dto.employee_id,
+      employeeName: dto.employee_name,
+      periodStart: dto.period_start,
+      periodEnd: dto.period_end,
+      baseAmount: dto.base_amount,
+      bonus: dto.bonus,
+      deductions: dto.deductions,
+      totalNet: dto.total_net,
+      currency: dto.currency,
+      dateEmitted: dto.date_emitted,
+    };
+  },
 
-export function createEmployeeToDto(input: CreateEmployeeInput): CreateEmployeeRequestDto {
-  return {
-    name: input.name,
-    id_number: input.idNumber,
-    position: input.position,
-    salary: input.salary,
-  };
-}
-
-export function payslipDtoToEntity(dto: PayslipDto): Payslip {
-  const gross = Number(dto.gross ?? 0);
-  const deductions = Number(dto.deductions ?? 0);
-  return {
-    id: String(dto.id ?? ''),
-    employeeId: String(dto.employee_id ?? dto.employeeId ?? ''),
-    employeeName: dto.employee_name ?? dto.employeeName,
-    period: String(dto.period ?? ''),
-    gross,
-    deductions,
-    net: Number(dto.net ?? gross - deductions),
-    status: asStatus(dto.status),
-  };
-}
-
-export function createPayslipToDto(input: CreatePayslipInput): CreatePayslipRequestDto {
-  return {
-    employee_id: input.employeeId,
-    period: input.period,
-    gross: input.gross,
-    deductions: input.deductions,
-    status: input.status ?? 'paid',
-  };
-}
+  toPayslipDto(entity: Omit<Payslip, 'id' | 'dateEmitted'>): Partial<PayslipDto> {
+    return {
+      employee_id: entity.employeeId,
+      period_start: entity.periodStart,
+      period_end: entity.periodEnd,
+      base_amount: entity.baseAmount,
+      bonus: entity.bonus,
+      deductions: entity.deductions,
+      total_net: entity.totalNet,
+      currency: entity.currency,
+    };
+  },
+};

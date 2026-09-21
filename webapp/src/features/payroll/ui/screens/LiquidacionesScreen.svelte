@@ -5,205 +5,139 @@
 
   export let store: PayrollStore;
 
-  let state: PayrollState = store.getState();
+  let state: PayrollState = {
+    status: 'idle',
+    employees: [],
+    payslips: [],
+    error: null,
+    saving: false
+  };
+
   let showForm = false;
   let employeeId = '';
-  let period = '';
-  let grossStr = '';
-  let deductionsStr = '0';
-  let formError: string | null = null;
-  let okMsg = '';
-  let pdfPeriod = '';
+  let periodStart = '';
+  let periodEnd = '';
+  let bonus = '0';
+  let deductions = '0';
 
   onMount(() => {
-    const unsub = store.subscribe((s) => {
-      state = s;
-    });
+    const unsub = store.subscribe(s => state = s);
     void store.loadEmployees();
     void store.loadPayslips();
-    const now = new Date();
-    period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    pdfPeriod = period;
     return unsub;
   });
 
-  async function handleCreate() {
-    formError = null;
-    okMsg = '';
-    try {
-      await store.createPayslip({
-        employeeId,
-        period,
-        gross: Number(grossStr.replace(',', '.')) || 0,
-        deductions: Number(deductionsStr.replace(',', '.')) || 0,
-        status: 'paid',
-      });
-      okMsg = 'Liquidación registrada';
-      showForm = false;
-      grossStr = '';
-      deductionsStr = '0';
-      setTimeout(() => {
-        okMsg = '';
-      }, 2500);
-    } catch (err) {
-      formError = err instanceof Error ? err.message : 'Error';
-    }
-  }
+  $: selectedEmployee = state.employees.find(e => e.id === employeeId);
+  $: baseAmount = selectedEmployee?.salaryBase || 0;
+  $: currency = selectedEmployee?.currency || 'CUP';
+  $: totalNet = baseAmount + (parseFloat(bonus) || 0) - (parseFloat(deductions) || 0);
 
-  async function handlePdf() {
+  async function handleSubmit() {
+    if (!employeeId || !periodStart || !periodEnd) return;
     try {
-      await store.downloadPdf(pdfPeriod || 'all');
-    } catch {
-      /* in state */
-    }
+      await store.addPayslip({
+        employeeId,
+        employeeName: `${selectedEmployee?.firstName} ${selectedEmployee?.lastName}`,
+        periodStart,
+        periodEnd,
+        baseAmount,
+        bonus: parseFloat(bonus) || 0,
+        deductions: parseFloat(deductions) || 0,
+        totalNet,
+        currency
+      });
+      showForm = false;
+    } catch { /* handled in store */ }
   }
 </script>
 
 <Card>
-  <div class="head">
-    <h2 style="margin:0">Liquidaciones</h2>
-    <div class="actions">
-      <Button variant="secondary" on:click={() => (showForm = !showForm)}>
-        {showForm ? 'Ver listado' : 'Nueva'}
-      </Button>
-    </div>
-  </div>
-  <p class="muted">Las tasas / deducciones legales las aplica o valida el backend según configuración del negocio.</p>
-  {#if okMsg}<p class="ok">{okMsg}</p>{/if}
-  {#if state.error && !formError}<p class="err" role="alert">{state.error}</p>{/if}
-
-  <div class="pdf-row">
-    <Input id="pdf-period" label="Periodo PDF" bind:value={pdfPeriod} placeholder="YYYY-MM o all" disabled={state.downloading} />
-    <Button variant="secondary" disabled={state.downloading} on:click={handlePdf}>
-      {state.downloading ? 'Descargando…' : 'PDF nómina'}
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <h2 style="margin:0">Liquidaciones de Nómina</h2>
+    <Button on:click={() => showForm = !showForm}>
+      {showForm ? 'Cancelar' : '+ Nueva Liquidación'}
     </Button>
   </div>
-</Card>
 
-{#if showForm}
-  <Card>
-    <h3 style="margin-top:0">Nueva liquidación</h3>
-    <form on:submit|preventDefault={handleCreate}>
-      <label class="lbl" for="pay-emp">Trabajador</label>
-      <select id="pay-emp" class="sel" bind:value={employeeId} disabled={state.saving} required>
-        <option value="">— seleccionar —</option>
-        {#each state.employees as e (e.id)}
-          <option value={e.id}>{e.name}</option>
-        {/each}
-      </select>
-      <Input id="pay-period" label="Periodo (YYYY-MM)" bind:value={period} disabled={state.saving} required />
-      <Input id="pay-gross" label="Bruto" bind:value={grossStr} disabled={state.saving} required />
-      <Input id="pay-ded" label="Deducciones" bind:value={deductionsStr} disabled={state.saving} />
-      {#if formError}<p class="err" role="alert">{formError}</p>{/if}
-      <Button type="submit" disabled={state.saving}>{state.saving ? 'Guardando…' : 'Registrar'}</Button>
-    </form>
-  </Card>
-{:else if state.payslipsStatus === 'loading' && state.payslips.length === 0}
-  <Card><p class="muted">Cargando…</p></Card>
-{:else if state.payslips.length === 0}
-  <Card><p class="muted">Sin liquidaciones</p></Card>
-{:else}
-  <Card>
-    <div class="table-wrap">
-      <table>
+  {#if showForm}
+    <div class="form">
+      <div class="field">
+        <label class="lbl">Empleado</label>
+        <select class="select-inp" bind:value={employeeId} disabled={state.saving}>
+          <option value="">Seleccionar empleado...</option>
+          {#each state.employees as emp}
+            <option value={emp.id}>{emp.firstName} {emp.lastName} ({emp.position})</option>
+          {/each}
+        </select>
+      </div>
+
+      <div class="row">
+        <Input label="Inicio Periodo" type="date" bind:value={periodStart} />
+        <Input label="Fin Periodo" type="date" bind:value={periodEnd} />
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label class="lbl">Salario Base</label>
+          <div class="readonly-val"><Money amount={baseAmount} {currency} /></div>
+        </div>
+        <Input label="Bonos / Extras" type="number" step="0.01" bind:value={bonus} />
+        <Input label="Deducciones" type="number" step="0.01" bind:value={deductions} />
+      </div>
+
+      <div class="total-preview">
+        <span>Neto a Pagar:</span>
+        <span class="net-val"><Money amount={totalNet} {currency} /></span>
+      </div>
+
+      <Button on:click={handleSubmit} disabled={state.saving || !employeeId}>
+        {state.saving ? 'Procesando...' : 'Generar Liquidación'}
+      </Button>
+    </div>
+  {:else}
+    <div class="table-container">
+      <table class="data-table">
         <thead>
           <tr>
+            <th>Fecha</th>
+            <th>Empleado</th>
             <th>Periodo</th>
-            <th>Trabajador</th>
-            <th class="num">Bruto</th>
-            <th class="num">Deduc.</th>
-            <th class="num">Neto</th>
-            <th>Estado</th>
+            <th style="text-align:right">Neto</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
-          {#each state.payslips as p (p.id)}
-            <tr>
-              <td>{p.period}</td>
-              <td>{p.employeeName || p.employeeId.slice(0, 8)}</td>
-              <td class="num"><Money amount={p.gross} /></td>
-              <td class="num"><Money amount={p.deductions} /></td>
-              <td class="num"><Money amount={p.net} /></td>
-              <td>{p.status}</td>
-            </tr>
-          {/each}
+          {#if state.payslips.length === 0}
+            <tr><td colspan="5" style="text-align:center; padding:20px; color:var(--ap-text-muted)">No hay liquidaciones procesadas</td></tr>
+          {:else}
+            {#each state.payslips as ps}
+              <tr>
+                <td>{ps.dateEmitted}</td>
+                <td>{ps.employeeName}</td>
+                <td style="font-size:0.8rem">{ps.periodStart} al {ps.periodEnd}</td>
+                <td style="text-align:right; font-weight:600"><Money amount={ps.totalNet} currency={ps.currency} /></td>
+                <td style="text-align:right">
+                  <Button variant="ghost" size="sm">Ver</Button>
+                </td>
+              </tr>
+            {/each}
+          {/if}
         </tbody>
       </table>
     </div>
-  </Card>
-{/if}
+  {/if}
+</Card>
 
 <style>
-  .head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-  }
-  .actions {
-    display: flex;
-    gap: 0.5rem;
-  }
-  .muted {
-    color: var(--color-text-muted, var(--ap-text-muted));
-    font-size: 0.88rem;
-  }
-  .err {
-    color: var(--accent-red, var(--ap-danger));
-    font-size: 0.88rem;
-  }
-  .ok {
-    color: var(--accent-green, var(--ap-ok));
-    font-size: 0.88rem;
-  }
-  .pdf-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 0.75rem;
-    margin-top: 0.75rem;
-  }
-  .lbl {
-    display: block;
-    font-size: 0.65rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--color-text-muted, var(--ap-text-muted));
-    margin-bottom: 5px;
-  }
-  .sel {
-    width: 100%;
-    padding: 11px 13px;
-    margin-bottom: 0.75rem;
-    background: var(--color-surface-soft, var(--ap-bg));
-    border: 1px solid var(--color-border, var(--ap-border));
-    border-radius: 12px;
-    color: var(--color-text-primary, var(--ap-text));
-    font-family: inherit;
-    font-size: 0.92rem;
-  }
-  .table-wrap {
-    overflow-x: auto;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.88rem;
-  }
-  th,
-  td {
-    text-align: left;
-    padding: 0.45rem 0.35rem;
-    border-bottom: 1px solid var(--color-border, var(--ap-border));
-  }
-  th {
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    color: var(--color-text-muted, var(--ap-text-muted));
-  }
-  .num {
-    text-align: right;
-  }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px; }
+  .form { display: flex; flex-direction: column; gap: 8px; }
+  .lbl { display: block; font-size: 0.65rem; font-weight: 600; text-transform: uppercase; color: var(--ap-text-muted); margin-bottom: 6px; }
+  .select-inp { width: 100%; padding: 12px; background: var(--ap-bg); border: 1px solid var(--ap-border); border-radius: 12px; }
+  .readonly-val { padding: 12px; background: var(--color-surface-soft); border-radius: 8px; font-weight: 500; }
+  .total-preview { display: flex; justify-content: space-between; align-items: center; padding: 16px; background: rgba(97, 230, 225, 0.05); border-radius: 12px; margin: 12px 0; }
+  .net-val { font-size: 1.25rem; font-weight: 700; color: var(--ap-primary); }
+
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  .data-table th { text-align: left; padding: 12px; border-bottom: 2px solid var(--ap-border); color: var(--ap-text-secondary); }
+  .data-table td { padding: 12px; border-bottom: 1px solid var(--ap-border); }
 </style>

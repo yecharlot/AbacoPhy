@@ -1,47 +1,26 @@
-export type EmployeeDto = {
-  id?: string;
-  name?: string;
-  id_number?: string;
-  idNumber?: string;
-  position?: string;
-  salary?: number;
-  active?: boolean;
-};
+export interface EmployeeDto {
+  id: string;
+  code: string;
+  first_name: string;
+  last_name: string;
+  identity_card: string;
+  position: string;
+  salary_base: number;
+  currency: string;
+  hiring_date: string;
+  active: boolean;
+}
 
-export type EmployeesResponseDto = {
-  employees?: EmployeeDto[];
-  trabajadores?: EmployeeDto[];
-};
-
-export type CreateEmployeeRequestDto = {
-  name: string;
-  id_number?: string;
-  position?: string;
-  salary: number;
-};
-
-export type PayslipDto = {
-  id?: string;
-  employee_id?: string;
-  employeeId?: string;
-  employee_name?: string;
-  employeeName?: string;
-  period?: string;
-  gross?: number;
-  deductions?: number;
-  net?: number;
-  status?: string;
-};
-
-export type PayslipsResponseDto = {
-  payslips?: PayslipDto[];
-  liquidaciones?: PayslipDto[];
-};
-
-export type CreatePayslipRequestDto = {
+export interface PayslipDto {
+  id: string;
   employee_id: string;
-  period: string;
-  gross: number;
-  deductions?: number;
-  status?: string;
-};
+  employee_name: string;
+  period_start: string;
+  period_end: string;
+  base_amount: number;
+  bonus: number;
+  deductions: number;
+  total_net: number;
+  currency: string;
+  date_emitted: string;
+}

@@ -5,141 +5,123 @@
 
   export let store: PayrollStore;
 
-  let state: PayrollState = store.getState();
+  let state: PayrollState = {
+    status: 'idle',
+    employees: [],
+    payslips: [],
+    error: null,
+    saving: false
+  };
+
   let showForm = false;
-  let name = '';
-  let idNumber = '';
+  let code = '';
+  let firstName = '';
+  let lastName = '';
+  let identityCard = '';
   let position = '';
-  let salaryStr = '';
-  let formError: string | null = null;
-  let okMsg = '';
+  let salaryBase = '';
+  let currency = 'CUP';
+  let hiringDate = new Date().toISOString().split('T')[0];
 
   onMount(() => {
-    const unsub = store.subscribe((s) => {
-      state = s;
-    });
+    const unsub = store.subscribe(s => state = s);
     void store.loadEmployees();
     return unsub;
   });
 
-  async function handleCreate() {
-    formError = null;
-    okMsg = '';
+  async function handleSubmit() {
+    if (!firstName || !lastName || !identityCard) return;
     try {
-      await store.createEmployee({
-        name,
-        idNumber: idNumber || undefined,
-        position: position || undefined,
-        salary: Number(salaryStr.replace(',', '.')) || 0,
+      await store.addEmployee({
+        code,
+        firstName,
+        lastName,
+        identityCard,
+        position,
+        salaryBase: parseFloat(salaryBase) || 0,
+        currency,
+        hiringDate
       });
-      okMsg = 'Trabajador creado';
-      name = '';
-      idNumber = '';
-      position = '';
-      salaryStr = '';
       showForm = false;
-      setTimeout(() => {
-        okMsg = '';
-      }, 2500);
-    } catch (err) {
-      formError = err instanceof Error ? err.message : 'Error';
-    }
+      // Reset form
+      code = ''; firstName = ''; lastName = ''; identityCard = ''; position = ''; salaryBase = '';
+    } catch { /* handled in store */ }
   }
 </script>
 
 <Card>
-  <div class="head">
-    <h2 style="margin:0">Trabajadores</h2>
-    <Button variant="secondary" on:click={() => (showForm = !showForm)}>
-      {showForm ? 'Ver listado' : 'Nuevo'}
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <h2 style="margin:0">Empleados</h2>
+    <Button on:click={() => showForm = !showForm}>
+      {showForm ? 'Cancelar' : '+ Nuevo Empleado'}
     </Button>
   </div>
-  {#if okMsg}<p class="ok">{okMsg}</p>{/if}
-  {#if state.error && !formError}<p class="err" role="alert">{state.error}</p>{/if}
-</Card>
 
-{#if showForm}
-  <Card>
-    <h3 style="margin-top:0">Alta</h3>
-    <form on:submit|preventDefault={handleCreate}>
-      <Input id="emp-name" label="Nombre" bind:value={name} disabled={state.saving} required />
-      <Input id="emp-id" label="CI / Id." bind:value={idNumber} disabled={state.saving} />
-      <Input id="emp-pos" label="Cargo" bind:value={position} disabled={state.saving} />
-      <Input id="emp-sal" label="Salario base" bind:value={salaryStr} disabled={state.saving} required />
-      {#if formError}<p class="err" role="alert">{formError}</p>{/if}
-      <Button type="submit" disabled={state.saving}>{state.saving ? 'Guardando…' : 'Guardar'}</Button>
-    </form>
-  </Card>
-{:else if state.employeesStatus === 'loading' && state.employees.length === 0}
-  <Card><p class="muted">Cargando…</p></Card>
-{:else if state.employees.length === 0}
-  <Card><p class="muted">Sin trabajadores</p></Card>
-{:else}
-  <Card>
-    <div class="table-wrap">
-      <table>
+  {#if showForm}
+    <div class="form">
+      <div class="row">
+        <Input label="Código / Ficha" bind:value={code} />
+        <Input label="Carné de Identidad" bind:value={identityCard} required />
+      </div>
+      <div class="row">
+        <Input label="Nombre(s)" bind:value={firstName} required />
+        <Input label="Apellidos" bind:value={lastName} required />
+      </div>
+      <div class="row">
+        <Input label="Cargo / Puesto" bind:value={position} />
+        <Input label="Fecha Contratación" type="date" bind:value={hiringDate} />
+      </div>
+      <div class="row">
+        <Input label="Salario Base" type="number" step="0.01" bind:value={salaryBase} />
+        <Input label="Moneda" bind:value={currency} />
+      </div>
+      <Button on:click={handleSubmit} disabled={state.saving}>
+        {state.saving ? 'Guardando...' : 'Registrar Empleado'}
+      </Button>
+    </div>
+  {:else}
+    <div class="table-container">
+      <table class="data-table">
         <thead>
           <tr>
+            <th>Código</th>
             <th>Nombre</th>
             <th>CI</th>
             <th>Cargo</th>
-            <th class="num">Salario</th>
+            <th style="text-align:right">Salario Base</th>
+            <th style="text-align:center">Estado</th>
           </tr>
         </thead>
         <tbody>
-          {#each state.employees as e (e.id)}
-            <tr>
-              <td>{e.name}</td>
-              <td>{e.idNumber || '—'}</td>
-              <td>{e.position || '—'}</td>
-              <td class="num"><Money amount={e.salary} /></td>
-            </tr>
-          {/each}
+          {#if state.employees.length === 0}
+            <tr><td colspan="6" style="text-align:center; padding:20px; color:var(--ap-text-muted)">No hay empleados registrados</td></tr>
+          {:else}
+            {#each state.employees as emp}
+              <tr>
+                <td><code>{emp.code}</code></td>
+                <td>{emp.firstName} {emp.lastName}</td>
+                <td>{emp.identityCard}</td>
+                <td>{emp.position}</td>
+                <td style="text-align:right"><Money amount={emp.salaryBase} currency={emp.currency} /></td>
+                <td style="text-align:center">
+                  <span class="badge" class:active={emp.active}>{emp.active ? 'Activo' : 'Baja'}</span>
+                </td>
+              </tr>
+            {/each}
+          {/if}
         </tbody>
       </table>
     </div>
-  </Card>
-{/if}
+  {/if}
+</Card>
 
 <style>
-  .head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-  }
-  .muted {
-    color: var(--color-text-muted, var(--ap-text-muted));
-  }
-  .err {
-    color: var(--accent-red, var(--ap-danger));
-    font-size: 0.88rem;
-  }
-  .ok {
-    color: var(--accent-green, var(--ap-ok));
-    font-size: 0.88rem;
-  }
-  .table-wrap {
-    overflow-x: auto;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.88rem;
-  }
-  th,
-  td {
-    text-align: left;
-    padding: 0.45rem 0.35rem;
-    border-bottom: 1px solid var(--color-border, var(--ap-border));
-  }
-  th {
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    color: var(--color-text-muted, var(--ap-text-muted));
-  }
-  .num {
-    text-align: right;
-  }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px; }
+  .form { display: flex; flex-direction: column; gap: 4px; }
+  .table-container { overflow-x: auto; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  .data-table th { text-align: left; padding: 12px; border-bottom: 2px solid var(--ap-border); color: var(--ap-text-secondary); }
+  .data-table td { padding: 12px; border-bottom: 1px solid var(--ap-border); }
+  .badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; background: var(--ap-text-muted); color: white; }
+  .badge.active { background: var(--ap-ok); }
 </style>

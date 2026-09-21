@@ -25,11 +25,17 @@ export function subscribeScreen(fn: (id: ScreenId) => void): () => void {
 
 export function screenTitle(id: ScreenId): string {
   const map: Record<string, string> = {
+    dashboard: 'Tablero de Control',
+    ingresos: 'Registro de Ingresos',
+    gastos: 'Registro de Gastos',
+    facturas: 'Gestión de Facturas',
+    empleados: 'Gestión de Empleados',
+    liquidaciones: 'Liquidación de Nómina',
+    catalog: 'Catálogo / Nomencladores',
+    cuentas: 'Plan de Cuentas',
+    reportes: 'Reportes y Balances',
+    tenant: 'Configuración del Negocio',
     home: 'Inicio',
-    catalog: 'Catálogo',
-    tenant: 'Negocio',
-    'demo-a': 'Pantalla A',
-    'demo-b': 'Pantalla B',
   };
   return map[id] ?? id;
 }

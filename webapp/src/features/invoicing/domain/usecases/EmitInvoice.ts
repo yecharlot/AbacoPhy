@@ -1,25 +1,10 @@
-import type { EmitInvoiceInput, EmitInvoiceResult } from '../entities/Invoice';
-import type { InvoiceRepository } from '../repositories/InvoiceRepository';
+import type { InvoicingRepository } from '../repositories/InvoicingRepository';
+import type { Invoice } from '../entities/Invoice';
 
 export class EmitInvoice {
-  constructor(private readonly repo: InvoiceRepository) {}
+  constructor(private repository: InvoicingRepository) {}
 
-  async execute(input: EmitInvoiceInput): Promise<EmitInvoiceResult> {
-    if (!input.clientName?.trim()) {
-      throw new Error('Indique el nombre del cliente');
-    }
-    if (!input.lines?.length) {
-      throw new Error('Añada al menos una línea');
-    }
-    for (const line of input.lines) {
-      if (!line.description?.trim()) throw new Error('Cada línea necesita descripción');
-      if (!(line.qty > 0)) throw new Error('La cantidad debe ser mayor que 0');
-      if (!(line.unitPrice >= 0)) throw new Error('El precio unitario no puede ser negativo');
-    }
-    return this.repo.emit({
-      ...input,
-      clientName: input.clientName.trim(),
-      status: input.status ?? 'issued',
-    });
+  async execute(invoice: Omit<Invoice, 'id' | 'number' | 'status'>): Promise<Invoice> {
+    return this.repository.emitInvoice(invoice);
   }
 }

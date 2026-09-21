@@ -1,15 +1,12 @@
-export type Employee = {
+export interface Employee {
   id: string;
-  name: string;
-  idNumber: string;
+  code: string;
+  firstName: string;
+  lastName: string;
+  identityCard: string;
   position: string;
-  salary: number;
+  salaryBase: number;
+  currency: string;
+  hiringDate: string;
   active: boolean;
-};
-
-export type CreateEmployeeInput = {
-  name: string;
-  idNumber?: string;
-  position?: string;
-  salary: number;
-};
+}

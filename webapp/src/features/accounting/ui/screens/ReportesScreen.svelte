@@ -1,78 +1,46 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { Card, Money } from '../../../../infrastructure/ui/shared';
-  import type { AccountingStore, AccountingState } from '../stores/accountingStore';
-
-  export let store: AccountingStore;
-
-  let state: AccountingState = store.getState();
-
-  onMount(() => {
-    const unsub = store.subscribe((s) => {
-      state = s;
-    });
-    void store.loadEntries();
-    void store.loadSummary();
-    return unsub;
-  });
+  import { Card } from '../../../../infrastructure/ui/shared';
 </script>
 
 <Card>
-  <h2 style="margin-top:0">Reportes / asientos</h2>
-  {#if state.entriesStatus === 'loading' && state.entries.length === 0}
-    <p class="muted">Cargando…</p>
-  {:else if state.entries.length === 0}
-    <p class="muted">Sin asientos</p>
-  {:else}
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Fecha</th>
-            <th>Tipo</th>
-            <th>Descripción</th>
-            <th class="num">Importe</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each state.entries as e (e.id)}
-            <tr>
-              <td>{e.date || '—'}</td>
-              <td>{e.type}</td>
-              <td>{e.description}</td>
-              <td class="num"><Money amount={e.amount} /></td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+  <h2 style="margin-top:0">Reportes Contables</h2>
+  <p style="color:var(--ap-text-secondary)">
+    Generación de balances, estados de resultados y libros auxiliares.
+  </p>
+
+  <div class="reports-grid">
+    <div class="report-card">
+      <h4>Balance de Comprobación</h4>
+      <p>Resumen de saldos de todas las cuentas.</p>
     </div>
-  {/if}
+    <div class="report-card">
+      <h4>Estado de Resultados</h4>
+      <p>Pérdidas y ganancias en un periodo.</p>
+    </div>
+    <div class="report-card">
+      <h4>Libro Diario</h4>
+      <p>Cronológico de todos los asientos.</p>
+    </div>
+  </div>
 </Card>
 
 <style>
-  .muted {
-    color: var(--ap-text-muted);
+  .reports-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
   }
-  .table-wrap {
-    overflow-x: auto;
+  .report-card {
+    padding: 16px;
+    border: 1px solid var(--ap-border);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
   }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.88rem;
+  .report-card:hover {
+    background: var(--color-surface-soft, var(--ap-bg));
   }
-  th,
-  td {
-    text-align: left;
-    padding: 0.45rem 0.35rem;
-    border-bottom: 1px solid var(--ap-border);
-  }
-  th {
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    color: var(--ap-text-muted);
-  }
-  .num {
-    text-align: right;
-  }
+  .report-card h4 { margin: 0 0 8px 0; color: var(--ap-primary); }
+  .report-card p { margin: 0; font-size: 0.85rem; color: var(--ap-text-secondary); }
 </style>
