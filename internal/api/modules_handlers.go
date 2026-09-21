@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/yecharlot/AbacoPhy/internal/auth"
 	"github.com/yecharlot/AbacoPhy/internal/domain"
 )
 
@@ -16,8 +15,8 @@ func (s *Server) handleMeasureUnits(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := auth.RequireView(sess, "measure_units"); err != nil {
-		if err2 := auth.RequireView(sess, "nomencladores"); err2 != nil {
+	if err := s.gate(sess, "measure_units"); err != nil {
+		if err2 := s.gate(sess, "nomencladores"); err2 != nil {
 			writeJSON(w, 403, map[string]string{"error": "forbidden"})
 			return
 		}
@@ -123,7 +122,7 @@ func (s *Server) handlePriceSheets(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := auth.RequireView(sess, "fichas_precio"); err != nil {
+	if err := s.gate(sess, "fichas_precio"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
 		return
 	}
@@ -260,7 +259,7 @@ func (s *Server) handleOnlineOrders(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := auth.RequireView(sess, "pedidos_online"); err != nil {
+	if err := s.gate(sess, "pedidos_online"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
 		return
 	}

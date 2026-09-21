@@ -116,6 +116,15 @@ func (s *Server) sess(r *http.Request) (*domain.TokenSession, error) {
 	return auth.SessionFromRequest(s.Store, r.Header.Get("Authorization"))
 }
 
+// gate: rol + módulos del negocio + módulos del usuario.
+func (s *Server) gate(sess *domain.TokenSession, view string) error {
+	if sess == nil {
+		return auth.ErrUnauthorized
+	}
+	snap := s.Store.Get(sess.TenantID)
+	return auth.RequireAccess(snap, sess, view)
+}
+
 func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{
 		"name":        "ÁbacoPhy",
@@ -154,7 +163,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			"id": user.ID, "username": user.Username, "display_name": user.DisplayName,
 			"role": user.Role, "tenant_id": user.TenantID,
 		},
-		"views": viewsForRole(user.Role, s.Store.Get(tok.TenantID)), "modules": modulesPayload(s.Store.Get(tok.TenantID)),
+		"views": viewsForUser(user.Role, s.Store.Get(tok.TenantID), user), "modules": modulesPayload(s.Store.Get(tok.TenantID)), "user_modules": user.Modules,
 	})
 }
 
@@ -166,12 +175,16 @@ func publicUser(u *domain.User) map[string]any {
 	return map[string]any{
 		"id": u.ID, "username": u.Username, "display_name": u.DisplayName,
 		"role": u.Role, "tenant_id": u.TenantID, "active": u.Active,
-		"created_at": u.CreatedAt, "updated_at": u.UpdatedAt,
+		"modules": u.Modules,
 	}
 }
 
 func viewsForRole(role string, snap *domain.StoreSnapshot) []string {
 	return auth.ViewsForRole(role, snap)
+}
+
+func viewsForUser(role string, snap *domain.StoreSnapshot, user *domain.User) []string {
+	return auth.ViewsForUser(role, snap, user)
 }
 
 func modulesPayload(snap *domain.StoreSnapshot) map[string]bool {
@@ -217,9 +230,13 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	umods := map[string]bool(nil)
+	if user != nil {
+		umods = user.Modules
+	}
 	writeJSON(w, 200, map[string]any{
 		"user": publicUser(user), "tenant": snap.Tenant, "rev": snap.Rev, "root_cid": snap.RootCID,
-		"views": viewsForRole(sess.Role, snap), "modules": modulesPayload(snap),
+		"views": viewsForUser(sess.Role, snap, user), "modules": modulesPayload(snap), "user_modules": umods,
 	})
 }
 
@@ -229,7 +246,7 @@ func (s *Server) handleTenant(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := auth.RequireView(sess, "tenant"); err != nil {
+	if err := s.gate(sess, "tenant"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
 		return
 	}
@@ -300,8 +317,8 @@ func (s *Server) handleAccounts(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case http.MethodGet:
-		if err := auth.RequireView(sess, "cuentas"); err != nil {
-			if err2 := auth.RequireView(sess, "reportes"); err2 != nil {
+		if err := s.gate(sess, "cuentas"); err != nil {
+			if err2 := s.gate(sess, "reportes"); err2 != nil {
 				writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 				return
 			}
@@ -314,7 +331,7 @@ func (s *Server) handleAccounts(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, 200, map[string]any{"accounts": list, "rev": snap.Rev, "ecuacion": domain.EquationSnapshot(snap)})
 	case http.MethodPost:
-		if err := auth.RequireView(sess, "cuentas"); err != nil {
+		if err := s.gate(sess, "cuentas"); err != nil {
 			writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 			return
 		}
@@ -336,7 +353,7 @@ func (s *Server) handleAccounts(w http.ResponseWriter, r *http.Request) {
 		_ = s.Store.Put(snap)
 		writeJSON(w, 201, body)
 	case http.MethodPut, http.MethodPatch:
-		if err := auth.RequireView(sess, "cuentas"); err != nil {
+		if err := s.gate(sess, "cuentas"); err != nil {
 			writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 			return
 		}
@@ -370,7 +387,7 @@ func (s *Server) handleAccounts(w http.ResponseWriter, r *http.Request) {
 		_ = s.Store.Put(snap)
 		writeJSON(w, 200, acc)
 	case http.MethodDelete:
-		if err := auth.RequireView(sess, "cuentas"); err != nil {
+		if err := s.gate(sess, "cuentas"); err != nil {
 			writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 			return
 		}
@@ -408,7 +425,7 @@ func (s *Server) handleEntries(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		view := "reportes"
-		if err := auth.RequireView(sess, view); err != nil {
+		if err := s.gate(sess, view); err != nil {
 			writeJSON(w, 403, map[string]string{"error": "forbidden"})
 			return
 		}
@@ -423,7 +440,7 @@ func (s *Server) handleEntries(w http.ResponseWriter, r *http.Request) {
 		if body.Type == "expense" {
 			view = "gastos"
 		}
-		if err := auth.RequireView(sess, view); err != nil {
+		if err := s.gate(sess, view); err != nil {
 			writeJSON(w, 403, map[string]string{"error": "forbidden"})
 			return
 		}
@@ -455,7 +472,7 @@ func (s *Server) handleInventory(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "inventario"); err != nil {
+	if err := s.gate(sess, "inventario"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -603,7 +620,7 @@ func (s *Server) handleEmployees(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "nomina"); err != nil {
+	if err := s.gate(sess, "nomina"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -725,7 +742,7 @@ func (s *Server) handlePayslips(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "nomina"); err != nil {
+	if err := s.gate(sess, "nomina"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -820,7 +837,7 @@ func (s *Server) handleInvoices(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := auth.RequireView(sess, "facturas"); err != nil {
+	if err := s.gate(sess, "facturas"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
 		return
 	}
@@ -887,7 +904,7 @@ func (s *Server) handleSync(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := auth.RequireView(sess, "sync"); err != nil {
+	if err := s.gate(sess, "sync"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
 		return
 	}
@@ -912,7 +929,7 @@ func (s *Server) handleSyncPush(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := auth.RequireView(sess, "sync"); err != nil {
+	if err := s.gate(sess, "sync"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
 		return
 	}
@@ -964,7 +981,7 @@ func (s *Server) handleMasterTenants(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := auth.RequireView(sess, "master"); err != nil {
+	if err := s.gate(sess, "master"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
 		return
 	}
@@ -978,7 +995,7 @@ func (s *Server) handleReportsSummary(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := auth.RequireView(sess, "reportes"); err != nil {
+	if err := s.gate(sess, "reportes"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
 		return
 	}
@@ -1038,7 +1055,7 @@ func (s *Server) handleMasterCreateTenant(w http.ResponseWriter, r *http.Request
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := auth.RequireView(sess, "master"); err != nil {
+	if err := s.gate(sess, "master"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
 		return
 	}
@@ -1103,7 +1120,7 @@ func (s *Server) handleInvoicePDF(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "facturas"); err != nil {
+	if err := s.gate(sess, "facturas"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -1213,6 +1230,12 @@ func EnsureBootstrap(st *store.Store) error {
 		if snap.MeasureUnits == nil || len(snap.MeasureUnits) == 0 {
 			snap.MeasureUnits = domain.DefaultMeasureUnits(snap.Tenant.ID)
 			changed = true
+		}
+		for _, u := range snap.Users {
+			if u != nil && u.Modules == nil {
+				u.Modules = auth.DefaultModulesForRole(u.Role)
+				changed = true
+			}
 		}
 		if snap.PriceSheets == nil {
 			snap.PriceSheets = map[string]*domain.PriceSheet{}

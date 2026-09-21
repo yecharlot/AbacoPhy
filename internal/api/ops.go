@@ -69,7 +69,7 @@ func (s *Server) handleProducts(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "productos"); err != nil {
+	if err := s.gate(sess, "productos"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -196,7 +196,7 @@ func (s *Server) handleSalesUnits(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "unidades"); err != nil {
+	if err := s.gate(sess, "unidades"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -243,7 +243,7 @@ func (s *Server) handleWarehouse(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "almacen"); err != nil {
+	if err := s.gate(sess, "almacen"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -288,7 +288,7 @@ func (s *Server) handleReceptions(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "recepcion"); err != nil {
+	if err := s.gate(sess, "recepcion"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -403,7 +403,7 @@ func (s *Server) handleTransfers(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "almacen"); err != nil {
+	if err := s.gate(sess, "almacen"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -481,7 +481,7 @@ func (s *Server) handlePOSSales(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "vendedor"); err != nil {
+	if err := s.gate(sess, "vendedor"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -596,7 +596,7 @@ func (s *Server) handleCostSheets(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "fichas_costo"); err != nil {
+	if err := s.gate(sess, "fichas_costo"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -671,7 +671,7 @@ func (s *Server) handleJobPositions(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "cargos"); err != nil {
+	if err := s.gate(sess, "cargos"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -749,7 +749,7 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "usuarios"); err != nil {
+	if err := s.gate(sess, "usuarios"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -805,22 +805,24 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 			ID: uuid.NewString(), TenantID: sess.TenantID,
 			Username: strings.TrimSpace(body.Username), DisplayName: body.DisplayName,
 			Role: body.Role, PasswordHash: hash, Active: true,
+			Modules: auth.DefaultModulesForRole(body.Role),
 			CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
 		}
 		if u.DisplayName == "" {
 			u.DisplayName = u.Username
 		}
 		snap.Users[u.ID] = u
-		s.audit(snap, sess, "usuario.alta", "Alta usuario "+u.Username+" rol "+u.Role, u.ID)
+		s.audit(snap, sess, "usuario.alta", "Alta de usuario «"+u.Username+"» con rol «"+roleLabelES(u.Role)+"»", u.ID)
 		_ = s.Store.Put(snap)
 		writeJSON(w, 201, map[string]any{"user": publicUser(u)})
 	case http.MethodPut:
 		var body struct {
-			ID          string `json:"id"`
-			DisplayName string `json:"display_name"`
-			Role        string `json:"role"`
-			Password    string `json:"password"`
-			Active      *bool  `json:"active"`
+			ID          string          `json:"id"`
+			DisplayName string          `json:"display_name"`
+			Role        string          `json:"role"`
+			Password    string          `json:"password"`
+			Active      *bool           `json:"active"`
+			Modules     map[string]bool `json:"modules"`
 		}
 		if err := readJSON(r, &body); err != nil || body.ID == "" {
 			writeJSON(w, 400, map[string]string{"error": "id requerido"})
@@ -838,8 +840,27 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 		if body.DisplayName != "" {
 			u.DisplayName = body.DisplayName
 		}
-		if body.Role != "" && body.Role != domain.RoleMaster {
+		roleChanged := false
+		if body.Role != "" && body.Role != domain.RoleMaster && body.Role != u.Role {
 			u.Role = body.Role
+			roleChanged = true
+			// Al cambiar el rol se reasignan los módulos por defecto de ese rol
+			u.Modules = auth.DefaultModulesForRole(body.Role)
+		}
+		if body.Modules != nil && !roleChanged {
+			// Solo master (o admin) personaliza módulos sin cambiar rol
+			if sess.Role != domain.RoleMaster && sess.Role != domain.RoleAdmin {
+				writeJSON(w, 403, map[string]string{"error": "solo master o admin pueden asignar módulos"})
+				return
+			}
+			// Intersección con lo que el rol permite
+			clean := map[string]bool{}
+			for k, v := range body.Modules {
+				if auth.Can(u.Role, k) {
+					clean[k] = v
+				}
+			}
+			u.Modules = clean
 		}
 		if body.Password != "" {
 			h, err := auth.HashPassword(body.Password)
@@ -851,9 +872,9 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 			u.Active = *body.Active
 		}
 		u.UpdatedAt = time.Now().UTC()
-		s.audit(snap, sess, "usuario.edicion", "Edición usuario "+u.Username+" rol "+u.Role, u.ID)
+		s.audit(snap, sess, "usuario.edicion", "Edición de usuario «"+u.Username+"» · rol «"+roleLabelES(u.Role)+"»", u.ID)
 		_ = s.Store.Put(snap)
-		writeJSON(w, 200, map[string]any{"user": publicUser(u)})
+		writeJSON(w, 200, map[string]any{"user": publicUser(u), "views": auth.ViewsForUser(u.Role, snap, u)})
 	case http.MethodDelete:
 		id := r.URL.Query().Get("id")
 		u := snap.Users[id]
@@ -872,5 +893,29 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]any{"ok": true})
 	default:
 		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+	}
+}
+
+
+func roleLabelES(role string) string {
+	switch role {
+	case domain.RoleMaster:
+		return "Master"
+	case domain.RoleAdmin:
+		return "Administrador"
+	case domain.RoleContador:
+		return "Contador"
+	case domain.RoleEconomico:
+		return "Económico"
+	case domain.RoleVendedor:
+		return "Vendedor"
+	case domain.RoleAlmacenero:
+		return "Almacenero"
+	case domain.RoleOperador:
+		return "Operador"
+	case domain.RoleReadonly:
+		return "Solo lectura"
+	default:
+		return role
 	}
 }

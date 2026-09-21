@@ -67,7 +67,7 @@ func (s *Server) handleCurrencies(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "monedas"); err != nil && r.Method != http.MethodGet {
+	if err := s.gate(sess, "monedas"); err != nil && r.Method != http.MethodGet {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -119,7 +119,7 @@ func (s *Server) handleAccountT(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "cuentas_t"); err != nil {
+	if err := s.gate(sess, "cuentas_t"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -151,7 +151,7 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "traza"); err != nil {
+	if err := s.gate(sess, "traza"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -189,7 +189,7 @@ func (s *Server) handleBackups(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "salvas"); err != nil {
+	if err := s.gate(sess, "salvas"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -240,7 +240,7 @@ func (s *Server) handleBackupRestore(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "salvas"); err != nil {
+	if err := s.gate(sess, "salvas"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -285,7 +285,7 @@ func (s *Server) handleInventoryOut(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "inventario"); err != nil {
+	if err := s.gate(sess, "inventario"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -367,7 +367,7 @@ func (s *Server) handleFinancial(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "reportes"); err != nil {
+	if err := s.gate(sess, "reportes"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -561,7 +561,7 @@ func (s *Server) handleReportPDF(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "reportes"); err != nil {
+	if err := s.gate(sess, "reportes"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -730,7 +730,7 @@ func (s *Server) handleAccountsTAll(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "cuentas_t"); err != nil {
+	if err := s.gate(sess, "cuentas_t"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -837,7 +837,7 @@ func (s *Server) handlePayrollPDF(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := auth.RequireView(sess, "nomina"); err != nil {
+	if err := s.gate(sess, "nomina"); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}

@@ -40,6 +40,9 @@ type User struct {
 	Role         string    `json:"role"`
 	PasswordHash string    `json:"password_hash,omitempty"`
 	PinHash      string    `json:"pin_hash,omitempty"`
+	// Modules: permisos explícitos por módulo. Si es nil, se usan los del rol.
+	// Si está definido, solo los true permiten acceso (aunque el rol los tenga).
+	Modules      map[string]bool `json:"modules,omitempty"`
 	Active       bool      `json:"active"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`

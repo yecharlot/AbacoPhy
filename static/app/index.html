@@ -1360,24 +1360,39 @@ async function render() {
       };
     } else if (state.tab === 'usuarios') {
       const data = await api('/users');
+      let modCat = { catalog: [] };
+      try { modCat = await api('/modules'); } catch (_) {}
       const roles = data.roles || ['admin','contador','economico','vendedor','almacenero','operador','readonly'];
-      const roleOpts = roles.map(r => `<option value="${r}">${r}</option>`).join('');
-      const rows = (data.users||[]).filter(u => u.active !== false).map(u => `<tr>
-        <td>${u.username}</td><td>${u.display_name||'—'}</td><td>${u.role}</td>
+      const roleLabel = { admin:'Administrador', contador:'Contador', economico:'Económico', vendedor:'Vendedor', almacenero:'Almacenero', operador:'Operador', readonly:'Solo lectura', master:'Master' };
+      const roleOpts = roles.map(r => `<option value="${r}">${roleLabel[r]||r}</option>`).join('');
+      const rows = (data.users||[]).filter(u => u.active !== false).map(u => {
+        const nMod = u.modules ? Object.keys(u.modules).filter(k => u.modules[k]).length : '—';
+        return `<tr>
+        <td>${u.username}</td><td>${u.display_name||'—'}</td><td>${roleLabel[u.role]||u.role}</td>
+        <td class="muted">${nMod}</td>
         <td>
           <button class="btn btn-secondary btn-sm" data-ue="${u.id}">Editar</button>
+          <button class="btn btn-secondary btn-sm" data-um="${u.id}">Módulos</button>
           ${u.role==='master'?'':`<button class="btn btn-secondary btn-sm" data-ud="${u.id}">Baja</button>`}
-        </td></tr>`).join('');
+        </td></tr>`;
+      }).join('');
       main.innerHTML = `<div class="card">
         <div class="section-label">Usuarios del negocio</div>
-        <p class="muted">Roles: <strong>vendedor</strong> (solo punto de venta), <strong>almacenero</strong> (almacén/recepción), <strong>economico</strong> (contabilidad e informes). Cada uno ve solo su parte del menú.</p>
+        <p class="muted">Al asignar un <strong>rol</strong>, el usuario recibe automáticamente los módulos de ese rol. Desde <strong>Módulos</strong> puede quitar o devolver accesos concretos sin cambiar el rol.</p>
         <div class="grid-2"><div><label>Usuario</label><input id="uu" /></div><div><label>Nombre visible</label><input id="udn" /></div></div>
         <div class="grid-2"><div><label>Contraseña</label><input id="upw" type="password" /></div>
         <div><label>Rol</label><select id="ur">${roleOpts}</select></div></div>
         <button class="btn btn-primary" id="addUser">Crear usuario</button>
       </div>
-      <div class="card"><table><thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th></th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="4" class="muted">Sin usuarios</td></tr>'}</tbody></table></div>`;
+      <div class="card" id="userModPanel" style="display:none">
+        <div class="section-label">Módulos del usuario <span id="umName"></span></div>
+        <p class="muted" style="margin-bottom:.75rem">Desmarque un módulo para ocultarlo aunque el rol lo permita. Los módulos del negocio (Master → Módulos) deben estar activos también.</p>
+        <div id="umChecks" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px"></div>
+        <button class="btn btn-primary" id="saveUm" style="margin-top:12px">Guardar módulos del usuario</button>
+        <button class="btn btn-ghost" id="cancelUm">Cerrar</button>
+      </div>
+      <div class="card"><table><thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Módulos activos</th><th></th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="5" class="muted">Sin usuarios</td></tr>'}</tbody></table></div>`;
       document.getElementById('addUser').onclick = async () => {
         await api('/users', { method: 'POST', body: JSON.stringify({
           username: document.getElementById('uu').value.trim(),
@@ -1385,16 +1400,44 @@ async function render() {
           password: document.getElementById('upw').value,
           role: document.getElementById('ur').value,
         })});
-        toast('Usuario creado'); render();
+        toast('Usuario creado con módulos del rol'); render();
       };
       document.querySelectorAll('[data-ue]').forEach(b => b.onclick = async () => {
-        const data = await api('/users');
-        const u = (data.users||[]).find(x => x.id === b.dataset.ue); if (!u) return;
+        const data2 = await api('/users');
+        const u = (data2.users||[]).find(x => x.id === b.dataset.ue); if (!u) return;
         const display_name = prompt('Nombre visible', u.display_name||''); if (display_name == null) return;
-        const role = prompt('Rol ('+(data.roles||[]).join(', ')+')', u.role); if (role == null) return;
+        const role = prompt('Rol ('+roles.join(', ')+')', u.role); if (role == null) return;
         const password = prompt('Nueva contraseña (vacío = no cambiar)', ''); if (password == null) return;
         await api('/users', { method: 'PUT', body: JSON.stringify({ id: u.id, display_name, role, password: password || undefined }) });
-        toast('Usuario actualizado'); render();
+        toast(role !== u.role ? 'Usuario actualizado · módulos reasignados al nuevo rol' : 'Usuario actualizado'); render();
+      });
+      document.querySelectorAll('[data-um]').forEach(b => b.onclick = async () => {
+        const data2 = await api('/users');
+        const u = (data2.users||[]).find(x => x.id === b.dataset.um); if (!u) return;
+        const panel = document.getElementById('userModPanel');
+        panel.style.display = 'block';
+        document.getElementById('umName').textContent = '«'+(u.display_name||u.username)+'» · '+(roleLabel[u.role]||u.role);
+        const mods = u.modules || {};
+        const catalog = (modCat.catalog || []).filter(m => !m.core || true);
+        // Solo módulos que el rol puede tener en el ACL se muestran (si no están en mods, asumir false si personalizado)
+        const checks = catalog.map(m => {
+          const on = Object.keys(mods).length ? !!mods[m.id] : true;
+          return `<label style="display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--border,#3333);border-radius:8px">
+            <input type="checkbox" data-umk="${m.id}" ${on?'checked':''}/>
+            <span><strong>${m.name}</strong><br/><span class="muted" style="font-size:.75rem">${m.description||m.id}</span></span>
+          </label>`;
+        }).join('');
+        document.getElementById('umChecks').innerHTML = checks || '<p class="muted">Sin catálogo de módulos</p>';
+        document.getElementById('saveUm').onclick = async () => {
+          const modules = {};
+          document.querySelectorAll('[data-umk]').forEach(cb => {
+            modules[cb.getAttribute('data-umk')] = !!cb.checked;
+          });
+          await api('/users', { method: 'PUT', body: JSON.stringify({ id: u.id, modules }) });
+          toast('Módulos del usuario guardados'); render();
+        };
+        document.getElementById('cancelUm').onclick = () => { panel.style.display = 'none'; };
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       });
       document.querySelectorAll('[data-ud]').forEach(b => b.onclick = async () => {
         if (!confirm('¿Dar de baja este usuario?')) return;

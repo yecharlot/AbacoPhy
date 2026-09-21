@@ -72,7 +72,6 @@ func ModuleEnabled(snap *domain.StoreSnapshot, mod string) bool {
 	if snap == nil {
 		return true
 	}
-	// core siempre
 	for _, meta := range domain.CatalogModules() {
 		if meta.ID == mod && meta.Core {
 			return true
@@ -89,16 +88,45 @@ func ModuleEnabled(snap *domain.StoreSnapshot, mod string) bool {
 	if v, ok := em[mod]; ok {
 		return v
 	}
-	// desconocido: apagado salvo core
 	return false
 }
 
-// CanAccess: rol + módulo habilitado en el tenant.
+// DefaultModulesForRole: módulos que el rol puede usar (todos en true).
+func DefaultModulesForRole(role string) map[string]bool {
+	out := map[string]bool{}
+	for view := range ViewACL {
+		if Can(role, view) {
+			out[view] = true
+		}
+	}
+	return out
+}
+
+// UserModuleAllowed: si el usuario tiene mapa explícito, manda sobre el rol.
+func UserModuleAllowed(user *domain.User, view string) bool {
+	if user == nil || user.Modules == nil {
+		return true // sin personalización → solo rol + tenant
+	}
+	v, ok := user.Modules[view]
+	if !ok {
+		return false
+	}
+	return v
+}
+
+// CanAccess: rol + módulo del negocio + módulos del usuario.
 func CanAccess(snap *domain.StoreSnapshot, role, view string) bool {
+	return CanAccessUser(snap, role, view, nil)
+}
+
+func CanAccessUser(snap *domain.StoreSnapshot, role, view string, user *domain.User) bool {
 	if !Can(role, view) {
 		return false
 	}
-	return ModuleEnabled(snap, view)
+	if !ModuleEnabled(snap, view) {
+		return false
+	}
+	return UserModuleAllowed(user, view)
 }
 
 func HashPassword(pw string) (string, error) {
@@ -174,7 +202,11 @@ func RequireAccess(snap *domain.StoreSnapshot, sess *domain.TokenSession, view s
 	if sess == nil {
 		return ErrUnauthorized
 	}
-	if !CanAccess(snap, sess.Role, view) {
+	var user *domain.User
+	if snap != nil && sess.UserID != "" {
+		user = snap.Users[sess.UserID]
+	}
+	if !CanAccessUser(snap, sess.Role, view, user) {
 		return ErrForbidden
 	}
 	return nil
@@ -188,9 +220,13 @@ func ValidRoles() []string {
 }
 
 func ViewsForRole(role string, snap *domain.StoreSnapshot) []string {
+	return ViewsForUser(role, snap, nil)
+}
+
+func ViewsForUser(role string, snap *domain.StoreSnapshot, user *domain.User) []string {
 	var out []string
 	for view := range ViewACL {
-		if CanAccess(snap, role, view) {
+		if CanAccessUser(snap, role, view, user) {
 			out = append(out, view)
 		}
 	}
