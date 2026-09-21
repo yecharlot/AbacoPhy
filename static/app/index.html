@@ -382,12 +382,17 @@
   function forceOutOfSplash() {
     try {
       var sp = document.getElementById('splash');
-      if (sp) { sp.classList.add('hide'); sp.style.display = 'none'; }
+      // Solo actuar si el splash sigue visible (arranque falló o se colgó)
+      if (!sp || sp.classList.contains('hide') || sp.style.display === 'none') return;
+      sp.classList.add('hide');
+      sp.style.display = 'none';
+      var shell = document.getElementById('appShell');
+      if (shell && shell.classList.contains('on')) return; // ya entró al panel
       var lo = document.getElementById('loginOverlay');
       if (lo) lo.style.display = 'flex';
     } catch (e) {}
   }
-  setTimeout(forceOutOfSplash, 5000);
+  setTimeout(forceOutOfSplash, 4500);
   window.__abacoForceLogin = forceOutOfSplash;
 })();
 
@@ -1672,6 +1677,7 @@ async function render() {
         toast('Instancia reiniciada · inicie sesión de nuevo');
         location.reload();
       };
+    }
 
   } catch (e) {
     main.innerHTML = `<div class="card muted">No se pudo cargar (${e.message})</div>`;
