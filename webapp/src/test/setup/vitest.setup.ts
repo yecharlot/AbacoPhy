@@ -1,24 +1,23 @@
-import "@testing-library/jest-dom/vitest";
-import { afterAll, afterEach, beforeAll } from "vitest";
-import { cleanup } from "@testing-library/svelte";
-import { server } from "./msw.server";
+import '@testing-library/jest-dom/vitest';
+import { afterAll, afterEach, beforeAll } from 'vitest';
+import { cleanup } from '@testing-library/svelte';
+import { server } from './msw.server';
 
+/**
+ * ÁbacoPhy talks to its own Go API (mocked with MSW in integration tests).
+ * No Appwrite / third-party passthrough.
+ */
 beforeAll(() => {
-    const appwriteOrigin = process.env.APPWRITE_ENDPOINT?.replace(/\/$/, "") ?? "";
-    server.listen({
-        onUnhandledRequest(request, print) {
-            // Live Appwrite calls must not be treated as missing MSW handlers.
-            if (appwriteOrigin && request.url.startsWith(appwriteOrigin)) return;
-            print.error();
-        },
-    });
+  server.listen({
+    onUnhandledRequest: 'error',
+  });
 });
 
 afterEach(() => {
-    cleanup();
-    server.resetHandlers();
+  cleanup();
+  server.resetHandlers();
 });
 
 afterAll(() => {
-    server.close();
+  server.close();
 });

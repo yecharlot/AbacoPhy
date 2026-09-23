@@ -12,10 +12,20 @@ export function filterNavByViews(items: NavItem[], views: string[] | null | unde
     return items.filter((i) => !i.view);
   }
   const set = new Set(views);
-  return items.filter((i) => !i.view || set.has(i.view));
+  // Backend may expose "dashboard" and/or "reportes" for summary access
+  return items.filter((i) => {
+    if (!i.view) return true;
+    if (set.has(i.view)) return true;
+    // Resumen: accept either dashboard or reportes ACL key
+    if (i.id === 'dashboard' && (set.has('dashboard') || set.has('reportes'))) return true;
+    return false;
+  });
 }
 
-/** Nav items phase 1–5 (MVPs). UI definitiva más adelante. */
+/**
+ * ids must match App.svelte branches exactly.
+ * Resumen → dashboard (never "home").
+ */
 export const PLACEHOLDER_NAV: NavItem[] = [
   { id: 'dashboard', label: 'Resumen', view: 'dashboard' },
   { id: 'ingresos', label: 'Ingresos', view: 'accounting' },
@@ -27,7 +37,6 @@ export const PLACEHOLDER_NAV: NavItem[] = [
   { id: 'cuentas', label: 'Cuentas', view: 'accounting' },
   { id: 'reportes', label: 'Reportes', view: 'accounting' },
   { id: 'tenant', label: 'Negocio', view: 'tenant' },
-  // Fase 8 — operaciones comerciales, comercio y gobernanza
   { id: 'almacen', label: 'Almacén', view: 'almacen' },
   { id: 'recepcion', label: 'Recepción', view: 'recepcion' },
   { id: 'transferencias', label: 'Transferencias', view: 'almacen' },

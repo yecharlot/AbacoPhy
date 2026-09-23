@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { mockOf } from '../../../helpers/mockOf';
+import {mockOf} from "../../../../helpers/mockOf";
 import type {AuditRepository} from "../../../../../features/audit/domain/repositories/AuditRepository";
 import {RestoreBackup} from "../../../../../features/audit/domain/usecases";
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {GetCurrencies } from '../../../../../features/catalog/domain/usecases';
-import { mockOf } from '../../../helpers/mockOf';
+import {mockOf} from "../../../../helpers/mockOf";
 import type {CatalogRepository} from "../../../../../features/catalog/domain/repositories/CatalogRepository";
 
 describe('GetCurrencies', () => {

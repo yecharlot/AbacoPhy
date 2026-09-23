@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { mockOf } from '../../../helpers/mockOf';
+import {mockOf} from "../../../../helpers/mockOf";
 import type {MasterRepository} from "../../../../../features/master/domain/repositories/MasterRepository";
 import {CreateTenant} from "../../../../../features/master/domain/usecases";
 

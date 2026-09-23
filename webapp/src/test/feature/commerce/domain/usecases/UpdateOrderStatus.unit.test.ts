@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { mockOf } from '../../../helpers/mockOf';
+import {mockOf} from "../../../../helpers/mockOf";
 import type {CommerceRepository} from "../../../../../features/commerce/domain/repositories/CommerceRepository";
 import {UpdateOrderStatus} from "../../../../../features/commerce/domain/usecases";
 

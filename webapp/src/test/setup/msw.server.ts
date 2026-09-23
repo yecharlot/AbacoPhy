@@ -1,5 +1,8 @@
-import { setupServer } from "msw/node";
+import { setupServer } from 'msw/node';
 
-// Base vacía.
-// Cada prueba de integración puede registrar handlers con `server.use(...)`.
+/**
+ * Empty base server.
+ * Integration tests register handlers with `server.use(...)`.
+ * Unit tests of domain use cases do not need network handlers.
+ */
 export const server = setupServer();
