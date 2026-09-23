@@ -1,42 +1,34 @@
 <script lang="ts">
-  /**
-   * Panel de carga masiva JSON — solo desarrollo.
-   * Cada feature pasa un ejemplo y un handler que llama a la API.
-   */
   import { isDevSeedEnabled } from './isDev';
 
   interface Props {
     title?: string;
     description?: string;
-    /** JSON de ejemplo (objeto o array). */
     sample: unknown;
-    /** Ejecuta la carga; recibe el valor parseado del textarea. */
     onSeed: (data: unknown) => Promise<{ ok: number; fail: number; message?: string }>;
-    /** Placeholder del textarea. */
-    hint?: string;
   }
 
   let {
-    title = 'Seed (solo desarrollo)',
-    description = 'Pega JSON y carga datos reales vía API. No disponible en producción.',
+    title = 'Carga masiva (desarrollo)',
+    description = 'Edita el JSON y pulsa Cargar. Se envía a la API real (POST). Solo en entorno de prueba.',
     sample,
     onSeed,
-    hint = 'Array o objeto JSON…',
   }: Props = $props();
 
   const enabled = isDevSeedEnabled();
 
-  let open = $state(false);
-  let text = $state('');
+  let open = $state(true);
   let busy = $state(false);
   let log = $state('');
   let error = $state('');
 
+  // Texto del textarea derivado del sample (evita state_referenced_locally)
+  let text = $state('');
   $effect(() => {
-    if (enabled && !text) {
-      text = JSON.stringify(sample, null, 2);
-    }
+    text = JSON.stringify(sample, null, 2);
   });
+
+  const placeholder = `{\n  "entries": [\n    {\n      "type": "income",\n      "amount": 1500,\n      "concept": "Ejemplo venta",\n      "date": "2026-09-20",\n      "currency": "CUP"\n    }\n  ]\n}`;
 
   function resetSample() {
     text = JSON.stringify(sample, null, 2);
@@ -51,7 +43,7 @@
     try {
       parsed = JSON.parse(text);
     } catch (e) {
-      error = e instanceof Error ? e.message : 'JSON inválido';
+      error = e instanceof Error ? `JSON inválido: ${e.message}` : 'JSON inválido';
       return;
     }
     busy = true;
@@ -67,17 +59,26 @@
 </script>
 
 {#if enabled}
-  <div class="seed" data-dev-seed>
-    <button type="button" class="seed-toggle" onclick={() => (open = !open)}>
-      <span class="badge">DEV</span>
-      {title}
-      <span class="chev">{open ? '▾' : '▸'}</span>
-    </button>
+  <section class="seed" data-dev-seed aria-label={title}>
+    <header class="seed-head">
+      <button type="button" class="seed-toggle" onclick={() => (open = !open)}>
+        <span class="badge">DEV</span>
+        <span class="title">{title}</span>
+        <span class="chev">{open ? '▾' : '▸'}</span>
+      </button>
+    </header>
 
     {#if open}
       <div class="seed-body">
         <p class="desc">{description}</p>
-        <textarea rows="12" bind:value={text} {hint} spellcheck="false"></textarea>
+        <label class="lbl" for="dev-seed-json">JSON a cargar</label>
+        <textarea
+          id="dev-seed-json"
+          rows="14"
+          bind:value={text}
+          placeholder={placeholder}
+          spellcheck="false"
+        ></textarea>
         <div class="actions">
           <button type="button" class="btn secondary" onclick={resetSample} disabled={busy}>
             Restaurar ejemplo
@@ -87,73 +88,87 @@
           </button>
         </div>
         {#if error}
-          <p class="err">{error}</p>
+          <p class="err" role="alert">{error}</p>
         {/if}
         {#if log}
-          <p class="ok">{log}</p>
+          <p class="ok" role="status">{log}</p>
         {/if}
       </div>
     {/if}
-  </div>
+  </section>
 {/if}
 
 <style>
   .seed {
-    margin: 12px 0 16px;
-    border: 1px dashed color-mix(in srgb, var(--accent-yellow, #ffe35a) 45%, var(--color-border));
+    margin: 0 0 16px;
+    border: 1px dashed color-mix(in srgb, var(--accent-yellow, #ffe35a) 50%, var(--color-border));
     border-radius: var(--radius-md, 16px);
-    background: color-mix(in srgb, var(--accent-yellow, #ffe35a) 6%, transparent);
+    background: color-mix(in srgb, var(--accent-yellow, #ffe35a) 8%, var(--color-surface, transparent));
     overflow: hidden;
   }
   .seed-toggle {
     width: 100%;
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 14px;
+    gap: 10px;
+    padding: 12px 14px;
     border: none;
     background: transparent;
-    color: var(--color-text-secondary);
+    color: var(--color-text-primary);
     font-family: inherit;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
     text-align: left;
   }
   .badge {
     font-size: 0.65rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    padding: 2px 6px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    padding: 3px 7px;
     border-radius: 6px;
     background: var(--accent-yellow, #ffe35a);
     color: #1a1500;
   }
+  .title {
+    flex: 1;
+  }
   .chev {
-    margin-left: auto;
-    opacity: 0.7;
+    opacity: 0.6;
   }
   .seed-body {
     padding: 0 14px 14px;
   }
   .desc {
-    margin: 0 0 8px;
-    font-size: 0.75rem;
+    margin: 0 0 10px;
+    font-size: 0.78rem;
     color: var(--color-text-muted);
+  }
+  .lbl {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    margin-bottom: 6px;
   }
   textarea {
     width: 100%;
     box-sizing: border-box;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 0.72rem;
-    line-height: 1.4;
-    padding: 10px;
+    line-height: 1.45;
+    padding: 12px;
     border-radius: 12px;
     border: 1px solid var(--color-border);
-    background: var(--color-surface);
+    background: var(--color-bg, #050812);
     color: var(--color-text-primary);
     resize: vertical;
-    min-height: 160px;
+    min-height: 200px;
+  }
+  textarea::placeholder {
+    color: var(--color-text-muted);
+    opacity: 0.85;
+    white-space: pre-wrap;
   }
   .actions {
     display: flex;
@@ -162,16 +177,16 @@
     margin-top: 10px;
   }
   .btn {
-    border-radius: var(--radius-pill, 999px);
-    padding: 8px 14px;
-    font-size: 0.78rem;
+    border-radius: 999px;
+    padding: 9px 16px;
+    font-size: 0.8rem;
     font-weight: 600;
     font-family: inherit;
     cursor: pointer;
     border: 1px solid var(--color-border);
   }
   .btn:disabled {
-    opacity: 0.6;
+    opacity: 0.55;
     cursor: not-allowed;
   }
   .btn.secondary {
@@ -184,13 +199,13 @@
     border-color: transparent;
   }
   .err {
-    margin: 8px 0 0;
+    margin: 10px 0 0;
     color: var(--accent-red, #f17b7b);
-    font-size: 0.78rem;
+    font-size: 0.8rem;
   }
   .ok {
-    margin: 8px 0 0;
+    margin: 10px 0 0;
     color: var(--accent-green, #b7f56a);
-    font-size: 0.78rem;
+    font-size: 0.8rem;
   }
 </style>

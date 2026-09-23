@@ -62,6 +62,14 @@
 </script>
 
 <div class="dashboard" data-screen="dashboard">
+  <!-- Siempre visible en DEV (también durante loading) -->
+  <DevSeedPanel
+    title="Carga masiva de asientos"
+    description="JSON: entries[] con type, amount, concept, date (y opcionales currency, accountId, category). Si falta accountId se elige por tipo."
+    sample={buildSampleEntriesPayload(14)}
+    onSeed={(data) => seedEntriesViaStore(store, data)}
+  />
+
   {#if state.status === 'loading' && !state.summary}
     <PanelCard title="Resumen">
       <p class="muted">Cargando resumen financiero…</p>

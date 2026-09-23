@@ -3,6 +3,11 @@ import type { AccountDto } from '../dto/AccountDto';
 import type { EntryDto } from '../dto/EntryDto';
 import type { SummaryDto } from '../dto/SummaryDto';
 
+type CreateEntryResponse = {
+  asiento?: EntryDto;
+  entry?: EntryDto;
+} & Partial<EntryDto>;
+
 export class AccountingRemoteSource {
   constructor(private readonly http: HttpClient) {}
 
@@ -22,7 +27,23 @@ export class AccountingRemoteSource {
     return this.http.get<SummaryDto>('/reports/summary');
   }
 
-  createEntry(body: Partial<EntryDto>): Promise<EntryDto> {
-    return this.http.post<EntryDto>('/entries', body);
+  async createEntry(body: Record<string, unknown>): Promise<EntryDto> {
+    const res = await this.http.post<CreateEntryResponse>('/entries', body);
+    // Go responde { asiento, ecuacion, rev, root_cid }
+    const entry = res.asiento ?? res.entry ?? (res as EntryDto);
+    if (!entry || !entry.id) {
+      // Si el servidor solo devolvió ok parcial, sintetizar lo enviado
+      return {
+        id: (entry as EntryDto)?.id ?? '',
+        date: String(body.date ?? ''),
+        type: String(body.type ?? ''),
+        amount: Number(body.amount ?? 0),
+        currency: String(body.currency ?? ''),
+        account_id: String(body.account_id ?? ''),
+        description: String(body.description ?? ''),
+        concept: String(body.description ?? ''),
+      };
+    }
+    return entry;
   }
 }

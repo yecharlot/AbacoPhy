@@ -26,7 +26,8 @@ export const accountingMapper = {
     return {
       id: dto.id,
       date: dto.date,
-      concept: dto.concept,
+      // API Go usa description; el dominio expone concept
+      concept: dto.concept || dto.description || '',
       type: dto.type as Entry['type'],
       amount: n(dto.amount),
       currency: dto.currency,
@@ -40,7 +41,12 @@ export const accountingMapper = {
   toEquation(dto: SummaryDto): Equation {
     const eq = dto.ecuacion ?? dto.equation;
     return {
-      assets: n(dto.assets ?? dto.activo ?? (eq as { activo?: number; assets?: number } | undefined)?.activo ?? (eq as { assets?: number } | undefined)?.assets),
+      assets: n(
+        dto.assets ??
+          dto.activo ??
+          (eq as { activo?: number; assets?: number } | undefined)?.activo ??
+          (eq as { assets?: number } | undefined)?.assets,
+      ),
       liabilities: n(
         dto.liabilities ??
           dto.pasivo ??
@@ -74,16 +80,19 @@ export const accountingMapper = {
     };
   },
 
-  toEntryDto(entity: Omit<Entry, 'id'>): Partial<EntryDto> {
+  /**
+   * Body que espera Go domain.Entry:
+   * type, account_id, amount, description, date?, currency?, counterpart?
+   */
+  toEntryDto(entity: Omit<Entry, 'id'>): Record<string, unknown> {
     return {
-      date: entity.date,
-      concept: entity.concept,
       type: entity.type,
-      amount: entity.amount,
-      currency: entity.currency,
       account_id: entity.accountId,
-      category: entity.category,
-      tags: entity.tags,
+      amount: entity.amount,
+      description: entity.concept,
+      date: entity.date,
+      currency: entity.currency || undefined,
+      // category no existe en domain.Entry Go — no enviar
     };
   },
 };

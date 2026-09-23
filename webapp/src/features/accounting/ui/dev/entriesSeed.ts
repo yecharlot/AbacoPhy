@@ -1,25 +1,25 @@
 /**
- * Seed de asientos (solo desarrollo).
- * Orquesta store/use cases — sin reglas contables propias.
+ * Seed de asientos (solo desarrollo) → API real.
+ * Body alineado con Go: type, account_id, amount, description, date, currency.
  */
 import type { Entry } from '../../domain/entities/Entry';
 import type { AccountingStore } from '../stores/accountingStore';
 
 export type SeedEntryRow = {
   type: 'income' | 'expense';
-  /** Domain id; si falta se resuelve por tipo desde accounts del store/API. */
   accountId?: string;
   amount: number;
+  /** Se envía al API como description */
   concept: string;
   date: string;
   currency?: string;
-  category?: string;
 };
 
 export type SeedEntriesPayload = {
   entries: SeedEntryRow[];
 };
 
+/** Sample válido listo para el textarea (~14 días, ingresos + gastos). */
 export function buildSampleEntriesPayload(days = 14): SeedEntriesPayload {
   const entries: SeedEntryRow[] = [];
   const today = new Date();
@@ -42,7 +42,6 @@ export function buildSampleEntriesPayload(days = 14): SeedEntriesPayload {
         concept: `Gasto operativo ${date}`,
         date,
         currency: 'CUP',
-        category: 'Operaciones',
       });
     }
   }
@@ -55,16 +54,21 @@ export async function seedEntriesViaStore(
 ): Promise<{ ok: number; fail: number; message?: string }> {
   const data = payload as SeedEntriesPayload;
   if (!data || !Array.isArray(data.entries)) {
-    throw new Error('Se espera { "entries": [ { type, amount, concept, date, ... } ] }');
+    throw new Error('Se espera un objeto con "entries": [ ... ]');
   }
 
-  // Asegura cuentas en estado
   if (!store.getState().accounts.length) {
     await store.loadAccounts();
   }
   const accounts = store.getState().accounts;
-  const incomeId = accounts.find((a) => a.type === 'income')?.id;
-  const expenseId = accounts.find((a) => a.type === 'expense')?.id;
+  const incomeId = accounts.find((a) => a.type === 'income' && a.id)?.id;
+  const expenseId = accounts.find((a) => a.type === 'expense' && a.id)?.id;
+
+  if (!incomeId && !expenseId) {
+    throw new Error(
+      'No hay cuentas income/expense en el plan de cuentas. Revisa GET /accounts.',
+    );
+  }
 
   let ok = 0;
   let fail = 0;
@@ -78,13 +82,17 @@ export async function seedEntriesViaStore(
       errors.push(`Sin accountId para ${row.type}`);
       continue;
     }
+    if (!row.amount || row.amount <= 0) {
+      fail++;
+      errors.push(`Importe inválido ${row.amount}`);
+      continue;
+    }
     const body: Omit<Entry, 'id' | 'type'> = {
       date: row.date,
-      concept: row.concept,
-      amount: row.amount,
+      concept: row.concept, // mapper → description
+      amount: Number(row.amount),
       currency: row.currency ?? 'CUP',
       accountId,
-      category: row.category,
     };
     try {
       if (row.type === 'income') await store.addIncome(body);
@@ -96,7 +104,6 @@ export async function seedEntriesViaStore(
     }
   }
 
-  // Recargar tablero (pide más asientos si el store lo permite)
   await store.loadDashboard().catch(() => undefined);
 
   return {
