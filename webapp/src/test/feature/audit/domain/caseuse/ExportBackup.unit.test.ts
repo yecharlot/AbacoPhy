@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
-import type {AuditRepository} from "../../../../../features/audit/domain/repositories/AuditRepository";
-import { ExportBackup } from "../../../../../features/audit/domain/usecases";
-import {mockOf} from "../../../../helpers/mockOf";
+import { mockOf } from '../../../../helpers/mockOf';
+import type { AuditRepository } from '../../../../../features/audit/domain/repositories/AuditRepository';
+import { ExportBackup } from '../../../../../features/audit/domain/usecases';
 
 describe('ExportBackup', () => {
-    it('rechaza CID vacío o de solo espacios', async () => {
-        const repo = mockOf<AuditRepository>({ restoreBackup: vi.fn() });
-        await expect(new ExportBackup(repo).execute()).rejects.toThrow('CID inválido');
+  it('delega en exportBackup', async () => {
+    const blob = new Blob(['zip']);
+    const repo = mockOf<AuditRepository>({
+      exportBackup: vi.fn().mockResolvedValue(blob),
     });
+    await expect(new ExportBackup(repo).execute()).resolves.toBe(blob);
+    expect(repo.exportBackup).toHaveBeenCalledOnce();
+  });
 });
