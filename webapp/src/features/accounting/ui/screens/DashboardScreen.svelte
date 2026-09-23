@@ -31,45 +31,52 @@
     return unsub;
   });
 
-  let incomeSeries: ChartPoint[] = [];
-  let expenseSeries: ChartPoint[] = [];
-  let splitPoints: ChartPoint[] = [];
-  let structurePoints: ChartPoint[] = [];
+  function num(v: unknown): number {
+    const x = Number(v);
+    return Number.isFinite(x) ? x : 0;
+  }
 
-  $: incomeSeries = monthlySeries(state.entries, 'income');
-  $: expenseSeries = monthlySeries(state.entries, 'expense');
-  $: splitPoints = expenseSplit(state.entries);
-  $: structurePoints = accountsByType(state.accounts);
-
+  $: incomeSeries = monthlySeries(state.entries ?? [], 'income') as ChartPoint[];
+  $: expenseSeries = monthlySeries(state.entries ?? [], 'expense') as ChartPoint[];
+  $: splitPoints = expenseSplit(state.entries ?? []) as ChartPoint[];
+  $: structurePoints = accountsByType(state.accounts ?? []) as ChartPoint[];
   $: incomeDelta = seriesDelta(incomeSeries);
   $: expenseDelta = seriesDelta(expenseSeries);
-  $: baseCurrency = state.accounts.length > 0 ? state.accounts[0].currency : '';
-  $: recent = state.entries.slice(0, 7);
-  $: accountsTop = topAccounts(state.accounts);
+  $: baseCurrency =
+    state.accounts && state.accounts.length > 0 ? state.accounts[0].currency ?? '' : '';
+  $: recent = (state.entries ?? []).slice(0, 7);
+  $: accountsTop = topAccounts(state.accounts ?? []);
+  $: summary = state.summary;
+  $: assets = num(summary?.assets);
+  $: liabilities = num(summary?.liabilities);
+  $: equity = num(summary?.equity);
+  $: income = num(summary?.income);
+  $: expenses = num(summary?.expenses);
+  $: netProfit = num(summary?.netProfit);
 </script>
 
-<div class="dashboard">
+<div class="dashboard" data-screen="dashboard">
   {#if state.status === 'loading' && !state.summary}
-    <PanelCard title="Tablero">
+    <PanelCard title="Resumen">
       <p class="muted">Cargando resumen financiero…</p>
     </PanelCard>
-  {:else if state.status === 'error'}
-    <PanelCard title="Tablero">
+  {:else if state.status === 'error' && !state.summary}
+    <PanelCard title="Resumen">
       <p class="err">{state.error}</p>
       <Button variant="secondary" on:click={() => store.loadDashboard()}>Reintentar</Button>
     </PanelCard>
-  {:else if state.summary}
+  {:else if summary}
     <section class="hero-grid">
       <StatCard
         variant="hero"
         label="Patrimonio neto"
-        amount={state.summary.equity}
+        amount={equity}
         currency={baseCurrency}
-        caption={`Activos ${state.summary.assets.toFixed(2)} · Pasivos ${state.summary.liabilities.toFixed(2)}`}
+        caption={`Activos ${assets.toFixed(2)} · Pasivos ${liabilities.toFixed(2)}`}
       >
         <div class="hero-actions">
-          <Badge tone={state.summary.netProfit >= 0 ? 'ok' : 'off'}>
-            {state.summary.netProfit >= 0 ? 'Resultado positivo' : 'Resultado negativo'}
+          <Badge tone={netProfit >= 0 ? 'ok' : 'off'}>
+            {netProfit >= 0 ? 'Resultado positivo' : 'Resultado negativo'}
           </Badge>
         </div>
       </StatCard>
@@ -78,17 +85,17 @@
         <StatCard
           variant="positive"
           label="Ingresos del período"
-          amount={state.summary.income}
+          amount={income}
           currency={baseCurrency}
-          caption="Acumulado según resumen del backend"
+          caption="Según resumen del backend"
           delta={incomeDelta}
         />
         <StatCard
           variant="negative"
           label="Gastos del período"
-          amount={state.summary.expenses}
+          amount={expenses}
           currency={baseCurrency}
-          caption="Acumulado según resumen del backend"
+          caption="Según resumen del backend"
           delta={expenseDelta}
         />
       </div>
@@ -98,7 +105,6 @@
       <PanelCard title="Flujo de ingresos" subtitle="Últimos meses con movimientos" tag="Mensual">
         <BarChart points={incomeSeries} height={190} emptyText="Aún no hay ingresos registrados" />
       </PanelCard>
-
       <PanelCard title="Reparto de gastos" subtitle="Por categoría o cuenta" tag="Gastos">
         <DonutChart points={splitPoints} centerLabel="Total" currency={baseCurrency} />
       </PanelCard>
@@ -108,16 +114,15 @@
       <PanelCard title="Tendencia de gastos" subtitle="Comparación mes a mes" tag="Tendencia">
         <LineChart points={expenseSeries} color="var(--accent-pink)" emptyText="Sin gastos en el período" />
       </PanelCard>
-
       <PanelCard title="Estructura de cuentas" subtitle="Saldos agrupados por tipo" tag="Balance">
         <DonutChart points={structurePoints} centerLabel="Saldos" currency={baseCurrency} />
       </PanelCard>
     </section>
 
-    <EquationCard equation={state.summary} />
+    <EquationCard equation={summary} currency={baseCurrency || 'CUP'} />
 
     <section class="chart-grid">
-      <PanelCard title="Movimientos recientes" subtitle={`${state.entries.length} asientos cargados`}>
+      <PanelCard title="Movimientos recientes" subtitle={`${(state.entries ?? []).length} asientos`}>
         {#if recent.length === 0}
           <p class="muted">Sin movimientos recientes.</p>
         {:else}
@@ -132,7 +137,7 @@
                   <small>{entry.date}{entry.accountName ? ` · ${entry.accountName}` : ''}</small>
                 </span>
                 <span class="tx-amount" class:in={entry.type === 'income'}>
-                  {entry.type === 'expense' ? '−' : '+'}<Money amount={entry.amount} currency={entry.currency} />
+                  {entry.type === 'expense' ? '−' : '+'}<Money amount={num(entry.amount)} currency={entry.currency} />
                 </span>
               </li>
             {/each}
@@ -151,13 +156,18 @@
                   <strong>{account.name}</strong>
                   <small>{account.code}</small>
                 </span>
-                <span class="acc-value"><Money amount={account.balance} currency={account.currency} /></span>
+                <span class="acc-value"><Money amount={num(account.balance)} currency={account.currency} /></span>
               </li>
             {/each}
           </ul>
         {/if}
       </PanelCard>
     </section>
+  {:else}
+    <PanelCard title="Resumen">
+      <p class="muted">Sin datos de resumen todavía.</p>
+      <Button variant="secondary" on:click={() => store.loadDashboard()}>Cargar</Button>
+    </PanelCard>
   {/if}
 </div>
 
@@ -178,10 +188,18 @@
     grid-template-columns: 1fr;
     gap: var(--dashboard-gap, 12px);
   }
-  .hero-actions { margin-top: var(--space-3); }
-  .muted { color: var(--color-text-muted); font-size: 0.85rem; margin: 0; }
-  .err { color: var(--accent-red); font-size: 0.85rem; }
-
+  .hero-actions {
+    margin-top: var(--space-3);
+  }
+  .muted {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    margin: 0;
+  }
+  .err {
+    color: var(--accent-red);
+    font-size: 0.85rem;
+  }
   .tx,
   .accounts {
     list-style: none;
@@ -243,14 +261,18 @@
     color: var(--accent-red);
     white-space: nowrap;
   }
-  .tx-amount.in { color: var(--accent-green); }
-  .acc-value { color: var(--color-text-primary); }
-
-  @media (min-width: 900px) {
-    .hero-grid { grid-template-columns: 1.4fr 1fr; }
-    .chart-grid { grid-template-columns: 1.3fr 1fr; }
+  .tx-amount.in {
+    color: var(--accent-green);
   }
-  @media (min-width: 1280px) {
-    .stat-column { grid-template-columns: 1fr; }
+  .acc-value {
+    color: var(--color-text-primary);
+  }
+  @media (min-width: 900px) {
+    .hero-grid {
+      grid-template-columns: 1.4fr 1fr;
+    }
+    .chart-grid {
+      grid-template-columns: 1.3fr 1fr;
+    }
   }
 </style>

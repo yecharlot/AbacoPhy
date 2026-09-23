@@ -1,16 +1,15 @@
 /**
- * Minimal “active screen” state (no router library yet).
- *
- * Canonical id for the summary/dashboard is always `dashboard`.
- * Legacy `home` is normalized to `dashboard` so nav never sticks on the previous view.
+ * Active screen state (no router library).
+ * Canonical summary screen id: `dashboard` (menu label «Resumen»).
  */
 
 export type ScreenId = string;
 
 const DEFAULT_SCREEN: ScreenId = 'dashboard';
 
-function normalizeScreenId(id: ScreenId): ScreenId {
-  if (!id || id === 'home' || id === 'resumen') return 'dashboard';
+/** Map aliases used historically or by mistake */
+export function normalizeScreenId(id: ScreenId): ScreenId {
+  if (!id || id === 'home' || id === 'resumen' || id === 'inicio') return 'dashboard';
   return id;
 }
 
@@ -25,6 +24,12 @@ export function setScreen(id: ScreenId): void {
   const next = normalizeScreenId(id);
   if (next === current) return;
   current = next;
+  listeners.forEach((fn) => fn(current));
+}
+
+/** Force set + notify even if same id (useful after login). */
+export function forceScreen(id: ScreenId): void {
+  current = normalizeScreenId(id);
   listeners.forEach((fn) => fn(current));
 }
 
