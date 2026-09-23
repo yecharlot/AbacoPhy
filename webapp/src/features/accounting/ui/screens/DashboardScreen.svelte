@@ -2,26 +2,29 @@
   import { onMount } from 'svelte';
   import { Badge, Button, Money } from '../../../../infrastructure/ui/shared';
   import {
-    BarChart,
+    AreaChart,
     DonutChart,
-    LineChart,
     PanelCard,
     StatCard,
-    type ChartPoint,
   } from '../../../../infrastructure/ui/charts';
   import type { AccountingState, AccountingStore } from '../stores/accountingStore';
   import EquationCard from '../components/EquationCard.svelte';
+  import { DevSeedPanel } from '../../../../infrastructure/ui/dev';
+  import { buildSampleEntriesPayload, seedEntriesViaStore } from '../dev/entriesSeed';
   import {
     accountsByType,
+    CHART_SCOPE_OPTIONS,
     expenseSplit,
-    monthlySeries,
+    flowSeries,
     seriesDelta,
     topAccounts,
+    type ChartScope,
   } from '../viewmodels/dashboardCharts';
 
   export let store: AccountingStore;
 
   let state: AccountingState = store.getState();
+  let scope: ChartScope = 'month';
 
   onMount(() => {
     const unsub = store.subscribe((s: AccountingState) => {
@@ -36,12 +39,15 @@
     return Number.isFinite(x) ? x : 0;
   }
 
-  $: incomeSeries = monthlySeries(state.entries ?? [], 'income') as ChartPoint[];
-  $: expenseSeries = monthlySeries(state.entries ?? [], 'expense') as ChartPoint[];
-  $: splitPoints = expenseSplit(state.entries ?? []) as ChartPoint[];
-  $: structurePoints = accountsByType(state.accounts ?? []) as ChartPoint[];
+  $: flow = flowSeries(state.entries ?? [], scope, true);
+  $: incomeSeries = flow.find((s) => s.id === 'income')?.points ?? [];
+  $: expenseSeries = flow.find((s) => s.id === 'expense')?.points ?? [];
+  $: splitPoints = expenseSplit(state.entries ?? []);
+  $: structurePoints = accountsByType(state.accounts ?? []);
   $: incomeDelta = seriesDelta(incomeSeries);
   $: expenseDelta = seriesDelta(expenseSeries);
+  $: scopeLabel =
+    CHART_SCOPE_OPTIONS.find((o) => o.id === scope)?.label ?? 'Mensual';
   $: baseCurrency =
     state.accounts && state.accounts.length > 0 ? state.accounts[0].currency ?? '' : '';
   $: recent = (state.entries ?? []).slice(0, 7);
@@ -101,18 +107,35 @@
       </div>
     </section>
 
-    <section class="chart-grid">
-      <PanelCard title="Flujo de ingresos" subtitle="Últimos meses con movimientos" tag="Mensual">
-        <BarChart points={incomeSeries} height={190} emptyText="Aún no hay ingresos registrados" />
-      </PanelCard>
-      <PanelCard title="Reparto de gastos" subtitle="Por categoría o cuenta" tag="Gastos">
-        <DonutChart points={splitPoints} centerLabel="Total" currency={baseCurrency} />
+    <section class="flow-section">
+      <PanelCard
+        title="Ingresos vs gastos"
+        subtitle="Cómo se comportan uno respecto al otro en el tiempo"
+        tag={scopeLabel}
+      >
+        <div class="scope-row" role="group" aria-label="Alcance temporal">
+          {#each CHART_SCOPE_OPTIONS as opt (opt.id)}
+            <button
+              type="button"
+              class="scope-pill"
+              class:active={scope === opt.id}
+              on:click={() => (scope = opt.id)}
+            >
+              {opt.label}
+            </button>
+          {/each}
+        </div>
+        <AreaChart
+          series={flow}
+          height={240}
+          emptyText="Aún no hay movimientos para este alcance"
+        />
       </PanelCard>
     </section>
 
     <section class="chart-grid">
-      <PanelCard title="Tendencia de gastos" subtitle="Comparación mes a mes" tag="Tendencia">
-        <LineChart points={expenseSeries} color="var(--accent-pink)" emptyText="Sin gastos en el período" />
+      <PanelCard title="Reparto de gastos" subtitle="Por categoría o cuenta" tag="Gastos">
+        <DonutChart points={splitPoints} centerLabel="Total" currency={baseCurrency} />
       </PanelCard>
       <PanelCard title="Estructura de cuentas" subtitle="Saldos agrupados por tipo" tag="Balance">
         <DonutChart points={structurePoints} centerLabel="Saldos" currency={baseCurrency} />
@@ -176,6 +199,35 @@
     display: flex;
     flex-direction: column;
     gap: var(--dashboard-gap, 12px);
+  }
+  .scope-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .scope-pill {
+    border: 1px solid var(--color-border);
+    background: transparent;
+    color: var(--color-text-secondary);
+    border-radius: var(--radius-pill);
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .scope-pill.active {
+    background: color-mix(in srgb, var(--accent-cyan) 18%, transparent);
+    color: var(--color-text-primary);
+    border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+  }
+  .scope-pill:focus-visible {
+    outline: 2px solid var(--accent-cyan);
+    outline-offset: 2px;
+  }
+  .flow-section {
+    display: block;
   }
   .hero-grid,
   .chart-grid {
