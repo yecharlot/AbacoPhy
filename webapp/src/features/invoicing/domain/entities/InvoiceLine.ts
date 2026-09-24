@@ -1,8 +1,6 @@
-export interface InvoiceLine {
-  id?: string;
-  productId: string;
-  productName: string;
-  quantity: number;
-  price: number;
-  total: number;
-}
+export type InvoiceLine = {
+  description: string;
+  qty: number;
+  unitPrice: number;
+  amount: number;
+};

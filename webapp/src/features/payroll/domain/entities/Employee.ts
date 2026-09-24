@@ -1,12 +1,28 @@
-export interface Employee {
+/** Trabajador — alineado con domain.Employee del backend Go. */
+export type Employee = {
   id: string;
-  code: string;
-  firstName: string;
-  lastName: string;
-  identityCard: string;
-  position: string;
-  salaryBase: number;
+  name: string;
+  ci: string;
+  role: string;
+  department: string;
+  hireDate: string;
+  salary: number;
   currency: string;
-  hiringDate: string;
+  vacRate: number;
+  ssEmployerRate: number;
+  ssWorkerRate: number;
   active: boolean;
-}
+};
+
+export type CreateEmployeeInput = {
+  name: string;
+  ci?: string;
+  role?: string;
+  department?: string;
+  hireDate?: string;
+  salary: number;
+  currency?: string;
+  vacRate?: number;
+  ssEmployerRate?: number;
+  ssWorkerRate?: number;
+};

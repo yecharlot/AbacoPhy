@@ -1,13 +1,25 @@
-export interface Payslip {
+/** Liquidación — alineada con domain.Payslip del backend. */
+export type Payslip = {
   id: string;
   employeeId: string;
   employeeName: string;
-  periodStart: string;
-  periodEnd: string;
-  baseAmount: number;
-  bonus: number;
+  period: string;
+  gross: number;
+  vacationProv: number;
+  ssEmployer: number;
+  ssWorker: number;
+  otherDeduct: number;
   deductions: number;
-  totalNet: number;
+  net: number;
+  employerCost: number;
   currency: string;
-  dateEmitted: string;
-}
+  status: string;
+  createdAt: string;
+};
+
+export type CreatePayslipInput = {
+  employeeId: string;
+  period?: string;
+  gross?: number;
+  otherDeduct?: number;
+};

@@ -1,200 +1,244 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Card, Button, Input, Money } from '../../../../infrastructure/ui/shared';
+  import { Button, Card, Money } from '../../../../infrastructure/ui/shared';
   import type { InvoicingStore, InvoicingState } from '../stores/invoicingStore';
-  import type { InvoiceLine } from '../../domain/entities/InvoiceLine';
 
   export let store: InvoicingStore;
 
-  let state: InvoicingState = {
-    status: 'idle',
-    invoices: [],
-    error: null,
-    saving: false
-  };
+  type DraftLine = { description: string; qty: string; unitPrice: string };
 
+  let state: InvoicingState = store.getState();
   let showForm = false;
-  let customerName = '';
-  let customerId = '';
+  let clientName = '';
+  let clientTax = '';
   let currency = 'CUP';
-  let lines: InvoiceLine[] = [];
-
-  // Line form
-  let prodId = '';
-  let prodName = '';
-  let qty = '1';
-  let price = '0';
+  let taxPct = '0';
+  let lines: DraftLine[] = [{ description: '', qty: '1', unitPrice: '' }];
+  let formError = '';
+  let formOk = '';
 
   onMount(() => {
-    const unsub = store.subscribe(s => state = s);
+    const unsub = store.subscribe((s) => (state = s));
     void store.load();
     return unsub;
   });
 
-  function addLine() {
-    const q = parseFloat(qty) || 0;
-    const p = parseFloat(price) || 0;
-    if (!prodName || q <= 0 || p <= 0) return;
-    lines = [...lines, {
-      productId: prodId || 'custom',
-      productName: prodName,
-      quantity: q,
-      price: p,
-      total: q * p
-    }];
-    prodId = '';
-    prodName = '';
-    qty = '1';
-    price = '0';
-  }
-
-  function removeLine(index: number) {
-    lines = lines.filter((_, i) => i !== index);
-  }
-
-  $: subtotal = lines.reduce((acc, l) => acc + l.total, 0);
-  $: tax = subtotal * 0.10; // 10% tax example
+  $: invoices = [...(state.invoices ?? [])].reverse();
+  $: subtotal = lines.reduce(
+    (acc, l) => acc + (parseFloat(l.qty) || 0) * (parseFloat(l.unitPrice) || 0),
+    0,
+  );
+  $: tax = subtotal * ((parseFloat(taxPct) || 0) / 100);
   $: total = subtotal + tax;
 
-  async function handleSubmit() {
-    if (!customerName || lines.length === 0) return;
+  function addLine() {
+    lines = [...lines, { description: '', qty: '1', unitPrice: '' }];
+  }
+  function removeLine(i: number) {
+    lines = lines.filter((_, idx) => idx !== i);
+    if (lines.length === 0) addLine();
+  }
+  function resetForm() {
+    clientName = '';
+    clientTax = '';
+    taxPct = '0';
+    lines = [{ description: '', qty: '1', unitPrice: '' }];
+  }
+
+  async function handleSubmit(e: Event) {
+    e.preventDefault();
+    formError = '';
+    formOk = '';
+    if (!clientName.trim()) {
+      formError = 'Indique el cliente / razón social';
+      return;
+    }
+    const payload = lines
+      .filter((l) => l.description.trim())
+      .map((l) => ({
+        description: l.description.trim(),
+        qty: parseFloat(l.qty) || 0,
+        unitPrice: parseFloat(l.unitPrice) || 0,
+      }));
+    if (payload.length === 0 || payload.some((l) => l.qty <= 0 || l.unitPrice < 0)) {
+      formError = 'Añada líneas válidas (descripción, cantidad > 0)';
+      return;
+    }
     try {
       await store.emit({
-        date: new Date().toISOString().split('T')[0],
-        customerId,
-        customerName,
-        lines,
-        subtotal,
+        clientName: clientName.trim(),
+        clientTax: clientTax.trim() || undefined,
+        currency,
         tax,
-        total,
-        currency
+        status: 'issued',
+        lines: payload,
       });
+      formOk = 'Factura emitida';
       showForm = false;
-      customerName = '';
-      lines = [];
-    } catch { /* handled in store */ }
+      resetForm();
+    } catch (err) {
+      formError = err instanceof Error ? err.message : state.error || 'Error al emitir';
+    }
   }
 </script>
 
-<Card>
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-    <h2 style="margin:0">Facturación</h2>
-    <Button on:click={() => showForm = !showForm}>
-      {showForm ? 'Cancelar' : '+ Nueva Factura'}
-    </Button>
-  </div>
+<section class="facturas" data-screen="facturas">
+  <header class="page-head">
+    <div>
+      <h1>Facturación</h1>
+      <p class="sub">Emisión de facturas a clientes. El backend calcula importes y puede generar asiento.</p>
+    </div>
+    <div class="head-actions">
+      <Button variant="secondary" on:click={() => store.load()} disabled={state.status === 'loading'}>
+        Actualizar
+      </Button>
+      <Button on:click={() => (showForm = !showForm)}>
+        {showForm ? 'Cancelar' : '+ Nueva factura'}
+      </Button>
+    </div>
+  </header>
+
+  {#if state.error && !formError}
+    <p class="banner err" role="alert">{state.error}</p>
+  {/if}
+  {#if formOk}<p class="banner ok" role="status">{formOk}</p>{/if}
+  {#if formError}<p class="banner err" role="alert">{formError}</p>{/if}
 
   {#if showForm}
-    <div class="invoice-form">
-      <div class="row">
-        <Input label="Cliente / Razón Social" bind:value={customerName} required />
-        <Input label="ID Fiscal (opcional)" bind:value={customerId} />
-      </div>
-
-      <div class="lines-editor">
-        <h4>Líneas de Detalle</h4>
-        <div class="line-form">
-          <Input label="Producto/Servicio" bind:value={prodName} />
-          <Input label="Cant." type="number" bind:value={qty} />
-          <Input label="Precio" type="number" step="0.01" bind:value={price} />
-          <Button variant="secondary" on:click={addLine}>Añadir</Button>
+    <Card>
+      <h2>Nueva factura</h2>
+      <form class="form" on:submit={handleSubmit}>
+        <div class="form-grid">
+          <label class="field field-span">
+            <span class="lbl">Cliente / razón social <span class="req">*</span></span>
+            <input bind:value={clientName} placeholder="Nombre del cliente" disabled={state.saving} />
+          </label>
+          <label class="field">
+            <span class="lbl">ID fiscal / NIT</span>
+            <input bind:value={clientTax} placeholder="Opcional" disabled={state.saving} />
+          </label>
+          <label class="field">
+            <span class="lbl">Moneda</span>
+            <input bind:value={currency} disabled={state.saving} />
+          </label>
+          <label class="field">
+            <span class="lbl">Impuesto %</span>
+            <input type="number" min="0" step="any" bind:value={taxPct} disabled={state.saving} />
+          </label>
         </div>
 
-        <table class="lines-table">
+        <div class="lines-head">
+          <h3>Líneas</h3>
+          <Button type="button" variant="secondary" on:click={addLine}>+ Línea</Button>
+        </div>
+        {#each lines as line, i (i)}
+          <div class="line-row">
+            <label class="field grow">
+              <span class="lbl">Descripción</span>
+              <input bind:value={line.description} placeholder="Producto o servicio" disabled={state.saving} />
+            </label>
+            <label class="field narrow">
+              <span class="lbl">Cant.</span>
+              <input type="number" min="0" step="any" bind:value={line.qty} disabled={state.saving} />
+            </label>
+            <label class="field narrow">
+              <span class="lbl">Precio</span>
+              <input type="number" min="0" step="any" bind:value={line.unitPrice} disabled={state.saving} />
+            </label>
+            <button type="button" class="remove" on:click={() => removeLine(i)} disabled={lines.length <= 1}>×</button>
+          </div>
+        {/each}
+
+        <div class="totals">
+          <span>Subtotal: <Money amount={subtotal} {currency} /></span>
+          <span>Impuesto: <Money amount={tax} {currency} /></span>
+          <strong>Total: <Money amount={total} {currency} /></strong>
+        </div>
+        <div class="form-actions">
+          <Button type="submit" disabled={state.saving}>
+            {state.saving ? 'Emitiendo…' : 'Emitir factura'}
+          </Button>
+        </div>
+      </form>
+    </Card>
+  {/if}
+
+  <Card>
+    <h2>Historial ({invoices.length})</h2>
+    {#if state.status === 'loading' && invoices.length === 0}
+      <p class="muted">Cargando…</p>
+    {:else if invoices.length === 0}
+      <p class="muted">No hay facturas emitidas.</p>
+    {:else}
+      <div class="table-wrap">
+        <table>
           <thead>
             <tr>
-              <th>Detalle</th>
-              <th style="text-align:right">Cant.</th>
-              <th style="text-align:right">Precio</th>
-              <th style="text-align:right">Total</th>
+              <th>Nº</th>
+              <th>Cliente</th>
+              <th class="num">Total</th>
+              <th>Estado</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {#each lines as line, i}
+            {#each invoices as inv (inv.id)}
               <tr>
-                <td>{line.productName}</td>
-                <td style="text-align:right">{line.quantity}</td>
-                <td style="text-align:right"><Money amount={line.price} {currency} /></td>
-                <td style="text-align:right"><Money amount={line.total} {currency} /></td>
-                <td style="text-align:center">
-                  <button class="btn-del" on:click={() => removeLine(i)}>×</button>
+                <td class="mono">{inv.number}</td>
+                <td>{inv.clientName}</td>
+                <td class="num"><Money amount={inv.total} currency={inv.currency} /></td>
+                <td><span class="pill">{inv.status}</span></td>
+                <td>
+                  <button
+                    type="button"
+                    class="link"
+                    on:click={() => store.downloadPdf(inv.id, inv.number)}
+                  >
+                    PDF
+                  </button>
                 </td>
               </tr>
             {/each}
           </tbody>
         </table>
-
-        <div class="totals">
-          <div class="total-row"><span>Subtotal:</span> <Money amount={subtotal} {currency} /></div>
-          <div class="total-row"><span>Impuestos (10%):</span> <Money amount={tax} {currency} /></div>
-          <div class="total-row grand-total"><span>Total:</span> <Money amount={total} {currency} /></div>
-        </div>
       </div>
-
-      <div style="margin-top:20px; display:flex; gap:8px;">
-        <Button on:click={handleSubmit} disabled={state.saving || lines.length === 0}>
-          {state.saving ? 'Emitiendo...' : 'Emitir Factura'}
-        </Button>
-      </div>
-    </div>
-  {:else}
-    <div class="table-container">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Número</th>
-            <th>Fecha</th>
-            <th>Cliente</th>
-            <th style="text-align:right">Total</th>
-            <th style="text-align:center">Estado</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {#if state.invoices.length === 0}
-            <tr><td colspan="6" style="text-align:center; padding:20px; color:var(--ap-text-muted)">No hay facturas registradas</td></tr>
-          {:else}
-            {#each state.invoices as inv}
-              <tr>
-                <td><code>{inv.number}</code></td>
-                <td>{inv.date}</td>
-                <td>{inv.customerName}</td>
-                <td style="text-align:right"><Money amount={inv.total} currency={inv.currency} /></td>
-                <td style="text-align:center">
-                  <span class="badge status-{inv.status}">{inv.status}</span>
-                </td>
-                <td style="text-align:right">
-                  <Button variant="ghost" size="sm" on:click={() => store.downloadPdf(inv.id, inv.number)}>
-                    PDF
-                  </Button>
-                </td>
-              </tr>
-            {/each}
-          {/if}
-        </tbody>
-      </table>
-    </div>
-  {/if}
-</Card>
+    {/if}
+  </Card>
+</section>
 
 <style>
-  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-  .line-form { display: grid; grid-template-columns: 2fr 0.5fr 1fr auto; gap: 8px; align-items: end; margin-bottom: 12px; }
-  .lines-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
-  .lines-table th { text-align: left; border-bottom: 1px solid var(--ap-border); padding: 8px; }
-  .lines-table td { padding: 8px; border-bottom: 1px solid var(--ap-border); }
-  .btn-del { border: 0; background: 0; color: var(--ap-danger); font-size: 1.2rem; cursor: pointer; }
-
-  .totals { margin-top: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-  .total-row { display: flex; gap: 20px; font-size: 0.9rem; }
-  .grand-total { font-weight: 700; font-size: 1.1rem; color: var(--ap-primary); margin-top: 8px; }
-
-  .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-  .data-table th { text-align: left; padding: 12px; border-bottom: 2px solid var(--ap-border); color: var(--ap-text-secondary); }
-  .data-table td { padding: 12px; border-bottom: 1px solid var(--ap-border); }
-
-  .badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; font-weight: 600; }
-  .status-emitted { background: rgba(97, 230, 225, 0.1); color: #0d9488; }
-  .status-paid { background: rgba(76, 175, 80, 0.1); color: #2e7d32; }
+  .facturas { display: flex; flex-direction: column; gap: 14px; }
+  .page-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+  .head-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 1.25rem; }
+  h2 { margin: 0 0 0.75rem; font-size: 0.95rem; }
+  h3 { margin: 0; font-size: 0.85rem; }
+  .sub { margin: 4px 0 0; font-size: 0.8rem; color: var(--color-text-muted, var(--ap-text-muted)); }
+  .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+  .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .field-span { grid-column: 1 / -1; }
+  .lbl { font-size: 0.68rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); }
+  .req { color: var(--accent-red, #f17b7b); }
+  .field input, .line-row input {
+    width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 12px;
+    border: 1px solid var(--color-border); background: var(--color-surface-soft, transparent);
+    color: var(--color-text-primary); font-family: inherit; font-size: 0.88rem;
+  }
+  .lines-head { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0 0.5rem; }
+  .line-row { display: grid; grid-template-columns: 1fr 80px 100px 32px; gap: 8px; align-items: end; margin-bottom: 8px; }
+  .remove { height: 36px; border-radius: 10px; border: 1px solid var(--color-border); background: transparent; cursor: pointer; }
+  .totals { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; font-size: 0.9rem; }
+  .form-actions { margin-top: 8px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+  th { text-align: left; font-size: 0.7rem; text-transform: uppercase; color: var(--color-text-muted); padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--color-border); }
+  td { padding: 0.5rem; border-bottom: 1px solid var(--color-border); color: var(--color-text-secondary); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .mono { font-family: ui-monospace, monospace; font-size: 0.8rem; }
+  .pill { font-size: 0.68rem; font-weight: 650; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent-cyan) 16%, transparent); color: var(--accent-cyan); }
+  .link { border: none; background: none; color: var(--accent-cyan); font-weight: 600; cursor: pointer; font-family: inherit; }
+  .muted { color: var(--color-text-muted); font-size: 0.85rem; }
+  .banner { margin: 0; padding: 10px 12px; border-radius: 12px; font-size: 0.85rem; }
+  .banner.err { background: color-mix(in srgb, var(--accent-red) 12%, transparent); color: var(--accent-red); }
+  .banner.ok { background: color-mix(in srgb, var(--accent-green) 12%, transparent); color: var(--accent-green); }
 </style>

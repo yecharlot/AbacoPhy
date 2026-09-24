@@ -4,9 +4,13 @@ import { ListEmployees } from '../domain/usecases/ListEmployees';
 import { CreateEmployee } from '../domain/usecases/CreateEmployee';
 import { ListPayslips } from '../domain/usecases/ListPayslips';
 import { CreatePayslip } from '../domain/usecases/CreatePayslip';
-import { createPayrollStore } from '../ui/stores/payrollStore';
+import { createPayrollStore, type PayrollStore } from '../ui/stores/payrollStore';
 
-export function createPayrollModule(container: AppContainer) {
+export type PayrollModule = {
+  payrollStore: PayrollStore;
+};
+
+export function createPayrollModule(container: AppContainer): PayrollModule {
   const repository = new PayrollRepositoryImpl(container.http);
 
   const listEmployees = new ListEmployees(repository);
@@ -21,7 +25,5 @@ export function createPayrollModule(container: AppContainer) {
     createPayslip,
   });
 
-  return {
-    payrollStore,
-  };
+  return { payrollStore };
 }

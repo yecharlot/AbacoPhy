@@ -1,7 +1,7 @@
-import type { Invoice } from '../entities/Invoice';
+import type { EmitInvoiceInput, Invoice } from '../entities/Invoice';
 
 export interface InvoicingRepository {
   getInvoices(): Promise<Invoice[]>;
-  emitInvoice(invoice: Omit<Invoice, 'id' | 'number' | 'status'>): Promise<Invoice>;
+  emitInvoice(input: EmitInvoiceInput): Promise<Invoice>;
   getInvoicePdf(id: string): Promise<Blob>;
 }

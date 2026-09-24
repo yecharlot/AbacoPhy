@@ -1,5 +1,5 @@
 import type { HttpClient, HttpError } from '../../../../infrastructure/data/http';
-import type { Invoice } from '../../domain/entities/Invoice';
+import type { EmitInvoiceInput, Invoice } from '../../domain/entities/Invoice';
 import type { InvoicingRepository } from '../../domain/repositories/InvoicingRepository';
 import { InvoicingRemoteSource } from '../sources/InvoicingRemoteSource';
 import { invoicingMapper } from '../mappers/invoicingMapper';
@@ -22,16 +22,18 @@ export class InvoicingRepositoryImpl implements InvoicingRepository {
   async getInvoices(): Promise<Invoice[]> {
     try {
       const res = await this.remote.getInvoices();
-      return (res.invoices || []).map(invoicingMapper.toEntity);
+      return (res.invoices || []).map((row) =>
+        invoicingMapper.toEntity(row as Parameters<typeof invoicingMapper.toEntity>[0]),
+      );
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
   }
 
-  async emitInvoice(invoice: Omit<Invoice, 'id' | 'number' | 'status'>): Promise<Invoice> {
+  async emitInvoice(input: EmitInvoiceInput): Promise<Invoice> {
     try {
-      const dto = await this.remote.emitInvoice(invoicingMapper.toEmitDto(invoice));
-      return invoicingMapper.toEntity(dto);
+      const dto = await this.remote.emitInvoice(invoicingMapper.toEmitDto(input));
+      return invoicingMapper.toEntity(dto as Parameters<typeof invoicingMapper.toEntity>[0]);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
