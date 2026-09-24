@@ -22,6 +22,8 @@
   let unitName = '';
   let unitAddress = '';
   let unitPhone = '';
+  let unitOk = '';
+  let unitErr = '';
 
   onMount(() => {
     const unsub = store.subscribe((s: WarehouseState) => {
@@ -57,7 +59,12 @@
 
   async function handleCreateUnit(e: Event) {
     e.preventDefault();
-    if (!unitName.trim()) return;
+    unitOk = '';
+    unitErr = '';
+    if (!unitName.trim()) {
+      unitErr = 'El nombre de la unidad es obligatorio';
+      return;
+    }
     try {
       await store.addSalesUnit({
         name: unitName.trim(),
@@ -67,6 +74,7 @@
       unitName = '';
       unitAddress = '';
       unitPhone = '';
+      unitOk = 'Unidad de venta creada';
     } catch {
       /* error en el estado del store */
     }
@@ -117,7 +125,7 @@
   {:else if state.status === 'error'}
     <p class="err">{state.error}</p>
   {:else if state.rows.length === 0}
-    <p class="muted">Sin existencias. Registre un informe de recepción para dar entrada a mercancía.</p>
+    <p class="muted">Sin existencias en almacén central. Cree productos y registre una recepción para dar entrada.</p>
   {:else}
     <p class="muted">Valor total en almacén: <Money amount={totalValue} /></p>
     <div class="table-wrap">
@@ -178,15 +186,19 @@
     </div>
   {/if}
 
-  <form class="form" on:submit={handleCreateUnit}>
-    <div class="grid">
-      <Input id="unit-name" label="Nombre de la unidad" bind:value={unitName} placeholder="Punto de venta" />
+  {#if unitOk}<p class="ok-banner">{unitOk}</p>{/if}
+  {#if unitErr}<p class="err">{unitErr}</p>{/if}
+  <form class="unit-form" on:submit={handleCreateUnit}>
+    <div class="form-grid">
+      <Input id="unit-name" label="Nombre de la unidad *" bind:value={unitName} placeholder="Punto de venta" />
       <Input id="unit-address" label="Dirección" bind:value={unitAddress} placeholder="Calle y número" />
       <Input id="unit-phone" label="Teléfono" bind:value={unitPhone} placeholder="Opcional" />
     </div>
-    <Button type="submit" disabled={state.saving}>
-      {state.saving ? 'Guardando…' : 'Añadir unidad de venta'}
-    </Button>
+    <div class="form-actions">
+      <Button type="submit" disabled={state.saving}>
+        {state.saving ? 'Guardando…' : 'Añadir unidad de venta'}
+      </Button>
+    </div>
   </form>
 </Card>
 
@@ -290,6 +302,27 @@
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 0 0.8rem;
+    gap: 0.75rem;
+  }
+  .unit-form {
+    margin-top: 1rem;
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px 16px;
+    align-items: start;
+  }
+  @media (max-width: 720px) {
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .form-actions {
+    margin-top: 1rem;
+  }
+  .ok-banner {
+    color: var(--accent-green, var(--ap-ok));
+    font-size: 0.85rem;
   }
 </style>

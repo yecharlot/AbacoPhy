@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { User } from '@lucide/svelte';
+  import { User, LogOut, ChevronDown } from '@lucide/svelte';
   import PillNav from './PillNav.svelte';
   import SkyThemeToggle from '../shared/SkyThemeToggle.svelte';
   import ConnectionPill from '../shared/ConnectionPill.svelte';
@@ -21,8 +21,11 @@
     brandTitle?: string;
     brandSubtitle?: string;
     userLabel?: string;
+    /** Rol o subtítulo bajo el nombre (opcional). */
+    userRole?: string;
     onNavigate?: (id: string) => void;
     onToggleTheme?: () => void;
+    onLogout?: () => void;
     children?: import('svelte').Snippet;
   }
 
@@ -34,14 +37,36 @@
     brandTitle = 'ÁbacoPhy',
     brandSubtitle = 'Negocio',
     userLabel = '',
+    userRole = '',
     onNavigate,
     onToggleTheme,
+    onLogout,
     children,
   }: Props = $props();
 
   let prevIndex = $state(-1);
   let transitionDir = $state<ViewDirection>(0);
   let isDark = $state(true);
+  let accountOpen = $state(false);
+
+  function toggleAccount() {
+    accountOpen = !accountOpen;
+  }
+
+  function closeAccount() {
+    accountOpen = false;
+  }
+
+  function handleLogoutClick() {
+    accountOpen = false;
+    onLogout?.();
+  }
+
+  function initials(label: string): string {
+    const parts = label.trim().split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return (label.slice(0, 2) || '?').toUpperCase();
+  }
 
   /** Chrome colapsado → solo hamburguesa (3 barras). */
   let chromeCollapsed = $state(false);
@@ -170,9 +195,55 @@
 
         {#if userLabel}
           <div class="cell-account">
-            <div class="account-box" title={userLabel}>
-              <User size={15} strokeWidth={2.2} aria-hidden="true" />
-              <span class="account-text">{userLabel}</span>
+            <div class="account-menu" class:open={accountOpen}>
+              <button
+                type="button"
+                class="account-trigger"
+                aria-haspopup="menu"
+                aria-expanded={accountOpen}
+                title={userLabel}
+                onclick={toggleAccount}
+              >
+                <span class="account-avatar" aria-hidden="true">{initials(userLabel)}</span>
+                <span class="account-meta">
+                  <span class="account-name">{userLabel}</span>
+                  {#if userRole}
+                    <span class="account-role">{userRole}</span>
+                  {/if}
+                </span>
+                <ChevronDown size={14} strokeWidth={2.2} class="account-chevron" aria-hidden="true" />
+              </button>
+
+              {#if accountOpen}
+                <button
+                  type="button"
+                  class="account-backdrop"
+                  aria-label="Cerrar menú de cuenta"
+                  onclick={closeAccount}
+                ></button>
+                <div class="account-dropdown" role="menu">
+                  <div class="account-dropdown-head">
+                    <span class="account-avatar lg" aria-hidden="true">{initials(userLabel)}</span>
+                    <div>
+                      <div class="account-name">{userLabel}</div>
+                      {#if userRole}
+                        <div class="account-role">{userRole}</div>
+                      {/if}
+                    </div>
+                  </div>
+                  {#if onLogout}
+                    <button
+                      type="button"
+                      class="account-item danger"
+                      role="menuitem"
+                      onclick={handleLogoutClick}
+                    >
+                      <LogOut size={15} strokeWidth={2.2} aria-hidden="true" />
+                      Cerrar sesión
+                    </button>
+                  {/if}
+                </div>
+              {/if}
             </div>
           </div>
         {/if}
@@ -351,23 +422,148 @@
     max-width: min(280px, 28vw);
   }
 
-  .account-box {
+  .account-menu {
+    position: relative;
+    z-index: 40;
+  }
+  .account-trigger {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 12px 6px 10px;
-    border-radius: var(--radius-pill);
+    padding: 4px 10px 4px 4px;
+    border-radius: var(--radius-pill, 999px);
     border: 1px solid var(--color-border);
     background: var(--color-surface);
     color: var(--color-text-secondary);
-    max-width: 200px;
+    max-width: 220px;
     min-height: 36px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 160ms ease, background 160ms ease;
   }
-  .account-text {
+  .account-trigger:hover,
+  .account-menu.open .account-trigger {
+    border-color: color-mix(in srgb, var(--accent-cyan, #61e6e1) 35%, var(--color-border));
+    background: color-mix(in srgb, var(--color-surface) 88%, var(--accent-cyan, #61e6e1));
+  }
+  .account-avatar {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #0a1210;
+    background: var(--gradient-primary-btn, linear-gradient(135deg, #61e6e1, #b7f56a));
+  }
+  .account-avatar.lg {
+    width: 36px;
+    height: 36px;
+    font-size: 0.75rem;
+  }
+  .account-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+    line-height: 1.15;
+  }
+  .account-name {
     font-size: 0.72rem;
+    font-weight: 650;
+    color: var(--color-text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 120px;
+  }
+  .account-role {
+    font-size: 0.62rem;
+    color: var(--color-text-muted);
+    text-transform: capitalize;
+  }
+  .account-chevron {
+    flex: 0 0 auto;
+    opacity: 0.55;
+    transition: transform 180ms ease;
+  }
+  .account-menu.open .account-chevron {
+    transform: rotate(180deg);
+  }
+  .account-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    border: none;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    cursor: default;
+  }
+  .account-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 50;
+    min-width: 200px;
+    padding: 8px;
+    border-radius: 14px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface, #12182a);
+    box-shadow: var(--shadow-soft, 0 16px 40px rgba(0, 0, 0, 0.35));
+  }
+  .account-dropdown-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 8px 10px;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 6px;
+  }
+  .account-dropdown-head .account-name {
+    max-width: 140px;
+  }
+  .account-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 10px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--color-text-primary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+  }
+  .account-item:hover {
+    background: color-mix(in srgb, var(--color-text-muted) 12%, transparent);
+  }
+  .account-item.danger {
+    color: var(--accent-red, #f17b7b);
+  }
+  .account-item.danger:hover {
+    background: color-mix(in srgb, var(--accent-red, #f17b7b) 12%, transparent);
+  }
+
+  @media (max-width: 699px) {
+    .account-meta {
+      display: none;
+    }
+    .account-trigger {
+      padding: 4px;
+      max-width: none;
+    }
+    .account-chevron {
+      display: none;
+    }
   }
 
   .theme-fab-wrap {
