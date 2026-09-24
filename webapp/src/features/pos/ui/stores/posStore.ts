@@ -1,6 +1,9 @@
 import type { Product } from '../../../catalog/domain/entities/Product';
 import type { GetProducts } from '../../../catalog/domain/usecases';
-import type { SalesUnit } from '../../../warehouse/domain/entities/SalesUnit';
+import type {
+  SalesUnit,
+  UnitStockRowRef,
+} from '../../../warehouse/domain/entities/SalesUnit';
 import type { GetSalesUnits } from '../../../warehouse/domain/usecases';
 import type { CreateSaleInput, Sale } from '../../domain/entities/Sale';
 import type { ListSales, RegisterSale } from '../../domain/usecases';
@@ -12,6 +15,8 @@ export type PosState = {
   sales: Sale[];
   products: Product[];
   units: SalesUnit[];
+  /** Stock por unidad (para validar / mostrar disponible en UI). */
+  unitStocks: UnitStockRowRef[];
   lastSale: Sale | null;
   error: string | null;
   saving: boolean;
@@ -30,6 +35,7 @@ export function createPosStore(deps: Deps) {
     sales: [],
     products: [],
     units: [],
+    unitStocks: [],
     lastSale: null,
     error: null,
     saving: false,
@@ -64,13 +70,17 @@ export function createPosStore(deps: Deps) {
         const [sales, products, unitsSnapshot] = await Promise.all([
           deps.listSales.execute(),
           deps.getProducts.execute().catch(() => [] as Product[]),
-          deps.getSalesUnits.execute().catch(() => ({ units: [] as SalesUnit[], stocks: [] })),
+          deps.getSalesUnits.execute().catch(() => ({
+            units: [] as SalesUnit[],
+            stocks: [] as UnitStockRowRef[],
+          })),
         ]);
         set({
           status: sales.length ? 'success' : 'empty',
           sales,
           products,
           units: unitsSnapshot.units,
+          unitStocks: unitsSnapshot.stocks ?? [],
           error: null,
         });
       } catch (err) {

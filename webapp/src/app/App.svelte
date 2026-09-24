@@ -83,9 +83,7 @@
     filterNavByViews(PLACEHOLDER_NAV, sessionState.session?.views ?? null),
   );
 
-  const userRole = $derived(
-    sessionState.session?.user?.role ?? sessionState.session?.role ?? '',
-  );
+  const userRole = $derived(sessionState.session?.user?.role ?? '');
   const userLabel = $derived(
     sessionState.session
       ? `${sessionState.session.user.displayName} · ${sessionState.session.user.role}`
