@@ -432,7 +432,7 @@ func (s *Server) handleReceptions(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleReceptionEnter: almacenero valida el IR y da entrada física al almacén.
-func (s *Server) handleReceptionEnter(w http.ResponseWriter, r *http.Request, sess *domain.Session, snap *domain.StoreSnapshot) {
+func (s *Server) handleReceptionEnter(w http.ResponseWriter, r *http.Request, sess *domain.TokenSession, snap *domain.StoreSnapshot) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
 		return
