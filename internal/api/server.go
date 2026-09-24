@@ -1010,6 +1010,7 @@ func (s *Server) handleReportsSummary(w http.ResponseWriter, r *http.Request) {
 			invPaid += inv.Total
 		}
 	}
+	eq := domain.EquationSnapshot(snap)
 	writeJSON(w, 200, map[string]any{
 		"tenant":                snap.Tenant.Name,
 		"slug":                  snap.Tenant.Slug,
@@ -1017,6 +1018,20 @@ func (s *Server) handleReportsSummary(w http.ResponseWriter, r *http.Request) {
 		"income_total":          income,
 		"expense_total":         expense,
 		"net":                   income - expense,
+		// Claves alineadas con el frontend (Equation / StatCard)
+		"ingresos":              income,
+		"gastos":                expense,
+		"neto":                  income - expense,
+		"income":                income,
+		"expenses":              expense,
+		"net_profit":            income - expense,
+		"activo":                eq["activo"],
+		"pasivo":                eq["pasivo"],
+		"patrimonio":            eq["patrimonio"],
+		"assets":                eq["activo"],
+		"liabilities":           eq["pasivo"],
+		"equity":                eq["patrimonio"],
+		"ecuacion":              eq,
 		"inventory_items":       len(snap.Inventory),
 		"inventory_cost_value":  invValue,
 		"invoices_count":        nInv,

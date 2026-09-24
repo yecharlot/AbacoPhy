@@ -881,8 +881,9 @@ func (s *Server) handleMasterReset(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if sess.Role != domain.RoleMaster {
-		writeJSON(w, 403, map[string]string{"error": "solo master"})
+	// Master o admin del negocio (operación controlada / DEV)
+	if sess.Role != domain.RoleMaster && sess.Role != domain.RoleAdmin {
+		writeJSON(w, 403, map[string]string{"error": "solo master o admin"})
 		return
 	}
 	var body struct {
