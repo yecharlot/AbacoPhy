@@ -311,7 +311,9 @@
     .mod-chip-tag { font-size: .65rem; opacity: .7; text-transform: uppercase; }
     .danger-zone { border-color: #fca5a5; }
 
-  </style>
+  .nav-badge{margin-left:auto;background:#c62828;color:#fff;font-size:.7rem;font-weight:700;min-width:1.15rem;height:1.15rem;padding:0 .35rem;border-radius:999px;display:inline-flex;align-items:center;justify-content:center}
+.nav-item{display:flex;align-items:center;gap:.5rem;width:100%}
+</style>
 </head>
 <body>
   <div id="splash">
@@ -460,6 +462,7 @@ const state = {
   informeSub: 'situacion',
   nomSub: 'productos',
   queue: safeJSON(localStorage.getItem('ap_queue') || '[]', []),
+  pendingIR: 0,
   cache: safeJSON(localStorage.getItem('ap_cache') || '{}', {}),
   themeMode: localStorage.getItem('ap_theme') || 'light',
 };
@@ -620,6 +623,19 @@ function can(view) {
   if (Object.keys(mods).length && mods[view] === false) return false;
   return true;
 }
+async function refreshPendingIR() {
+  if (!state.token) { state.pendingIR = 0; return; }
+  const role = (state.user && state.user.role) || '';
+  const cares = can('almacen') || can('recepcion') || role === 'almacenero' || role === 'economico' || role === 'admin' || role === 'master';
+  if (!cares) { state.pendingIR = 0; return; }
+  try {
+    const rec = await api('/receptions?status=pendiente_entrada');
+    state.pendingIR = (rec.pending_count != null) ? rec.pending_count : (rec.receptions || []).length;
+  } catch (_) {
+    /* sin permiso o offline: no romper menú */
+  }
+}
+
 function renderNav() {
   const nav = document.getElementById('sideNav');
   nav.innerHTML = '';
@@ -630,7 +646,11 @@ function renderNav() {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'nav-item' + (state.tab === n.id ? ' active' : '');
-    b.innerHTML = (ICONS[n.icon] || '') + '<span>' + n.label + '</span>';
+    let badge = '';
+    if (n.id === 'almacen' && state.pendingIR > 0) {
+      badge = '<span class="nav-badge" title="Informes pendientes de entrada">' + state.pendingIR + '</span>';
+    }
+    b.innerHTML = (ICONS[n.icon] || '') + '<span>' + n.label + '</span>' + badge;
     b.onclick = () => {
       state.tab = n.id;
       document.getElementById('pageTitle').textContent = n.label;
@@ -643,7 +663,10 @@ function renderNav() {
 }
 async function loadMe() {
   const me = await api('/auth/me');
-  state.user = me.user; state.tenant = me.tenant; state.views = me.views || state.views; state.modules = me.modules || state.modules || {};
+  state.user = me.user; state.tenant = me.tenant;
+  state.views = me.views || state.views; state.modules = me.modules || state.modules || {};
+  await refreshPendingIR();
+  renderNav();
   state.cache.rev = me.rev; state.cache.root_cid = me.root_cid;
   document.getElementById('sideTitle').textContent = (me.tenant.settings && me.tenant.settings.app_title) || me.tenant.name || 'ÁbacoPhy';
   document.getElementById('sideSub').textContent = me.tenant.name || 'Negocio';
@@ -653,6 +676,10 @@ async function loadMe() {
 }
 
 async function render() {
+  if (state.tab === 'almacen' || state.tab === 'recepcion' || state.tab === 'inicio') {
+    try { await refreshPendingIR(); renderNav(); } catch (_) {}
+  }
+
   const main = document.getElementById('principal');
   main.innerHTML = '<div class="card muted">Cargando…</div>';
   const base = (state.tenant && state.tenant.currency) || 'CUP';
@@ -688,40 +715,35 @@ async function render() {
         try { await api('/entries', { method: 'POST', body: JSON.stringify(payload) }); toast('Asiento registrado'); state.tab = 'inicio'; renderNav(); render(); }
         catch (_) { state.queue.push({ kind: 'entry', payload }); saveLocal(); toast('Guardado offline · se sincronizará al tener red'); }
       };
-        } else if (state.tab === 'inventario') {
+            } else if (state.tab === 'inventario') {
       const data = await api('/inventory');
       const rows = (data.items || []).map(i => `<tr>
         <td>${i.name}</td><td>${i.qty} ${i.unit || 'ud'}</td>
         <td class="money">${money(i.cost, i.currency || base)}</td>
         <td class="money">${money(i.amount, i.currency || base)}</td>
-        <td><button class="btn btn-secondary btn-sm" data-out="${i.id}">Rebaja</button></td></tr>`).join('');
+        <td><button type="button" class="btn btn-secondary btn-sm" data-out="${i.id}">Rebaja</button></td></tr>`).join('');
       const canRec = can('recepcion');
       main.innerHTML = `<div class="card">
         <div class="section-label">Inventario (consulta)</div>
-        <p class="muted">Vista de existencias y valor. Las <strong>compras</strong> se registran en <em>Inf. recepción</em> (económico) y la <strong>entrada física</strong> en <em>Almacén</em>. Aquí solo consulta y rebajas de ajuste.</p>
+        <p class="muted">Existencias y valor. Las <strong>compras</strong> van por <em>Inf. recepción</em> y la <strong>entrada física</strong> por <em>Almacén</em>. Aquí solo consulta y rebajas de ajuste.</p>
         ${canRec ? '<button type="button" class="btn btn-primary" id="goRec">Ir a informe de recepción</button>' : ''}
       </div>
-      <div class="card"><table><thead><tr><th>Producto</th><th>Cant.</th><th>Costo</th><th>Importe</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="muted">Vacío</td></tr>'}</tbody></table></div>`;
+      <div class="card"><table><thead><tr><th>Producto</th><th>Cant.</th><th>Costo</th><th>Importe</th><th></th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="5" class="muted">Vacío</td></tr>'}</tbody></table></div>`;
       const goRec = document.getElementById('goRec');
       if (goRec) goRec.onclick = () => { state.tab = 'recepcion'; render(); };
-      main.querySelectorAll('[data-out]').forEach(b => {
+      main.qquerySelectorAll('[data-out]').forEach(b => {
         b.onclick = async () => {
           const id = b.getAttribute('data-out');
-          const qty = prompt('Cantidad a rebajar (ajuste):');
+          const qty = prompt('Cantidad a rebajar (ajuste de inventario):', '1');
           if (qty == null || qty === '') return;
           const q = +qty;
           if (!q || q <= 0) { toast('Cantidad inválida'); return; }
           try {
-            await api('/inventory', { method: 'POST', body: JSON.stringify({ id, qty: -Math.abs(q), adjust: true }) });
+            await api('/inventory/out', { method: 'POST', body: JSON.stringify({ id, qty: Math.abs(q), note: 'Ajuste desde consulta inventario' }) });
             toast('Rebaja registrada');
             render();
-          } catch (e) {
-            try {
-              await api('/inventory?id=' + encodeURIComponent(id) + '&out=' + encodeURIComponent(q), { method: 'POST', body: '{}' });
-              toast('Rebaja registrada');
-              render();
-            } catch (e2) { toast(e2.message || e.message || 'No se pudo rebajar'); }
-          }
+          } catch (e) { toast(e.message || 'No se pudo rebajar'); }
         };
       });
     
@@ -744,13 +766,13 @@ async function render() {
         try { await api('/invoices', { method: 'POST', body: JSON.stringify(payload) }); toast('Factura emitida'); render(); }
         catch (_) { state.queue.push({ kind: 'invoice', payload }); saveLocal(); toast('Offline'); }
       };
-      main.querySelectorAll('[data-pdf]').forEach(btn => btn.onclick = async () => {
+      main.qquerySelectorAll('[data-pdf]').forEach(btn => btn.onclick = async () => {
         const res = await api('/invoices/pdf?id=' + encodeURIComponent(btn.dataset.pdf));
         if (!res.ok) { toast('No se pudo generar PDF'); return; }
         const blob = await res.blob(); const url = URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url; a.download = 'factura.pdf'; a.click(); URL.revokeObjectURL(url);
       });
-    } else if (state.tab === 'nomina') {
+    } else if (state.tab === 'nomina') { /* nómina: alta trabajadores + liquidación; no mezclar con compras */
       const data = await api('/payroll/employees');
       const pays = await api('/payroll/payslips').catch(() => ({ payslips: [] }));
       const jobs = await api('/job-positions').catch(() => ({ positions: [] }));
@@ -767,6 +789,7 @@ async function render() {
         </td></tr>`).join('');
       main.innerHTML = `<div class="card">
         <div class="section-label">1. Alta de trabajador</div>
+        <p class="muted">Alta de trabajadores y liquidaciones. No registra compras ni stock (use Inf. recepción / Almacén).</p>
         <p class="muted" style="margin-bottom:.6rem">Primero registre al trabajador (nombre, CI, cargo, salario). Después, con <strong>Editar</strong>, podrá actualizar vacaciones, seguridad social, certificados y licencias. Valores por defecto según prácticas cubanas: vacaciones <strong>9 %</strong>, SS entidad <strong>12,5 %</strong>, SS trabajador <strong>5 %</strong> (configurables).</p>
         <div style="margin-bottom:.75rem"><button class="btn btn-secondary" id="pdfNom">Exportar / imprimir nómina (PDF)</button></div>
         <label>Nombre</label><input id="ename" />
@@ -822,18 +845,18 @@ async function render() {
         const a = document.createElement('a'); a.href = url; a.download = 'nomina-' + (period || 'all') + '.pdf'; a.click(); URL.revokeObjectURL(url);
         toast('Nómina lista para imprimir o llevar al banco');
       });
-      main.querySelectorAll('[data-liq]').forEach(b => b.onclick = async () => {
+      main.qquerySelectorAll('[data-liq]').forEach(b => b.onclick = async () => {
         const period = prompt('Periodo (AAAA-MM)', new Date().toISOString().slice(0, 7));
         if (!period) return;
         await api('/payroll/payslips', { method: 'POST', body: JSON.stringify({ employee_id: b.dataset.liq, period }) });
         toast('Liquidación calculada'); render();
       });
-      main.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+      main.qquerySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
         if (!confirm('¿Dar de baja?')) return;
         await api('/payroll/employees?id=' + encodeURIComponent(b.dataset.del), { method: 'DELETE' });
         toast('Baja registrada'); render();
       });
-      main.querySelectorAll('[data-edit]').forEach(b => b.onclick = async () => {
+      main.qquerySelectorAll('[data-edit]').forEach(b => b.onclick = async () => {
         const emp = (data.employees || []).find(x => x.id === b.dataset.edit);
         if (!emp) return;
         const salary = prompt('Salario', emp.salary); if (salary == null) return;
@@ -873,12 +896,12 @@ async function render() {
         })});
         toast('Cuenta creada'); render();
       };
-      main.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+      main.qquerySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
         if (!confirm('¿Dar de baja la cuenta?')) return;
         await api('/accounts?id=' + encodeURIComponent(b.dataset.del), { method: 'DELETE' }); toast('Baja'); render();
       });
       let editId = null;
-      main.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => {
+      main.qquerySelectorAll('[data-edit]').forEach(b => b.onclick = () => {
         const a = (data.accounts || []).find(x => x.id === b.dataset.edit); if (!a) return;
         editId = a.id;
         document.getElementById('acode').value = a.code || '';
@@ -938,7 +961,7 @@ async function render() {
         <p class="muted" style="font-size:.8rem;margin-top:.4rem">La consulta se actualiza al cambiar el tipo de informe, el periodo o la cuenta.</p>
         <div id="repOut" style="margin-top:1rem"></div>
       </div>`;
-      document.querySelectorAll('#infTabs .tab').forEach(tb => tb.onclick = () => {
+      document.qquerySelectorAll('#infTabs .tab').forEach(tb => tb.onclick = () => {
         state.informeSub = tb.dataset.k; render();
       });
       const fill = async () => {
@@ -1064,7 +1087,7 @@ async function render() {
         await api('/backups/import', { method: 'POST', body: fd, headers: {} });
         toast('Restaurado desde disco'); await loadMe(); render();
       };
-      main.querySelectorAll('[data-restore]').forEach(b => b.onclick = async () => {
+      main.qquerySelectorAll('[data-restore]').forEach(b => b.onclick = async () => {
         if (!confirm('¿Restaurar esta salva?')) return;
         await api('/backups/restore', { method: 'POST', body: JSON.stringify({ cid: b.dataset.restore }) });
         toast('Restaurado'); await loadMe(); render();
@@ -1153,7 +1176,7 @@ async function render() {
       main.innerHTML = `<div class="card"><div class="section-label">Nomencladores</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">${tabBar}</div>
         <p class="muted" style="margin:0">Productos, cargos, monedas, plan de cuentas y unidades de medida en un solo lugar.</p></div>${body}`;
-      main.querySelectorAll('[data-nt]').forEach(b => b.onclick = () => { state.nomTab = b.getAttribute('data-nt'); render(); });
+      main.qquerySelectorAll('[data-nt]').forEach(b => b.onclick = () => { state.nomTab = b.getAttribute('data-nt'); render(); });
       if (tab === 'productos') {
         document.getElementById('addP').onclick = async () => {
           await api('/products', { method:'POST', body: JSON.stringify({
@@ -1195,12 +1218,12 @@ async function render() {
           })});
           toast('Unidad de medida agregada'); render();
         };
-        main.querySelectorAll('[data-mud]').forEach(b => b.onclick = async () => {
+        main.qquerySelectorAll('[data-mud]').forEach(b => b.onclick = async () => {
           if (!confirm('¿Eliminar unidad?')) return;
           await api('/measure-units?id='+b.getAttribute('data-mud'), { method:'DELETE' });
           toast('Eliminada'); render();
         });
-        main.querySelectorAll('[data-mue]').forEach(b => b.onclick = async () => {
+        main.qquerySelectorAll('[data-mue]').forEach(b => b.onclick = async () => {
           const name = prompt('Nuevo nombre');
           if (!name) return;
           await api('/measure-units', { method:'PUT', body: JSON.stringify({ id: b.getAttribute('data-mue'), name })});
@@ -1283,7 +1306,7 @@ async function render() {
         <label>Cantidad</label><input id="trQ" type="number" step="0.01" min="0.01" />
         <button class="btn btn-primary" id="doTr">Confirmar transferencia</button>
       </div>`;
-      main.querySelectorAll('.doEnter').forEach(btn => {
+      main.qquerySelectorAll('.doEnter').forEach(btn => {
         btn.onclick = async () => {
           if (!confirm('¿Confirmó con el económico que estos productos se compraron? Se dará entrada al almacén.')) return;
           try {
@@ -1369,7 +1392,7 @@ async function render() {
           <td class="money">${(l.qty*l.unit_cost).toFixed(2)}</td>
           <td><button type="button" class="btn btn-sm rmL" data-i="${i}">Quitar</button></td>
         </tr>`).join('');
-        tb.querySelectorAll('.rmL').forEach(b => b.onclick = () => { lines.splice(+b.getAttribute('data-i'),1); paintLines(); });
+        tb.qquerySelectorAll('.rmL').forEach(b => b.onclick = () => { lines.splice(+b.getAttribute('data-i'),1); paintLines(); });
       };
       document.getElementById('addLine').onclick = () => {
         const sel = document.getElementById('rp');
@@ -1424,6 +1447,7 @@ async function render() {
       </tr>`).join('');
       main.innerHTML = `<div class="card">
         <div class="section-label">Punto de venta · vendedor</div>
+        <p class="muted">Vende desde stock de la unidad (o almacén). Las compras de mercancía no se hacen aquí: Inf. recepción → Almacén → transferencia.</p>
         <p class="muted">La venta descuenta stock, aplica rebajas y genera asientos de ingreso y costo de ventas.</p>
         <label>Unidad de venta</label><select id="vu">${uopts}</select>
         <label>Vendedor</label><input id="vs" placeholder="Nombre de quien atiende" />
@@ -1535,7 +1559,7 @@ async function render() {
         })});
         toast('Usuario creado con módulos del rol'); render();
       };
-      document.querySelectorAll('[data-ue]').forEach(b => b.onclick = async () => {
+      document.qquerySelectorAll('[data-ue]').forEach(b => b.onclick = async () => {
         const data2 = await api('/users');
         const u = (data2.users||[]).find(x => x.id === b.dataset.ue); if (!u) return;
         const display_name = prompt('Nombre visible', u.display_name||''); if (display_name == null) return;
@@ -1544,7 +1568,7 @@ async function render() {
         await api('/users', { method: 'PUT', body: JSON.stringify({ id: u.id, display_name, role, password: password || undefined }) });
         toast(role !== u.role ? 'Usuario actualizado · módulos reasignados al nuevo rol' : 'Usuario actualizado'); render();
       });
-      document.querySelectorAll('[data-um]').forEach(b => b.onclick = async () => {
+      document.qquerySelectorAll('[data-um]').forEach(b => b.onclick = async () => {
         const data2 = await api('/users');
         const u = (data2.users||[]).find(x => x.id === b.dataset.um); if (!u) return;
         const panel = document.getElementById('userModPanel');
@@ -1564,7 +1588,7 @@ async function render() {
         document.getElementById('umChecks').innerHTML = '<div class="mod-grid">'+(checks || '<p class="muted">Sin catálogo</p>')+'</div>';
         document.getElementById('saveUm').onclick = async () => {
           const modules = {};
-          document.querySelectorAll('[data-umk]').forEach(cb => {
+          document.qquerySelectorAll('[data-umk]').forEach(cb => {
             modules[cb.getAttribute('data-umk')] = !!cb.checked;
           });
           await api('/users', { method: 'PUT', body: JSON.stringify({ id: u.id, modules }) });
@@ -1573,7 +1597,7 @@ async function render() {
         document.getElementById('cancelUm').onclick = () => { panel.style.display = 'none'; };
         panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       });
-      document.querySelectorAll('[data-ud]').forEach(b => b.onclick = async () => {
+      document.qquerySelectorAll('[data-ud]').forEach(b => b.onclick = async () => {
         if (!confirm('¿Dar de baja este usuario?')) return;
         await api('/users?id=' + encodeURIComponent(b.dataset.ud), { method: 'DELETE' });
         toast('Usuario dado de baja'); render();
@@ -1668,7 +1692,7 @@ async function render() {
         })});
         toast('Ficha de precio creada'); render();
       };
-      main.querySelectorAll('[data-psd]').forEach(b => b.onclick = async () => {
+      main.qquerySelectorAll('[data-psd]').forEach(b => b.onclick = async () => {
         await api('/price-sheets?id='+b.getAttribute('data-psd'), { method:'DELETE' });
         toast('Eliminada'); render();
       });
@@ -1703,11 +1727,11 @@ async function render() {
         })});
         toast('Pedido registrado'); render();
       };
-      main.querySelectorAll('[data-oc]').forEach(b => b.onclick = async () => {
+      main.qquerySelectorAll('[data-oc]').forEach(b => b.onclick = async () => {
         await api('/online-orders', { method:'PUT', body: JSON.stringify({ id: b.getAttribute('data-oc'), status: 'confirmed' })});
         toast('Confirmado'); render();
       });
-      main.querySelectorAll('[data-ox]').forEach(b => b.onclick = async () => {
+      main.qquerySelectorAll('[data-ox]').forEach(b => b.onclick = async () => {
         await api('/online-orders', { method:'PUT', body: JSON.stringify({ id: b.getAttribute('data-ox'), status: 'cancelled' })});
         toast('Cancelado'); render();
       });
@@ -1775,7 +1799,7 @@ async function render() {
       </div>`;
       document.getElementById('btnSaveMods').onclick = async () => {
         const modules = {};
-        document.querySelectorAll('[data-mod]').forEach(cb => {
+        document.qquerySelectorAll('[data-mod]').forEach(cb => {
           modules[cb.getAttribute('data-mod')] = !!cb.checked;
         });
         // Core always true
