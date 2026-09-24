@@ -1,4 +1,4 @@
-/** Raw summary / equation payload from GET /reports/summary (English or Spanish keys). */
+/** Raw summary from GET /reports/summary (English, Spanish and legacy keys). */
 export type SummaryDto = {
   assets?: number;
   liabilities?: number;
@@ -7,11 +7,15 @@ export type SummaryDto = {
   expenses?: number;
   net_profit?: number;
   neto?: number;
+  net?: number;
   ingresos?: number;
   gastos?: number;
   activo?: number;
   pasivo?: number;
   patrimonio?: number;
+  income_total?: number;
+  expense_total?: number;
+  currency?: string;
   ecuacion?: {
     activo?: number;
     pasivo?: number;

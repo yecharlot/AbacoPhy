@@ -9,7 +9,7 @@
   } from '../../../../infrastructure/ui/charts';
   import type { AccountingState, AccountingStore } from '../stores/accountingStore';
   import EquationCard from '../components/EquationCard.svelte';
-  import { DevSeedPanel } from '../../../../infrastructure/ui/dev';
+  import { DevSeedPanel, DevResetPanel } from '../../../../infrastructure/ui/dev';
   import { buildSampleEntriesPayload, seedEntriesViaStore } from '../dev/entriesSeed';
   import {
     accountsByType,
@@ -22,6 +22,8 @@
   } from '../viewmodels/dashboardCharts';
 
   export let store: AccountingStore;
+  /** Solo DEV: reinicio de plataforma (master). */
+  export let onDevReset: (() => Promise<string | void>) | undefined = undefined;
 
   let state: AccountingState = store.getState();
   let scope: ChartScope = 'month';
@@ -66,9 +68,18 @@
   <DevSeedPanel
     title="Carga masiva de asientos"
     description="JSON: entries[] con type, amount, concept, date (y opcionales currency, accountId, category). Si falta accountId se elige por tipo."
-    sample={buildSampleEntriesPayload(14)}
+    sample={buildSampleEntriesPayload(730)}
     onSeed={(data) => seedEntriesViaStore(store, data)}
   />
+  {#if onDevReset}
+    <DevResetPanel
+      onReset={onDevReset}
+      onDone={() => {
+        void store.loadDashboard();
+      }}
+    />
+  {/if}
+
 
   {#if state.status === 'loading' && !state.summary}
     <PanelCard title="Resumen">

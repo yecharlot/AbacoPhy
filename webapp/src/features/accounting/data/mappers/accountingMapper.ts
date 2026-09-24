@@ -10,6 +10,21 @@ function n(v: unknown): number {
   return Number.isFinite(x) ? x : 0;
 }
 
+type EqBlock = {
+  activo?: number;
+  pasivo?: number;
+  patrimonio?: number;
+  ingresos?: number;
+  gastos?: number;
+  neto?: number;
+  assets?: number;
+  liabilities?: number;
+  equity?: number;
+  income?: number;
+  expenses?: number;
+  net_profit?: number;
+};
+
 export const accountingMapper = {
   toAccount(dto: AccountDto): Account {
     return {
@@ -26,7 +41,6 @@ export const accountingMapper = {
     return {
       id: dto.id,
       date: dto.date,
-      // API Go usa description; el dominio expone concept
       concept: dto.concept || dto.description || '',
       type: dto.type as Entry['type'],
       amount: n(dto.amount),
@@ -38,52 +52,51 @@ export const accountingMapper = {
     };
   },
 
-  toEquation(dto: SummaryDto): Equation {
-    const eq = dto.ecuacion ?? dto.equation;
+  toEquation(dto: SummaryDto & Record<string, unknown>): Equation {
+    const eq = (dto.ecuacion ?? dto.equation ?? {}) as EqBlock;
     return {
       assets: n(
         dto.assets ??
           dto.activo ??
-          (eq as { activo?: number; assets?: number } | undefined)?.activo ??
-          (eq as { assets?: number } | undefined)?.assets,
+          eq.activo ??
+          eq.assets,
       ),
       liabilities: n(
         dto.liabilities ??
           dto.pasivo ??
-          (eq as { pasivo?: number; liabilities?: number } | undefined)?.pasivo ??
-          (eq as { liabilities?: number } | undefined)?.liabilities,
+          eq.pasivo ??
+          eq.liabilities,
       ),
       equity: n(
         dto.equity ??
           dto.patrimonio ??
-          (eq as { patrimonio?: number; equity?: number } | undefined)?.patrimonio ??
-          (eq as { equity?: number } | undefined)?.equity,
+          eq.patrimonio ??
+          eq.equity,
       ),
       income: n(
         dto.income ??
           dto.ingresos ??
-          (eq as { ingresos?: number; income?: number } | undefined)?.ingresos ??
-          (eq as { income?: number } | undefined)?.income,
+          (dto as { income_total?: number }).income_total ??
+          eq.ingresos ??
+          eq.income,
       ),
       expenses: n(
         dto.expenses ??
           dto.gastos ??
-          (eq as { gastos?: number; expenses?: number } | undefined)?.gastos ??
-          (eq as { expenses?: number } | undefined)?.expenses,
+          (dto as { expense_total?: number }).expense_total ??
+          eq.gastos ??
+          eq.expenses,
       ),
       netProfit: n(
         dto.net_profit ??
           dto.neto ??
-          (eq as { neto?: number; net_profit?: number } | undefined)?.neto ??
-          (eq as { net_profit?: number } | undefined)?.net_profit,
+          (dto as { net?: number }).net ??
+          eq.neto ??
+          eq.net_profit,
       ),
     };
   },
 
-  /**
-   * Body que espera Go domain.Entry:
-   * type, account_id, amount, description, date?, currency?, counterpart?
-   */
   toEntryDto(entity: Omit<Entry, 'id'>): Record<string, unknown> {
     return {
       type: entity.type,
@@ -92,7 +105,6 @@ export const accountingMapper = {
       description: entity.concept,
       date: entity.date,
       currency: entity.currency || undefined,
-      // category no existe en domain.Entry Go — no enviar
     };
   },
 };

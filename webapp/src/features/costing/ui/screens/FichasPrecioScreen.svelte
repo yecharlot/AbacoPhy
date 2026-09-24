@@ -4,6 +4,8 @@
   import { BarChart, PanelCard, StatCard, type ChartPoint } from '../../../../infrastructure/ui/charts';
   import type { CostingState, CostingStore } from '../stores/costingStore';
   import { marginByProduct } from '../viewmodels/costingCharts';
+  import { DevSeedPanel } from '../../../../infrastructure/ui/dev';
+  import { buildSampleSheetsPayload, seedSheetsViaStore } from '../dev/sheetsSeed';
 
   export let store: CostingStore;
 
@@ -87,6 +89,12 @@
 </script>
 
 <section class="analytics">
+  <DevSeedPanel
+    title="Seed fichas de costo y precio"
+    description="JSON: costSheets[20] + priceSheets[20]. Requiere productos."
+    sample={buildSampleSheetsPayload()}
+    onSeed={(data) => seedSheetsViaStore(store, data)}
+  />
   <div class="stats">
     <StatCard
       variant="hero"

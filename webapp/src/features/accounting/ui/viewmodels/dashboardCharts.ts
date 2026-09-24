@@ -18,10 +18,10 @@ export const CHART_SCOPE_OPTIONS: Array<{ id: ChartScope; label: string }> = [
 
 /** Cuántos buckets mostrar por alcance (evita ejes ilegibles). */
 const SCOPE_LIMIT: Record<ChartScope, number> = {
-  day: 14,
-  week: 12,
-  month: 12,
-  year: 5,
+  day: 31,
+  week: 26,
+  month: 24,
+  year: 3,
 };
 
 const MONTH_LABELS = [

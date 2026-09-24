@@ -60,7 +60,7 @@ export function createAccountingStore(deps: Deps) {
       try {
         const [accounts, entries, summary] = await Promise.all([
           deps.listAccounts.execute().catch(() => []),
-          deps.listEntries.execute({ limit: 200 }).catch(() => []),
+          deps.listEntries.execute({ limit: 5000 }).catch(() => []),
           deps.getSummary.execute(),
         ]);
         set({
