@@ -10,6 +10,7 @@ import type { CreateTransferInput, Transfer } from '../../domain/entities/Transf
 import type { WarehouseRepository } from '../../domain/repositories/WarehouseRepository';
 import {
   createReceptionInputToDto,
+  enterReceptionInputToDto,
   createSalesUnitInputToDto,
   createTransferInputToDto,
   receptionDtoToEntity,
@@ -81,7 +82,17 @@ export class WarehouseRepositoryImpl implements WarehouseRepository {
       if (!dto.reception) throw new Error('Respuesta de recepción vacía');
       return receptionDtoToEntity(dto.reception);
     } catch (err) {
-      throw new Error(messageOf(err, 'No se pudo confirmar la recepción'));
+      throw new Error(messageOf(err, 'No se pudo registrar el informe de recepción'));
+    }
+  }
+
+  async enterReception(input: import('../../domain/entities/Reception').EnterReceptionInput): Promise<Reception> {
+    try {
+      const dto = await this.remote.enterReception(enterReceptionInputToDto(input));
+      if (!dto.reception) throw new Error('Respuesta de entrada vacía');
+      return receptionDtoToEntity(dto.reception);
+    } catch (err) {
+      throw new Error(messageOf(err, 'No se pudo dar entrada al almacén'));
     }
   }
 

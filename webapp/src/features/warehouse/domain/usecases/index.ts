@@ -5,3 +5,5 @@ export { ListReceptions } from './ListReceptions';
 export { CreateReception } from './CreateReception';
 export { ListTransfers } from './ListTransfers';
 export { CreateTransfer } from './CreateTransfer';
+
+export { EnterReception } from './EnterReception';

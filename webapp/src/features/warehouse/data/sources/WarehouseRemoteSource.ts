@@ -32,6 +32,10 @@ export class WarehouseRemoteSource {
     return this.http.post<ReceptionResponseDto>('/receptions', body);
   }
 
+  enterReception(body: Record<string, unknown>): Promise<ReceptionResponseDto> {
+    return this.http.post<ReceptionResponseDto>('/receptions/enter', body);
+  }
+
   getTransfers(): Promise<TransfersResponseDto> {
     return this.http.get<TransfersResponseDto>('/transfers');
   }

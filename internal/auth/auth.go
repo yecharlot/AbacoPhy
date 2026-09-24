@@ -43,7 +43,7 @@ var ViewACL = map[string][]string{
 	"measure_units": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero, domain.RoleOperador},
 	"almacen":       {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero, domain.RoleOperador, domain.RoleReadonly},
 	"unidades":      {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero, domain.RoleVendedor},
-	"recepcion":     {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleAlmacenero},
+	"recepcion":     {domain.RoleMaster, domain.RoleAdmin, domain.RoleEconomico},
 	"vendedor":      {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleVendedor, domain.RoleOperador},
 	"fichas_costo":  {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico},
 	"fichas_precio": {domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleVendedor},

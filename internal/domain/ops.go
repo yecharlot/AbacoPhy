@@ -48,30 +48,39 @@ type UnitStock struct {
 	AmountBase float64 `json:"amount_base"`
 }
 
-// Informe de recepción (entrada a almacén).
+// Informe de recepción (módulo desacoplable "recepcion").
+// Flujo: económico registra compra (con/sin factura) → cuenta Inventario + aviso a almacén;
+// almacenero valida y da entrada física al almacén (status entrado).
+// Status: pendiente_entrada | entrado | anulado
 type ReceptionNote struct {
-	ID          string          `json:"id"`
-	TenantID    string          `json:"tenant_id"`
-	Number      string          `json:"number"`
-	Date        string          `json:"date"`
-	Supplier    string          `json:"supplier,omitempty"`
-	DocRef      string          `json:"doc_ref,omitempty"`
-	Lines       []ReceptionLine `json:"lines"`
-	TotalCost   float64         `json:"total_cost"`
-	Currency    string          `json:"currency"`
-	Status      string          `json:"status"` // borrador|confirmado
-	CreatedBy   string          `json:"created_by"`
-	CreatedAt   time.Time       `json:"created_at"`
-	Note        string          `json:"note,omitempty"`
+	ID           string          `json:"id"`
+	TenantID     string          `json:"tenant_id"`
+	Number       string          `json:"number"`
+	Date         string          `json:"date"`
+	HasInvoice   bool            `json:"has_invoice"`             // compra con factura
+	InvoiceRef   string          `json:"invoice_ref,omitempty"`   // nº factura si aplica
+	Supplier     string          `json:"supplier,omitempty"`      // obligatorio si has_invoice
+	Receiver     string          `json:"receiver"`                // quién recibe la mercancía
+	DocRef       string          `json:"doc_ref,omitempty"`       // alias legacy de invoice_ref
+	Lines        []ReceptionLine `json:"lines"`
+	TotalCost    float64         `json:"total_cost"`
+	Currency     string          `json:"currency"`
+	Status       string          `json:"status"` // pendiente_entrada|entrado|anulado
+	CreatedBy    string          `json:"created_by"`
+	CreatedAt    time.Time       `json:"created_at"`
+	EnteredBy    string          `json:"entered_by,omitempty"`
+	EnteredAt    *time.Time      `json:"entered_at,omitempty"`
+	Note         string          `json:"note,omitempty"`
 }
 
 type ReceptionLine struct {
 	ProductID   string  `json:"product_id"`
 	ProductCode string  `json:"product_code,omitempty"`
 	ProductName string  `json:"product_name,omitempty"`
+	Unit        string  `json:"unit,omitempty"` // unidad de medida
 	Qty         float64 `json:"qty"`
 	UnitCost    float64 `json:"unit_cost"`
-	Amount      float64 `json:"amount"`
+	Amount      float64 `json:"amount"` // importe línea = qty * unit_cost
 }
 
 // Transferencia almacén → unidad de venta.

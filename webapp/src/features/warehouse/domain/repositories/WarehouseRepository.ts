@@ -13,6 +13,7 @@ export interface WarehouseRepository {
   createSalesUnit(input: CreateSalesUnitInput): Promise<SalesUnit>;
   getReceptions(): Promise<Reception[]>;
   createReception(input: CreateReceptionInput): Promise<Reception>;
+  enterReception(input: import('../entities/Reception').EnterReceptionInput): Promise<Reception>;
   getTransfers(): Promise<Transfer[]>;
   createTransfer(input: CreateTransferInput): Promise<Transfer>;
 }
