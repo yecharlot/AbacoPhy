@@ -434,7 +434,7 @@ const NAV = [
   { id: 'nomencladores', label: 'Nomencladores', view: 'nomencladores', icon: 'productos' },
   { id: 'almacen', label: 'Almacén', view: 'almacen', icon: 'almacen' },
   { id: 'unidades', label: 'Unidades venta', view: 'unidades', icon: 'unidades' },
-  { id: 'recepcion', label: 'Recepción', view: 'recepcion', icon: 'recepcion' },
+  { id: 'recepcion', label: 'Inf. recepción', view: 'recepcion', icon: 'recepcion' },
   { id: 'vendedor', label: 'Vendedor', view: 'vendedor', icon: 'vendedor' },
   { id: 'fichas', label: 'Fichas de costo', view: 'fichas_costo', icon: 'fichas' },
   { id: 'fichas_precio', label: 'Fichas de precio', view: 'fichas_precio', icon: 'fichas' },
@@ -688,39 +688,43 @@ async function render() {
         try { await api('/entries', { method: 'POST', body: JSON.stringify(payload) }); toast('Asiento registrado'); state.tab = 'inicio'; renderNav(); render(); }
         catch (_) { state.queue.push({ kind: 'entry', payload }); saveLocal(); toast('Guardado offline · se sincronizará al tener red'); }
       };
-    } else if (state.tab === 'inventario') {
+        } else if (state.tab === 'inventario') {
       const data = await api('/inventory');
       const rows = (data.items || []).map(i => `<tr>
         <td>${i.name}</td><td>${i.qty} ${i.unit || 'ud'}</td>
         <td class="money">${money(i.cost, i.currency || base)}</td>
         <td class="money">${money(i.amount, i.currency || base)}</td>
         <td><button class="btn btn-secondary btn-sm" data-out="${i.id}">Rebaja</button></td></tr>`).join('');
+      const canRec = can('recepcion');
       main.innerHTML = `<div class="card">
-        <div class="section-label">Entrada al almacén</div>
-        <p class="muted" style="margin-bottom:.75rem">Si el producto ya existe (mismo nombre, unidad y moneda), se aplica <strong>promedio ponderado</strong> del costo.</p>
-        <label>Nombre del producto</label><input id="iname" />
-        <div class="grid-2">
-          <div><label>Unidad</label><select id="iunit"><option value="ud">Unidad</option><option value="kg">Kg</option><option value="l">Litro</option><option value="caja">Caja</option></select></div>
-          <div><label>Cantidad</label><input id="iqty" type="number" step="0.01" value="1" /></div>
-        </div>
-        <div class="grid-2">
-          <div><label>Costo unitario</label><input id="icost" type="number" step="0.01" /></div>
-          <div><label>Moneda</label><select id="icur"><option>CUP</option><option>USD</option><option>EUR</option><option>MLC</option></select></div>
-        </div>
-        <button class="btn btn-primary" id="addInv">Registrar entrada</button>
+        <div class="section-label">Inventario (consulta)</div>
+        <p class="muted">Vista de existencias y valor. Las <strong>compras</strong> se registran en <em>Inf. recepción</em> (económico) y la <strong>entrada física</strong> en <em>Almacén</em>. Aquí solo consulta y rebajas de ajuste.</p>
+        ${canRec ? '<button type="button" class="btn btn-primary" id="goRec">Ir a informe de recepción</button>' : ''}
       </div>
       <div class="card"><table><thead><tr><th>Producto</th><th>Cant.</th><th>Costo</th><th>Importe</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="muted">Vacío</td></tr>'}</tbody></table></div>`;
-      document.getElementById('addInv').onclick = async () => {
-        const qty = +document.getElementById('iqty').value || 0, cost = +document.getElementById('icost').value || 0;
-        const payload = { name: document.getElementById('iname').value.trim(), qty, cost, unit: document.getElementById('iunit').value, currency: document.getElementById('icur').value, amount: qty * cost };
-        try { const r = await api('/inventory', { method: 'POST', body: JSON.stringify(payload) }); toast(r.weighted_avg ? 'Entrada con promedio ponderado' : 'Entrada registrada'); render(); }
-        catch (_) { state.queue.push({ kind: 'inventory', payload }); saveLocal(); toast('Offline'); }
-      };
-      main.querySelectorAll('[data-out]').forEach(btn => btn.onclick = async () => {
-        const qty = prompt('Cantidad a rebajar', '1'); if (qty == null) return;
-        try { await api('/inventory/out', { method: 'POST', body: JSON.stringify({ id: btn.dataset.out, qty: +qty }) }); toast('Rebaja aplicada'); render(); }
-        catch (e) { toast(e.message); }
+      const goRec = document.getElementById('goRec');
+      if (goRec) goRec.onclick = () => { state.tab = 'recepcion'; render(); };
+      main.querySelectorAll('[data-out]').forEach(b => {
+        b.onclick = async () => {
+          const id = b.getAttribute('data-out');
+          const qty = prompt('Cantidad a rebajar (ajuste):');
+          if (qty == null || qty === '') return;
+          const q = +qty;
+          if (!q || q <= 0) { toast('Cantidad inválida'); return; }
+          try {
+            await api('/inventory', { method: 'POST', body: JSON.stringify({ id, qty: -Math.abs(q), adjust: true }) });
+            toast('Rebaja registrada');
+            render();
+          } catch (e) {
+            try {
+              await api('/inventory?id=' + encodeURIComponent(id) + '&out=' + encodeURIComponent(q), { method: 'POST', body: '{}' });
+              toast('Rebaja registrada');
+              render();
+            } catch (e2) { toast(e2.message || e.message || 'No se pudo rebajar'); }
+          }
+        };
       });
+    
     } else if (state.tab === 'facturas') {
       const data = await api('/invoices');
       const rows = (data.invoices || []).map(f => `<tr><td>${f.number}</td><td>${f.client_name}</td><td class="money">${money(f.total, f.currency || base)}</td><td>${statusES(f.status)}</td>
@@ -1234,18 +1238,43 @@ async function render() {
       const wh = await api('/warehouse');
       const units = await api('/units');
       const prods = await api('/products');
+      let rec = { receptions: [], pending_count: 0 };
+      try { rec = await api('/receptions?status=pendiente_entrada'); } catch (_) {}
+      const pending = rec.receptions || [];
+      const pendingN = rec.pending_count != null ? rec.pending_count : pending.length;
+      const role = (state.user && state.user.role) || '';
+      const canEnter = role === 'almacenero' || role === 'admin' || role === 'master';
       const rows = (wh.warehouse||[]).map(r => `<tr>
         <td>${r.code}</td><td>${r.name}</td><td>${r.qty} ${r.unit||''}</td>
         <td class="money">${money(r.avg_cost, r.currency)}</td>
         <td class="money">${money(r.amount_base, r.currency)}</td>
       </tr>`).join('');
+      const pendingRows = pending.map(r => {
+        const lines = (r.lines||[]).map(l => `${l.product_code||''} ${l.product_name||''} × ${l.qty} ${l.unit||''} @ ${l.unit_cost}`).join('<br/>');
+        const fac = r.has_invoice ? (`Factura ${r.invoice_ref||r.doc_ref||'—'}`) : 'Sin factura';
+        const btn = canEnter ? `<button type="button" class="btn btn-primary btn-sm doEnter" data-id="${r.id}">Validar y dar entrada</button>` : '<span class="muted">Solo almacenero</span>';
+        return `<tr>
+          <td>${r.number}<br/><span class="muted">${r.date}</span></td>
+          <td>${fac}<br/><span class="muted">${r.supplier||'—'}</span></td>
+          <td>${r.receiver||'—'}</td>
+          <td>${lines||'—'}</td>
+          <td class="money">${money(r.total_cost, r.currency)}</td>
+          <td>${btn}</td>
+        </tr>`;
+      }).join('');
       const uopts = (units.units||[]).map(u=>`<option value="${u.id}">${u.code} — ${u.name}</option>`).join('');
       const popts = (prods.products||[]).map(p=>`<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
       main.innerHTML = `<div class="card">
-        <div class="section-label">Almacén central</div>
-        <p class="muted">Existencias del almacén. Distribuya a unidades de venta con el mismo código de producto.</p>
+        <div class="section-label">Pendientes de entrada ${pendingN ? `<span class="badge">${pendingN}</span>` : ''}</div>
+        <p class="muted">Informes del económico. Revise con él y confirme la entrada física al almacén. El stock solo sube aquí.</p>
+        <table><thead><tr><th>IR</th><th>Compra</th><th>Recibe</th><th>Productos</th><th>Total</th><th></th></tr></thead>
+        <tbody>${pendingRows||'<tr><td colspan="6" class="muted">No hay informes pendientes</td></tr>'}</tbody></table>
+      </div>
+      <div class="card">
+        <div class="section-label">Stock en almacén</div>
+        <p class="muted">Existencias físicas. Para comprar mercancía use el módulo Recepción (económico). Aquí solo distribuye a puntos de venta.</p>
         <table><thead><tr><th>Código</th><th>Producto</th><th>Cantidad</th><th>Costo prom.</th><th>Importe</th></tr></thead>
-        <tbody>${rows||'<tr><td colspan="5" class="muted">Almacén vacío — use Recepción</td></tr>'}</tbody></table>
+        <tbody>${rows||'<tr><td colspan="5" class="muted">Sin stock — espere entradas validadas</td></tr>'}</tbody></table>
       </div>
       <div class="card">
         <div class="section-label">Distribuir a unidad de venta</div>
@@ -1254,7 +1283,18 @@ async function render() {
         <label>Cantidad</label><input id="trQ" type="number" step="0.01" min="0.01" />
         <button class="btn btn-primary" id="doTr">Confirmar transferencia</button>
       </div>`;
-      document.getElementById('doTr').onclick = async () => {
+      main.querySelectorAll('.doEnter').forEach(btn => {
+        btn.onclick = async () => {
+          if (!confirm('¿Confirmó con el económico que estos productos se compraron? Se dará entrada al almacén.')) return;
+          try {
+            await api('/receptions/enter', { method: 'POST', body: JSON.stringify({ id: btn.getAttribute('data-id'), accept: true }) });
+            toast('Entrada a almacén registrada');
+            render();
+          } catch (e) { toast(e.message || 'No se pudo dar entrada'); }
+        };
+      });
+      const doTr = document.getElementById('doTr');
+      if (doTr) doTr.onclick = async () => {
         const unit_id = document.getElementById('trU').value;
         const product_id = document.getElementById('trP').value;
         const qty = +document.getElementById('trQ').value;
@@ -1263,37 +1303,113 @@ async function render() {
         toast('Transferencia confirmada'); render();
       };
     } else if (state.tab === 'recepcion') {
+      const role = (state.user && state.user.role) || '';
+      if (role === 'almacenero') {
+        main.innerHTML = `<div class="card"><div class="section-label">Recepción</div>
+          <p class="muted">El informe de recepción lo registra el <strong>económico</strong>. Usted valida y da entrada en <strong>Almacén</strong>.</p>
+          <button type="button" class="btn btn-primary" id="goAlm">Ir a Almacén</button></div>`;
+        document.getElementById('goAlm').onclick = () => { state.tab = 'almacen'; render(); };
+        return;
+      }
       const prods = await api('/products');
       const rec = await api('/receptions');
-      const popts = (prods.products||[]).map(p=>`<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
-      const hist = (rec.receptions||[]).slice().reverse().slice(0,30).map(r => `<tr>
-        <td>${r.number}</td><td>${r.date}</td><td>${r.supplier||'—'}</td>
-        <td class="money">${money(r.total_cost, r.currency)}</td><td>${(r.lines||[]).length} líneas</td>
+      const popts = (prods.products||[]).map(p=>`<option value="${p.id}">${p.code} — ${p.name} (${p.unit||'u'})</option>`).join('');
+      const statusLabel = (s) => s === 'pendiente_entrada' ? 'Pendiente almacén' : s === 'entrado' ? 'En almacén' : (s||'—');
+      const hist = (rec.receptions||[]).slice().reverse().slice(0,40).map(r => `<tr>
+        <td>${r.number}</td><td>${r.date}</td>
+        <td>${r.has_invoice ? (r.invoice_ref||r.doc_ref||'Sí') : 'Sin factura'}</td>
+        <td>${r.supplier||'—'}</td><td>${r.receiver||'—'}</td>
+        <td class="money">${money(r.total_cost, r.currency)}</td>
+        <td>${statusLabel(r.status)}</td>
       </tr>`).join('');
       main.innerHTML = `<div class="card">
         <div class="section-label">Informe de recepción</div>
-        <p class="muted">Entrada de mercancía al almacén. Actualiza stock, costo promedio y cuentas de inventario.</p>
-        <label>Proveedor</label><input id="rs" />
-        <label>Documento / factura proveedor</label><input id="rd" />
+        <p class="muted">Registre la compra (con o sin factura). Se actualiza la <strong>cuenta inventario</strong> y el almacén recibe aviso para validar y dar entrada física.</p>
+        <label>Tipo de compra</label>
+        <select id="rHasInv">
+          <option value="1">Con factura</option>
+          <option value="0">Sin factura</option>
+        </select>
+        <label>Fecha</label><input id="rDate" type="date" />
+        <label>Quién recibe</label><input id="rRecv" placeholder="Nombre de quien recibe la mercancía" />
+        <div id="rInvBlock">
+          <label>Nº factura</label><input id="rInv" placeholder="Obligatorio si hay factura" />
+          <label>Proveedor</label><input id="rs" placeholder="Obligatorio si hay factura" />
+        </div>
+        <div id="rNoInvBlock" class="hidden">
+          <label>Proveedor (opcional)</label><input id="rs2" />
+        </div>
+        <div class="section-label" style="margin-top:1rem">Líneas de productos</div>
         <label>Producto</label><select id="rp">${popts}</select>
         <div class="grid-2"><div><label>Cantidad</label><input id="rq" type="number" step="0.01" /></div>
         <div><label>Costo unitario</label><input id="rc" type="number" step="0.01" /></div></div>
-        <button class="btn btn-primary" id="doR">Registrar recepción</button>
+        <button type="button" class="btn" id="addLine">Añadir línea</button>
+        <table style="margin-top:.75rem"><thead><tr><th>Producto</th><th>Cant.</th><th>Costo u.</th><th>Importe</th><th></th></tr></thead>
+        <tbody id="rLines"><tr><td colspan="5" class="muted">Sin líneas</td></tr></tbody></table>
+        <button class="btn btn-primary" id="doR" style="margin-top:1rem">Registrar informe</button>
       </div>
-      <div class="card"><div class="section-label">Histórico de recepciones</div>
-        <table><thead><tr><th>No.</th><th>Fecha</th><th>Proveedor</th><th>Total</th><th>Líneas</th></tr></thead>
-        <tbody>${hist||'<tr><td colspan="5" class="muted">Sin recepciones</td></tr>'}</tbody></table></div>`;
-      document.getElementById('doR').onclick = async () => {
-        const product_id = document.getElementById('rp').value;
+      <div class="card"><div class="section-label">Histórico</div>
+        <table><thead><tr><th>No.</th><th>Fecha</th><th>Factura</th><th>Proveedor</th><th>Recibe</th><th>Total</th><th>Estado</th></tr></thead>
+        <tbody>${hist||'<tr><td colspan="7" class="muted">Sin recepciones</td></tr>'}</tbody></table></div>`;
+      const lines = [];
+      const dateEl = document.getElementById('rDate');
+      if (dateEl) dateEl.value = new Date().toISOString().slice(0,10);
+      const syncInv = () => {
+        const withInv = document.getElementById('rHasInv').value === '1';
+        document.getElementById('rInvBlock').classList.toggle('hidden', !withInv);
+        document.getElementById('rNoInvBlock').classList.toggle('hidden', withInv);
+      };
+      document.getElementById('rHasInv').onchange = syncInv;
+      syncInv();
+      const paintLines = () => {
+        const tb = document.getElementById('rLines');
+        if (!lines.length) { tb.innerHTML = '<tr><td colspan="5" class="muted">Sin líneas</td></tr>'; return; }
+        tb.innerHTML = lines.map((l,i) => `<tr>
+          <td>${l.label}</td><td>${l.qty}</td><td>${l.unit_cost}</td>
+          <td class="money">${(l.qty*l.unit_cost).toFixed(2)}</td>
+          <td><button type="button" class="btn btn-sm rmL" data-i="${i}">Quitar</button></td>
+        </tr>`).join('');
+        tb.querySelectorAll('.rmL').forEach(b => b.onclick = () => { lines.splice(+b.getAttribute('data-i'),1); paintLines(); });
+      };
+      document.getElementById('addLine').onclick = () => {
+        const sel = document.getElementById('rp');
+        const product_id = sel.value;
+        const label = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : product_id;
         const qty = +document.getElementById('rq').value;
         const unit_cost = +document.getElementById('rc').value;
-        if (!product_id || !qty) { toast('Producto y cantidad requeridos'); return; }
-        await api('/receptions', { method: 'POST', body: JSON.stringify({
-          supplier: document.getElementById('rs').value.trim(),
-          doc_ref: document.getElementById('rd').value.trim(),
-          lines: [{ product_id, qty, unit_cost }],
-        })});
-        toast('Recepción registrada y contabilidad actualizada'); render();
+        if (!product_id || !qty || qty <= 0) { toast('Producto y cantidad válidos'); return; }
+        if (unit_cost < 0) { toast('Costo inválido'); return; }
+        lines.push({ product_id, qty, unit_cost, label });
+        document.getElementById('rq').value = '';
+        document.getElementById('rc').value = '';
+        paintLines();
+      };
+      document.getElementById('doR').onclick = async () => {
+        const has_invoice = document.getElementById('rHasInv').value === '1';
+        const receiver = document.getElementById('rRecv').value.trim();
+        if (!receiver) { toast('Indique quién recibe'); return; }
+        if (!lines.length) { toast('Añada al menos una línea de producto'); return; }
+        const body = {
+          has_invoice,
+          receiver,
+          date: document.getElementById('rDate').value || undefined,
+          lines: lines.map(l => ({ product_id: l.product_id, qty: l.qty, unit_cost: l.unit_cost })),
+        };
+        if (has_invoice) {
+          body.invoice_ref = document.getElementById('rInv').value.trim();
+          body.supplier = document.getElementById('rs').value.trim();
+          body.doc_ref = body.invoice_ref;
+          if (!body.invoice_ref) { toast('Nº de factura obligatorio'); return; }
+          if (!body.supplier) { toast('Proveedor obligatorio con factura'); return; }
+        } else {
+          const s2 = document.getElementById('rs2').value.trim();
+          if (s2) body.supplier = s2;
+        }
+        try {
+          await api('/receptions', { method: 'POST', body: JSON.stringify(body) });
+          toast('Informe registrado. Almacén debe validar la entrada.');
+          render();
+        } catch (e) { toast(e.message || 'Error al registrar'); }
       };
     } else if (state.tab === 'vendedor') {
       const prods = await api('/products');
