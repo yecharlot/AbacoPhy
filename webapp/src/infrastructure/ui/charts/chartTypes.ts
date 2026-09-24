@@ -134,3 +134,70 @@ export function barHeights(points: ChartPoint[]): number[] {
   if (max === 0) return points.map(() => 0);
   return points.map((point) => Math.max(2, (point.value / max) * 100));
 }
+
+/** Serie nombrada para gráficos multi-capa (área/línea). */
+export type ChartSeries = {
+  id: string;
+  label: string;
+  color: string;
+  points: ChartPoint[];
+};
+
+export type MultiLineGeometry = {
+  series: Array<{
+    id: string;
+    color: string;
+    line: string;
+    area: string;
+    dots: Array<{ x: number; y: number; value: number }>;
+  }>;
+  labels: string[];
+};
+
+/**
+ * Varias series alineadas por índice de etiqueta (mismo eje X).
+ * Escala Y compartida (min/max de todas las series).
+ */
+export function buildMultiLineGeometry(
+  seriesList: ChartSeries[],
+  width: number,
+  height: number,
+  padding = 10,
+): MultiLineGeometry {
+  const labels =
+    seriesList.find((s) => s.points.length > 0)?.points.map((p) => p.label) ?? [];
+  const allValues = seriesList.flatMap((s) => s.points.map((p) => p.value));
+  if (labels.length === 0 || allValues.length === 0) {
+    return { series: [], labels: [] };
+  }
+
+  const top = padding;
+  const bottom = height - padding;
+  const usableHeight = bottom - top;
+  let min = Math.min(...allValues);
+  let max = Math.max(...allValues);
+  if (min > 0) min = 0; // anclar a 0 ayuda a comparar magnitudes
+  const span = max - min || 1;
+  const step = labels.length > 1 ? (width - padding * 2) / (labels.length - 1) : 0;
+
+  const series = seriesList.map((s) => {
+    const dots = labels.map((label, index) => {
+      const point = s.points.find((p) => p.label === label) ?? s.points[index];
+      const value = point?.value ?? 0;
+      return {
+        x: padding + step * index,
+        y: bottom - ((value - min) / span) * usableHeight,
+        value,
+      };
+    });
+    const line = dots
+      .map((dot, index) => `${index === 0 ? 'M' : 'L'}${dot.x.toFixed(2)},${dot.y.toFixed(2)}`)
+      .join(' ');
+    const first = dots[0];
+    const last = dots[dots.length - 1];
+    const area = `${line} L${last.x.toFixed(2)},${bottom} L${first.x.toFixed(2)},${bottom} Z`;
+    return { id: s.id, color: s.color, line, area, dots };
+  });
+
+  return { series, labels };
+}

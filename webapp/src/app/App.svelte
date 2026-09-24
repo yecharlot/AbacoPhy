@@ -24,6 +24,7 @@
   import { createCommerceModule } from '../features/commerce/di';
   import { createAuditModule } from '../features/audit/di';
   import { createMasterModule } from '../features/master/di';
+  import { RESET_CONFIRMATION } from '../infrastructure/ui/dev';
   import LoginScreen from '../features/identity/ui/screens/LoginScreen.svelte';
   import TenantScreen from '../features/tenant/ui/screens/TenantScreen.svelte';
   import CatalogScreen from '../features/catalog/ui/screens/CatalogScreen.svelte';
@@ -179,7 +180,12 @@
     onToggleTheme={handleTheme}
   >
     {#if activeId === 'dashboard' || activeId === 'home'}
-      <DashboardScreen store={accountingStore} />
+      <DashboardScreen
+        store={accountingStore}
+        onDevReset={async () => {
+          await masterStore.reset(RESET_CONFIRMATION);
+        }}
+      />
     {:else if activeId === 'ingresos'}
       <IngresosScreen store={accountingStore} />
     {:else if activeId === 'gastos'}

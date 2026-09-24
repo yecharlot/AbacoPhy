@@ -3,6 +3,8 @@
   import { Button, Card, Input, Money } from '../../../../infrastructure/ui/shared';
   import type { CatalogStore, CatalogState } from '../stores/catalogStore';
   import type { Product } from '../../domain/entities/Product';
+  import { DevSeedPanel } from '../../../../infrastructure/ui/dev';
+  import { buildSampleProductsPayload, seedProductsViaStore } from '../dev/productsSeed';
 
   export let store: CatalogStore;
   export let currencyCode = 'CUP';
@@ -117,6 +119,12 @@
 </script>
 
 <Card>
+  <DevSeedPanel
+    title="Carga masiva de productos"
+    description="JSON: products[] con name, unit, category, price_sale, cost_std. Solo desarrollo."
+    sample={buildSampleProductsPayload()}
+    onSeed={(data) => seedProductsViaStore(store, data)}
+  />
   <h2 style="margin-top:0">Nomencladores / Catálogo</h2>
   <div class="tabs">
     <button

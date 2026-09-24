@@ -3,6 +3,8 @@
   import { Button, Card, Input, Money } from '../../../../infrastructure/ui/shared';
   import type { WarehouseState, WarehouseStore } from '../stores/warehouseStore';
   import type { CreateReceptionLineInput } from '../../domain/entities/Reception';
+  import { DevSeedPanel } from '../../../../infrastructure/ui/dev';
+  import { buildSampleWarehouseOpsPayload, seedWarehouseOpsViaStore } from '../dev/opsSeed';
 
   export let store: WarehouseStore;
 
@@ -80,6 +82,12 @@
 </script>
 
 <Card>
+  <DevSeedPanel
+    title="Seed recepciones y transferencias"
+    description="JSON: ensureUnit, receptions[20], transfers[20]. Requiere productos en catálogo. productIndex apunta al listado de productos del store."
+    sample={buildSampleWarehouseOpsPayload()}
+    onSeed={(data) => seedWarehouseOpsViaStore(store, data)}
+  />
   <h2>Nuevo informe de recepción</h2>
   <p class="muted">
     El costo promedio ponderado y el asiento contable los calcula el backend al confirmar.

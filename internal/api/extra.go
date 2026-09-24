@@ -90,7 +90,7 @@ func (s *Server) handleCurrencies(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 400, map[string]string{"error": "codigo requerido"})
 			return
 		}
-		body.Code = body.Code
+		body.Code = strings.ToUpper(strings.TrimSpace(body.Code))
 		if body.Rate <= 0 {
 			body.Rate = 1
 		}
@@ -881,8 +881,9 @@ func (s *Server) handleMasterReset(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if sess.Role != domain.RoleMaster {
-		writeJSON(w, 403, map[string]string{"error": "solo master"})
+	// Master o admin del negocio (operación controlada / DEV)
+	if sess.Role != domain.RoleMaster && sess.Role != domain.RoleAdmin {
+		writeJSON(w, 403, map[string]string{"error": "solo master o admin"})
 		return
 	}
 	var body struct {

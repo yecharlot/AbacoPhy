@@ -3,6 +3,8 @@
   import { Button, Card, Input } from '../../../../infrastructure/ui/shared';
   import type { WarehouseState, WarehouseStore } from '../stores/warehouseStore';
   import type { CreateTransferLineInput } from '../../domain/entities/Transfer';
+  import { DevSeedPanel } from '../../../../infrastructure/ui/dev';
+  import { buildSampleWarehouseOpsPayload, seedWarehouseOpsViaStore } from '../dev/opsSeed';
 
   export let store: WarehouseStore;
 
@@ -69,6 +71,12 @@
 </script>
 
 <Card>
+  <DevSeedPanel
+    title="Seed recepciones y transferencias"
+    description="Mismo payload que Recepción: ensureUnit + receptions + transfers (20 c/u)."
+    sample={buildSampleWarehouseOpsPayload()}
+    onSeed={(data) => seedWarehouseOpsViaStore(store, data)}
+  />
   <h2>Transferencia almacén → unidad de venta</h2>
   {#if state.units.length === 0}
     <p class="err">Cree primero una unidad de venta en la pantalla Almacén.</p>

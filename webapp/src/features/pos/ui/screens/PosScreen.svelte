@@ -12,6 +12,8 @@
   import type { PosState, PosStore } from '../stores/posStore';
   import { salesByDay, salesByUnit, salesTotals, topSoldProducts } from '../viewmodels/posCharts';
   import type { CreateSaleLineInput } from '../../domain/entities/Sale';
+  import { DevSeedPanel } from '../../../../infrastructure/ui/dev';
+  import { buildSamplePosSalesPayload, seedPosSalesViaStore } from '../dev/salesSeed';
 
   export let store: PosStore;
 
@@ -99,6 +101,12 @@
 </script>
 
 <section class="analytics">
+  <DevSeedPanel
+    title="Seed ventas POS"
+    description="JSON: sales[20] con productIndex, qty, unitPrice. Requiere productos y unidad de venta."
+    sample={buildSamplePosSalesPayload()}
+    onSeed={(data) => seedPosSalesViaStore(store, data)}
+  />
   <div class="stats">
     <StatCard
       variant="hero"

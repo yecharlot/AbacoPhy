@@ -20,7 +20,7 @@ defaults:
 
 jobs:
   webapp:
-    name: Check & build (Svelte)
+    name: Check, test & build (Svelte)
     runs-on: ubuntu-latest
 
     steps:
@@ -39,6 +39,9 @@ jobs:
 
       - name: Typecheck & svelte-check
         run: npm run check
+
+      - name: Unit tests (Vitest)
+        run: npm test
 
       - name: Production build
         run: npm run build
