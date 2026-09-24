@@ -1260,7 +1260,6 @@ async function render() {
     } else if (state.tab === 'almacen') {
       const wh = await api('/warehouse');
       const units = await api('/units');
-      const prods = await api('/products');
       let rec = { receptions: [], pending_count: 0 };
       try { rec = await api('/receptions?status=pendiente_entrada'); } catch (_) {}
       const pending = rec.receptions || [];
@@ -1286,7 +1285,11 @@ async function render() {
         </tr>`;
       }).join('');
       const uopts = (units.units||[]).map(u=>`<option value="${u.id}">${u.code} — ${u.name}</option>`).join('');
-      const popts = (prods.products||[]).map(p=>`<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
+      // Solo productos con existencia en almacén (qty > 0)
+      const stockRows = (wh.warehouse||[]).filter(r => (r.qty || 0) > 0);
+      const popts = stockRows.map(r =>
+        `<option value="${r.product_id}" data-max="${r.qty}">${r.code} — ${r.name} (disp. ${r.qty} ${r.unit||''})</option>`
+      ).join('');
       main.innerHTML = `<div class="card">
         <div class="section-label">Pendientes de entrada ${pendingN ? `<span class="badge">${pendingN}</span>` : ''}</div>
         <p class="muted">Informes del económico. Revise con él y confirme la entrada física al almacén. El stock solo sube aquí.</p>
@@ -1302,9 +1305,9 @@ async function render() {
       <div class="card">
         <div class="section-label">Distribuir a unidad de venta</div>
         <label>Unidad destino</label><select id="trU">${uopts||'<option value="">— registre unidades —</option>'}</select>
-        <label>Producto</label><select id="trP">${popts}</select>
+        <label>Producto en almacén</label><select id="trP">${popts||'<option value="">— sin stock en almacén —</option>'}</select>
         <label>Cantidad</label><input id="trQ" type="number" step="0.01" min="0.01" />
-        <button class="btn btn-primary" id="doTr">Confirmar transferencia</button>
+        <button class="btn btn-primary" id="doTr" ${popts ? '' : 'disabled'}>Confirmar transferencia</button>
       </div>`;
       main.querySelectorAll('.doEnter').forEach(btn => {
         btn.onclick = async () => {
@@ -1319,9 +1322,13 @@ async function render() {
       const doTr = document.getElementById('doTr');
       if (doTr) doTr.onclick = async () => {
         const unit_id = document.getElementById('trU').value;
-        const product_id = document.getElementById('trP').value;
+        const sel = document.getElementById('trP');
+        const product_id = sel.value;
         const qty = +document.getElementById('trQ').value;
+        const max = +(sel.options[sel.selectedIndex] && sel.options[sel.selectedIndex].getAttribute('data-max')) || 0;
         if (!unit_id || !product_id || !qty) { toast('Complete unidad, producto y cantidad'); return; }
+        if (qty <= 0) { toast('Cantidad inválida'); return; }
+        if (max > 0 && qty > max) { toast('No hay suficiente stock en almacén (disp. ' + max + ')'); return; }
         await api('/transfers', { method: 'POST', body: JSON.stringify({ unit_id, lines: [{ product_id, qty }] }) });
         toast('Transferencia confirmada'); render();
       };
