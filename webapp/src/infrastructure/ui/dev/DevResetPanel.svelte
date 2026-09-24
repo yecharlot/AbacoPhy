@@ -16,15 +16,15 @@
   }
 
   let {
-    title = 'Resetear base de datos',
-    description = 'Borra los datos de la instancia y deja el bootstrap vacío/demo. Solo desarrollo. Requiere rol master o admin.',
+    title = 'Limpiar base de datos (DEV)',
+    description = 'Elimina datos cargados (seeds, asientos, stock de prueba) y restaura el estado inicial. Solo desarrollo. Login master o admin.',
     onReset,
     onDone,
   }: Props = $props();
 
   const enabled = isDevSeedEnabled();
 
-  let open = $state(false);
+  let open = $state(true);
   let confirmText = $state('');
   let busy = $state(false);
   let error = $state('');

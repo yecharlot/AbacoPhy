@@ -8,6 +8,8 @@ import type { CreateTransferInput } from '../../domain/entities/Transfer';
 
 export type SeedReception = {
   supplier: string;
+  /** Quién recibe la mercancía (opcional en seed; default 'Seed DEV') */
+  receiver?: string;
   docRef?: string;
   date: string;
   note?: string;
@@ -142,7 +144,10 @@ export async function seedWarehouseOpsViaStore(
       continue;
     }
     const input: CreateReceptionInput = {
+      hasInvoice: Boolean(r.supplier || r.docRef),
+      invoiceRef: r.docRef,
       supplier: r.supplier,
+      receiver: r.receiver || 'Seed DEV',
       docRef: r.docRef,
       date: r.date,
       note: r.note,

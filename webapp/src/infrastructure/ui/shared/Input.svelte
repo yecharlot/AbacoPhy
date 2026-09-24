@@ -11,7 +11,10 @@
     autocomplete?: HTMLInputAttributes['autocomplete'];
     disabled?: boolean;
     step?: string;
+    /** list id for datalist suggestions */
+    list?: string;
     oninput?: (e: Event) => void;
+    class?: string;
   }
 
   let {
@@ -24,46 +27,60 @@
     autocomplete,
     disabled = false,
     step,
+    list,
     oninput,
+    class: className = '',
   }: Props = $props();
 </script>
 
-{#if label}
-  <label class="lbl" for={id}>{label}</label>
-{/if}
-<input
-  class="inp"
-  {id}
-  {type}
-  bind:value
-  {placeholder}
-  {required}
-  {autocomplete}
-  {disabled}
-  {step}
-  {oninput}
-/>
+<!-- Un solo nodo raíz: evita que label e input ocupen celdas distintas en CSS Grid -->
+<div class="field {className}">
+  {#if label}
+    <label class="lbl" for={id}>{label}</label>
+  {/if}
+  <input
+    class="inp"
+    {id}
+    {type}
+    bind:value
+    {placeholder}
+    {required}
+    {autocomplete}
+    {disabled}
+    {step}
+    {list}
+    {oninput}
+  />
+</div>
 
 <style>
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    width: 100%;
+  }
   .lbl {
     display: block;
-    font-size: 0.65rem;
-    font-weight: 600;
-    letter-spacing: 0.1em;
+    font-size: 0.68rem;
+    font-weight: 650;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--color-text-muted, var(--ap-text-muted));
-    margin-bottom: 6px;
+    margin: 0;
   }
   .inp {
     width: 100%;
-    padding: 12px 14px;
-    margin-bottom: 0.75rem;
+    box-sizing: border-box;
+    padding: 11px 12px;
+    margin: 0;
     background: var(--color-surface-soft, var(--ap-bg));
     border: 1px solid var(--color-border, var(--ap-border));
     border-radius: var(--radius-md, 12px);
     color: var(--color-text-primary, var(--ap-text));
     font-family: inherit;
-    font-size: 0.92rem;
+    font-size: 0.9rem;
   }
   .inp:focus {
     outline: none;

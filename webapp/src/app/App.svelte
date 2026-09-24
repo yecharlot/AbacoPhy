@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import '../infrastructure/ui/theme/tokens.css';
-  import { AppShell, filterNavByViews, PLACEHOLDER_NAV } from '../infrastructure/ui/shell';
+  import { AppShell, filterNavByViews, PLACEHOLDER_NAV, ForbiddenScreen } from '../infrastructure/ui/shell';
+  import { canAccessScreen, firstAllowedScreen } from '../features/identity/domain/access';
   import { Card, Button, Toast } from '../infrastructure/ui/shared';
   import { createAppContainer } from '../infrastructure/di';
   import { subscribeNetworkStatus } from '../infrastructure/data/http';
@@ -82,6 +83,7 @@
     filterNavByViews(PLACEHOLDER_NAV, sessionState.session?.views ?? null),
   );
 
+  const userRole = $derived(sessionState.session?.user?.role ?? '');
   const userLabel = $derived(
     sessionState.session
       ? `${sessionState.session.user.displayName} · ${sessionState.session.user.role}`
@@ -135,6 +137,10 @@
   });
 
   function handleNavigate(id: string) {
+    if (!canAccessScreen(sessionState.session, id)) {
+      showToast('No autorizado para esta sección');
+      return;
+    }
     setScreen(id);
   }
 
@@ -176,14 +182,27 @@
     brandTitle="ÁbacoPhy"
     {brandSubtitle}
     {userLabel}
+    userRole={userRole}
+    onLogout={handleLogout}
     onNavigate={handleNavigate}
     onToggleTheme={handleTheme}
   >
-    {#if activeId === 'dashboard' || activeId === 'home'}
+    {#if !canAccessScreen(sessionState.session, activeId === 'home' ? 'dashboard' : activeId)}
+      <ForbiddenScreen
+        onGoHome={() => {
+          const id = firstAllowedScreen(sessionState.session);
+          setScreen(id);
+          activeId = id;
+        }}
+      />
+    {:else if activeId === 'dashboard' || activeId === 'home'}
       <DashboardScreen
         store={accountingStore}
         onDevReset={async () => {
           await masterStore.reset(RESET_CONFIRMATION);
+          // Recarga stores de la sesión tras vaciar datos
+          await accountingStore.loadDashboard?.().catch(() => undefined);
+          return 'Datos de negocio reiniciados';
         }}
       />
     {:else if activeId === 'ingresos'}
