@@ -90,7 +90,7 @@ func (s *Server) handleCurrencies(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 400, map[string]string{"error": "codigo requerido"})
 			return
 		}
-		body.Code = body.Code
+		body.Code = strings.ToUpper(strings.TrimSpace(body.Code))
 		if body.Rate <= 0 {
 			body.Rate = 1
 		}
