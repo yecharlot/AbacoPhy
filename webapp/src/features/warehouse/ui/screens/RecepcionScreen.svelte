@@ -20,6 +20,9 @@
   let docRef = '';
   let note = '';
   let date = new Date().toISOString().slice(0, 10);
+  let hasInvoice = true;
+  let invoiceRef = '';
+  let receiver = '';
   let lines: DraftLine[] = [{ productId: '', qty: '', unitCost: '' }];
   let formError = '';
   let formOk = '';
@@ -71,6 +74,9 @@
     docRef = '';
     note = '';
     date = new Date().toISOString().slice(0, 10);
+    hasInvoice = true;
+    invoiceRef = '';
+    receiver = '';
     lines = [{ productId: '', qty: '', unitCost: '' }];
   }
 
@@ -82,6 +88,21 @@
     if (products.length === 0) {
       formError = 'No hay productos. Cree al menos uno en Catálogo.';
       return;
+    }
+    if (!receiver.trim()) {
+      formError = 'Indique quién recibe la mercancía';
+      return;
+    }
+    if (hasInvoice) {
+      const ref = (invoiceRef || docRef).trim();
+      if (!ref) {
+        formError = 'Compra con factura: indique el número de factura';
+        return;
+      }
+      if (!supplier.trim()) {
+        formError = 'Compra con factura: indique el proveedor';
+        return;
+      }
     }
 
     const payload: CreateReceptionLineInput[] = [];
@@ -107,7 +128,10 @@
 
     try {
       await store.addReception({
+        hasInvoice,
+        invoiceRef: invoiceRef.trim() || docRef.trim() || undefined,
         supplier: supplier.trim() || undefined,
+        receiver: receiver.trim(),
         docRef: docRef.trim() || undefined,
         note: note.trim() || undefined,
         date: date || undefined,
@@ -166,11 +190,45 @@
         </p>
       {:else}
         <form class="form" on:submit={handleSubmit}>
-          <div class="grid">
-            <Input id="rec-date" label="Fecha" type="date" bind:value={date} />
-            <Input id="rec-supplier" label="Proveedor" bind:value={supplier} placeholder="Nombre del proveedor" />
-            <Input id="rec-doc" label="Documento ref." bind:value={docRef} placeholder="Factura / guía" />
-            <Input id="rec-note" label="Nota" bind:value={note} placeholder="Opcional" />
+          <div class="form-grid">
+            <label class="field">
+              <span class="lbl">Fecha</span>
+              <input type="date" bind:value={date} disabled={state.saving} />
+            </label>
+            <label class="field">
+              <span class="lbl">Quién recibe <span class="req">*</span></span>
+              <input bind:value={receiver} placeholder="Nombre del receptor" disabled={state.saving} />
+            </label>
+            <label class="field check">
+              <span class="lbl">¿Con factura?</span>
+              <label class="check-row">
+                <input type="checkbox" bind:checked={hasInvoice} disabled={state.saving} />
+                <span>Compra con factura de proveedor</span>
+              </label>
+            </label>
+            {#if hasInvoice}
+              <label class="field">
+                <span class="lbl">Nº factura <span class="req">*</span></span>
+                <input bind:value={invoiceRef} placeholder="Número de factura" disabled={state.saving} />
+              </label>
+              <label class="field">
+                <span class="lbl">Proveedor <span class="req">*</span></span>
+                <input bind:value={supplier} placeholder="Nombre del proveedor" disabled={state.saving} />
+              </label>
+            {:else}
+              <label class="field">
+                <span class="lbl">Proveedor</span>
+                <input bind:value={supplier} placeholder="Opcional" disabled={state.saving} />
+              </label>
+              <label class="field">
+                <span class="lbl">Documento ref.</span>
+                <input bind:value={docRef} placeholder="Guía / remisión" disabled={state.saving} />
+              </label>
+            {/if}
+            <label class="field field-span">
+              <span class="lbl">Nota</span>
+              <input bind:value={note} placeholder="Opcional" disabled={state.saving} />
+            </label>
           </div>
 
           <div class="lines-head">
@@ -265,7 +323,10 @@
                 <tr>
                   <td class="mono">{r.number}</td>
                   <td>{r.date}</td>
-                  <td>{r.supplier || '—'}</td>
+                  <td>
+                    {r.supplier || '—'}
+                    {#if r.receiver}<div class="muted-inline">Recibe: {r.receiver}</div>{/if}
+                  </td>
                   <td>
                     <span class="muted-inline">{r.lines?.length ?? 0}</span>
                     {#if r.lines?.length}
@@ -335,6 +396,46 @@
       grid-template-columns: 1.15fr 1fr;
       align-items: start;
     }
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 16px;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+  .field-span { grid-column: 1 / -1; }
+  .lbl {
+    font-size: 0.68rem;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-muted, var(--ap-text-muted));
+  }
+  .req { color: var(--accent-red, #f17b7b); }
+  .field input, .check-row {
+    font-family: inherit;
+  }
+  .field input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--color-border, var(--ap-border));
+    background: var(--color-surface-soft, transparent);
+    color: var(--color-text-primary, var(--ap-text));
+    font-size: 0.88rem;
+  }
+  .check-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
   }
   .grid {
     display: grid;

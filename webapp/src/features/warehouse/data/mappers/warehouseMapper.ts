@@ -58,6 +58,7 @@ function receptionLineDtoToEntity(dto: ReceptionLineDto): ReceptionLine {
     productId: dto.product_id,
     productCode: dto.product_code || '',
     productName: dto.product_name || '',
+    unit: (dto as { unit?: string }).unit || '',
     qty: dto.qty || 0,
     unitCost: dto.unit_cost || 0,
     amount: dto.amount || 0,
@@ -65,31 +66,53 @@ function receptionLineDtoToEntity(dto: ReceptionLineDto): ReceptionLine {
 }
 
 export function receptionDtoToEntity(dto: ReceptionDto): Reception {
+  const d = dto as ReceptionDto & {
+    has_invoice?: boolean;
+    invoice_ref?: string;
+    receiver?: string;
+    entered_by?: string;
+    entered_at?: string;
+  };
   return {
-    id: dto.id,
-    number: dto.number || '',
-    date: dto.date || '',
-    supplier: dto.supplier || '',
-    docRef: dto.doc_ref || '',
-    lines: (dto.lines || []).map(receptionLineDtoToEntity),
-    totalCost: dto.total_cost || 0,
-    currency: dto.currency || '',
-    status: dto.status || '',
-    note: dto.note || '',
+    id: d.id,
+    number: d.number || '',
+    date: d.date || '',
+    hasInvoice: !!d.has_invoice,
+    invoiceRef: d.invoice_ref || d.doc_ref || '',
+    supplier: d.supplier || '',
+    receiver: d.receiver || '',
+    docRef: d.doc_ref || '',
+    lines: (d.lines || []).map(receptionLineDtoToEntity),
+    totalCost: d.total_cost || 0,
+    currency: d.currency || '',
+    status: d.status || '',
+    note: d.note || '',
+    enteredBy: d.entered_by,
+    enteredAt: d.entered_at,
   };
 }
 
 export function createReceptionInputToDto(input: CreateReceptionInput): Record<string, unknown> {
   const body: Record<string, unknown> = {
+    has_invoice: !!input.hasInvoice,
+    receiver: input.receiver,
     lines: input.lines.map((l) => ({
       product_id: l.productId,
       qty: l.qty,
       unit_cost: l.unitCost,
+      unit: l.unit || undefined,
     })),
   };
   if (input.supplier) body.supplier = input.supplier;
+  if (input.invoiceRef) body.invoice_ref = input.invoiceRef;
   if (input.docRef) body.doc_ref = input.docRef;
   if (input.date) body.date = input.date;
+  if (input.note) body.note = input.note;
+  return body;
+}
+
+export function enterReceptionInputToDto(input: { id: string; accept: boolean; note?: string }): Record<string, unknown> {
+  const body: Record<string, unknown> = { id: input.id, accept: input.accept };
   if (input.note) body.note = input.note;
   return body;
 }

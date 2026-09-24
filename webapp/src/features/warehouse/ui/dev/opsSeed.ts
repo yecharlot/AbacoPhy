@@ -142,7 +142,10 @@ export async function seedWarehouseOpsViaStore(
       continue;
     }
     const input: CreateReceptionInput = {
+      hasInvoice: Boolean(r.supplier || r.docRef),
+      invoiceRef: r.docRef,
       supplier: r.supplier,
+      receiver: r.receiver || 'Seed DEV',
       docRef: r.docRef,
       date: r.date,
       note: r.note,
