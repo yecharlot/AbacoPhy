@@ -1235,7 +1235,10 @@ async function render() {
       const data = await api('/units');
       const rows = (data.units||[]).map(u => `<tr><td>${u.code}</td><td>${u.name}</td><td>${u.address||'—'}</td><td>${u.phone||'—'}</td></tr>`).join('');
       const stocks = (data.stocks||[]).map(s => {
-        return `<tr><td>${s.unit_id.slice(0,8)}…</td><td>${s.product_id.slice(0,8)}…</td><td>${s.qty}</td><td class="money">${money(s.avg_cost)}</td></tr>`;
+        const uLabel = s.unit_code ? `${s.unit_code} — ${s.unit_name||''}` : (s.unit_id||'—');
+        const pLabel = s.product_code ? `${s.product_code} — ${s.product_name||''}` : (s.product_id||'—');
+        const um = s.unit || '';
+        return `<tr><td>${uLabel}</td><td>${pLabel}</td><td>${s.qty} ${um}</td><td class="money">${money(s.avg_cost, s.currency)}</td></tr>`;
       }).join('');
       main.innerHTML = `<div class="card">
         <div class="section-label">Unidades de venta</div>

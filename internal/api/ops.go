@@ -101,14 +101,16 @@ func (s *Server) handleProducts(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 400, map[string]string{"error": "nombre requerido"})
 			return
 		}
-		body.ID = uuid.NewString()
 		body.TenantID = sess.TenantID
 		if body.Code == "" {
 			body.Code = nextCode("P", &snap.DocCounters.ProductSeq)
 		}
-		// evitar código duplicado
+		body.Code = strings.ToUpper(strings.TrimSpace(body.Code))
+		// ID estable alineado al bootstrap: prod-P-0001
+		body.ID = "prod-" + body.Code
+		// evitar código o id duplicado
 		for _, p := range snap.Products {
-			if p != nil && p.Active && strings.EqualFold(p.Code, body.Code) {
+			if p != nil && p.Active && (strings.EqualFold(p.Code, body.Code) || p.ID == body.ID) {
 				writeJSON(w, 409, map[string]string{"error": "código de producto ya existe: " + body.Code})
 				return
 			}
@@ -216,7 +218,7 @@ func (s *Server) handleSalesUnits(w http.ResponseWriter, r *http.Request) {
 				list = append(list, u)
 			}
 		}
-		writeJSON(w, 200, map[string]any{"units": list, "stocks": snap.UnitStocks})
+		writeJSON(w, 200, map[string]any{"units": list, "stocks": enrichUnitStocks(snap)})
 	case http.MethodPost:
 		var body domain.SalesUnit
 		if err := readJSON(r, &body); err != nil || strings.TrimSpace(body.Name) == "" {
@@ -237,6 +239,43 @@ func (s *Server) handleSalesUnits(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
 	}
+}
+
+
+// enrichUnitStocks resuelve códigos y nombres legibles (unidad + producto).
+func enrichUnitStocks(snap *domain.StoreSnapshot) []map[string]any {
+	out := make([]map[string]any, 0, len(snap.UnitStocks))
+	for _, st := range snap.UnitStocks {
+		if st.Qty <= 0 {
+			continue
+		}
+		unitCode, unitName := st.UnitID, st.UnitID
+		if u := snap.SalesUnits[st.UnitID]; u != nil {
+			unitCode, unitName = u.Code, u.Name
+		}
+		prodCode, prodName, um := st.ProductID, st.ProductID, "u"
+		if p := snap.Products[st.ProductID]; p != nil {
+			prodCode, prodName, um = p.Code, p.Name, p.Unit
+		}
+		cur := snap.Tenant.Currency
+		if p := snap.Products[st.ProductID]; p != nil && p.Currency != "" {
+			cur = p.Currency
+		}
+		out = append(out, map[string]any{
+			"unit_id":      st.UnitID,
+			"unit_code":    unitCode,
+			"unit_name":    unitName,
+			"product_id":   st.ProductID,
+			"product_code": prodCode,
+			"product_name": prodName,
+			"unit":         um,
+			"qty":          st.Qty,
+			"avg_cost":     st.AvgCost,
+			"amount_base":  st.AmountBase,
+			"currency":     cur,
+		})
+	}
+	return out
 }
 
 func (s *Server) handleWarehouse(w http.ResponseWriter, r *http.Request) {
@@ -281,7 +320,7 @@ func (s *Server) handleWarehouse(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, row{ProductID: pid, Code: code, Name: name, Unit: unit, Qty: st.Qty, AvgCost: st.AvgCost, AmountBase: st.AmountBase, Currency: cur})
 	}
-	writeJSON(w, 200, map[string]any{"warehouse": out, "unit_stocks": snap.UnitStocks})
+	writeJSON(w, 200, map[string]any{"warehouse": out, "unit_stocks": enrichUnitStocks(snap)})
 }
 
 func (s *Server) handleReceptions(w http.ResponseWriter, r *http.Request) {
