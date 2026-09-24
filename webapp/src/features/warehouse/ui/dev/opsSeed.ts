@@ -8,6 +8,8 @@ import type { CreateTransferInput } from '../../domain/entities/Transfer';
 
 export type SeedReception = {
   supplier: string;
+  /** Quién recibe la mercancía (opcional en seed; default 'Seed DEV') */
+  receiver?: string;
   docRef?: string;
   date: string;
   note?: string;
