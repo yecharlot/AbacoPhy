@@ -2,6 +2,25 @@ package domain
 
 import "time"
 
+// normalizeAccountType unifica códigos EN/ES del plan de cuentas al agregar la ecuación.
+func normalizeAccountType(t string) string {
+	switch t {
+	case "asset", "activo", "Activo":
+		return "asset"
+	case "liability", "pasivo", "Pasivo":
+		return "liability"
+	case "equity", "patrimonio", "Patrimonio":
+		return "equity"
+	case "income", "ingreso", "Ingreso", "ingresos":
+		return "income"
+	case "expense", "egreso", "Egreso", "gasto", "Gasto", "gastos":
+		return "expense"
+	default:
+		return t
+	}
+}
+
+
 // Ecuación ampliada de la contabilidad:
 //   Activo = Pasivo + Patrimonio + (Ingresos − Gastos)
 //
@@ -80,7 +99,7 @@ func EquationSnapshot(snap *StoreSnapshot) map[string]float64 {
 		if a == nil {
 			continue
 		}
-		switch a.Type {
+		switch normalizeAccountType(a.Type) {
 		case "asset":
 			activo += a.Balance
 		case "liability":

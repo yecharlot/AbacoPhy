@@ -99,7 +99,7 @@ func BootstrapTenant(name, slug, currency string) *StoreSnapshot {
 		SalesUnits: map[string]*SalesUnit{},
 		WarehouseStock: map[string]*WarehouseStock{},
 		CostSheets: map[string]*CostSheet{},
-		DocCounters: DocCounters{ProductSeq: 15, JobSeq: 10},
+		DocCounters: DocCounters{ProductSeq: 0, JobSeq: 0},
 		JobPositions: DefaultJobPositions(tid),
 		MeasureUnits: DefaultMeasureUnits(tid),
 		PriceSheets: map[string]*PriceSheet{},
@@ -117,39 +117,12 @@ func BootstrapTenant(name, slug, currency string) *StoreSnapshot {
 }
 
 
-// DefaultProducts nomenclador base (código único P-xxxx).
+// DefaultProducts: fábrica vacía — el catálogo se carga por el usuario o seeds de desarrollo.
+// Antes incluía un nomenclador demo (Arroz, Azúcar, … P-0001…P-0015) que reaparecía
+// tras cada EnsureBootstrap / master reset.
 func DefaultProducts(tenantID string) map[string]*Product {
-	now := time.Now().UTC()
-	items := []struct {
-		code, name, unit, cat string
-		cost, price float64
-	}{
-		{"P-0001", "Arroz", "kg", "Alimentos", 0, 0},
-		{"P-0002", "Azúcar", "kg", "Alimentos", 0, 0},
-		{"P-0003", "Aceite vegetal", "l", "Alimentos", 0, 0},
-		{"P-0004", "Frijol", "kg", "Alimentos", 0, 0},
-		{"P-0005", "Leche en polvo", "kg", "Alimentos", 0, 0},
-		{"P-0006", "Harina de trigo", "kg", "Alimentos", 0, 0},
-		{"P-0007", "Pasta alimenticia", "kg", "Alimentos", 0, 0},
-		{"P-0008", "Jabón de lavar", "u", "Aseo", 0, 0},
-		{"P-0009", "Detergente", "kg", "Aseo", 0, 0},
-		{"P-0010", "Agua embotellada", "u", "Bebidas", 0, 0},
-		{"P-0011", "Refresco", "u", "Bebidas", 0, 0},
-		{"P-0012", "Cerveza", "u", "Bebidas", 0, 0},
-		{"P-0013", "Pan", "u", "Panadería", 0, 0},
-		{"P-0014", "Huevo", "u", "Alimentos", 0, 0},
-		{"P-0015", "Pollo", "kg", "Cárnicos", 0, 0},
-	}
-	out := make(map[string]*Product, len(items))
-	for _, it := range items {
-		id := "prod-" + it.code
-		out[id] = &Product{
-			ID: id, TenantID: tenantID, Code: it.code, Name: it.name, Unit: it.unit,
-			Category: it.cat, CostStd: it.cost, PriceSale: it.price, Currency: "CUP",
-			Active: true, CreatedAt: now, UpdatedAt: now,
-		}
-	}
-	return out
+	_ = tenantID
+	return map[string]*Product{}
 }
 
 

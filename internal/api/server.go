@@ -1031,27 +1031,36 @@ func (s *Server) handleReportsSummary(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	eq := domain.EquationSnapshot(snap)
+	// Ecuación del panel = saldos del plan de cuentas (única fuente de verdad).
+	// income/expense por asientos se exponen solo como métrica auxiliar del libro.
 	writeJSON(w, 200, map[string]any{
-		"tenant":                snap.Tenant.Name,
-		"slug":                  snap.Tenant.Slug,
-		"currency":              snap.Tenant.Currency,
-		"income_total":          income,
-		"expense_total":         expense,
-		"net":                   income - expense,
-		// Claves alineadas con el frontend (Equation / StatCard)
-		"ingresos":              income,
-		"gastos":                expense,
-		"neto":                  income - expense,
-		"income":                income,
-		"expenses":              expense,
-		"net_profit":            income - expense,
-		"activo":                eq["activo"],
-		"pasivo":                eq["pasivo"],
-		"patrimonio":            eq["patrimonio"],
-		"assets":                eq["activo"],
-		"liabilities":           eq["pasivo"],
-		"equity":                eq["patrimonio"],
-		"ecuacion":              eq,
+		"tenant":   snap.Tenant.Name,
+		"slug":     snap.Tenant.Slug,
+		"currency": snap.Tenant.Currency,
+
+		// Auxiliar: suma de Entries por type (puede diferir del plan de cuentas).
+		"entries_income_total":  income,
+		"entries_expense_total": expense,
+		// Compatibilidad temporal: income_total/expense_total = saldos (ya no el libro).
+		"income_total": eq["ingresos"],
+		"expense_total": eq["gastos"],
+		"net":           eq["neto"],
+
+		// Claves alineadas con el frontend (Equation / StatCard) — desde EquationSnapshot.
+		"ingresos":   eq["ingresos"],
+		"gastos":     eq["gastos"],
+		"neto":       eq["neto"],
+		"income":     eq["ingresos"],
+		"expenses":   eq["gastos"],
+		"net_profit": eq["neto"],
+		"activo":     eq["activo"],
+		"pasivo":     eq["pasivo"],
+		"patrimonio": eq["patrimonio"],
+		"assets":     eq["activo"],
+		"liabilities": eq["pasivo"],
+		"equity":     eq["patrimonio"],
+		"ecuacion":   eq,
+
 		"inventory_items":       len(snap.Inventory),
 		"inventory_cost_value":  invValue,
 		"invoices_count":        nInv,
