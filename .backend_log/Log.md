@@ -276,3 +276,83 @@ Entry{
 ### Archivo entregado
 
 - `internal/api/ops.go` (completo: Fases 2 + 3 en el bloque contable POS)
+
+---
+
+## Fase 4 — `EquationSnapshot`: normalizar tipos de cuenta EN/ES
+
+**Fecha:** 2026-09-25  
+**Archivo:** `internal/domain/ledger.go`  
+**Estado:** propuesto / aplicar tras Fases 1–3
+
+### Propósito
+
+Que la suma de la ecuación ampliada reconozca tipos de cuenta tanto en **inglés** (canónico del bootstrap: `asset`, `liability`, `equity`, `income`, `expense`) como variantes en **español** (`Activo`, `Pasivo`, `Ingreso`, `Egreso`, etc.), por si existen datos legacy o altas manuales con etiqueta ES.
+
+### Por qué lo cambiamos
+
+`DefaultAccounts` crea tipos en inglés. Si alguna cuenta quedó con `Type: "Activo"` u otro alias, **no entraba** en ningún bucket del `switch` y su saldo **desaparecía** de la ecuación → descuadre o totales incompletos sin error visible.
+
+### Qué mejora
+
+- Robustez ante nomenclatura mixta EN/ES.
+- La ecuación sigue usando la misma fórmula; solo se amplía el reconocimiento de `Account.Type`.
+- Cero cambio de API HTTP; solo cálculo interno.
+
+### Impacto en el backend
+
+| Función | Cambio |
+|---------|--------|
+| `normalizeAccountType` | Nueva helper privada de paquete |
+| `EquationSnapshot` | `switch normalizeAccountType(a.Type)` |
+| Bootstrap / POST cuentas | Sin cambio de escritura (siguen pudiendo usar EN) |
+
+No modifica saldos en disco ni asientos.
+
+### Qué posibilita al frontend
+
+- `ecuacion.*` del summary más fiable aunque el plan de cuentas tenga tipos heterogéneos.
+- Menos “Descuadre” por cuentas “huérfanas” de tipo no reconocido.
+
+### Antes
+
+```go
+switch a.Type {
+case "asset": ...
+case "income": ...
+// "Activo" / "Egreso" → ignorados
+}
+```
+
+### Después
+
+```go
+switch normalizeAccountType(a.Type) {
+case "asset": ...   // también "activo", "Activo"
+case "expense": ... // también "egreso", "Egreso", "gasto"
+}
+```
+
+### Prueba rápida
+
+1. (Opcional) En datos de prueba, una cuenta con `type: "Activo"` y balance ≠ 0.
+2. `GET /reports/summary` → ese balance entra en `ecuacion.activo`.
+3. Cuentas canónicas EN sin regresión: mismos totales que antes.
+
+### Cierre de la serie “ecuación contable”
+
+| Fase | Archivo | Resumen |
+|------|---------|---------|
+| 1 | `internal/api/server.go` | Summary: ecuación desde saldos |
+| 2 | `internal/api/ops.go` | POS: persistir asiento income |
+| 3 | `internal/api/ops.go` | POS COGS: asiento expense 5000 |
+| 4 | `internal/domain/ledger.go` | Normalizar tipos EN/ES |
+
+### Fuera de alcance (follow-up)
+
+- Recálculo de saldos históricos corruptos.
+- Endpoint admin de recompute desde libro.
+
+### Archivo entregado
+
+- `internal/domain/ledger.go` (completo)
