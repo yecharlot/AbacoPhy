@@ -1,15 +1,18 @@
 import type { HttpClient } from '../../../../infrastructure/data/http';
-import type { InvoiceDto } from '../dto/InvoiceDto';
 
 export class InvoicingRemoteSource {
   constructor(private readonly http: HttpClient) {}
 
-  getInvoices(): Promise<{ invoices: InvoiceDto[] }> {
-    return this.http.get<{ invoices: InvoiceDto[] }>('/invoices');
+  getInvoices(): Promise<{ invoices: unknown[] }> {
+    return this.http.get<{ invoices: unknown[] }>('/invoices');
   }
 
-  emitInvoice(body: Partial<InvoiceDto>): Promise<InvoiceDto> {
-    return this.http.post<InvoiceDto>('/invoices', body);
+  async emitInvoice(body: Record<string, unknown>): Promise<unknown> {
+    const res = await this.http.post<{ factura?: unknown } & Record<string, unknown>>(
+      '/invoices',
+      body,
+    );
+    return res.factura ?? res;
   }
 
   getPdf(id: string): Promise<Blob> {

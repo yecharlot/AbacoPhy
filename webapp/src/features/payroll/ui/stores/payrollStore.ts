@@ -1,9 +1,15 @@
+import type {
+  CreateEmployeeInput,
+  UpdateEmployeeInput,
+} from '../../domain/entities/Employee';
+import type { CreatePayslipInput, Payslip } from '../../domain/entities/Payslip';
 import type { Employee } from '../../domain/entities/Employee';
-import type { Payslip } from '../../domain/entities/Payslip';
-import type { ListEmployees } from '../../domain/usecases/ListEmployees';
 import type { CreateEmployee } from '../../domain/usecases/CreateEmployee';
-import type { ListPayslips } from '../../domain/usecases/ListPayslips';
+import type { UpdateEmployee } from '../../domain/usecases/UpdateEmployee';
+import type { DeactivateEmployee } from '../../domain/usecases/DeactivateEmployee';
 import type { CreatePayslip } from '../../domain/usecases/CreatePayslip';
+import type { ListEmployees } from '../../domain/usecases/ListEmployees';
+import type { ListPayslips } from '../../domain/usecases/ListPayslips';
 
 export type PayrollStatus = 'idle' | 'loading' | 'success' | 'error' | 'empty';
 
@@ -18,6 +24,8 @@ export type PayrollState = {
 type Deps = {
   listEmployees: ListEmployees;
   createEmployee: CreateEmployee;
+  updateEmployee: UpdateEmployee;
+  deactivateEmployee: DeactivateEmployee;
   listPayslips: ListPayslips;
   createPayslip: CreatePayslip;
 };
@@ -41,6 +49,10 @@ export function createPayrollStore(deps: Deps) {
     emit();
   }
 
+  function messageOf(err: unknown, fallback: string): string {
+    return err instanceof Error ? err.message : fallback;
+  }
+
   return {
     subscribe(fn: (s: PayrollState) => void): () => void {
       listeners.add(fn);
@@ -60,8 +72,7 @@ export function createPayrollStore(deps: Deps) {
           error: null,
         });
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Error al cargar empleados';
-        set({ status: 'error', error: message });
+        set({ status: 'error', error: messageOf(err, 'Error al cargar empleados') });
       }
     },
     async loadPayslips(employeeId?: string): Promise<void> {
@@ -74,31 +85,50 @@ export function createPayrollStore(deps: Deps) {
           error: null,
         });
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Error al cargar liquidaciones';
-        set({ status: 'error', error: message });
+        set({ status: 'error', error: messageOf(err, 'Error al cargar liquidaciones') });
       }
     },
-    async addEmployee(employee: Omit<Employee, 'id' | 'active'>): Promise<void> {
+    async addEmployee(input: CreateEmployeeInput): Promise<void> {
       set({ saving: true, error: null });
       try {
-        await deps.createEmployee.execute(employee);
+        await deps.createEmployee.execute(input);
         set({ saving: false });
         await this.loadEmployees();
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Error al registrar empleado';
-        set({ saving: false, error: message });
+        set({ saving: false, error: messageOf(err, 'Error al registrar empleado') });
         throw err;
       }
     },
-    async addPayslip(payslip: Omit<Payslip, 'id' | 'dateEmitted'>): Promise<void> {
+    async editEmployee(input: UpdateEmployeeInput): Promise<void> {
       set({ saving: true, error: null });
       try {
-        await deps.createPayslip.execute(payslip);
+        await deps.updateEmployee.execute(input);
+        set({ saving: false });
+        await this.loadEmployees();
+      } catch (err) {
+        set({ saving: false, error: messageOf(err, 'Error al actualizar empleado') });
+        throw err;
+      }
+    },
+    async dismissEmployee(id: string): Promise<void> {
+      set({ saving: true, error: null });
+      try {
+        await deps.deactivateEmployee.execute(id);
+        set({ saving: false });
+        await this.loadEmployees();
+      } catch (err) {
+        set({ saving: false, error: messageOf(err, 'Error al dar de baja') });
+        throw err;
+      }
+    },
+    async addPayslip(input: CreatePayslipInput): Promise<void> {
+      set({ saving: true, error: null });
+      try {
+        await deps.createPayslip.execute(input);
         set({ saving: false });
         await this.loadPayslips();
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Error al generar liquidación';
-        set({ saving: false, error: message });
+        set({ saving: false, error: messageOf(err, 'Error al generar liquidación') });
         throw err;
       }
     },

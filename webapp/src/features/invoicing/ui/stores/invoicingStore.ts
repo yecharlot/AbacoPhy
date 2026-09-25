@@ -1,4 +1,4 @@
-import type { Invoice } from '../../domain/entities/Invoice';
+import type { EmitInvoiceInput, Invoice } from '../../domain/entities/Invoice';
 import type { ListInvoices } from '../../domain/usecases/ListInvoices';
 import type { EmitInvoice } from '../../domain/usecases/EmitInvoice';
 import type { DownloadInvoicePdf } from '../../domain/usecases/DownloadInvoicePdf';
@@ -59,10 +59,10 @@ export function createInvoicingStore(deps: Deps) {
         set({ status: 'error', error: message });
       }
     },
-    async emit(invoice: Omit<Invoice, 'id' | 'number' | 'status'>): Promise<void> {
+    async emit(input: EmitInvoiceInput): Promise<void> {
       set({ saving: true, error: null });
       try {
-        await deps.emitInvoice.execute(invoice);
+        await deps.emitInvoice.execute(input);
         set({ saving: false });
         await this.load();
       } catch (err) {
@@ -83,6 +83,7 @@ export function createInvoicingStore(deps: Deps) {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error al descargar PDF';
         set({ error: message });
+        throw err;
       }
     },
   };

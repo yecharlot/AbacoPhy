@@ -1,23 +1,44 @@
 import type { HttpClient } from '../../../../infrastructure/data/http';
-import type { EmployeeDto, PayslipDto } from '../dto/PayrollDto';
 
 export class PayrollRemoteSource {
   constructor(private readonly http: HttpClient) {}
 
-  getEmployees(): Promise<{ employees: EmployeeDto[] }> {
-    return this.http.get<{ employees: EmployeeDto[] }>('/payroll/employees');
+  getEmployees(): Promise<{ employees: unknown[] }> {
+    return this.http.get<{ employees: unknown[] }>('/payroll/employees');
   }
 
-  createEmployee(body: Partial<EmployeeDto>): Promise<EmployeeDto> {
-    return this.http.post<EmployeeDto>('/payroll/employees', body);
+  async createEmployee(body: Record<string, unknown>): Promise<unknown> {
+    const res = await this.http.post<{ employee?: unknown } & Record<string, unknown>>(
+      '/payroll/employees',
+      body,
+    );
+    return res.employee ?? res;
   }
 
-  getPayslips(employeeId?: string): Promise<{ payslips: PayslipDto[] }> {
-    const path = employeeId ? `/payroll/payslips?employee_id=${employeeId}` : '/payroll/payslips';
-    return this.http.get<{ payslips: PayslipDto[] }>(path);
+  async updateEmployee(body: Record<string, unknown>): Promise<unknown> {
+    const res = await this.http.put<{ employee?: unknown } & Record<string, unknown>>(
+      '/payroll/employees',
+      body,
+    );
+    return res.employee ?? res;
   }
 
-  createPayslip(body: Partial<PayslipDto>): Promise<PayslipDto> {
-    return this.http.post<PayslipDto>('/payroll/payslips', body);
+  async deactivateEmployee(id: string): Promise<void> {
+    await this.http.delete(`/payroll/employees?id=${encodeURIComponent(id)}`);
+  }
+
+  getPayslips(employeeId?: string): Promise<{ payslips: unknown[] }> {
+    const path = employeeId
+      ? `/payroll/payslips?employee_id=${encodeURIComponent(employeeId)}`
+      : '/payroll/payslips';
+    return this.http.get<{ payslips: unknown[] }>(path);
+  }
+
+  async createPayslip(body: Record<string, unknown>): Promise<unknown> {
+    const res = await this.http.post<{ payslip?: unknown } & Record<string, unknown>>(
+      '/payroll/payslips',
+      body,
+    );
+    return res.payslip ?? res;
   }
 }

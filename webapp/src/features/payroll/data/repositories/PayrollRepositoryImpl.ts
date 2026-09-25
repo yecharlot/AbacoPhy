@@ -1,6 +1,10 @@
 import type { HttpClient, HttpError } from '../../../../infrastructure/data/http';
-import type { Employee } from '../../domain/entities/Employee';
-import type { Payslip } from '../../domain/entities/Payslip';
+import type {
+  CreateEmployeeInput,
+  Employee,
+  UpdateEmployeeInput,
+} from '../../domain/entities/Employee';
+import type { CreatePayslipInput, Payslip } from '../../domain/entities/Payslip';
 import type { PayrollRepository } from '../../domain/repositories/PayrollRepository';
 import { PayrollRemoteSource } from '../sources/PayrollRemoteSource';
 import { payrollMapper } from '../mappers/payrollMapper';
@@ -23,16 +27,35 @@ export class PayrollRepositoryImpl implements PayrollRepository {
   async getEmployees(): Promise<Employee[]> {
     try {
       const res = await this.remote.getEmployees();
-      return (res.employees || []).map(payrollMapper.toEmployee);
+      return (res.employees || []).map((row) =>
+        payrollMapper.toEmployee(row as Parameters<typeof payrollMapper.toEmployee>[0]),
+      );
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
   }
 
-  async createEmployee(employee: Omit<Employee, 'id' | 'active'>): Promise<Employee> {
+  async createEmployee(input: CreateEmployeeInput): Promise<Employee> {
     try {
-      const dto = await this.remote.createEmployee(payrollMapper.toEmployeeDto(employee));
-      return payrollMapper.toEmployee(dto);
+      const dto = await this.remote.createEmployee(payrollMapper.toEmployeeDto(input));
+      return payrollMapper.toEmployee(dto as Parameters<typeof payrollMapper.toEmployee>[0]);
+    } catch (err) {
+      throw new Error(toUserMessage(err));
+    }
+  }
+
+  async updateEmployee(input: UpdateEmployeeInput): Promise<Employee> {
+    try {
+      const dto = await this.remote.updateEmployee(payrollMapper.toUpdateEmployeeDto(input));
+      return payrollMapper.toEmployee(dto as Parameters<typeof payrollMapper.toEmployee>[0]);
+    } catch (err) {
+      throw new Error(toUserMessage(err));
+    }
+  }
+
+  async deactivateEmployee(id: string): Promise<void> {
+    try {
+      await this.remote.deactivateEmployee(id);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
@@ -41,16 +64,18 @@ export class PayrollRepositoryImpl implements PayrollRepository {
   async getPayslips(employeeId?: string): Promise<Payslip[]> {
     try {
       const res = await this.remote.getPayslips(employeeId);
-      return (res.payslips || []).map(payrollMapper.toPayslip);
+      return (res.payslips || []).map((row) =>
+        payrollMapper.toPayslip(row as Parameters<typeof payrollMapper.toPayslip>[0]),
+      );
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
   }
 
-  async createPayslip(payslip: Omit<Payslip, 'id' | 'dateEmitted'>): Promise<Payslip> {
+  async createPayslip(input: CreatePayslipInput): Promise<Payslip> {
     try {
-      const dto = await this.remote.createPayslip(payrollMapper.toPayslipDto(payslip));
-      return payrollMapper.toPayslip(dto);
+      const dto = await this.remote.createPayslip(payrollMapper.toPayslipDto(input));
+      return payrollMapper.toPayslip(dto as Parameters<typeof payrollMapper.toPayslip>[0]);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }

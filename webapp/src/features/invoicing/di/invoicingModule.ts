@@ -3,9 +3,15 @@ import { InvoicingRepositoryImpl } from '../data/repositories/InvoicingRepositor
 import { ListInvoices } from '../domain/usecases/ListInvoices';
 import { EmitInvoice } from '../domain/usecases/EmitInvoice';
 import { DownloadInvoicePdf } from '../domain/usecases/DownloadInvoicePdf';
-import { createInvoicingStore } from '../ui/stores/invoicingStore';
+import { createInvoicingStore, type InvoicingStore } from '../ui/stores/invoicingStore';
 
-export function createInvoicingModule(container: AppContainer) {
+export type InvoicingModule = {
+  invoicingStore: InvoicingStore;
+  /** Alias usado por App si importa invoiceStore */
+  invoiceStore: InvoicingStore;
+};
+
+export function createInvoicingModule(container: AppContainer): InvoicingModule {
   const repository = new InvoicingRepositoryImpl(container.http);
 
   const listInvoices = new ListInvoices(repository);
@@ -20,5 +26,6 @@ export function createInvoicingModule(container: AppContainer) {
 
   return {
     invoicingStore,
+    invoiceStore: invoicingStore,
   };
 }

@@ -1,10 +1,10 @@
-import type { InvoicingRepository } from '../repositories/InvoicingRepository';
 import type { Invoice } from '../entities/Invoice';
+import type { InvoicingRepository } from '../repositories/InvoicingRepository';
 
 export class ListInvoices {
-  constructor(private repository: InvoicingRepository) {}
+  constructor(private readonly repo: InvoicingRepository) {}
 
-  async execute(): Promise<Invoice[]> {
-    return this.repository.getInvoices();
+  execute(): Promise<Invoice[]> {
+    return this.repo.getInvoices();
   }
 }
