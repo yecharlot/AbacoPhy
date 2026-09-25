@@ -11,7 +11,6 @@ type LineDto = {
   qty?: number;
   unit_price?: number;
   amount?: number;
-  product_id?: string;
   product_name?: string;
   quantity?: number;
   price?: number;
@@ -23,8 +22,8 @@ type InvoiceDto = {
   number?: string;
   client_name?: string;
   client_tax?: string;
-  customer_id?: string;
   customer_name?: string;
+  customer_id?: string;
   lines?: LineDto[];
   subtotal?: number;
   tax?: number;
@@ -32,6 +31,16 @@ type InvoiceDto = {
   currency?: string;
   status?: string;
   issued_at?: string;
+  created_by?: string;
+  operator_id?: string;
+  operator_name?: string;
+  unit_id?: string;
+  unit_name?: string;
+  issuer_name?: string;
+  issuer_tax_id?: string;
+  issuer_address?: string;
+  issuer_phone?: string;
+  cid?: string;
 };
 
 export const invoicingMapper = {
@@ -59,10 +68,19 @@ export const invoicingMapper = {
       currency: dto.currency || 'CUP',
       status: dto.status || 'draft',
       issuedAt: dto.issued_at || '',
+      createdBy: dto.created_by,
+      operatorId: dto.operator_id,
+      operatorName: dto.operator_name,
+      unitId: dto.unit_id,
+      unitName: dto.unit_name,
+      issuerName: dto.issuer_name,
+      issuerTaxId: dto.issuer_tax_id,
+      issuerAddress: dto.issuer_address,
+      issuerPhone: dto.issuer_phone,
+      cid: dto.cid,
     };
   },
 
-  /** Body que espera Go domain.Invoice */
   toEmitDto(input: EmitInvoiceInput): Record<string, unknown> {
     const lines = input.lines.map((l) => ({
       description: l.description,
@@ -70,7 +88,7 @@ export const invoicingMapper = {
       unit_price: l.unitPrice,
       amount: l.qty * l.unitPrice,
     }));
-    return {
+    const body: Record<string, unknown> = {
       client_name: input.clientName,
       client_tax: input.clientTax || undefined,
       currency: input.currency || 'CUP',
@@ -78,5 +96,14 @@ export const invoicingMapper = {
       status: input.status || 'issued',
       lines,
     };
+    if (input.operatorId) body.operator_id = input.operatorId;
+    if (input.operatorName) body.operator_name = input.operatorName;
+    if (input.unitId) body.unit_id = input.unitId;
+    if (input.unitName) body.unit_name = input.unitName;
+    if (input.issuerName) body.issuer_name = input.issuerName;
+    if (input.issuerTaxId) body.issuer_tax_id = input.issuerTaxId;
+    if (input.issuerAddress) body.issuer_address = input.issuerAddress;
+    if (input.issuerPhone) body.issuer_phone = input.issuerPhone;
+    return body;
   },
 };

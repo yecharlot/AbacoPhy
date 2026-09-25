@@ -32,14 +32,25 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 7px;
+    gap: 6px;
+    box-sizing: border-box;
     border: none;
+    margin: 0;
     font-family: inherit;
     font-weight: 600;
+    line-height: 1.2;
     cursor: pointer;
-    border-radius: var(--radius-pill, 999px);
-    transition: transform 160ms ease-out, box-shadow 160ms ease-out, opacity 160ms ease-out;
-    min-height: 40px;
+    /* pill suave, no óvalo vertical */
+    border-radius: 10px;
+    transition:
+      transform 140ms ease-out,
+      box-shadow 140ms ease-out,
+      opacity 140ms ease-out,
+      background 140ms ease-out;
+    white-space: nowrap;
+    /* evita que flex/grid padres estiren la altura */
+    align-self: center;
+    flex-shrink: 0;
   }
   .btn:disabled {
     opacity: 0.55;
@@ -49,27 +60,38 @@
     outline: 2px solid var(--accent-cyan, #61e6e1);
     outline-offset: 2px;
   }
+
+  /* md — compacto */
   .btn-md {
-    padding: 10px 18px;
-    font-size: 0.88rem;
+    min-height: 34px;
+    height: 34px;
+    padding: 0 14px;
+    font-size: 0.84rem;
   }
+
+  /* sm — más compacto */
   .btn-sm {
-    padding: 6px 12px;
-    font-size: 0.74rem;
-    min-height: 32px;
+    min-height: 28px;
+    height: 28px;
+    padding: 0 10px;
+    font-size: 0.75rem;
   }
+
   .btn-primary {
     background: var(--gradient-primary-btn, linear-gradient(135deg, #61e6e1, #b7f56a));
     color: #0a1210;
   }
   .btn-primary:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 8px 24px rgba(97, 230, 225, 0.25);
+    box-shadow: 0 6px 18px rgba(97, 230, 225, 0.22);
   }
   .btn-secondary {
-    background: var(--color-surface-soft, transparent);
+    background: var(--color-surface-soft, color-mix(in srgb, var(--ap-surface, #1a2220) 80%, transparent));
     color: var(--color-text-primary, var(--ap-text));
     border: 1px solid var(--color-border, var(--ap-border));
+  }
+  .btn-secondary:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--accent-cyan, #61e6e1) 40%, var(--color-border, #333));
   }
   .btn-ghost {
     background: transparent;
@@ -81,15 +103,19 @@
     color: var(--color-text-primary, var(--ap-text));
   }
   .btn-danger {
-    background: var(--accent-red, var(--ap-danger));
+    background: var(--accent-red, var(--ap-danger, #f17b7b));
     color: #fff;
   }
   .full {
     width: 100%;
   }
+
+  /* mobile: un poco más táctil sin volver a óvalos altos */
   @media (max-width: 599px) {
     .btn-md {
-      min-height: 44px;
+      min-height: 38px;
+      height: 38px;
+      padding: 0 16px;
     }
   }
 </style>

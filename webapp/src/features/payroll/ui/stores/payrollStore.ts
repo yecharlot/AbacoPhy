@@ -1,6 +1,12 @@
-import type { CreateEmployeeInput, Employee } from '../../domain/entities/Employee';
+import type {
+  CreateEmployeeInput,
+  UpdateEmployeeInput,
+} from '../../domain/entities/Employee';
 import type { CreatePayslipInput, Payslip } from '../../domain/entities/Payslip';
+import type { Employee } from '../../domain/entities/Employee';
 import type { CreateEmployee } from '../../domain/usecases/CreateEmployee';
+import type { UpdateEmployee } from '../../domain/usecases/UpdateEmployee';
+import type { DeactivateEmployee } from '../../domain/usecases/DeactivateEmployee';
 import type { CreatePayslip } from '../../domain/usecases/CreatePayslip';
 import type { ListEmployees } from '../../domain/usecases/ListEmployees';
 import type { ListPayslips } from '../../domain/usecases/ListPayslips';
@@ -18,6 +24,8 @@ export type PayrollState = {
 type Deps = {
   listEmployees: ListEmployees;
   createEmployee: CreateEmployee;
+  updateEmployee: UpdateEmployee;
+  deactivateEmployee: DeactivateEmployee;
   listPayslips: ListPayslips;
   createPayslip: CreatePayslip;
 };
@@ -88,6 +96,28 @@ export function createPayrollStore(deps: Deps) {
         await this.loadEmployees();
       } catch (err) {
         set({ saving: false, error: messageOf(err, 'Error al registrar empleado') });
+        throw err;
+      }
+    },
+    async editEmployee(input: UpdateEmployeeInput): Promise<void> {
+      set({ saving: true, error: null });
+      try {
+        await deps.updateEmployee.execute(input);
+        set({ saving: false });
+        await this.loadEmployees();
+      } catch (err) {
+        set({ saving: false, error: messageOf(err, 'Error al actualizar empleado') });
+        throw err;
+      }
+    },
+    async dismissEmployee(id: string): Promise<void> {
+      set({ saving: true, error: null });
+      try {
+        await deps.deactivateEmployee.execute(id);
+        set({ saving: false });
+        await this.loadEmployees();
+      } catch (err) {
+        set({ saving: false, error: messageOf(err, 'Error al dar de baja') });
         throw err;
       }
     },

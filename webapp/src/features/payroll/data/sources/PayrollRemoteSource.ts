@@ -15,6 +15,18 @@ export class PayrollRemoteSource {
     return res.employee ?? res;
   }
 
+  async updateEmployee(body: Record<string, unknown>): Promise<unknown> {
+    const res = await this.http.put<{ employee?: unknown } & Record<string, unknown>>(
+      '/payroll/employees',
+      body,
+    );
+    return res.employee ?? res;
+  }
+
+  async deactivateEmployee(id: string): Promise<void> {
+    await this.http.delete(`/payroll/employees?id=${encodeURIComponent(id)}`);
+  }
+
   getPayslips(employeeId?: string): Promise<{ payslips: unknown[] }> {
     const path = employeeId
       ? `/payroll/payslips?employee_id=${encodeURIComponent(employeeId)}`

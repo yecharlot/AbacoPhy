@@ -1,4 +1,4 @@
-import type { CreateEmployeeInput, Employee } from '../../domain/entities/Employee';
+import type { CreateEmployeeInput, Employee, UpdateEmployeeInput } from '../../domain/entities/Employee';
 import type { CreatePayslipInput, Payslip } from '../../domain/entities/Payslip';
 
 function n(v: unknown): number {
@@ -25,6 +25,7 @@ type EmployeeDto = {
   ss_employer_rate?: number;
   ss_worker_rate?: number;
   active?: boolean;
+  unit_ids?: string[];
 };
 
 type PayslipDto = {
@@ -69,7 +70,25 @@ export const payrollMapper = {
       ssEmployerRate: n(dto.ss_employer_rate) || 0.125,
       ssWorkerRate: n(dto.ss_worker_rate) || 0.05,
       active: dto.active !== false,
+      unitIds: Array.isArray(dto.unit_ids) ? dto.unit_ids.map(String) : [],
     };
+  },
+
+  toUpdateEmployeeDto(input: UpdateEmployeeInput): Record<string, unknown> {
+    const body: Record<string, unknown> = { id: input.id };
+    if (input.name !== undefined) body.name = input.name;
+    if (input.ci !== undefined) body.ci = input.ci;
+    if (input.role !== undefined) body.role = input.role;
+    if (input.department !== undefined) body.department = input.department;
+    if (input.hireDate !== undefined) body.hire_date = input.hireDate;
+    if (input.salary !== undefined) body.salary = input.salary;
+    if (input.currency !== undefined) body.currency = input.currency;
+    if (input.vacRate !== undefined) body.vac_rate = input.vacRate;
+    if (input.ssEmployerRate !== undefined) body.ss_employer_rate = input.ssEmployerRate;
+    if (input.ssWorkerRate !== undefined) body.ss_worker_rate = input.ssWorkerRate;
+    if (input.active !== undefined) body.active = input.active;
+    if (input.unitIds !== undefined) body.unit_ids = input.unitIds;
+    return body;
   },
 
   toEmployeeDto(input: CreateEmployeeInput): Record<string, unknown> {
@@ -84,6 +103,7 @@ export const payrollMapper = {
       vac_rate: input.vacRate ?? 0.09,
       ss_employer_rate: input.ssEmployerRate ?? 0.125,
       ss_worker_rate: input.ssWorkerRate ?? 0.05,
+      unit_ids: input.unitIds?.length ? input.unitIds : undefined,
     };
   },
 

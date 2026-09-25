@@ -1,5 +1,9 @@
 import type { HttpClient, HttpError } from '../../../../infrastructure/data/http';
-import type { CreateEmployeeInput, Employee } from '../../domain/entities/Employee';
+import type {
+  CreateEmployeeInput,
+  Employee,
+  UpdateEmployeeInput,
+} from '../../domain/entities/Employee';
 import type { CreatePayslipInput, Payslip } from '../../domain/entities/Payslip';
 import type { PayrollRepository } from '../../domain/repositories/PayrollRepository';
 import { PayrollRemoteSource } from '../sources/PayrollRemoteSource';
@@ -35,6 +39,23 @@ export class PayrollRepositoryImpl implements PayrollRepository {
     try {
       const dto = await this.remote.createEmployee(payrollMapper.toEmployeeDto(input));
       return payrollMapper.toEmployee(dto as Parameters<typeof payrollMapper.toEmployee>[0]);
+    } catch (err) {
+      throw new Error(toUserMessage(err));
+    }
+  }
+
+  async updateEmployee(input: UpdateEmployeeInput): Promise<Employee> {
+    try {
+      const dto = await this.remote.updateEmployee(payrollMapper.toUpdateEmployeeDto(input));
+      return payrollMapper.toEmployee(dto as Parameters<typeof payrollMapper.toEmployee>[0]);
+    } catch (err) {
+      throw new Error(toUserMessage(err));
+    }
+  }
+
+  async deactivateEmployee(id: string): Promise<void> {
+    try {
+      await this.remote.deactivateEmployee(id);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
