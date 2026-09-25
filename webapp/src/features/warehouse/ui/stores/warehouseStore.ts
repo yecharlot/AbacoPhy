@@ -12,6 +12,7 @@ import type {
   CreateReception,
   CreateSalesUnit,
   CreateTransfer,
+  EnterReception,
   GetSalesUnits,
   GetWarehouseStock,
   ListReceptions,
@@ -43,6 +44,7 @@ type Deps = {
   createSalesUnit: CreateSalesUnit;
   listReceptions: ListReceptions;
   createReception: CreateReception;
+  enterReception: EnterReception;
   listTransfers: ListTransfers;
   createTransfer: CreateTransfer;
 };

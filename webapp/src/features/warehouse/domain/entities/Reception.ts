@@ -51,7 +51,7 @@ export type CreateReceptionInput = {
 
 export type EnterReceptionInput = {
   id: string;
-  /** Debe ser true: validado con el económico */
-  accept: true;
+  /** Debe ser true en runtime: validado con el económico (EnterReception lo exige). */
+  accept: boolean;
   note?: string;
 };
