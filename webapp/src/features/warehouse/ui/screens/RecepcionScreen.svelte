@@ -327,6 +327,12 @@
       <h2>Historial ({receptions.length})</h2>
       {#if state.status === 'loading' && receptions.length === 0}
         <p class="muted">Cargando recepciones…</p>
+      {#if enterError}
+        <p class="form-error" role="alert">{enterError}</p>
+      {/if}
+      {#if enterOk}
+        <p class="form-ok" role="status">{enterOk}</p>
+      {/if}
       {:else if receptions.length === 0}
         <p class="muted">Aún no hay informes de recepción confirmados.</p>
       {:else}
@@ -340,6 +346,7 @@
                 <th>Líneas</th>
                 <th class="num">Total</th>
                 <th>Estado</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -375,7 +382,7 @@
                         type="button"
                         variant="primary"
                         disabled={!!enteringId || state.saving}
-                        onclick={() => handleEnter(r)}
+                        on:click={() => handleEnter(r)}
                       >
                         {enteringId === r.id ? 'Entrando…' : 'Dar entrada'}
                       </Button>
@@ -632,4 +639,11 @@
     background: color-mix(in srgb, var(--accent-green, #b7f56a) 12%, transparent);
     color: var(--accent-green, var(--ap-ok));
   }
+
+  .form-ok {
+    color: #4ade80;
+    font-size: 0.9rem;
+    margin: 0.5rem 0;
+  }
 </style>
+
