@@ -26,6 +26,9 @@
   let lines: DraftLine[] = [{ productId: '', qty: '', unitCost: '' }];
   let formError = '';
   let formOk = '';
+  let enteringId = '';
+  let enterError = '';
+  let enterOk = '';
 
   onMount(() => {
     const unsub = store.subscribe((s: WarehouseState) => {
@@ -78,6 +81,27 @@
     invoiceRef = '';
     receiver = '';
     lines = [{ productId: '', qty: '', unitCost: '' }];
+  }
+
+
+  function isPending(status: string | undefined): boolean {
+    const s = (status || '').toLowerCase();
+    return s === 'pendiente_entrada' || s === 'pendiente';
+  }
+
+  async function handleEnter(r: { id: string; number?: string }) {
+    enterError = '';
+    enterOk = '';
+    enteringId = r.id;
+    try {
+      await store.enterReception({ id: r.id, accept: true });
+      enterOk = `Entrada al almacén registrada · ${r.number || r.id}`;
+    } catch (err) {
+      enterError =
+        err instanceof Error ? err.message : 'No se pudo dar entrada al almacén';
+    } finally {
+      enteringId = '';
+    }
   }
 
   async function handleSubmit(e: Event) {
@@ -344,7 +368,21 @@
                     {/if}
                   </td>
                   <td class="num"><Money amount={r.totalCost} currency={r.currency} /></td>
-                  <td><span class="pill">{r.status || '—'}</span></td>
+                  <td><span class="pill" class:pill-pending={isPending(r.status)} class:pill-ok={!isPending(r.status) && (r.status || '').toLowerCase() === 'entrado'}>{r.status || '—'}</span></td>
+                  <td class="actions">
+                    {#if isPending(r.status)}
+                      <Button
+                        type="button"
+                        variant="primary"
+                        disabled={!!enteringId || state.saving}
+                        onclick={() => handleEnter(r)}
+                      >
+                        {enteringId === r.id ? 'Entrando…' : 'Dar entrada'}
+                      </Button>
+                    {:else}
+                      <span class="muted-sm">—</span>
+                    {/if}
+                  </td>
                 </tr>
               {/each}
             </tbody>

@@ -32,6 +32,7 @@ export class WarehouseRemoteSource {
     return this.http.post<ReceptionResponseDto>('/receptions', body);
   }
 
+  /** Entrada física: pendiente_entrada → entrado + WarehouseStock */
   enterReception(body: Record<string, unknown>): Promise<ReceptionResponseDto> {
     return this.http.post<ReceptionResponseDto>('/receptions/enter', body);
   }

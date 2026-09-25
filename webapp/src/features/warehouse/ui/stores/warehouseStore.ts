@@ -2,7 +2,11 @@ import type { Product } from '../../../catalog/domain/entities/Product';
 import type { GetProducts } from '../../../catalog/domain/usecases';
 import type { UnitStockRow, WarehouseStockRow } from '../../domain/entities/Stock';
 import type { CreateSalesUnitInput, SalesUnit } from '../../domain/entities/SalesUnit';
-import type { CreateReceptionInput, Reception } from '../../domain/entities/Reception';
+import type {
+  CreateReceptionInput,
+  EnterReceptionInput,
+  Reception,
+} from '../../domain/entities/Reception';
 import type { CreateTransferInput, Transfer } from '../../domain/entities/Transfer';
 import type {
   CreateReception,
@@ -118,6 +122,18 @@ export function createWarehouseStore(deps: Deps) {
         await this.loadAll();
       } catch (err) {
         set({ saving: false, error: messageOf(err, 'Error al confirmar la recepción') });
+        throw err;
+      }
+    },
+
+    async enterReception(input: EnterReceptionInput): Promise<void> {
+      set({ saving: true, error: null });
+      try {
+        await deps.enterReception.execute(input);
+        set({ saving: false });
+        await this.loadAll();
+      } catch (err) {
+        set({ saving: false, error: messageOf(err, 'Error al dar entrada al almacén') });
         throw err;
       }
     },

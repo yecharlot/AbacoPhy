@@ -7,6 +7,7 @@ import {
   CreateReception,
   CreateSalesUnit,
   CreateTransfer,
+  EnterReception,
   GetSalesUnits,
   GetWarehouseStock,
   ListReceptions,
@@ -38,6 +39,7 @@ export function createWarehouseModule(
     createSalesUnit: new CreateSalesUnit(repo),
     listReceptions: new ListReceptions(repo),
     createReception: new CreateReception(repo),
+    enterReception: new EnterReception(repo),
     listTransfers: new ListTransfers(repo),
     createTransfer: new CreateTransfer(repo),
   });
