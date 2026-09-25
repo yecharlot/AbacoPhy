@@ -4,18 +4,22 @@ import {
   StorageKeys,
   type KeyValueStorage,
 } from '../data/storage';
+import { createAppDataBus, type AppDataBus } from '../domain/events/appDataBus';
 
 export type AppContainer = {
   storage: KeyValueStorage;
   http: HttpClient;
   getToken: () => string | null;
   setToken: (token: string | null) => void;
+  /** Invalidación cross-feature post-mutación (sin polling). */
+  appDataBus: AppDataBus;
 };
 
 export type CreateContainerOptions = {
   /** API base, e.g. https://abacophy.onrender.com/api/v1 or /api/v1 */
   apiBaseUrl?: string;
   storage?: KeyValueStorage;
+  appDataBus?: AppDataBus;
 };
 
 /**
@@ -25,6 +29,7 @@ export type CreateContainerOptions = {
 export function createAppContainer(options: CreateContainerOptions = {}): AppContainer {
   const storage = options.storage ?? createLocalStorageAdapter();
   const apiBaseUrl = options.apiBaseUrl ?? '/api/v1';
+  const appDataBus = options.appDataBus ?? createAppDataBus();
 
   const getToken = () => storage.get(StorageKeys.authToken);
   const setToken = (token: string | null) => {
@@ -37,5 +42,5 @@ export function createAppContainer(options: CreateContainerOptions = {}): AppCon
     getToken,
   });
 
-  return { storage, http, getToken, setToken };
+  return { storage, http, getToken, setToken, appDataBus };
 }

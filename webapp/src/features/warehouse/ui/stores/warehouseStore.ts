@@ -33,6 +33,10 @@ export type WarehouseState = {
 };
 
 type Deps = {
+  appDataBus?: {
+    emit(event: 'ledger.changed' | 'stock.changed' | 'ops.changed'): void;
+  };
+
   getStock: GetWarehouseStock;
   getProducts: GetProducts;
   getSalesUnits: GetSalesUnits;
@@ -120,6 +124,8 @@ export function createWarehouseStore(deps: Deps) {
         await deps.createReception.execute(input);
         set({ saving: false });
         await this.loadAll();
+        deps.appDataBus?.emit('ledger.changed');
+        deps.appDataBus?.emit('ops.changed');
       } catch (err) {
         set({ saving: false, error: messageOf(err, 'Error al confirmar la recepción') });
         throw err;
@@ -132,6 +138,8 @@ export function createWarehouseStore(deps: Deps) {
         await deps.enterReception.execute(input);
         set({ saving: false });
         await this.loadAll();
+        deps.appDataBus?.emit('stock.changed');
+        deps.appDataBus?.emit('ops.changed');
       } catch (err) {
         set({ saving: false, error: messageOf(err, 'Error al dar entrada al almacén') });
         throw err;
@@ -143,6 +151,8 @@ export function createWarehouseStore(deps: Deps) {
         await deps.createTransfer.execute(input);
         set({ saving: false });
         await this.loadAll();
+        deps.appDataBus?.emit('stock.changed');
+        deps.appDataBus?.emit('ops.changed');
       } catch (err) {
         set({ saving: false, error: messageOf(err, 'Error al confirmar la transferencia') });
         throw err;

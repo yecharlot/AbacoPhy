@@ -33,6 +33,7 @@ export function createWarehouseModule(
   const repo: WarehouseRepository = new WarehouseRepositoryImpl(container.http);
 
   const warehouseStore = createWarehouseStore({
+    appDataBus: container.appDataBus,
     getStock: new GetWarehouseStock(repo),
     getProducts: new GetProducts(deps.catalog),
     getSalesUnits: new GetSalesUnits(repo),

@@ -24,6 +24,8 @@ type Deps = {
   getSummary: GetSummary;
   createIncome: CreateIncomeEntry;
   createExpense: CreateExpenseEntry;
+  /** Bus compartido: al emitir ledger.changed se refresca el dashboard. */
+  appDataBus?: { on(event: 'ledger.changed', listener: () => void): () => void; emit(event: 'ledger.changed'): void };
 };
 
 export function createAccountingStore(deps: Deps) {
@@ -36,6 +38,7 @@ export function createAccountingStore(deps: Deps) {
     saving: false,
   };
   const listeners = new Set<(s: AccountingState) => void>();
+  let loadSeq = 0;
 
   function emit() {
     listeners.forEach((fn) => fn(state));
@@ -46,6 +49,39 @@ export function createAccountingStore(deps: Deps) {
     emit();
   }
 
+  async function loadDashboard(opts?: { soft?: boolean }): Promise<void> {
+    const seq = ++loadSeq;
+    // soft: no pasar por loading para no vaciar UI si ya hay summary
+    if (!opts?.soft || !state.summary) {
+      set({ status: 'loading', error: null });
+    }
+    try {
+      const [accounts, entries, summary] = await Promise.all([
+        deps.listAccounts.execute().catch(() => []),
+        deps.listEntries.execute({ limit: 5000 }).catch(() => []),
+        deps.getSummary.execute(),
+      ]);
+      if (seq !== loadSeq) return; // respuesta vieja descartada
+      set({
+        status: 'success',
+        accounts,
+        entries,
+        // nuevo objeto siempre → reactividad completa en EquationCard
+        summary: summary ? { ...summary } : null,
+        error: null,
+      });
+    } catch (err) {
+      if (seq !== loadSeq) return;
+      const message = err instanceof Error ? err.message : 'Error al cargar resumen contable';
+      set({ status: 'error', error: message });
+    }
+  }
+
+  // Invalidación en vivo: venta / asiento / recepción contable
+  const unsubBus = deps.appDataBus?.on('ledger.changed', () => {
+    void loadDashboard({ soft: true });
+  });
+
   return {
     subscribe(fn: (s: AccountingState) => void): () => void {
       listeners.add(fn);
@@ -55,26 +91,12 @@ export function createAccountingStore(deps: Deps) {
     getState(): AccountingState {
       return state;
     },
-    async loadDashboard(): Promise<void> {
-      set({ status: 'loading', error: null });
-      try {
-        const [accounts, entries, summary] = await Promise.all([
-          deps.listAccounts.execute().catch(() => []),
-          deps.listEntries.execute({ limit: 5000 }).catch(() => []),
-          deps.getSummary.execute(),
-        ]);
-        set({
-          status: 'success',
-          accounts,
-          entries,
-          summary,
-          error: null,
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Error al cargar resumen contable';
-        set({ status: 'error', error: message });
-      }
+    /** Llamar al desmontar app si hace falta. */
+    destroy(): void {
+      unsubBus?.();
     },
+    loadDashboard,
+
     async loadAccounts(): Promise<void> {
       set({ status: 'loading', error: null });
       try {
@@ -108,6 +130,8 @@ export function createAccountingStore(deps: Deps) {
       try {
         await deps.createIncome.execute(entry);
         set({ saving: false });
+        deps.appDataBus?.emit('ledger.changed');
+        await loadDashboard({ soft: true });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error al registrar ingreso';
         set({ saving: false, error: message });
@@ -119,6 +143,8 @@ export function createAccountingStore(deps: Deps) {
       try {
         await deps.createExpense.execute(entry);
         set({ saving: false });
+        deps.appDataBus?.emit('ledger.changed');
+        await loadDashboard({ soft: true });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error al registrar gasto';
         set({ saving: false, error: message });
