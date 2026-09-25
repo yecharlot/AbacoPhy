@@ -6,3 +6,4 @@ export { filterNavByViews, PLACEHOLDER_NAV, type NavItem } from './navTypes';
 export { iconForNav } from './navIcons';
 
 export { default as ForbiddenScreen } from './ForbiddenScreen.svelte';
+export { default as BootSkeleton } from './BootSkeleton.svelte';

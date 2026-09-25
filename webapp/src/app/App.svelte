@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import '../infrastructure/ui/theme/tokens.css';
-  import { AppShell, filterNavByViews, PLACEHOLDER_NAV, ForbiddenScreen } from '../infrastructure/ui/shell';
+  import { AppShell, filterNavByViews, PLACEHOLDER_NAV, ForbiddenScreen, BootSkeleton } from '../infrastructure/ui/shell';
   import { canAccessScreen, firstAllowedScreen } from '../features/identity/domain/access';
   import { Card, Button, Toast } from '../infrastructure/ui/shared';
   import { createAppContainer } from '../infrastructure/di';
@@ -256,9 +256,7 @@
     {/if}
   </AppShell>
 {:else if isBooting}
-  <div class="boot">
-    <p>Cargando…</p>
-  </div>
+  <BootSkeleton />
 {:else}
   <LoginScreen
     loading={loginLoading}

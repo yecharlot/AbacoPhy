@@ -16,6 +16,7 @@ export function createPayrollModule(container: AppContainer): PayrollModule {
   const repository = new PayrollRepositoryImpl(container.http);
 
   const payrollStore = createPayrollStore({
+    appDataBus: container.appDataBus,
     listEmployees: new ListEmployees(repository),
     createEmployee: new CreateEmployee(repository),
     updateEmployee: new UpdateEmployee(repository),

@@ -375,7 +375,7 @@
                         type="button"
                         variant="primary"
                         disabled={!!enteringId || state.saving}
-                        onclick={() => handleEnter(r)}
+                        on:click={() => handleEnter(r)}
                       >
                         {enteringId === r.id ? 'Entrando…' : 'Dar entrada'}
                       </Button>

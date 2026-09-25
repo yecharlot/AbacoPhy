@@ -22,6 +22,7 @@ export function createInvoicingModule(container: AppContainer): InvoicingModule 
     listInvoices,
     emitInvoice,
     downloadPdf,
+    appDataBus: container.appDataBus,
   });
 
   return {

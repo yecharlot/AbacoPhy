@@ -92,9 +92,23 @@
 
 
   {#if state.status === 'loading' && !state.summary}
-    <PanelCard title="Resumen">
-      <p class="muted">Cargando resumen financiero…</p>
-    </PanelCard>
+    <div class="dash-skel" aria-busy="true" aria-label="Cargando resumen">
+      <div class="sk sk-hero"></div>
+      <div class="sk-row">
+        <div class="sk sk-stat"></div>
+        <div class="sk sk-stat"></div>
+      </div>
+      <div class="sk sk-chart"></div>
+      <div class="sk-row">
+        <div class="sk sk-card"></div>
+        <div class="sk sk-card"></div>
+      </div>
+      <div class="sk sk-eq"></div>
+      <div class="sk-row">
+        <div class="sk sk-list"></div>
+        <div class="sk sk-list"></div>
+      </div>
+    </div>
   {:else if state.status === 'error' && !state.summary}
     <PanelCard title="Resumen">
       <p class="err">{state.error}</p>

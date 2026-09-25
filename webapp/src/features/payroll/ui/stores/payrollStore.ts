@@ -22,6 +22,7 @@ export type PayrollState = {
 };
 
 type Deps = {
+  appDataBus?: { emit(event: 'ledger.changed'): void };
   listEmployees: ListEmployees;
   createEmployee: CreateEmployee;
   updateEmployee: UpdateEmployee;
@@ -125,6 +126,7 @@ export function createPayrollStore(deps: Deps) {
       set({ saving: true, error: null });
       try {
         await deps.createPayslip.execute(input);
+        deps.appDataBus?.emit('ledger.changed');
         set({ saving: false });
         await this.loadPayslips();
       } catch (err) {
