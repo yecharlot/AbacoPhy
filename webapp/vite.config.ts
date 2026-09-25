@@ -1,5 +1,6 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { defineConfig } from 'vitest/config'
+import { resolve } from 'node:path'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -13,4 +14,8 @@ export default defineConfig({
     // Keep name filters via file suffix: *.unit.test.ts | *.integration.test.ts | *.ui.test.ts
     include: ['src/**/*.{unit,integration,ui}.test.ts'],
   },
+  build: {
+    outDir: resolve(__dirname, '../web/dist'),
+    emptyOutDir: true
+  }
 })

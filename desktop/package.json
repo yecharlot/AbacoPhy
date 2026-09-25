@@ -5,33 +5,68 @@
   "main": "main.js",
   "author": "Prism@.TEC",
   "license": "UNLICENSED",
+
   "scripts": {
-    "start": "electron .",
-    "pack:linux": "electron-builder --linux AppImage deb",
-    "pack:win": "electron-builder --win nsis portable",
-    "pack:all": "electron-builder -mwl"
+    "build:web": "npm --prefix ../webapp run build",
+    "start": "npm run build:web && electron .",
+    "pack:linux": "npm run build:web && electron-builder --linux AppImage deb",
+    "pack:win": "npm run build:web && electron-builder --win nsis portable",
+    "pack:all": "npm run build:web && electron-builder -mwl"
   },
+
   "build": {
     "appId": "tec.prisma.abacophy",
     "productName": "AbacoPhy",
-    "directories": { "output": "dist" },
-    "files": ["main.js", "preload.js", "icon.png"],
-    "extraResources": [
-      { "from": "bin/", "to": "bin", "filter": ["**/*"] }
+
+    "directories": {
+      "output": "dist"
+    },
+
+    "files": [
+      "main.js",
+      "preload.js",
+      "icon.png"
     ],
+
+    "extraResources": [
+      {
+        "from": "../web/dist",
+        "to": "web",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "../bin",
+        "to": "bin",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "category": "Office",
       "maintainer": "Prism@.TEC"
     },
+
     "win": {
-      "target": ["nsis", "portable"]
+      "target": [
+        "nsis",
+        "portable"
+      ]
     },
+
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     }
   },
+
   "devDependencies": {
     "electron": "^28.3.3",
     "electron-builder": "^24.13.3"
