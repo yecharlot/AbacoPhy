@@ -356,3 +356,57 @@ case "expense": ... // también "egreso", "Egreso", "gasto"
 ### Archivo entregado
 
 - `internal/domain/ledger.go` (completo)
+
+# Backend Log — Catálogo vacío de fábrica
+
+## Productos prefijados eliminados del bootstrap
+
+**Fecha:** 2026-09-25  
+**Archivo:** `internal/domain/bootstrap.go`  
+**Función:** `DefaultProducts` (+ contadores `ProductSeq` / `JobSeq` a 0)
+
+### Origen de los datos de la captura
+
+No son mocks del frontend Svelte. Vienen del **backend Go**:
+
+1. `BootstrapTenant` → `Products: DefaultProducts(tid)`
+2. `DefaultProducts` devolvía 15 productos fijos (P-0001 Arroz … P-0015 Pollo), costo/precio 0
+3. `EnsureBootstrap` (arranque y **master reset**) vuelve a crear el tenant demo con ese nomenclador
+
+Por eso, tras “limpiar la BD”, el catálogo **reaparecía**.
+
+### Qué se mantiene a propósito
+
+| Dato | ¿Se elimina? | Motivo |
+|------|--------------|--------|
+| Plan de cuentas (`DefaultAccounts`) | No | Estructura contable necesaria |
+| Unidades de medida (`DefaultMeasureUnits`) | No | Ayudan al alta de productos sin ser “inventario” |
+| Puestos de trabajo (`DefaultJobPositions`) | No en este cambio | Nomenclador RH; se puede vaciar en follow-up si se pide |
+| Usuarios master/admin | No | Acceso al sistema |
+| Productos demo | **Sí** | Catálogo de negocio debe nacer vacío |
+
+### Antes
+
+```go
+DefaultProducts → 15 productos Alimentos/Aseo/Bebidas/…
+BootstrapTenant.DocCounters.ProductSeq = 15
+```
+
+### Después
+
+```go
+DefaultProducts → map vacío
+ProductSeq = 0, JobSeq = 0
+```
+
+### Cómo probar de fábrica
+
+1. Aplicar este `bootstrap.go`
+2. Borrar datos en disco (`ABACOPHY_DATA` / carpeta `abacophy_data`) **o** master reset
+3. Reiniciar servidor (EnsureBootstrap crea tenant limpio)
+4. Catálogo → listado vacío
+5. Alta manual del primer producto → debe funcionar
+
+### Nota frontend
+
+Los paneles `DevSeedPanel` solo cargan datos cuando el usuario pega JSON en DEV; no rellenan el catálogo al arrancar.
