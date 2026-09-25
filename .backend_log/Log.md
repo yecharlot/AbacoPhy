@@ -187,3 +187,92 @@ POSSales.append(sale)
 ### Archivo entregado
 
 - `internal/api/ops.go` (completo, solo bloque POS de contabilidad modificado)
+
+---
+
+## Fase 3 — Costo de venta (COGS): asiento `expense` ligado a cuenta 5000
+
+**Fecha:** 2026-09-25  
+**Archivo:** `internal/api/ops.go` → `handlePOSSales` (POST), bloque `costT > 0`  
+**Estado:** propuesto / aplicar tras Fase 2
+
+### Propósito
+
+Que el **costo de la mercancía vendida** quede en el libro como asiento de **gasto** (`type: "expense"`), con `AccountID` de la cuenta **5000 Costo de ventas** y contrapartida **1300 Inventarios**, coherente con los saldos que ya aplica `ApplyInventoryOut`.
+
+### Por qué lo cambiamos
+
+Antes (y tras Fase 2 el costo seguía así):
+
+```go
+ApplyInventoryOut(snap, costT)           // saldos: Inv↓ COGS↑  ✓
+Entries.append(Type: "inventory", ...) // libro: tipo genérico  ✗
+```
+
+Problemas:
+
+1. `type: "inventory"` **no** es `expense` → sumas del libro por gastos lo ignoran.
+2. El asiento **no** llevaba `AccountID` de 5000 ni `Counterpart` de 1300 → poco útil para mayor y T-accounts.
+3. Tras Fase 1, el panel usa **saldos** (5000 sí cuenta en `ecuacion.gastos`), pero el libro y `entries_expense_total` seguían desfasados respecto al plan de cuentas **para ventas nuevas**.
+
+### Qué mejora
+
+| Capa | Comportamiento |
+|------|----------------|
+| Saldos | Igual: solo `ApplyInventoryOut` (sin segundo `ApplyDoubleEntry`) |
+| Libro | Entry `expense` con cuenta 5000 y contrapartida 1300 |
+| Ecuación | Sin cambio de fórmula; gastos por saldos ya incluían 5000 |
+| Libro vs saldos | Se alinean en operaciones POS nuevas |
+
+### Impacto en el backend
+
+- **No** se llama `ApplyDoubleEntry` sobre el COGS otra vez → evita **doble conteo** en saldos.
+- Se usan `domain.FindAccountByCode` para 5000 y 1300 (ya exportadas en `ledger.go`).
+- Si faltara la cuenta 5000/1300 en el plan, el asiento igual se guarda (Amount/Description); el `AccountID` quedaría vacío solo en ese caso degradado.
+- Ventas con `costT == 0` no generan asiento de costo (igual que antes).
+
+### Qué posibilita al frontend
+
+- Listados de asientos / auditoría: el costo de venta aparece como **gasto**, no como movimiento opaco `inventory`.
+- `entries_expense_total` (Fase 1, métrica auxiliar) se acerca a `ecuacion.gastos` para el flujo POS completo (ingreso + COGS).
+- Mayor claridad en reportes que filtren `type=expense`.
+
+### Antes
+
+```text
+ApplyInventoryOut → saldos 1300↓ 5000↑
+Entry{ Type: "inventory", Amount: costT }   // sin AccountID
+```
+
+### Después
+
+```text
+ApplyInventoryOut → saldos 1300↓ 5000↑   // una sola vez
+Entry{
+  Type: "expense",
+  AccountID: <id cuenta 5000>,
+  Counterpart: <id cuenta 1300>,
+  Amount: costT,
+  Description: "Costo venta <número>",
+}
+```
+
+### Prueba rápida
+
+1. Venta POS con costo de líneas > 0.
+2. `GET /api/v1/entries` → asiento `type: "expense"`, descripción `Costo venta …`, amount = costo.
+3. Plan de cuentas: 5000 incrementa **una vez**; 1300 decrementa **una vez**.
+4. `reports/summary` → `ecuacion.gastos` incluye el saldo de 5000; no debe “inflarse” respecto al plan.
+
+### Dependencias
+
+- **Fase 2** (asiento de ingreso POS) debe estar aplicada en el mismo `ops.go`.
+- **Fase 1** (summary desde saldos) recomendada para el panel.
+
+### Siguiente fase (opcional)
+
+- Fase 4: `normalizeAccountType` en `EquationSnapshot` (`internal/domain/ledger.go`) por si hubiera tipos ES legacy.
+
+### Archivo entregado
+
+- `internal/api/ops.go` (completo: Fases 2 + 3 en el bloque contable POS)
