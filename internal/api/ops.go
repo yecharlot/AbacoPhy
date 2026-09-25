@@ -757,9 +757,21 @@ func (s *Server) handlePOSSales(w http.ResponseWriter, r *http.Request) {
 		body.Total = sub - disc
 		body.CostTotal = costT
 		// Contabilidad: ingreso + COGS
-		domain.ApplyIncome(snap, body.Total, "Venta vendedor "+body.Number+" · rebaja "+formatFloat(disc), sess.UserID)
+		// Fase 2: persistir el asiento de ingreso (ApplyIncome ya actualiza saldos Caja/4000).
+		if ent := domain.ApplyIncome(snap, body.Total, "Venta vendedor "+body.Number+" · rebaja "+formatFloat(disc), sess.UserID); ent != nil {
+			ent.ID = uuid.NewString()
+			ent.TenantID = sess.TenantID
+			if body.Date != "" {
+				ent.Date = body.Date
+			} else {
+				ent.Date = time.Now().Format("2006-01-02")
+			}
+			ent.CreatedAt = time.Now().UTC()
+			snap.Entries = append(snap.Entries, *ent)
+		}
 		if costT > 0 {
 			domain.ApplyInventoryOut(snap, costT)
+			// Fase 3 (pendiente): type expense + AccountID 5000. Por ahora se mantiene inventory.
 			snap.Entries = append(snap.Entries, domain.Entry{
 				ID: uuid.NewString(), TenantID: sess.TenantID, Date: body.Date, Type: "inventory",
 				Amount: costT, Currency: body.Currency, Description: "Costo venta "+body.Number,
