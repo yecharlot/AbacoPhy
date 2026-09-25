@@ -16,6 +16,7 @@ type Deps = {
   listInvoices: ListInvoices;
   emitInvoice: EmitInvoice;
   downloadPdf: DownloadInvoicePdf;
+  appDataBus?: { emit(event: 'ledger.changed'): void };
 };
 
 export function createInvoicingStore(deps: Deps) {
@@ -63,6 +64,7 @@ export function createInvoicingStore(deps: Deps) {
       set({ saving: true, error: null });
       try {
         await deps.emitInvoice.execute(input);
+        deps.appDataBus?.emit('ledger.changed');
         set({ saving: false });
         await this.load();
       } catch (err) {

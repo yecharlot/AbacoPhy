@@ -7,6 +7,7 @@ import {
   CreateReception,
   CreateSalesUnit,
   CreateTransfer,
+  EnterReception,
   GetSalesUnits,
   GetWarehouseStock,
   ListReceptions,
@@ -32,12 +33,14 @@ export function createWarehouseModule(
   const repo: WarehouseRepository = new WarehouseRepositoryImpl(container.http);
 
   const warehouseStore = createWarehouseStore({
+    appDataBus: container.appDataBus,
     getStock: new GetWarehouseStock(repo),
     getProducts: new GetProducts(deps.catalog),
     getSalesUnits: new GetSalesUnits(repo),
     createSalesUnit: new CreateSalesUnit(repo),
     listReceptions: new ListReceptions(repo),
     createReception: new CreateReception(repo),
+    enterReception: new EnterReception(repo),
     listTransfers: new ListTransfers(repo),
     createTransfer: new CreateTransfer(repo),
   });

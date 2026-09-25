@@ -22,6 +22,7 @@ export function createAccountingModule(container: AppContainer) {
     getSummary,
     createIncome,
     createExpense,
+    appDataBus: container.appDataBus,
   });
 
   return {

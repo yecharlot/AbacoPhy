@@ -1,6 +1,10 @@
 import type { WarehouseSnapshot } from '../entities/Stock';
 import type { CreateSalesUnitInput, SalesUnit, SalesUnitsSnapshot } from '../entities/SalesUnit';
-import type { CreateReceptionInput, Reception } from '../entities/Reception';
+import type {
+  CreateReceptionInput,
+  EnterReceptionInput,
+  Reception,
+} from '../entities/Reception';
 import type { CreateTransferInput, Transfer } from '../entities/Transfer';
 
 /**
@@ -13,7 +17,8 @@ export interface WarehouseRepository {
   createSalesUnit(input: CreateSalesUnitInput): Promise<SalesUnit>;
   getReceptions(): Promise<Reception[]>;
   createReception(input: CreateReceptionInput): Promise<Reception>;
-  enterReception(input: import('../entities/Reception').EnterReceptionInput): Promise<Reception>;
+  /** Almacenero/admin: da entrada física al stock (pendiente_entrada → entrado). */
+  enterReception(input: EnterReceptionInput): Promise<Reception>;
   getTransfers(): Promise<Transfer[]>;
   createTransfer(input: CreateTransferInput): Promise<Transfer>;
 }

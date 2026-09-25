@@ -61,6 +61,16 @@
   $: income = num(summary?.income);
   $: expenses = num(summary?.expenses);
   $: netProfit = num(summary?.netProfit);
+  /**
+   * Patrimonio neto ampliado (consistente con la ecuación):
+   *   Patrimonio neto = Patrimonio + (Ingresos − Gastos)
+   * No usar solo equity ni solo Activo−Pasivo como sustituto confuso.
+   */
+  $: patrimonioNeto = equity + (income - expenses);
+  /** Preferir netProfit del backend si coincide; si no, I−G. */
+  $: resultadoPeriodo = Math.abs(netProfit) > 0.0001 || (income === 0 && expenses === 0)
+    ? netProfit
+    : income - expenses;
 </script>
 
 <div class="dashboard" data-screen="dashboard">
@@ -82,9 +92,23 @@
 
 
   {#if state.status === 'loading' && !state.summary}
-    <PanelCard title="Resumen">
-      <p class="muted">Cargando resumen financiero…</p>
-    </PanelCard>
+    <div class="dash-skel" aria-busy="true" aria-label="Cargando resumen">
+      <div class="sk sk-hero"></div>
+      <div class="sk-row">
+        <div class="sk sk-stat"></div>
+        <div class="sk sk-stat"></div>
+      </div>
+      <div class="sk sk-chart"></div>
+      <div class="sk-row">
+        <div class="sk sk-card"></div>
+        <div class="sk sk-card"></div>
+      </div>
+      <div class="sk sk-eq"></div>
+      <div class="sk-row">
+        <div class="sk sk-list"></div>
+        <div class="sk sk-list"></div>
+      </div>
+    </div>
   {:else if state.status === 'error' && !state.summary}
     <PanelCard title="Resumen">
       <p class="err">{state.error}</p>
@@ -95,13 +119,13 @@
       <StatCard
         variant="hero"
         label="Patrimonio neto"
-        amount={equity}
+        amount={patrimonioNeto}
         currency={baseCurrency}
-        caption={`Activos ${assets.toFixed(2)} · Pasivos ${liabilities.toFixed(2)}`}
+        caption={`Patrimonio ${equity.toFixed(2)} + (Ing. ${income.toFixed(2)} − Gas. ${expenses.toFixed(2)})`}
       >
         <div class="hero-actions">
-          <Badge tone={netProfit >= 0 ? 'ok' : 'off'}>
-            {netProfit >= 0 ? 'Resultado positivo' : 'Resultado negativo'}
+          <Badge tone={resultadoPeriodo >= 0 ? 'ok' : 'off'}>
+            {resultadoPeriodo >= 0 ? 'Resultado positivo' : 'Resultado negativo'}
           </Badge>
         </div>
       </StatCard>
@@ -161,7 +185,16 @@
       </PanelCard>
     </section>
 
-    <EquationCard equation={summary} currency={baseCurrency || 'CUP'} />
+    <EquationCard
+      equation={summary}
+      currency={baseCurrency || 'CUP'}
+      assets={assets}
+      liabilities={liabilities}
+      equity={equity}
+      income={income}
+      expenses={expenses}
+      netProfit={resultadoPeriodo}
+    />
 
     <section class="chart-grid">
       <PanelCard title="Movimientos recientes" subtitle={`${(state.entries ?? []).length} asientos`}>

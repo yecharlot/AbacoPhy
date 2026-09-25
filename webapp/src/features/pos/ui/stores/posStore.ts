@@ -27,6 +27,10 @@ type Deps = {
   registerSale: RegisterSale;
   getProducts: GetProducts;
   getSalesUnits: GetSalesUnits;
+  /** Tras venta OK: avisa al dashboard contable (sin polling). */
+  appDataBus?: {
+    emit(event: 'ledger.changed' | 'stock.changed'): void;
+  };
 };
 
 export function createPosStore(deps: Deps) {
@@ -93,6 +97,9 @@ export function createPosStore(deps: Deps) {
         const sale = await deps.registerSale.execute(input);
         set({ saving: false, lastSale: sale });
         await this.loadAll();
+        // Servidor ya persistió asientos + stock → invalidar resumen en vivo
+        deps.appDataBus?.emit('ledger.changed');
+        deps.appDataBus?.emit('stock.changed');
       } catch (err) {
         set({ saving: false, error: messageOf(err, 'Error al registrar la venta') });
         throw err;

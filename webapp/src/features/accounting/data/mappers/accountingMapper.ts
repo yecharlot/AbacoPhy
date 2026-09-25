@@ -25,11 +25,6 @@ type EqBlock = {
   net_profit?: number;
 };
 
-/**
- * La ecuación del panel debe reflejar el plan de cuentas.
- * Prioridad: bloque `ecuacion` (saldos) > top-level assets/activo >
- * Nunca income_total/expense_total de asientos (descuadran vs cuentas).
- */
 export const accountingMapper = {
   toAccount(dto: AccountDto): Account {
     return {
@@ -59,27 +54,47 @@ export const accountingMapper = {
 
   toEquation(dto: SummaryDto & Record<string, unknown>): Equation {
     const eq = (dto.ecuacion ?? dto.equation ?? {}) as EqBlock;
-    const hasEq = eq && typeof eq === 'object' && Object.keys(eq).length > 0;
-
-    const fromEq = (k: keyof EqBlock) => (hasEq && eq[k] != null ? n(eq[k]) : null);
-
-    const assets =
-      fromEq('activo') ?? fromEq('assets') ?? n(dto.assets ?? dto.activo);
-    const liabilities =
-      fromEq('pasivo') ?? fromEq('liabilities') ?? n(dto.liabilities ?? dto.pasivo);
-    const equity =
-      fromEq('patrimonio') ?? fromEq('equity') ?? n(dto.equity ?? dto.patrimonio);
-    const income =
-      fromEq('ingresos') ?? fromEq('income') ?? n(dto.income ?? dto.ingresos);
-    const expenses =
-      fromEq('gastos') ?? fromEq('expenses') ?? n(dto.expenses ?? dto.gastos);
-    const netProfit =
-      fromEq('neto') ??
-      fromEq('net_profit') ??
-      n(dto.net_profit ?? dto.neto) ??
-      income - expenses;
-
-    return { assets, liabilities, equity, income, expenses, netProfit };
+    return {
+      assets: n(
+        dto.assets ??
+          dto.activo ??
+          eq.activo ??
+          eq.assets,
+      ),
+      liabilities: n(
+        dto.liabilities ??
+          dto.pasivo ??
+          eq.pasivo ??
+          eq.liabilities,
+      ),
+      equity: n(
+        dto.equity ??
+          dto.patrimonio ??
+          eq.patrimonio ??
+          eq.equity,
+      ),
+      income: n(
+        dto.income ??
+          dto.ingresos ??
+          (dto as { income_total?: number }).income_total ??
+          eq.ingresos ??
+          eq.income,
+      ),
+      expenses: n(
+        dto.expenses ??
+          dto.gastos ??
+          (dto as { expense_total?: number }).expense_total ??
+          eq.gastos ??
+          eq.expenses,
+      ),
+      netProfit: n(
+        dto.net_profit ??
+          dto.neto ??
+          (dto as { net?: number }).net ??
+          eq.neto ??
+          eq.net_profit,
+      ),
+    };
   },
 
   toEntryDto(entity: Omit<Entry, 'id'>): Record<string, unknown> {

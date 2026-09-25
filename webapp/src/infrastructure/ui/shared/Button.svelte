@@ -9,11 +9,13 @@
   export let type: 'button' | 'submit' | 'reset' = 'button';
   export let disabled = false;
   export let fullWidth = false;
+  export let onclick: ((e: MouseEvent) => void) | undefined = undefined;
 
   const dispatch = createEventDispatcher<{ click: MouseEvent }>();
 
   function handleClick(e: MouseEvent) {
     dispatch('click', e);
+    onclick?.(e);
   }
 </script>
 

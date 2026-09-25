@@ -2,12 +2,17 @@ import type { Product } from '../../../catalog/domain/entities/Product';
 import type { GetProducts } from '../../../catalog/domain/usecases';
 import type { UnitStockRow, WarehouseStockRow } from '../../domain/entities/Stock';
 import type { CreateSalesUnitInput, SalesUnit } from '../../domain/entities/SalesUnit';
-import type { CreateReceptionInput, Reception } from '../../domain/entities/Reception';
+import type {
+  CreateReceptionInput,
+  EnterReceptionInput,
+  Reception,
+} from '../../domain/entities/Reception';
 import type { CreateTransferInput, Transfer } from '../../domain/entities/Transfer';
 import type {
   CreateReception,
   CreateSalesUnit,
   CreateTransfer,
+  EnterReception,
   GetSalesUnits,
   GetWarehouseStock,
   ListReceptions,
@@ -29,12 +34,17 @@ export type WarehouseState = {
 };
 
 type Deps = {
+  appDataBus?: {
+    emit(event: 'ledger.changed' | 'stock.changed' | 'ops.changed'): void;
+  };
+
   getStock: GetWarehouseStock;
   getProducts: GetProducts;
   getSalesUnits: GetSalesUnits;
   createSalesUnit: CreateSalesUnit;
   listReceptions: ListReceptions;
   createReception: CreateReception;
+  enterReception: EnterReception;
   listTransfers: ListTransfers;
   createTransfer: CreateTransfer;
 };
@@ -116,8 +126,24 @@ export function createWarehouseStore(deps: Deps) {
         await deps.createReception.execute(input);
         set({ saving: false });
         await this.loadAll();
+        deps.appDataBus?.emit('ledger.changed');
+        deps.appDataBus?.emit('ops.changed');
       } catch (err) {
         set({ saving: false, error: messageOf(err, 'Error al confirmar la recepción') });
+        throw err;
+      }
+    },
+
+    async enterReception(input: EnterReceptionInput): Promise<void> {
+      set({ saving: true, error: null });
+      try {
+        await deps.enterReception.execute(input);
+        set({ saving: false });
+        await this.loadAll();
+        deps.appDataBus?.emit('stock.changed');
+        deps.appDataBus?.emit('ops.changed');
+      } catch (err) {
+        set({ saving: false, error: messageOf(err, 'Error al dar entrada al almacén') });
         throw err;
       }
     },
@@ -127,6 +153,8 @@ export function createWarehouseStore(deps: Deps) {
         await deps.createTransfer.execute(input);
         set({ saving: false });
         await this.loadAll();
+        deps.appDataBus?.emit('stock.changed');
+        deps.appDataBus?.emit('ops.changed');
       } catch (err) {
         set({ saving: false, error: messageOf(err, 'Error al confirmar la transferencia') });
         throw err;

@@ -1,17 +1,26 @@
 import type { EnterReceptionInput, Reception } from '../entities/Reception';
 import type { WarehouseRepository } from '../repositories/WarehouseRepository';
 
-/** Almacenero: validar con económico y dar entrada física al almacén. */
+/**
+ * Confirma la entrada física de un informe de recepción pendiente.
+ * Backend: POST /receptions/enter { id, accept: true }.
+ * Efecto: llena WarehouseStock; no vuelve a mover Caja/Inventarios contables.
+ */
 export class EnterReception {
   constructor(private readonly repo: WarehouseRepository) {}
 
-  execute(input: EnterReceptionInput): Promise<Reception> {
-    if (!input.id) {
-      return Promise.reject(new Error('Informe requerido'));
+  async execute(input: EnterReceptionInput): Promise<Reception> {
+    const id = (input.id || '').trim();
+    if (!id) {
+      throw new Error('Indique el informe de recepción a entrar');
     }
     if (!input.accept) {
-      return Promise.reject(new Error('Debe confirmar la validación con el económico'));
+      throw new Error('Debe confirmar la validación (accept=true) para dar entrada');
     }
-    return this.repo.enterReception(input);
+    return this.repo.enterReception({
+      id,
+      accept: true,
+      note: input.note?.trim() || undefined,
+    });
   }
 }

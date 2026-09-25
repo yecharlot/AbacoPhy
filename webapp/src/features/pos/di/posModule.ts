@@ -25,6 +25,7 @@ export function createPosModule(container: AppContainer, deps: PosModuleDeps): P
     registerSale: new RegisterSale(repo),
     getProducts: new GetProducts(deps.catalog),
     getSalesUnits: new GetSalesUnits(deps.warehouse),
+    appDataBus: container.appDataBus,
   });
 
   return { posStore };
