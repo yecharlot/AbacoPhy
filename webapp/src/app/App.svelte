@@ -116,6 +116,9 @@
         !loginAttempted),
   );
 
+  /** Si bootstrap falló o no hay sesión → login (nunca pantalla vacía). */
+  const showLogin = $derived(!isAuthenticated && !isBooting);
+
   const loginLoading = $derived(sessionState.status === 'loading' && loginAttempted);
 
   onMount(() => {
@@ -256,13 +259,20 @@
         <p style="color:var(--ap-text-secondary);font-size:0.9rem">
           Sesión activa. Seleccione una opción del menú.
         </p>
-        <Button variant="secondary" on:click={handleLogout}>Salir</Button>
+        <Button variant="secondary" onclick={handleLogout}>Salir</Button>
       </Card>
     {/if}
   </AppShell>
 {:else if isBooting}
   <BootSkeleton />
+{:else if showLogin}
+  <LoginScreen
+    loading={loginLoading}
+    error={sessionState.error}
+    onSubmit={handleLogin}
+  />
 {:else}
+  <!-- fallback anti-pantalla-vacía -->
   <LoginScreen
     loading={loginLoading}
     error={sessionState.error}
