@@ -162,36 +162,38 @@
                 </Button>
               </div>
             </div>
-            <table>
-              <thead>
-              <tr>
-                <th>Código</th>
-                <th>Cuenta</th>
-                <th class="numeric">Débito</th>
-                <th class="numeric">Crédito</th>
-                <th class="numeric">Saldo</th>
-              </tr>
-              </thead>
-              <tbody>
-              {#each $store.trialBalance.accounts as account}
+            <div class="table-wrap">
+              <table>
+                <thead>
                 <tr>
-                  <td>{account.accountCode}</td>
-                  <td>{account.accountName}</td>
-                  <td class="numeric">{formatCurrency(account.debit)}</td>
-                  <td class="numeric">{formatCurrency(account.credit)}</td>
-                  <td class="numeric">{formatCurrency(account.balance)}</td>
+                  <th>Código</th>
+                  <th>Cuenta</th>
+                  <th class="numeric">Débito</th>
+                  <th class="numeric">Crédito</th>
+                  <th class="numeric">Saldo</th>
                 </tr>
-              {/each}
-              </tbody>
-              <tfoot>
-              <tr>
-                <td colspan="2"><strong>Totales</strong></td>
-                <td class="numeric"><strong>{formatCurrency($store.trialBalance.totalDebits)}</strong></td>
-                <td class="numeric"><strong>{formatCurrency($store.trialBalance.totalCredits)}</strong></td>
-                <td></td>
-              </tr>
-              </tfoot>
-            </table>
+                </thead>
+                <tbody>
+                {#each $store.trialBalance.accounts as account}
+                  <tr>
+                    <td>{account.accountCode}</td>
+                    <td>{account.accountName}</td>
+                    <td class="numeric">{formatCurrency(account.debit)}</td>
+                    <td class="numeric">{formatCurrency(account.credit)}</td>
+                    <td class="numeric">{formatCurrency(account.balance)}</td>
+                  </tr>
+                {/each}
+                </tbody>
+                <tfoot>
+                <tr>
+                  <td colspan="2"><strong>Totales</strong></td>
+                  <td class="numeric"><strong>{formatCurrency($store.trialBalance.totalDebits)}</strong></td>
+                  <td class="numeric"><strong>{formatCurrency($store.trialBalance.totalCredits)}</strong></td>
+                  <td></td>
+                </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
 
         {:else if $store.activeReport === 'income-statement' && $store.incomeStatement}
@@ -233,28 +235,30 @@
                 </Button>
               </div>
             </div>
-            <table>
-              <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Descripción</th>
-                <th>Cuenta Débito</th>
-                <th>Cuenta Crédito</th>
-                <th class="numeric">Monto</th>
-              </tr>
-              </thead>
-              <tbody>
-              {#each $store.journal as entry}
+            <div class="table-wrap">
+              <table>
+                <thead>
                 <tr>
-                  <td>{formatDate(entry.date)}</td>
-                  <td>{entry.description}</td>
-                  <td>{entry.debitAccount}</td>
-                  <td>{entry.creditAccount}</td>
-                  <td class="numeric">{formatCurrency(entry.amount)}</td>
+                  <th>Fecha</th>
+                  <th>Descripción</th>
+                  <th>Cuenta Débito</th>
+                  <th>Cuenta Crédito</th>
+                  <th class="numeric">Monto</th>
                 </tr>
-              {/each}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                {#each $store.journal as entry}
+                  <tr>
+                    <td>{formatDate(entry.date)}</td>
+                    <td>{entry.description}</td>
+                    <td>{entry.debitAccount}</td>
+                    <td>{entry.creditAccount}</td>
+                    <td class="numeric">{formatCurrency(entry.amount)}</td>
+                  </tr>
+                {/each}
+                </tbody>
+              </table>
+            </div>
           </div>
         {/if}
       </div>
@@ -269,15 +273,16 @@
   }
 
   .title {
-    margin-top: 0;
+    margin: 0;
     margin-bottom: 8px;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--color-text-primary);
+    font-size: 1.25rem;
+    font-weight: 600;
   }
 
   .subtitle {
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
+    margin: 4px 0 0;
+    font-size: 0.8rem;
     margin-bottom: 24px;
   }
 
@@ -285,7 +290,7 @@
     display: flex;
     gap: 8px;
     margin-bottom: 24px;
-    border-bottom: 2px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
   }
 
   .tab {
@@ -295,9 +300,10 @@
     border-bottom: 3px solid transparent;
     cursor: pointer;
     font-weight: 600;
+    font-size: 0.85rem;
     color: var(--color-text-secondary);
     transition: all var(--motion-fast);
-    margin-bottom: -2px;
+    margin-bottom: -1px;
     font-family: inherit;
   }
 
@@ -339,9 +345,10 @@
   }
 
   .report-content {
-    background: var(--color-surface-soft);
+    background: var(--color-surface);
     border-radius: var(--radius-md);
     padding: var(--space-6);
+    border: 1px solid var(--color-border);
   }
 
   .report-header {
@@ -358,35 +365,40 @@
 
   .report-header h3 {
     margin: 0 0 8px 0;
-    font-size: 1.25rem;
+    font-size: 0.95rem;
+    font-weight: 600;
     color: var(--color-text-primary);
   }
 
   .as-of, .count {
     margin: 0;
-    font-size: 0.9rem;
-    color: var(--color-text-secondary);
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+  }
+
+  .table-wrap {
+    overflow-x: auto;
   }
 
   table {
     width: 100%;
     border-collapse: collapse;
-    background: var(--color-surface);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    box-shadow: var(--shadow-soft);
+    font-size: 0.84rem;
   }
 
   thead {
-    background: var(--accent-cyan);
-    color: var(--color-surface);
+    background: transparent;
   }
 
   th {
-    padding: var(--space-3);
     text-align: left;
-    font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 650;
+    color: var(--color-text-muted);
+    padding: 0.45rem 0.5rem;
+    border-bottom: 1px solid var(--color-border);
   }
 
   th.numeric {
@@ -394,10 +406,10 @@
   }
 
   td {
-    padding: var(--space-3);
+    padding: 0.5rem;
     border-bottom: 1px solid var(--color-border);
-    font-size: 0.9rem;
-    color: var(--color-text-primary);
+    color: var(--color-text-secondary);
+    font-size: 0.84rem;
   }
 
   td.numeric {
@@ -406,32 +418,36 @@
   }
 
   tbody tr:hover {
-    background: var(--color-surface-raised);
+    background: color-mix(in srgb, var(--accent-cyan) 4%, transparent);
   }
 
   tfoot {
-    background: var(--color-surface-soft);
-    font-weight: 700;
+    background: transparent;
+    font-weight: 650;
   }
 
   tfoot td {
     border-bottom: none;
     color: var(--color-text-primary);
+    border-top: 2px solid var(--color-border);
+    padding-top: 0.75rem;
   }
 
   .statement-lines {
-    background: var(--color-surface);
+    background: var(--color-surface-soft);
     border-radius: var(--radius-md);
     padding: var(--space-6);
-    box-shadow: var(--shadow-soft);
+    border: 1px solid var(--color-border);
   }
 
   .line {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     padding: var(--space-4) 0;
     border-bottom: 1px solid var(--color-border);
-    color: var(--color-text-primary);
+    color: var(--color-text-secondary);
+    font-size: 0.84rem;
   }
 
   .line:last-child {
@@ -441,9 +457,11 @@
   .line.total {
     margin-top: var(--space-4);
     padding-top: var(--space-4);
-    border-top: 2px solid var(--color-text-primary);
-    font-weight: 700;
-    font-size: 1.1rem;
+    border-top: 2px solid var(--color-border);
+    border-bottom: none;
+    font-weight: 650;
+    font-size: 0.95rem;
+    color: var(--color-text-primary);
   }
 
   .value {
@@ -453,10 +471,10 @@
 
   @media (max-width: 768px) {
     table {
-      font-size: 0.85rem;
+      font-size: 0.8rem;
     }
     th, td {
-      padding: var(--space-2);
+      padding: 0.4rem 0.3rem;
     }
   }
 </style>
