@@ -5,7 +5,8 @@ import type {
   UnitStockRowRef,
 } from '../../../warehouse/domain/entities/SalesUnit';
 import type { WarehouseStockRow } from '../../../warehouse/domain/entities/Stock';
-import type { GetSalesUnits, GetWarehouseStock } from '../../../warehouse/domain/usecases';
+import type { GetSalesUnits } from '../../../warehouse/domain/usecases';
+import type { GetWarehouseStock } from '../../../warehouse/domain/usecases/GetWarehouseStock';
 import type { CreateSaleInput, Sale } from '../../domain/entities/Sale';
 import type { ListSales, RegisterSale } from '../../domain/usecases';
 
@@ -17,7 +18,6 @@ export type PosState = {
   products: Product[];
   units: SalesUnit[];
   unitStocks: UnitStockRowRef[];
-  /** Stock almacén central (cuando no hay unidad seleccionada). */
   warehouseRows: WarehouseStockRow[];
   lastSale: Sale | null;
   error: string | null;
@@ -91,7 +91,7 @@ export function createPosStore(deps: Deps) {
     }
   }
 
-  const unsubBus = deps.appDataBus?.on('stock.changed', () => {
+  const unsubStock = deps.appDataBus?.on('stock.changed', () => {
     void loadAll();
   });
   const unsubLedger = deps.appDataBus?.on('ledger.changed', () => {
@@ -108,7 +108,7 @@ export function createPosStore(deps: Deps) {
       return state;
     },
     destroy(): void {
-      unsubBus?.();
+      unsubStock?.();
       unsubLedger?.();
     },
     loadAll,

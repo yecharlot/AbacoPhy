@@ -1,4 +1,4 @@
-/** Umbral de stock bajo (unidades). Configurable en un solo sitio. */
+/** Umbral: qty > 0 y qty <= este valor = Casi agotado. */
 export const LOW_STOCK_THRESHOLD = 5;
 
 export type StockLevel = 'out' | 'low' | 'ok';
@@ -6,7 +6,6 @@ export type StockLevel = 'out' | 'low' | 'ok';
 export type StockLevelMeta = {
   level: StockLevel;
   label: string;
-  /** Clase CSS semántica */
   tone: 'danger' | 'warn' | 'ok';
 };
 
@@ -19,7 +18,7 @@ export function stockLevel(qty: number, lowThreshold = LOW_STOCK_THRESHOLD): Sto
 export function stockLevelMeta(qty: number, lowThreshold = LOW_STOCK_THRESHOLD): StockLevelMeta {
   const level = stockLevel(qty, lowThreshold);
   if (level === 'out') return { level, label: 'Agotado', tone: 'danger' };
-  if (level === 'low') return { level, label: 'Bajo stock', tone: 'warn' };
+  if (level === 'low') return { level, label: 'Casi agotado', tone: 'warn' };
   return { level, label: 'Habilitado', tone: 'ok' };
 }
 
@@ -33,13 +32,9 @@ export type StockBoardRow = {
   meta: StockLevelMeta;
 };
 
-/** Orden: agotado → bajo → ok; dentro de cada grupo, menor qty primero, luego nombre. */
-export function sortStockBoard(rows: StockBoardRow[]): StockBoardRow[] {
-  const rank = { out: 0, low: 1, ok: 2 } as const;
+/** Dentro de cada bloque: menor cantidad primero. */
+export function sortByQtyAsc(rows: StockBoardRow[]): StockBoardRow[] {
   return [...rows].sort((a, b) => {
-    const ra = rank[a.meta.level];
-    const rb = rank[b.meta.level];
-    if (ra !== rb) return ra - rb;
     if (a.qty !== b.qty) return a.qty - b.qty;
     return a.name.localeCompare(b.name, 'es');
   });
