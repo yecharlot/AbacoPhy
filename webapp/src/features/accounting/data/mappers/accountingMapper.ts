@@ -3,10 +3,11 @@ import type { EntryDto } from '../dto/EntryDto';
 import type { SummaryDto } from '../dto/SummaryDto';
 import type { TrialBalanceDto } from '../dto/TrialBalanceDto';
 import type { Account } from '../../domain/entities/Account';
-import type { Entry } from '../../domain/entities/Entry';
-import type { Equation } from '../../domain/entities/Equation';
+import type { CreateEntryInput, Entry } from '../../domain/entities/Entry';
+import type { Equation, Summary } from '../../domain/entities/Equation';
 import type { JournalEntry } from '../../domain/entities/JournalEntry';
 import type { TrialBalance } from '../../domain/entities/TrialBalance';
+import type { CreateEntryResult } from '../../domain/repositories/AccountingRepository';
 import { normalizeMetadataField, metadataToDto } from '../../../../infrastructure/domain/metadata';
 
 function n(v: unknown): number {
@@ -27,17 +28,8 @@ type EqBlock = {
   income?: number;
   expenses?: number;
   net_profit?: number;
-  metadata?: string | null;
-
 };
 
-/**
- * Mapeo Entry API → lados Debe/Haber del libro diario.
- * Convención backend (ApplyDoubleEntry):
- *   income:  Debe activo (counterpart/caja) | Haber ingreso (account_id)
- *   expense: Debe gasto (account_id)        | Haber activo (counterpart)
- *   transfer/other: account_id ↔ counterpart
- */
 function entrySides(dto: EntryDto): { debit: string; credit: string } {
   const resultLabel = dto.account_name?.trim() || dto.account_id || '—';
   const counterLabel = dto.counterpart?.trim() || '—';
@@ -51,79 +43,119 @@ function entrySides(dto: EntryDto): { debit: string; credit: string } {
   return { debit: resultLabel, credit: counterLabel };
 }
 
+/** DTO cuenta → entidad (export nombrado que usa AccountingRepositoryImpl). */
+export function accountDtoToEntity(dto: AccountDto): Account {
+  return {
+    id: dto.id,
+    code: dto.code ?? '',
+    name: dto.name ?? '',
+    type: dto.type as Account['type'],
+    balance: n(dto.balance),
+    metadata: normalizeMetadataField(dto),
+  };
+}
+
+/** DTO asiento → entidad. */
+export function entryDtoToEntity(dto: EntryDto): Entry {
+  return {
+    id: dto.id ?? '',
+    type: (dto.type as Entry['type']) || 'transfer',
+    accountId: dto.account_id ?? '',
+    amount: n(dto.amount),
+    description: dto.description || dto.concept || '',
+    counterpart: dto.counterpart,
+    date: dto.date ?? '',
+    currency: dto.currency ?? '',
+    metadata: normalizeMetadataField(dto),
+  };
+}
+
+/** Input de creación → body API. */
+export function createInputToDto(input: CreateEntryInput): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    type: input.type,
+    account_id: input.accountId,
+    amount: input.amount,
+    description: input.description,
+  };
+  if (input.counterpart) body.counterpart = input.counterpart;
+  if (input.date) body.date = input.date;
+  if (input.currency) body.currency = input.currency;
+  const meta = metadataToDto(input);
+  if (meta) body.metadata = meta;
+  return body;
+}
+
+/** Respuesta create entry → CreateEntryResult. */
+export function createResponseToResult(
+  dto: EntryDto & {
+    asiento?: EntryDto;
+    entry?: EntryDto;
+    ecuacion?: EqBlock;
+    equation?: EqBlock;
+    rev?: number;
+    root_cid?: string;
+  },
+): CreateEntryResult {
+  const raw = dto.asiento ?? dto.entry ?? dto;
+  const entry = entryDtoToEntity(raw as EntryDto);
+  const eqBlock = (dto.ecuacion ?? dto.equation) as EqBlock | undefined;
+  let equation: Equation | null = null;
+  if (eqBlock && typeof eqBlock === 'object') {
+    equation = summaryDtoToEntity({ ecuacion: eqBlock } as SummaryDto);
+  }
+  return {
+    entry,
+    equation,
+    rev: dto.rev,
+    rootCid: dto.root_cid,
+  };
+}
+
+/** Summary/ecuación API → entidad. */
+export function summaryDtoToEntity(dto: SummaryDto & Record<string, unknown>): Summary {
+  const eq = (dto.ecuacion ?? dto.equation ?? {}) as EqBlock;
+  const hasEq = eq && typeof eq === 'object' && Object.keys(eq).length > 0;
+  const fromEq = (k: keyof EqBlock) => (hasEq && eq[k] != null ? n(eq[k]) : null);
+
+  const assets =
+    fromEq('activo') ?? fromEq('assets') ?? n(dto.assets ?? dto.activo);
+  const liabilities =
+    fromEq('pasivo') ?? fromEq('liabilities') ?? n(dto.liabilities ?? dto.pasivo);
+  const equity =
+    fromEq('patrimonio') ?? fromEq('equity') ?? n(dto.equity ?? dto.patrimonio);
+  const income =
+    fromEq('ingresos') ?? fromEq('income') ?? n(dto.income ?? dto.ingresos);
+  const expenses =
+    fromEq('gastos') ?? fromEq('expenses') ?? n(dto.expenses ?? dto.gastos);
+  const netProfit =
+    fromEq('neto') ??
+    fromEq('net_profit') ??
+    n(dto.net_profit ?? dto.neto) ??
+    income - expenses;
+
+  return {
+    assets,
+    liabilities,
+    equity,
+    income,
+    expenses,
+    netProfit,
+    metadata: normalizeMetadataField(dto),
+  };
+}
+
+/** API object-style (pantallas/reportes). */
 export const accountingMapper = {
-  toAccount(dto: AccountDto): Account {
-    return {
-      id: dto.id,
-      code: (dto as { code?: string }).code ?? '',
-      name: (dto as { name?: string }).name ?? '',
-      type: dto.type as Account['type'],
-      balance: n(dto.balance),
-      currency: (dto as { currency?: string }).currency ?? '',
-      metadata: normalizeMetadataField(dto),
-    };
-  },
-
-  toEntry(dto: EntryDto): Entry {
-    return {
-      id: dto.id,
-      date: dto.date,
-      concept: dto.concept || dto.description || '',
-      type: dto.type as Entry['type'],
-      amount: n(dto.amount),
-      currency: dto.currency ?? '',
-      accountId: dto.account_id,
-      accountName: dto.account_name,
-      counterpart: dto.counterpart,
-      category: dto.category,
-      tags: dto.tags,
-      metadata: normalizeMetadataField(dto),
-
-    };
-  },
-
-  toEquation(dto: SummaryDto & Record<string, unknown>): Equation {
-    const eq = (dto.ecuacion ?? dto.equation ?? {}) as EqBlock;
-    return {
-      assets: n(dto.assets ?? dto.activo ?? eq.activo ?? eq.assets),
-      liabilities: n(dto.liabilities ?? dto.pasivo ?? eq.pasivo ?? eq.liabilities),
-      equity: n(dto.equity ?? dto.patrimonio ?? eq.patrimonio ?? eq.equity),
-      income: n(
-        dto.income ??
-          dto.ingresos ??
-          (dto as { income_total?: number }).income_total ??
-          eq.ingresos ??
-          eq.income,
-      ),
-      expenses: n(
-        dto.expenses ??
-          dto.gastos ??
-          (dto as { expense_total?: number }).expense_total ??
-          eq.gastos ??
-          eq.expenses,
-      ),
-      netProfit: n(
-        dto.net_profit ??
-          dto.neto ??
-          (dto as { net?: number }).net ??
-          eq.neto ??
-          eq.net_profit,
-      ),
-      inventoryItems: n(dto.inventory_items),
-      inventoryCostValue: n(dto.inventory_cost_value),
-      invoicesCount: n(dto.invoices_count),
-      invoicesIssuedTotal: n(dto.invoices_issued_total),
-      invoicesPaidTotal: n(dto.invoices_paid_total),
-      employees: n(dto.employees),
-    };
-  },
-
-  toEntryDto(entity: Omit<Entry, 'id'>): Record<string, unknown> {
+  toAccount: accountDtoToEntity,
+  toEntry: entryDtoToEntity,
+  toEquation: summaryDtoToEntity,
+  toEntryDto(entity: Omit<Entry, 'id'> & { concept?: string }): Record<string, unknown> {
     return {
       type: entity.type,
       account_id: entity.accountId,
       amount: entity.amount,
-      description: entity.concept,
+      description: entity.description || entity.concept || '',
       date: entity.date,
       currency: entity.currency || undefined,
       counterpart: entity.counterpart || undefined,
@@ -133,7 +165,6 @@ export const accountingMapper = {
 };
 
 export const reportsMapper = {
-  /** API real de /entries → fila de libro diario (no espera debit_account del wire). */
   entryToJournal(dto: EntryDto): JournalEntry {
     const { debit, credit } = entrySides(dto);
     return {
@@ -148,7 +179,6 @@ export const reportsMapper = {
       accountId: dto.account_id,
       counterpartId: dto.counterpart,
       metadata: normalizeMetadataField(dto),
-
     };
   },
 
@@ -161,7 +191,9 @@ export const reportsMapper = {
     };
   },
 
-  toTrialBalanceAccount(dto: TrialBalanceDto['accounts'][number]): TrialBalance['accounts'][number] {
+  toTrialBalanceAccount(
+    dto: TrialBalanceDto['accounts'][number],
+  ): TrialBalance['accounts'][number] {
     return {
       accountId: dto.account_id,
       accountName: dto.account_name,

@@ -32,7 +32,7 @@ export class AccountingRepositoryImpl implements AccountingRepository {
 
   async listAccounts(): Promise<Account[]> {
     try {
-      const dto = await this.remote.listAccounts();
+      const dto = await this.remote.getAccounts();
       return (dto.accounts ?? []).map(accountDtoToEntity);
     } catch (err) {
       throw new Error(toUserMessage(err));
@@ -41,8 +41,10 @@ export class AccountingRepositoryImpl implements AccountingRepository {
 
   async listEntries(): Promise<Entry[]> {
     try {
-      const dto = await this.remote.listEntries();
-      const raw = dto.entries ?? dto.asientos ?? [];
+      const dto = await this.remote.getEntries();
+      const raw = (dto as { entries?: EntryDtoLike[]; asientos?: EntryDtoLike[] }).entries
+        ?? (dto as { asientos?: EntryDtoLike[] }).asientos
+        ?? [];
       return raw.map(entryDtoToEntity);
     } catch (err) {
       throw new Error(toUserMessage(err));
@@ -51,8 +53,8 @@ export class AccountingRepositoryImpl implements AccountingRepository {
 
   async createEntry(input: CreateEntryInput): Promise<CreateEntryResult> {
     try {
-      const dto = await this.remote.createEntry(createInputToDto(input));
-      return createResponseToResult(dto);
+      const entryDto = await this.remote.createEntry(createInputToDto(input));
+      return createResponseToResult(entryDto);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
@@ -67,3 +69,5 @@ export class AccountingRepositoryImpl implements AccountingRepository {
     }
   }
 }
+
+type EntryDtoLike = Parameters<typeof entryDtoToEntity>[0];
