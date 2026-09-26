@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -431,28 +432,38 @@ func (s *Server) handleEntries(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		entryType := strings.TrimSpace(r.URL.Query().Get("type"))
-        from := strings.TrimSpace(r.URL.Query().Get("from"))
-        to := strings.TrimSpace(r.URL.Query().Get("to"))
-        limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-        entries := make([]domain.Entry, 0, len(snap.Entries))
-        for _, entry := range snap.Entries {
-        	if entryType != "" && entry.Type != entryType {
-        		continue
-        	}
-        	// Dates use ISO-8601 YYYY-MM-DD, so lexical comparison is safe and
-        	// keeps malformed optional filters from changing server state.
-        	if from != "" && entry.Date < from {
-        		continue
-        	}
-            if to != "" && entry.Date > to {
-        		continue
-        	}
-            entries = append(entries, entry)
-        }
-        if limit > 0 && len(entries) > limit {
-        	entries = entries[len(entries)-limit:]
-        }
-        writeJSON(w, 200, map[string]any{"entries": entries, "rev": snap.Rev, "root_cid": snap.RootCID})
+		from := strings.TrimSpace(r.URL.Query().Get("from"))
+		to := strings.TrimSpace(r.URL.Query().Get("to"))
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		entries := make([]domain.Entry, 0, len(snap.Entries))
+		for _, entry := range snap.Entries {
+			if entryType != "" && entry.Type != entryType {
+				continue
+			}
+			// Dates use ISO-8601 YYYY-MM-DD; lexical compare is safe.
+			if from != "" && entry.Date < from {
+				continue
+			}
+			if to != "" && entry.Date > to {
+				continue
+			}
+			entries = append(entries, entry)
+		}
+		// Orden estable por fecha ASC, luego CreatedAt, luego ID.
+		// Así limit toma siempre los N más recientes por fecha, no por posición en el slice.
+		sort.SliceStable(entries, func(i, j int) bool {
+			if entries[i].Date != entries[j].Date {
+				return entries[i].Date < entries[j].Date
+			}
+			if !entries[i].CreatedAt.Equal(entries[j].CreatedAt) {
+				return entries[i].CreatedAt.Before(entries[j].CreatedAt)
+			}
+			return entries[i].ID < entries[j].ID
+		})
+		if limit > 0 && len(entries) > limit {
+			entries = entries[len(entries)-limit:]
+		}
+		writeJSON(w, 200, map[string]any{"entries": entries, "rev": snap.Rev, "root_cid": snap.RootCID})
 	case http.MethodPost:
 		var body domain.Entry
 		if err := readJSON(r, &body); err != nil {

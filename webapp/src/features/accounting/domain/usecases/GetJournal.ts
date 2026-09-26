@@ -1,10 +1,10 @@
-import type { AccountingRepository } from '../repositories/AccountingRepository';
+import type { AccountingRepository, EntriesQuery } from '../repositories/AccountingRepository';
 import type { JournalEntry } from '../entities/JournalEntry';
 
 export class GetJournal {
-    constructor(private repository: AccountingRepository) {}
+  constructor(private repository: AccountingRepository) {}
 
-    async execute(params?: { limit?: number }): Promise<JournalEntry[]> {
-        return this.repository.getJournal(params);
-    }
+  async execute(params?: EntriesQuery): Promise<JournalEntry[]> {
+    return this.repository.getJournal(params);
+  }
 }

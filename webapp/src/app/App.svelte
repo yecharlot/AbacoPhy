@@ -89,6 +89,11 @@
       ? `${sessionState.session.user.displayName} · ${sessionState.session.user.role}`
       : '',
   );
+  const userDisplayName = $derived(
+    sessionState.session?.user?.displayName ||
+      sessionState.session?.user?.username ||
+      '',
+  );
 
   const brandSubtitle = $derived(sessionState.session?.tenantName ?? 'Negocio');
 
@@ -230,7 +235,7 @@
     {:else if activeId === 'transferencias'}
       <TransferenciasScreen store={warehouseStore} />
     {:else if activeId === 'pos'}
-      <PosScreen store={posStore} />
+      <PosScreen store={posStore} userRole={userRole} userDisplayName={userDisplayName} />
     {:else if activeId === 'fichas-costo'}
       <FichasCostoScreen store={costingStore} />
     {:else if activeId === 'fichas-precio'}

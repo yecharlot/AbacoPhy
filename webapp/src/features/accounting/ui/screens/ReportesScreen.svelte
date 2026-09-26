@@ -6,6 +6,8 @@
   import type {ReportsStore, ReportType} from '../stores/reportsStore';
 
   export let store: ReportsStore;
+  /** Moneda del tenant (p.ej. CUP). No hardcodear DOP/RD$. */
+  export let currency: string = 'CUP';
 
   // Tipar explícitamente el array de entradas
   const reportEntries: [ReportType, string][] = [
@@ -18,16 +20,29 @@
     store.switchReport('trial-balance');
   });
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-DO', {
-      style: 'currency',
-      currency: 'DOP',
+  /**
+   * Mismo criterio que Money.svelte: número tabular + código ISO del negocio.
+   * Evita style:'currency' + DOP que pinta RD$ incorrecto.
+   */
+  function formatMoney(value: number): string {
+    const n = Number(value);
+    const amount = Number.isFinite(n) ? n : 0;
+    const num = new Intl.NumberFormat('es-CU', {
       minimumFractionDigits: 2,
-    }).format(value);
-  };
+      maximumFractionDigits: 2,
+    }).format(amount);
+    const code = (currency || '').trim();
+    return code ? `${num} ${code}` : num;
+  }
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('es-DO', {
+    if (!dateStr) return '—';
+    // ISO YYYY-MM-DD: parse local seguro
+    const d = /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+      ? new Date(dateStr + 'T12:00:00')
+      : new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('es-CU', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -72,7 +87,7 @@
 
     const data = [
       ['Estado de Resultados'],
-      [new Date().toLocaleDateString('es-DO')],
+      [new Date().toLocaleDateString('es-CU')],
       [],
       ['Concepto', 'Monto'],
       ['Ingresos', $store.incomeStatement.income],
@@ -94,7 +109,7 @@
 
     const data = [
       ['Libro Diario'],
-      [new Date().toLocaleDateString('es-DO')],
+      [new Date().toLocaleDateString('es-CU')],
       [],
       ['Fecha', 'Descripción', 'Cuenta Débito', 'Cuenta Crédito', 'Monto'],
       ...$store.journal.map(entry => [
@@ -178,17 +193,17 @@
                   <tr>
                     <td>{account.accountCode}</td>
                     <td>{account.accountName}</td>
-                    <td class="numeric">{formatCurrency(account.debit)}</td>
-                    <td class="numeric">{formatCurrency(account.credit)}</td>
-                    <td class="numeric">{formatCurrency(account.balance)}</td>
+                    <td class="numeric">{formatMoney(account.debit)}</td>
+                    <td class="numeric">{formatMoney(account.credit)}</td>
+                    <td class="numeric">{formatMoney(account.balance)}</td>
                   </tr>
                 {/each}
                 </tbody>
                 <tfoot>
                 <tr>
                   <td colspan="2"><strong>Totales</strong></td>
-                  <td class="numeric"><strong>{formatCurrency($store.trialBalance.totalDebits)}</strong></td>
-                  <td class="numeric"><strong>{formatCurrency($store.trialBalance.totalCredits)}</strong></td>
+                  <td class="numeric"><strong>{formatMoney($store.trialBalance.totalDebits)}</strong></td>
+                  <td class="numeric"><strong>{formatMoney($store.trialBalance.totalCredits)}</strong></td>
                   <td></td>
                 </tr>
                 </tfoot>
@@ -209,15 +224,15 @@
             <div class="statement-lines">
               <div class="line">
                 <span>Ingresos</span>
-                <span class="value">{formatCurrency($store.incomeStatement.income)}</span>
+                <span class="value">{formatMoney($store.incomeStatement.income)}</span>
               </div>
               <div class="line">
                 <span>Gastos</span>
-                <span class="value">({formatCurrency($store.incomeStatement.expenses)})</span>
+                <span class="value">({formatMoney($store.incomeStatement.expenses)})</span>
               </div>
               <div class="line total">
                 <span>Utilidad Neta</span>
-                <span class="value">{formatCurrency($store.incomeStatement.netProfit)}</span>
+                <span class="value">{formatMoney($store.incomeStatement.netProfit)}</span>
               </div>
             </div>
           </div>
@@ -253,7 +268,7 @@
                     <td>{entry.description}</td>
                     <td>{entry.debitAccount}</td>
                     <td>{entry.creditAccount}</td>
-                    <td class="numeric">{formatCurrency(entry.amount)}</td>
+                    <td class="numeric">{formatMoney(entry.amount)}</td>
                   </tr>
                 {/each}
                 </tbody>

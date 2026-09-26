@@ -1,6 +1,7 @@
 package api
 
 import (
+	"sort"
 	"fmt"
 	"archive/zip"
 	"bytes"
@@ -53,6 +54,7 @@ func (s *Server) registerExtraRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/backups/restore", s.handleBackupRestore)
 	mux.HandleFunc("/api/v1/inventory/out", s.handleInventoryOut)
 	mux.HandleFunc("/api/v1/reports/financial", s.handleFinancial)
+	mux.HandleFunc("/api/v1/reports/trial-balance", s.handleTrialBalance)
 	mux.HandleFunc("/api/v1/theme", s.handleTheme)
 	mux.HandleFunc("/api/v1/errors", s.handleErrors)
 	mux.HandleFunc("/api/v1/reports/pdf", s.handleReportPDF)
@@ -1000,4 +1002,89 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	s.audit(snap, sess, "auth.password_change", detail, target.ID)
 	_ = s.Store.Put(snap)
 	writeJSON(w, 200, map[string]any{"ok": true, "username": target.Username})
+}
+
+
+// handleTrialBalance — Balance de comprobación desde saldos del plan de cuentas.
+// Contrato alineado con TrialBalanceDto del frontend Svelte.
+// GET /api/v1/reports/trial-balance
+func (s *Server) handleTrialBalance(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
+		return
+	}
+	if err := s.gate(sess, "reportes"); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "forbidden"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "not found"})
+		return
+	}
+
+	type row struct {
+		AccountID   string  `json:"account_id"`
+		AccountName string  `json:"account_name"`
+		AccountCode string  `json:"account_code"`
+		Type        string  `json:"type,omitempty"`
+		Debit       float64 `json:"debit"`
+		Credit      float64 `json:"credit"`
+		Balance     float64 `json:"balance"`
+	}
+
+	// Naturaleza normal: asset/expense → débito; liability/equity/income → crédito.
+	accounts := make([]row, 0, len(snap.Accounts))
+	var totalDebit, totalCredit float64
+	for _, a := range snap.Accounts {
+		if a == nil || !a.Active {
+			continue
+		}
+		bal := a.Balance
+		debit, credit := 0.0, 0.0
+		nt := a.Type
+		switch nt {
+		case "asset", "activo", "Activo", "expense", "egreso", "Egreso", "gasto", "Gasto", "gastos":
+			if bal >= 0 {
+				debit = bal
+			} else {
+				credit = -bal
+			}
+		default: // liability, equity, income (+ ES aliases)
+			if bal >= 0 {
+				credit = bal
+			} else {
+				debit = -bal
+			}
+		}
+		accounts = append(accounts, row{
+			AccountID: a.ID, AccountName: a.Name, AccountCode: a.Code,
+			Type: a.Type, Debit: debit, Credit: credit, Balance: bal,
+		})
+		totalDebit += debit
+		totalCredit += credit
+	}
+
+	// Orden por código de cuenta
+	sort.SliceStable(accounts, func(i, j int) bool {
+		if accounts[i].AccountCode != accounts[j].AccountCode {
+			return accounts[i].AccountCode < accounts[j].AccountCode
+		}
+		return accounts[i].AccountName < accounts[j].AccountName
+	})
+
+	writeJSON(w, 200, map[string]any{
+		"accounts":      accounts,
+		"total_debits":  totalDebit,
+		"total_credits": totalCredit,
+		"as_of":         time.Now().UTC().Format("2006-01-02"),
+		"rev":           snap.Rev,
+		"root_cid":      snap.RootCID,
+		"ecuacion":      domain.EquationSnapshot(snap),
+	})
 }
