@@ -4,6 +4,10 @@ import type { SummaryDto } from '../dto/SummaryDto';
 import type { Account } from '../../domain/entities/Account';
 import type { Entry } from '../../domain/entities/Entry';
 import type { Equation } from '../../domain/entities/Equation';
+import type {JournalEntry} from "../../domain/entities/JournalEntry";
+import type {JournalEntryDto} from "../dto/JournalEntryDto";
+import type {TrialBalanceDto} from "../dto/TrialBalanceDto";
+import type {TrialBalance} from "../../domain/entities/TrialBalance";
 
 function n(v: unknown): number {
   const x = Number(v);
@@ -108,3 +112,39 @@ export const accountingMapper = {
     };
   },
 };
+
+
+export const reportsMapper = {
+
+    toJournalEntry(dto: JournalEntryDto): JournalEntry {
+      return {
+        id: dto.id,
+        date: dto.date,
+        description: dto.description,
+        debitAccount: dto.debit_account,
+        creditAccount: dto.credit_account,
+        amount: n(dto.amount),
+        type: dto.type as JournalEntry['type'],
+      };
+    },
+
+    toTrialBalance(dto: TrialBalanceDto): TrialBalance {
+      return {
+        accounts: (dto.accounts || []).map(reportsMapper.toTrialBalanceAccount),
+        totalDebits: n(dto.total_debits),
+        totalCredits: n(dto.total_credits),
+        asOf: dto.as_of,
+      }
+    },
+
+    toTrialBalanceAccount(dto: TrialBalanceDto['accounts'][number]): TrialBalance['accounts'][number] {
+      return {
+        accountId: dto.account_id,
+        accountName: dto.account_name,
+        accountCode: dto.account_code,
+        debit: n(dto.debit),
+        credit: n(dto.credit),
+        balance: n(dto.balance),
+      }
+    }
+}

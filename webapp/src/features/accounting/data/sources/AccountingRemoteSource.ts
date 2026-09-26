@@ -2,6 +2,8 @@ import type { HttpClient } from '../../../../infrastructure/data/http';
 import type { AccountDto } from '../dto/AccountDto';
 import type { EntryDto } from '../dto/EntryDto';
 import type { SummaryDto } from '../dto/SummaryDto';
+import type {TrialBalanceDto} from "../dto/TrialBalanceDto";
+import type {JournalEntryDto} from "../dto/JournalEntryDto";
 
 type CreateEntryResponse = {
   asiento?: EntryDto;
@@ -25,6 +27,17 @@ export class AccountingRemoteSource {
 
   getSummary(): Promise<SummaryDto> {
     return this.http.get<SummaryDto>('/reports/summary');
+  }
+
+  getTrialBalance(): Promise<TrialBalanceDto> {
+    return this.http.get<TrialBalanceDto>('/reports/trial-balance');
+  }
+
+  getJournal(params?: { limit?: number }): Promise<{ entries: JournalEntryDto[] }> {
+    const query = new URLSearchParams();
+    if (params?.limit) query.append('limit', params.limit.toString());
+    const path = `/entries${query.toString() ? `?${query.toString()}` : ''}`;
+    return this.http.get<{ entries: JournalEntryDto[] }>(path);
   }
 
   async createEntry(body: Record<string, unknown>): Promise<EntryDto> {

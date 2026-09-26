@@ -4,7 +4,9 @@ import type { Entry } from '../../domain/entities/Entry';
 import type { Equation } from '../../domain/entities/Equation';
 import type { AccountingRepository } from '../../domain/repositories/AccountingRepository';
 import { AccountingRemoteSource } from '../sources/AccountingRemoteSource';
-import { accountingMapper } from '../mappers/accountingMapper';
+import {accountingMapper, reportsMapper} from '../mappers/accountingMapper';
+import type {TrialBalance} from "../../domain/entities/TrialBalance";
+import type { JournalEntry } from "../../domain/entities/JournalEntry";
 
 function toUserMessage(err: unknown): string {
   if (err && typeof err === 'object' && 'message' in err) {
@@ -25,6 +27,24 @@ export class AccountingRepositoryImpl implements AccountingRepository {
     try {
       const res = await this.remote.getAccounts();
       return (res.accounts || []).map(accountingMapper.toAccount);
+    } catch (err) {
+      throw new Error(toUserMessage(err));
+    }
+  }
+
+  async getTrialBalance(): Promise<TrialBalance> {
+    try {
+      const dto = await this.remote.getTrialBalance();
+      return reportsMapper.toTrialBalance(dto);
+    } catch (err) {
+      throw new Error(toUserMessage(err));
+    }
+  }
+
+  async getJournal(params?: { limit?: number }): Promise<JournalEntry[]> {
+    try {
+      const res = await this.remote.getJournal(params);
+      return (res.entries || []).map(reportsMapper.toJournalEntry);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
