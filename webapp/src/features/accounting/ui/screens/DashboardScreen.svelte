@@ -71,6 +71,10 @@
   $: resultadoPeriodo = Math.abs(netProfit) > 0.0001 || (income === 0 && expenses === 0)
     ? netProfit
     : income - expenses;
+  $: inventoryCostValue = num(summary?.inventoryCostValue);
+  $: invoicesIssuedTotal = num(summary?.invoicesIssuedTotal);
+  $: invoicesPaidTotal = num(summary?.invoicesPaidTotal);
+  $: employees = num(summary?.employees);
 </script>
 
 <div class="dashboard" data-screen="dashboard">
@@ -185,6 +189,21 @@
       </PanelCard>
     </section>
 
+    <section class="operational-grid" aria-label="Resumen operativo">
+      <PanelCard title="Inventario" subtitle={`${num(summary.inventoryItems)} artículos con existencia`}>
+        <strong class="operational-value"><Money amount={inventoryCostValue} currency={baseCurrency} /></strong>
+        <small>Valor al costo</small>
+      </PanelCard>
+      <PanelCard title="Facturación" subtitle={`${num(summary.invoicesCount)} facturas emitidas`}>
+        <strong class="operational-value"><Money amount={invoicesIssuedTotal} currency={baseCurrency} /></strong>
+        <small>Cobrado: <Money amount={invoicesPaidTotal} currency={baseCurrency} /></small>
+      </PanelCard>
+      <PanelCard title="Nómina" subtitle="Trabajadores registrados">
+        <strong class="operational-value">{num(summary.employees)}</strong>
+        <small>Según registros del negocio</small>
+      </PanelCard>
+    </section>
+
     <EquationCard
       equation={summary}
       currency={baseCurrency || 'CUP'}
@@ -252,6 +271,9 @@
     flex-direction: column;
     gap: var(--dashboard-gap, 12px);
   }
+  .operational-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--dashboard-gap, 12px); }
+  .operational-value { display: block; margin-bottom: 4px; font-size: 1.15rem; }
+  .operational-grid small { color: var(--color-text-muted); }
   .scope-row {
     display: flex;
     flex-wrap: wrap;

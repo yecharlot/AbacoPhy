@@ -4,12 +4,13 @@ import type {
 } from '../../domain/entities/Employee';
 import type { CreatePayslipInput, Payslip } from '../../domain/entities/Payslip';
 import type { Employee } from '../../domain/entities/Employee';
-import type { CreateEmployee } from '../../domain/usecases/CreateEmployee';
-import type { UpdateEmployee } from '../../domain/usecases/UpdateEmployee';
-import type { DeactivateEmployee } from '../../domain/usecases/DeactivateEmployee';
-import type { CreatePayslip } from '../../domain/usecases/CreatePayslip';
-import type { ListEmployees } from '../../domain/usecases/ListEmployees';
-import type { ListPayslips } from '../../domain/usecases/ListPayslips';
+import type { CreateEmployee } from '../../domain/usecases';
+import type { UpdateEmployee } from '../../domain/usecases';
+import type { DeactivateEmployee } from '../../domain/usecases';
+import type { CreatePayslip } from '../../domain/usecases';
+import type { ListEmployees } from '../../domain/usecases';
+import type { ListPayslips } from '../../domain/usecases';
+import type { DownloadPayrollPdf } from '../../domain/usecases';
 
 export type PayrollStatus = 'idle' | 'loading' | 'success' | 'error' | 'empty';
 
@@ -29,6 +30,7 @@ type Deps = {
   deactivateEmployee: DeactivateEmployee;
   listPayslips: ListPayslips;
   createPayslip: CreatePayslip;
+  downloadPdf: DownloadPayrollPdf;
 };
 
 export function createPayrollStore(deps: Deps) {
@@ -131,6 +133,20 @@ export function createPayrollStore(deps: Deps) {
         await this.loadPayslips();
       } catch (err) {
         set({ saving: false, error: messageOf(err, 'Error al generar liquidación') });
+        throw err;
+      }
+    },
+    async downloadPdf(period: string): Promise<void> {
+      try {
+        const blob = await deps.downloadPdf.execute(period);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `nomina-${period}.pdf`;
+        link.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        set({ error: messageOf(err, 'Error al descargar PDF de nómina') });
         throw err;
       }
     },

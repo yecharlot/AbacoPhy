@@ -1,11 +1,12 @@
 import type { AppContainer } from '../../../infrastructure/di';
 import { PayrollRepositoryImpl } from '../data/repositories/PayrollRepositoryImpl';
-import { ListEmployees } from '../domain/usecases/ListEmployees';
-import { CreateEmployee } from '../domain/usecases/CreateEmployee';
-import { UpdateEmployee } from '../domain/usecases/UpdateEmployee';
-import { DeactivateEmployee } from '../domain/usecases/DeactivateEmployee';
-import { ListPayslips } from '../domain/usecases/ListPayslips';
-import { CreatePayslip } from '../domain/usecases/CreatePayslip';
+import { ListEmployees } from '../domain/usecases';
+import { CreateEmployee } from '../domain/usecases';
+import { UpdateEmployee } from '../domain/usecases';
+import { DeactivateEmployee } from '../domain/usecases';
+import { ListPayslips } from '../domain/usecases';
+import { CreatePayslip } from '../domain/usecases';
+import { DownloadPayrollPdf } from '../domain/usecases';
 import { createPayrollStore, type PayrollStore } from '../ui/stores/payrollStore';
 
 export type PayrollModule = {
@@ -23,6 +24,7 @@ export function createPayrollModule(container: AppContainer): PayrollModule {
     deactivateEmployee: new DeactivateEmployee(repository),
     listPayslips: new ListPayslips(repository),
     createPayslip: new CreatePayslip(repository),
+    downloadPdf: new DownloadPayrollPdf(repository),
   });
 
   return { payrollStore };

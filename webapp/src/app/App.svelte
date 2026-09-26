@@ -56,7 +56,7 @@
   const { sessionStore } = createIdentityModule(container);
   const { tenantStore } = createTenantModule(container);
   const { catalogStore, repository: catalogRepository } = createCatalogModule(container);
-  const { accountingStore } = createAccountingModule(container);
+  const { accountingStore, reportsStore } = createAccountingModule(container);
   const { invoicingStore } = createInvoicingModule(container);
   const { payrollStore } = createPayrollModule(container);
   // Fase 8 — las features reciben contratos de dominio, nunca implementaciones ajenas
@@ -88,6 +88,11 @@
     sessionState.session
       ? `${sessionState.session.user.displayName} · ${sessionState.session.user.role}`
       : '',
+  );
+  const userDisplayName = $derived(
+    sessionState.session?.user?.displayName ||
+      sessionState.session?.user?.username ||
+      '',
   );
 
   const brandSubtitle = $derived(sessionState.session?.tenantName ?? 'Negocio');
@@ -212,7 +217,7 @@
     {:else if activeId === 'cuentas'}
       <CuentasScreen store={accountingStore} />
     {:else if activeId === 'reportes'}
-      <ReportesScreen />
+      <ReportesScreen store={reportsStore} />
     {:else if activeId === 'facturas'}
       <FacturasScreen store={invoicingStore} />
     {:else if activeId === 'empleados'}
@@ -230,7 +235,7 @@
     {:else if activeId === 'transferencias'}
       <TransferenciasScreen store={warehouseStore} />
     {:else if activeId === 'pos'}
-      <PosScreen store={posStore} />
+      <PosScreen store={posStore} userRole={userRole} userDisplayName={userDisplayName} />
     {:else if activeId === 'fichas-costo'}
       <FichasCostoScreen store={costingStore} />
     {:else if activeId === 'fichas-precio'}

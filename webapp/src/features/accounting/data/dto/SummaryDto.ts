@@ -16,6 +16,12 @@ export type SummaryDto = {
   income_total?: number;
   expense_total?: number;
   currency?: string;
+  inventory_items?: number;
+  inventory_cost_value?: number;
+  invoices_count?: number;
+  invoices_issued_total?: number;
+  invoices_paid_total?: number;
+  employees?: number;
   ecuacion?: {
     activo?: number;
     pasivo?: number;

@@ -27,6 +27,8 @@ export type Reception = {
   note: string;
   enteredBy?: string;
   enteredAt?: string;
+  /** Estado visual local de detalle; nunca se serializa al backend. */
+  _expanded?: boolean;
 };
 
 export type CreateReceptionLineInput = {

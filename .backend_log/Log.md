@@ -410,3 +410,202 @@ ProductSeq = 0, JobSeq = 0
 ### Nota frontend
 
 Los paneles `DevSeedPanel` solo cargan datos cuando el usuario pega JSON en DEV; no rellenan el catálogo al arrancar.
+
+## Fase 5 — `GET /api/v1/entries`: filtros `type`, `from`, `to`, `limit`
+
+**Fecha:** 2026-09-26  
+**Commit origen:** `850bd65` — `(Feature) enhance entry retrieval; add filtering by type, date range, and limit in entries API`  
+**Rama:** `feature-align/webapp-scope`  
+**Archivo:** `internal/api/server.go` → `handleEntries` (rama GET)  
+**Estado:** aplicado en rama; este paquete incluye además el parche de ordenación (Fase 6)
+
+### Propósito
+
+Que el listado de asientos pueda acotarse por **tipo**, **rango de fechas** y **límite de filas**, sin traer siempre el libro completo. Soporte directo a:
+
+- Libro diario / reportes con periodo
+- Pantallas que piden solo `income` o solo `expense`
+- Clientes (webapp) que ya envían query params desde `AccountingRemoteSource.getEntries`
+
+### Por qué lo cambiamos
+
+Antes, `GET /entries` devolvía **todos** los asientos del tenant. El frontend ya construía `?type=&from=&to=&limit=` pero el servidor **ignoraba** los query params.
+
+### Qué mejora
+
+| Query param | Comportamiento |
+|-------------|----------------|
+| `type` | Solo asientos con `Entry.Type` exacto. Vacío = todos |
+| `from` | ISO `YYYY-MM-DD`; excluye `entry.Date < from` |
+| `to` | ISO `YYYY-MM-DD`; excluye `entry.Date > to` |
+| `limit` | Si `> 0` y hay más filas, conserva las últimas `limit` tras filtrar |
+
+Filtros opcionales y combinables. No mutan estado.
+
+### Impacto
+
+| Área | Efecto |
+|------|--------|
+| Persistencia / saldos | Ninguno |
+| ACL GET | Vista `reportes` |
+| POST `/entries` | Sin cambio |
+| Sin params | Retrocompatible (todos los asientos) |
+
+### Prueba rápida
+
+```bash
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8090/api/v1/entries?type=expense&from=2026-09-01&to=2026-09-30&limit=50" \
+  | jq '.entries | length'
+```
+
+---
+
+## Fase 6 — Ordenación estable por fecha + `GET /api/v1/reports/trial-balance`
+
+**Fecha:** 2026-09-26  
+**Archivos:**
+- `internal/api/server.go` — `handleEntries` GET
+- `internal/api/extra.go` — `registerExtraRoutes` + `handleTrialBalance`  
+  **Estado:** parche de este paquete (aplicar sobre HEAD de `feature-align/webapp-scope` o main tras merge)
+
+### 6.1 Ordenación antes de `limit` en `GET /entries`
+
+#### Propósito
+
+Que `limit=N` devuelva siempre los **N asientos más recientes por fecha de negocio**, no los últimos N del orden de inserción en el slice (que puede no coincidir con la fecha contable).
+
+#### Por qué lo cambiamos
+
+Tras Fase 5, el truncado era:
+
+```go
+entries = entries[len(entries)-limit:]  // cola del slice tal cual
+```
+
+Si el orden de `snap.Entries` no es cronológico estricto (imports, reseeds, órdenes mezclados), el “límite” no representa el periodo reciente real.
+
+#### Qué mejora
+
+1. Tras filtrar por `type` / `from` / `to`, orden **estable**:
+    - `Date` ASC (ISO léxico)
+    - `CreatedAt` ASC
+    - `ID` ASC (desempate)
+2. Luego, si `limit > 0`, se toma la **cola** del slice ya ordenado → N más recientes por fecha.
+3. Indentación unificada (tabs) en el bloque GET.
+4. Import `"sort"` en `server.go`.
+
+#### Antes
+
+```text
+filter → slice[len-limit:]   // orden = orden de append en memoria
+```
+
+#### Después
+
+```text
+filter → sort.SliceStable(Date, CreatedAt, ID) → slice[len-limit:]
+```
+
+#### Impacto
+
+- Sin cambio de contrato JSON.
+- Respuestas con `limit` pueden reordenarse respecto a Fase 5 pura (ahora correctas por fecha).
+- Sin params / sin limit: lista completa ordenada por fecha ASC (cambio observable vs orden de almacenamiento; deseable para Libro diario).
+
+### 6.2 Verificación de rutas de reportes (auditoría)
+
+Estado en `feature-align/webapp-scope` **antes** de este parche:
+
+| Ruta | Handler | Estado |
+|------|---------|--------|
+| `GET /api/v1/reports/summary` | `handleReportsSummary` (`server.go`) | Existe — ecuación desde saldos (Fases 1–4) |
+| `GET /api/v1/reports/financial` | `handleFinancial` (`extra.go`) | Existe — ops por periodo |
+| `GET /api/v1/reports/pdf` | `handleReportPDF` | Existe |
+| `GET /api/v1/reports/trial-balance` | — | **No existía** — FE llama `getTrialBalance()` → 404 |
+| Journal | FE usa `GET /entries` | Cubierto por Fase 5/6 (filtros + orden) |
+
+Conclusión de la verificación: el único hueco crítico para ReportesScreen / remote source era **trial-balance**. El libro diario no necesita ruta aparte.
+
+### 6.3 Nuevo endpoint `GET /api/v1/reports/trial-balance`
+
+#### Propósito
+
+Exponer el **Balance de comprobación** desde saldos del plan de cuentas, con el contrato que espera el frontend (`TrialBalanceDto`).
+
+#### Contrato de respuesta
+
+```json
+{
+  "accounts": [
+    {
+      "account_id": "...",
+      "account_name": "...",
+      "account_code": "1000",
+      "type": "asset",
+      "debit": 0,
+      "credit": 0,
+      "balance": 0
+    }
+  ],
+  "total_debits": 0,
+  "total_credits": 0,
+  "as_of": "2026-09-26",
+  "rev": 1,
+  "root_cid": "...",
+  "ecuacion": { "activo": 0, "pasivo": 0, "patrimonio": 0, "ingresos": 0, "gastos": 0, "neto": 0 }
+}
+```
+
+#### Reglas Debe/Haber
+
+| Tipo de cuenta (EN/ES) | Balance ≥ 0 | Balance < 0 |
+|------------------------|-------------|-------------|
+| asset / expense (y aliases ES) | Debe = balance | Haber = −balance |
+| liability / equity / income (resto) | Haber = balance | Debe = −balance |
+
+Cuentas `Active == false` excluidas. Orden por `account_code` ASC.
+
+#### Impacto
+
+| Área | Efecto |
+|------|--------|
+| Persistencia | Ninguno (solo lectura) |
+| ACL | Vista `reportes` |
+| FE | `AccountingRemoteSource.getTrialBalance()` deja de recibir 404 |
+| Dominio local FE | Puede seguir usándose como fallback; preferir API cuando esté disponible |
+
+#### Prueba rápida
+
+```bash
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8090/api/v1/reports/trial-balance" \
+  | jq '{totals: {d: .total_debits, c: .total_credits}, n: (.accounts|length), as_of}'
+
+# Entries ordenados + limit
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8090/api/v1/entries?limit=5" \
+  | jq '[.entries[] | .date]'
+```
+
+### Relación con fases anteriores
+
+| Fase | Tema |
+|------|------|
+| 1–4 | Summary desde saldos, POS income/COGS, normalize tipos, catálogo vacío |
+| **5** | Filtros `type`/`from`/`to`/`limit` en `GET /entries` |
+| **6** | Orden por fecha antes de limit + `GET /reports/trial-balance` |
+
+### Archivos de este paquete
+
+```text
+internal/api/server.go   # handleEntries ordenado + import sort
+internal/api/extra.go    # route trial-balance + handleTrialBalance + import sort
+.backend_log/Log.md      # este documento (Fases 5 y 6)
+```
+
+### Fuera de alcance / follow-up
+
+- Endpoint dedicado de journal con líneas débito/crédito expandidas (hoy basta `/entries`).
+- Paginación por cursor/`offset`.
+- `gofmt` obligatorio tras copiar (imports de `extra.go` pueden reordenarse).

@@ -156,7 +156,7 @@ Piezas transversales necesarias antes o en paralelo al primer feature usable.
 | [x]  | `ListEmployees`, `CreateEmployee`, `ListPayslips`, `CreatePayslip` | Unit |
 | [x]  | Data → `/payroll/employees`, `/payroll/payslips` | Mapper + mock |
 | [x]  | Screens listado/alta (sin UI de todas las tasas avanzadas si no hace falta) | Smoke |
-| [x]  | PDF nómina — | opcional MVP+ |
+| [x]  | PDF nómina — descarga por período desde `/payroll/pdf` | Smoke manual |
 
 ---
 
