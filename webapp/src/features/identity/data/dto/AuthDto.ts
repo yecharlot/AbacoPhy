@@ -3,6 +3,9 @@
 export type LoginRequestDto = {
   username: string;
   password: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type LoginResponseDto = {
@@ -17,6 +20,9 @@ export type LoginResponseDto = {
   };
   views?: string[];
   modules?: Record<string, boolean>;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type MeResponseDto = {
@@ -35,10 +41,16 @@ export type MeResponseDto = {
   root_cid?: string;
   views?: string[];
   modules?: Record<string, boolean>;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type ChangePasswordRequestDto = {
   current_password: string;
   new_password: string;
   username?: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };

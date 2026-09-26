@@ -1,5 +1,6 @@
 import type { EmitInvoiceInput, Invoice } from '../../domain/entities/Invoice';
 import type { InvoiceLine } from '../../domain/entities/InvoiceLine';
+import { normalizeMetadataField, metadataToDto } from '../../../../infrastructure/domain/metadata';
 
 function n(v: unknown): number {
   const x = Number(v);
@@ -15,6 +16,8 @@ type LineDto = {
   quantity?: number;
   price?: number;
   total?: number;
+  metadata?: string | null;
+
 };
 
 type InvoiceDto = {
@@ -41,6 +44,8 @@ type InvoiceDto = {
   issuer_address?: string;
   issuer_phone?: string;
   cid?: string;
+  metadata?: string | null;
+
 };
 
 export const invoicingMapper = {
@@ -78,6 +83,8 @@ export const invoicingMapper = {
       issuerAddress: dto.issuer_address,
       issuerPhone: dto.issuer_phone,
       cid: dto.cid,
+      metadata: normalizeMetadataField(dto as { metadata?: unknown }),
+
     };
   },
 

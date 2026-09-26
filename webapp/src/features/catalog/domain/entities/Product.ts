@@ -6,6 +6,9 @@ export type Product = {
   category: string;
   costStd: number;
   priceSale: number;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type CreateProductInput = {
@@ -15,6 +18,9 @@ export type CreateProductInput = {
   category?: string;
   costStd?: number;
   priceSale?: number;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type UpdateProductInput = {
@@ -25,4 +31,7 @@ export type UpdateProductInput = {
   category?: string;
   costStd?: number;
   priceSale?: number;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };

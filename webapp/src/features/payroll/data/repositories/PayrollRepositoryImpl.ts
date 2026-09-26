@@ -80,12 +80,4 @@ export class PayrollRepositoryImpl implements PayrollRepository {
       throw new Error(toUserMessage(err));
     }
   }
-
-  async getPayrollPdf(period: string): Promise<Blob> {
-    try {
-      return await this.remote.getPdf(period);
-    } catch (err) {
-      throw new Error(toUserMessage(err));
-    }
-  }
 }

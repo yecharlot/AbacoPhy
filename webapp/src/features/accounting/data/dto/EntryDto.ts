@@ -13,4 +13,7 @@ export type EntryDto = {
   category?: string;
   tags?: string[];
   counterpart?: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };

@@ -1,22 +1,20 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { fade } from 'svelte/transition';
   import { Badge, Button, Card, Money } from '../../../../infrastructure/ui/shared';
-  import type { PosState, PosStore } from '../stores/posStore';
-  import type { CreateSaleLineInput } from '../../domain/entities/Sale';
   import {
-    LOW_STOCK_THRESHOLD,
-    sortByQtyAsc,
-    stockLevelMeta,
-    type StockBoardRow,
-  } from '../../domain/stockStatus';
+    BarChart,
+    DonutChart,
+    PanelCard,
+    StatCard,
+    type ChartPoint,
+  } from '../../../../infrastructure/ui/charts';
+  import type { PosState, PosStore } from '../stores/posStore';
+  import { salesByDay, salesByUnit, salesTotals, topSoldProducts } from '../viewmodels/posCharts';
+  import type { CreateSaleLineInput } from '../../domain/entities/Sale';
   import { DevSeedPanel } from '../../../../infrastructure/ui/dev';
   import { buildSamplePosSalesPayload, seedPosSalesViaStore } from '../dev/salesSeed';
 
   export let store: PosStore;
-  export let userRole: string = '';
-  export let userDisplayName: string = '';
-  export let sellerOptions: string[] = [];
 
   type DraftLine = {
     productId: string;
@@ -26,6 +24,7 @@
   };
 
   let state: PosState = store.getState();
+
   let unitId = '';
   let seller = '';
   let note = '';
@@ -34,40 +33,22 @@
   let formError = '';
   let formOk = '';
 
-  function isSellerRole(): boolean {
-    const r = (userRole || '').toLowerCase();
-    return r === 'vendedor' || r === 'seller';
-  }
-
   onMount(() => {
     const unsub = store.subscribe((s: PosState) => {
       state = s;
     });
     void store.loadAll();
-    if (isSellerRole() && userDisplayName) seller = userDisplayName;
     return unsub;
   });
 
   $: products = state.products ?? [];
   $: units = state.units ?? [];
   $: sales = [...(state.sales ?? [])].reverse();
-  $: recentSales = sales.slice(0, 8);
-  $: saleCurrency = state.sales[0]?.currency || state.warehouseRows?.[0]?.currency || '';
-  $: sellerLocked = isSellerRole();
-
-  $: sellerSuggestions = (() => {
-    const set = new Set<string>();
-    for (const s of sellerOptions) {
-      const t = (s || '').trim();
-      if (t) set.add(t);
-    }
-    for (const sale of state.sales ?? []) {
-      const t = (sale.seller || '').trim();
-      if (t) set.add(t);
-    }
-    if (userDisplayName.trim()) set.add(userDisplayName.trim());
-    return [...set].sort((a, b) => a.localeCompare(b, 'es'));
-  })();
+  $: dailySales = salesByDay(state.sales) as ChartPoint[];
+  $: unitSplit = salesByUnit(state.sales) as ChartPoint[];
+  $: topProducts = topSoldProducts(state.sales) as ChartPoint[];
+  $: totals = salesTotals(state.sales);
+  $: saleCurrency = state.sales[0]?.currency ?? '';
 
   $: estimated = lines.reduce((acc, line) => {
     const price = parseFloat(line.unitPrice) || priceOf(line.productId);
@@ -76,111 +57,29 @@
     return acc + gross - discount;
   }, 0);
 
+  /** Productos con stock en la unidad seleccionada (o todos si no hay unidad). */
+  $: sellableProducts = (() => {
+    if (!unitId) return products;
+    const ids = new Set(
+      (state.unitStocks ?? [])
+        .filter((s) => s.unitId === unitId && s.qty > 0)
+        .map((s) => s.productId),
+    );
+    if (ids.size === 0) return products;
+    return products.filter((p) => ids.has(p.id));
+  })();
+
   function priceOf(productId: string): number {
     return products.find((p) => p.id === productId)?.priceSale ?? 0;
   }
 
-  /** Stock de la ubicación actual: unidad seleccionada o almacén central. */
-  /**
-   * Stock de un producto en la ubicación activa.
-   * - Con unidad: solo qty en unitStocks de esa unidad (0 si no hay fila).
-   * - Sin unidad: almacén central (warehouseRows).
-   * Lee unitId/state dentro de la función; las $: que lo usan deben
-   * referenciar unitId y state.unitStocks/warehouseRows explícitamente.
-   */
-  function stockOf(productId: string, uid: string = unitId): number {
-    if (uid) {
-      const row = (state.unitStocks ?? []).find(
-        (s) => s.unitId === uid && s.productId === productId,
-      );
-      return row?.qty ?? 0;
-    }
-    const row = (state.warehouseRows ?? []).find((r) => r.productId === productId);
+  function stockOf(productId: string): number | null {
+    if (!unitId) return null;
+    const row = (state.unitStocks ?? []).find(
+      (s) => s.unitId === unitId && s.productId === productId,
+    );
     return row?.qty ?? 0;
   }
-
-  $: locationLabel = unitId
-    ? units.find((u) => u.id === unitId)?.name || 'Unidad'
-    : 'Almacén central';
-
-  /**
-   * Filas de stock para los 3 bloques.
-   * Dependencias reactivas explícitas: unitId, unitStocks, warehouseRows, products.
-   *
-   * Con unidad seleccionada: SOLO productos que tienen fila en unitStocks
-   * de esa unidad (transferidos / asignados al punto). No el catálogo completo.
-   * Sin unidad: filas del almacén central (warehouseRows); si vacío, catálogo con qty 0.
-   */
-  $: allStockRows = (() => {
-    const uid = unitId;
-    const unitStocks = state.unitStocks ?? [];
-    const warehouseRows = state.warehouseRows ?? [];
-    const productById = new Map(products.map((p) => [p.id, p]));
-
-    const rows: StockBoardRow[] = [];
-
-    if (uid) {
-      const forUnit = unitStocks.filter((s) => s.unitId === uid);
-      for (const s of forUnit) {
-        const p = productById.get(s.productId);
-        const qty = Number(s.qty) || 0;
-        rows.push({
-          productId: s.productId,
-          code: p?.code || '—',
-          name: p?.name || s.productId,
-          qty,
-          priceSale: p?.priceSale ?? 0,
-          unit: p?.unit,
-          meta: stockLevelMeta(qty),
-        });
-      }
-    } else {
-      if (warehouseRows.length > 0) {
-        for (const w of warehouseRows) {
-          const p = productById.get(w.productId);
-          const qty = Number(w.qty) || 0;
-          rows.push({
-            productId: w.productId,
-            code: w.code || p?.code || '—',
-            name: w.name || p?.name || w.productId,
-            qty,
-            priceSale: p?.priceSale ?? 0,
-            unit: w.unit || p?.unit,
-            meta: stockLevelMeta(qty),
-          });
-        }
-      } else {
-        for (const p of products) {
-          rows.push({
-            productId: p.id,
-            code: p.code || '—',
-            name: p.name,
-            qty: 0,
-            priceSale: p.priceSale ?? 0,
-            unit: p.unit,
-            meta: stockLevelMeta(0),
-          });
-        }
-      }
-    }
-    return rows;
-  })();
-
-  $: blockAgotados = sortByQtyAsc(allStockRows.filter((r) => r.meta.level === 'out'));
-  $: blockCasiAgotados = sortByQtyAsc(allStockRows.filter((r) => r.meta.level === 'low'));
-  $: blockHabilitados = sortByQtyAsc(allStockRows.filter((r) => r.meta.level === 'ok'));
-
-  /** Solo productos con stock > 0 en la ubicación activa (para el select de líneas). */
-  $: sellableProducts = (() => {
-    const uid = unitId;
-    void state.unitStocks;
-    void state.warehouseRows;
-    return [...products]
-      .map((p) => ({ p, qty: stockOf(p.id, uid) }))
-      .filter((x) => x.qty > 0)
-      .sort((a, b) => a.qty - b.qty || a.p.name.localeCompare(b.p.name, 'es'))
-      .map((x) => x.p);
-  })();
 
   function productLabel(id: string): string {
     const p = products.find((x) => x.id === id);
@@ -198,20 +97,6 @@
     lines = next;
   }
 
-  function quickAdd(productId: string) {
-    if (stockOf(productId) <= 0) return;
-    const emptyIdx = lines.findIndex((l) => !l.productId);
-    if (emptyIdx >= 0) {
-      onProductChange(emptyIdx, productId);
-      return;
-    }
-    const price = priceOf(productId);
-    lines = [
-      ...lines,
-      { productId, qty: '1', unitPrice: price > 0 ? String(price) : '', discountPct: '' },
-    ];
-  }
-
   function addLine() {
     lines = [...lines, { productId: '', qty: '1', unitPrice: '', discountPct: '' }];
   }
@@ -222,8 +107,7 @@
   }
 
   function resetForm() {
-    if (!sellerLocked) seller = '';
-    else if (userDisplayName) seller = userDisplayName;
+    seller = '';
     note = '';
     date = new Date().toISOString().slice(0, 10);
     lines = [{ productId: '', qty: '1', unitPrice: '', discountPct: '' }];
@@ -233,10 +117,12 @@
     e.preventDefault();
     formError = '';
     formOk = '';
+
     if (products.length === 0) {
       formError = 'No hay productos. Cree el nomenclador en Catálogo.';
       return;
     }
+
     const payload: CreateSaleLineInput[] = [];
     for (const line of lines) {
       if (!line.productId) continue;
@@ -246,8 +132,8 @@
         return;
       }
       const available = stockOf(line.productId);
-      if (qty > available) {
-        formError = `Stock insuficiente para ${productLabel(line.productId)} (disp. ${available})`;
+      if (available !== null && qty > available) {
+        formError = `Stock insuficiente en unidad para ${productLabel(line.productId)} (disp. ${available})`;
         return;
       }
       const unitPrice = parseFloat(line.unitPrice);
@@ -259,10 +145,12 @@
         discountPct: Number.isFinite(discountPct) && discountPct > 0 ? discountPct : undefined,
       });
     }
+
     if (payload.length === 0) {
       formError = 'Añada al menos un producto a la venta';
       return;
     }
+
     try {
       await store.registerSale({
         unitId: unitId || undefined,
@@ -278,7 +166,9 @@
       resetForm();
     } catch (err) {
       formError =
-        err instanceof Error ? err.message : state.error || 'No se pudo registrar la venta';
+        err instanceof Error
+          ? err.message
+          : state.error || 'No se pudo registrar la venta';
     }
   }
 </script>
@@ -295,8 +185,8 @@
     <div>
       <h1>Punto de venta</h1>
       <p class="sub">
-        Cobro rápido · stock de <strong>{locationLabel}</strong>. Al elegir unidad solo se listan productos
-        transferidos a ese punto (no el catálogo global).
+        Venta de mostrador. Con unidad seleccionada se descuenta stock de esa unidad; sin unidad, del
+        almacén central.
       </p>
     </div>
     <Button variant="secondary" on:click={() => store.loadAll()} disabled={state.status === 'loading'}>
@@ -314,130 +204,45 @@
     <p class="banner err" role="alert">{formError}</p>
   {/if}
 
-  <!-- Tres bloques de stock: altura FIJA + fade al cambiar unidad -->
-  <div class="stock-blocks" aria-live="polite">
-    <Card>
-      <div class="stock-panel">
-        <div class="block-head danger">
-          <span class="block-ico" aria-hidden="true">⛔</span>
-          <div>
-            <h2>Agotados</h2>
-            <p class="block-sub">{locationLabel} · {blockAgotados.length} productos</p>
-          </div>
-        </div>
-        <div class="list-slot">
-          {#key unitId}
-            <div
-              class="list-fade"
-              in:fade={{ duration: 200 }}
-            >
-              {#if blockAgotados.length === 0}
-                <p class="empty">Ningún producto agotado aquí.</p>
-              {:else}
-                <ul class="prod-list">
-                  {#each blockAgotados as row (row.productId)}
-                    <li class="prod-row is-out">
-                      <span class="code">{row.code}</span>
-                      <span class="name">{row.name}</span>
-                      <span class="qty">0</span>
-                    </li>
-                  {/each}
-                </ul>
-              {/if}
-            </div>
-          {/key}
-        </div>
-      </div>
-    </Card>
-
-    <Card>
-      <div class="stock-panel">
-        <div class="block-head warn">
-          <span class="block-ico" aria-hidden="true">⚠️</span>
-          <div>
-            <h2>Casi agotados</h2>
-            <p class="block-sub">
-              {locationLabel} · ≤ {LOW_STOCK_THRESHOLD} uds · {blockCasiAgotados.length}
-            </p>
-          </div>
-        </div>
-        <div class="list-slot">
-          {#key unitId}
-            <div
-              class="list-fade"
-              in:fade={{ duration: 200 }}
-            >
-              {#if blockCasiAgotados.length === 0}
-                <p class="empty">Sin productos en umbral bajo.</p>
-              {:else}
-                <ul class="prod-list">
-                  {#each blockCasiAgotados as row (row.productId)}
-                    <li>
-                      <button
-                        type="button"
-                        class="prod-row is-low"
-                        on:click={() => quickAdd(row.productId)}
-                        disabled={state.saving}
-                        title="Añadir a la venta"
-                      >
-                        <span class="code">{row.code}</span>
-                        <span class="name">{row.name}</span>
-                        <span class="qty warn-qty">{row.qty}</span>
-                        <span class="price"><Money amount={row.priceSale} currency={saleCurrency} /></span>
-                      </button>
-                    </li>
-                  {/each}
-                </ul>
-              {/if}
-            </div>
-          {/key}
-        </div>
-      </div>
-    </Card>
-
-    <Card>
-      <div class="stock-panel">
-        <div class="block-head ok">
-          <span class="block-ico" aria-hidden="true">✅</span>
-          <div>
-            <h2>Habilitados</h2>
-            <p class="block-sub">{locationLabel} · stock OK · {blockHabilitados.length}</p>
-          </div>
-        </div>
-        <div class="list-slot">
-          {#key unitId}
-            <div
-              class="list-fade"
-              in:fade={{ duration: 200 }}
-            >
-              {#if blockHabilitados.length === 0}
-                <p class="empty">No hay productos con stock suficiente.</p>
-              {:else}
-                <ul class="prod-list">
-                  {#each blockHabilitados as row (row.productId)}
-                    <li>
-                      <button
-                        type="button"
-                        class="prod-row is-ok"
-                        on:click={() => quickAdd(row.productId)}
-                        disabled={state.saving}
-                        title="Añadir a la venta"
-                      >
-                        <span class="code">{row.code}</span>
-                        <span class="name">{row.name}</span>
-                        <span class="qty ok-qty">{row.qty}</span>
-                        <span class="price"><Money amount={row.priceSale} currency={saleCurrency} /></span>
-                      </button>
-                    </li>
-                  {/each}
-                </ul>
-              {/if}
-            </div>
-          {/key}
-        </div>
-      </div>
-    </Card>
+  <div class="stats">
+    <StatCard
+      label="Tickets"
+      amount={state.sales.length}
+      caption="Ventas confirmadas"
+      variant="plain"
+    />
+    <StatCard
+      label="Importe cobrado"
+      amount={totals.total}
+      currency={saleCurrency}
+      caption="Suma de totales"
+      variant="hero"
+    />
+    <StatCard
+      label="Margen aprox."
+      amount={totals.margin}
+      currency={saleCurrency}
+      caption="Cobrado − costo"
+      variant="plain"
+    />
   </div>
+
+  {#if dailySales.length > 0 || unitSplit.length > 0}
+    <div class="charts">
+      <PanelCard title="Ventas por día" subtitle="Importe cobrado" tag="Tendencia">
+        <BarChart points={dailySales} height={160} />
+      </PanelCard>
+      <PanelCard title="Por unidad" subtitle="Reparto del importe" tag="Unidades">
+        <DonutChart points={unitSplit} centerLabel="Vendido" currency={saleCurrency} />
+      </PanelCard>
+    </div>
+  {/if}
+
+  {#if topProducts.length > 0}
+    <PanelCard title="Productos más vendidos" subtitle="Importe por producto" tag="Top">
+      <BarChart points={topProducts} height={150} highlightLast={false} />
+    </PanelCard>
+  {/if}
 
   <div class="layout">
     <Card>
@@ -468,23 +273,12 @@
             </label>
             <label class="field">
               <span class="lbl">Vendedor</span>
-              {#if sellerLocked}
-                <input type="text" value={seller} readonly class="locked" title="Fijado por sesión" />
-              {:else}
-                <input
-                  type="text"
-                  list="pos-seller-suggestions"
-                  bind:value={seller}
-                  placeholder="Buscar o escribir…"
-                  autocomplete="off"
-                  disabled={state.saving}
-                />
-                <datalist id="pos-seller-suggestions">
-                  {#each sellerSuggestions as s}
-                    <option value={s} />
-                  {/each}
-                </datalist>
-              {/if}
+              <input
+                type="text"
+                bind:value={seller}
+                placeholder="Quien despacha"
+                disabled={state.saving}
+              />
             </label>
             <label class="field">
               <span class="lbl">Nota</span>
@@ -510,7 +304,10 @@
                     <option value="">Seleccionar…</option>
                     {#each sellableProducts as p (p.id)}
                       <option value={p.id}>
-                        {p.code || '—'} · {p.name} · disp. {stockOf(p.id)}
+                        {p.code || '—'} · {p.name}
+                        {#if unitId}
+                          (disp. {stockOf(p.id) ?? 0})
+                        {/if}
                       </option>
                     {/each}
                   </select>
@@ -545,32 +342,36 @@
                   type="button"
                   class="remove"
                   on:click={() => removeLine(i)}
-                  disabled={state.saving}
-                  aria-label="Quitar línea"
-                >×</button>
+                  disabled={lines.length <= 1 || state.saving}
+                >
+                  ×
+                </button>
               </div>
             {/each}
           </div>
 
-          <div class="form-foot">
-            <div class="est">
-              <span class="lbl">Total estimado</span>
-              <strong><Money amount={estimated} currency={saleCurrency} /></strong>
+          <div class="footer-bar">
+            <p class="estimate">
+              Total estimado: <strong><Money amount={estimated} /></strong>
+            </p>
+            <div class="actions">
+              <Button type="button" variant="secondary" on:click={resetForm} disabled={state.saving}>
+                Limpiar
+              </Button>
+              <Button type="submit" disabled={state.saving}>
+                {state.saving ? 'Registrando…' : 'Registrar venta'}
+              </Button>
             </div>
-            <Button type="submit" disabled={state.saving}>
-              {state.saving ? 'Registrando…' : 'Cobrar / Registrar'}
-            </Button>
           </div>
         </form>
       {/if}
     </Card>
 
     <Card>
-      <div class="card-head">
-        <h2>Últimos tickets</h2>
-        <span class="muted-sm">{recentSales.length} de {sales.length}</span>
-      </div>
-      {#if recentSales.length === 0}
+      <h2>Historial ({sales.length})</h2>
+      {#if state.status === 'loading' && sales.length === 0}
+        <p class="muted">Cargando ventas…</p>
+      {:else if sales.length === 0}
         <p class="muted">Aún no hay ventas registradas.</p>
       {:else}
         <div class="table-wrap">
@@ -579,17 +380,19 @@
               <tr>
                 <th>Nº</th>
                 <th>Fecha</th>
-                <th>Vendedor</th>
+                <th>Unidad</th>
                 <th class="num">Total</th>
+                <th>Estado</th>
               </tr>
             </thead>
             <tbody>
-              {#each recentSales as s (s.id)}
+              {#each sales as s (s.id)}
                 <tr>
-                  <td>{s.number || '—'}</td>
-                  <td>{s.date || '—'}</td>
-                  <td>{s.seller || '—'}</td>
-                  <td class="num"><Money amount={s.total} currency={s.currency || saleCurrency} /></td>
+                  <td class="mono">{s.number}</td>
+                  <td>{s.date}</td>
+                  <td>{s.unitName || 'Almacén'}</td>
+                  <td class="num"><Money amount={s.total} currency={s.currency} /></td>
+                  <td><span class="pill">{s.status || '—'}</span></td>
                 </tr>
               {/each}
             </tbody>
@@ -619,7 +422,7 @@
     letter-spacing: -0.02em;
   }
   h2 {
-    margin: 0;
+    margin: 0 0 0.75rem;
     font-size: 0.95rem;
   }
   h3 {
@@ -630,161 +433,21 @@
     margin: 4px 0 0;
     font-size: 0.8rem;
     color: var(--color-text-muted, var(--ap-text-muted));
-    max-width: 58ch;
+    max-width: 56ch;
   }
-  /*
-   * Grid de 3 columnas independientes.
-   * NO fijar height en el grid (eso aplastaba las 3 cards en 320px y se montaban).
-   * Altura fija solo en cada .stock-panel.
-   */
-  .stock-blocks {
+  .stats {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 12px;
-    align-items: stretch;
   }
-  @media (min-width: 960px) {
-    .stock-blocks {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-  }
-  /* Cada card hija del grid no debe desbordar ni montarse */
-  .stock-blocks > :global(*) {
-    min-width: 0;
-    max-width: 100%;
-    align-self: stretch;
-  }
-  .stock-panel {
-    display: flex;
-    flex-direction: column;
-    height: 300px;
-    min-height: 300px;
-    max-height: 300px;
-    overflow: hidden;
-    box-sizing: border-box;
-    position: relative;
-    isolation: isolate;
-  }
-  .stock-panel .block-head {
-    flex-shrink: 0;
-  }
-  /* Área de lista con altura fija; sin position:absolute (evita solapes entre cards) */
-  .list-slot {
-    flex: 1 1 auto;
-    min-height: 0;
-    height: 230px;
-    max-height: 230px;
-    overflow: hidden;
-  }
-  .list-fade {
-    height: 100%;
-    max-height: 100%;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
-    box-sizing: border-box;
-  }
-  .block-head {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    margin-bottom: 10px;
-  }
-  .block-ico {
-    font-size: 1.25rem;
-    line-height: 1.2;
-  }
-  .block-sub {
-    margin: 2px 0 0;
-    font-size: 0.72rem;
-    color: var(--color-text-muted, var(--ap-text-muted));
-  }
-  .block-head.danger h2 {
-    color: #f17b7b;
-  }
-  .block-head.warn h2 {
-    color: #f0b429;
-  }
-  .block-head.ok h2 {
-    color: #3ecf8e;
-  }
-  .empty,
-  .muted {
-    margin: 0;
-    font-size: 0.85rem;
-    color: var(--color-text-muted, var(--ap-text-muted));
-  }
-  .muted-sm {
-    font-size: 0.72rem;
-    color: var(--color-text-muted, var(--ap-text-muted));
-  }
-  .prod-list {
-    list-style: none;
-    margin: 0;
-    padding: 0 2px 0 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .list-fade .empty {
-    margin: 0;
-    padding: 4px 2px;
-  }
-  .prod-row {
+  .charts {
     display: grid;
-    grid-template-columns: 64px 1fr auto auto;
-    gap: 8px;
-    align-items: center;
-    width: 100%;
-    padding: 8px 10px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border, var(--ap-border));
-    background: var(--color-surface-soft, transparent);
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    box-sizing: border-box;
+    gap: 12px;
   }
-  button.prod-row {
-    cursor: pointer;
-  }
-  button.prod-row:hover:not(:disabled) {
-    border-color: color-mix(in srgb, var(--accent-cyan, #61e6e1) 45%, var(--color-border));
-  }
-  button.prod-row:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-  }
-  .prod-row.is-out {
-    opacity: 0.7;
-  }
-  .code {
-    font-size: 0.7rem;
-    font-variant-numeric: tabular-nums;
-    color: var(--color-text-muted);
-  }
-  .name {
-    font-size: 0.84rem;
-    font-weight: 550;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .qty {
-    font-variant-numeric: tabular-nums;
-    font-weight: 700;
-    font-size: 0.9rem;
-  }
-  .warn-qty {
-    color: #f0b429;
-  }
-  .ok-qty {
-    color: #3ecf8e;
-  }
-  .price {
-    font-size: 0.78rem;
-    justify-self: end;
+  @media (min-width: 900px) {
+    .charts {
+      grid-template-columns: 1.2fr 1fr;
+    }
   }
   .layout {
     display: grid;
@@ -792,7 +455,7 @@
   }
   @media (min-width: 1100px) {
     .layout {
-      grid-template-columns: 1.25fr 0.85fr;
+      grid-template-columns: 1.2fr 0.9fr;
       align-items: start;
     }
   }
@@ -801,7 +464,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    margin-bottom: 0.65rem;
+    margin-bottom: 0.5rem;
   }
   .form-grid {
     display: grid;
@@ -834,10 +497,6 @@
     font-family: inherit;
     font-size: 0.88rem;
   }
-  input.locked {
-    opacity: 0.85;
-    cursor: not-allowed;
-  }
   .lines-head {
     display: flex;
     align-items: center;
@@ -859,20 +518,21 @@
     .line-row {
       grid-template-columns: 1fr 1fr;
     }
-    .form-grid {
-      grid-template-columns: 1fr;
-    }
   }
   .remove {
-    height: 40px;
-    border: none;
+    width: 32px;
+    height: 36px;
     border-radius: 10px;
+    border: 1px solid var(--color-border, var(--ap-border));
     background: transparent;
     color: var(--color-text-muted);
-    font-size: 1.25rem;
+    font-size: 1.2rem;
     cursor: pointer;
   }
-  .form-foot {
+  .remove:disabled {
+    opacity: 0.35;
+  }
+  .footer-bar {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -882,22 +542,15 @@
     padding-top: 0.75rem;
     border-top: 1px solid var(--color-border, var(--ap-border));
   }
-  .est strong {
-    font-size: 1.15rem;
-  }
-  .banner {
+  .estimate {
     margin: 0;
-    padding: 10px 14px;
-    border-radius: 12px;
-    font-size: 0.88rem;
+    font-size: 0.9rem;
+    color: var(--color-text-secondary);
   }
-  .banner.err {
-    background: color-mix(in srgb, #f17b7b 16%, transparent);
-    color: #f17b7b;
-  }
-  .banner.ok {
-    background: color-mix(in srgb, #3ecf8e 16%, transparent);
-    color: #3ecf8e;
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
   .table-wrap {
     overflow-x: auto;
@@ -907,19 +560,52 @@
     border-collapse: collapse;
     font-size: 0.84rem;
   }
-  th,
-  td {
+  th {
     text-align: left;
-    padding: 0.45rem 0.35rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-muted, var(--ap-text-muted));
+    padding: 0.45rem 0.5rem;
     border-bottom: 1px solid var(--color-border, var(--ap-border));
   }
-  th {
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    color: var(--color-text-muted);
+  td {
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--color-border, var(--ap-border));
+    color: var(--color-text-secondary, var(--ap-text-secondary));
   }
   .num {
     text-align: right;
     font-variant-numeric: tabular-nums;
+  }
+  .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.8rem;
+  }
+  .pill {
+    font-size: 0.68rem;
+    font-weight: 650;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent-green, #b7f56a) 16%, transparent);
+    color: var(--accent-green, var(--ap-ok));
+  }
+  .muted {
+    color: var(--color-text-muted, var(--ap-text-muted));
+    font-size: 0.85rem;
+  }
+  .banner {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+  }
+  .banner.err {
+    background: color-mix(in srgb, var(--accent-red, #f17b7b) 12%, transparent);
+    color: var(--accent-red, var(--ap-danger));
+  }
+  .banner.ok {
+    background: color-mix(in srgb, var(--accent-green, #b7f56a) 12%, transparent);
+    color: var(--accent-green, var(--ap-ok));
   }
 </style>

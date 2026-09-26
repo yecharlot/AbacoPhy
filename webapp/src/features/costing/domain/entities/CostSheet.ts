@@ -18,6 +18,9 @@ export type CostSheet = {
   precioSugerido: number;
   currency: string;
   notes: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type SaveCostSheetInput = {
@@ -32,4 +35,7 @@ export type SaveCostSheetInput = {
   precioSugerido?: number;
   currency?: string;
   notes?: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };

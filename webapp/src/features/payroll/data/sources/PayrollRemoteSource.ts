@@ -41,8 +41,4 @@ export class PayrollRemoteSource {
     );
     return res.payslip ?? res;
   }
-
-  getPdf(period: string): Promise<Blob> {
-    return this.http.getBlob(`/payroll/pdf?period=${encodeURIComponent(period)}`);
-  }
 }

@@ -7,6 +7,7 @@ import type { Entry } from '../../domain/entities/Entry';
 import type { Equation } from '../../domain/entities/Equation';
 import type { JournalEntry } from '../../domain/entities/JournalEntry';
 import type { TrialBalance } from '../../domain/entities/TrialBalance';
+import { normalizeMetadataField, metadataToDto } from '../../../../infrastructure/domain/metadata';
 
 function n(v: unknown): number {
   const x = Number(v);
@@ -26,6 +27,8 @@ type EqBlock = {
   income?: number;
   expenses?: number;
   net_profit?: number;
+  metadata?: string | null;
+
 };
 
 /**
@@ -73,6 +76,8 @@ export const accountingMapper = {
       counterpart: dto.counterpart,
       category: dto.category,
       tags: dto.tags,
+      metadata: normalizeMetadataField(dto as { metadata?: unknown }),
+
     };
   },
 
@@ -140,6 +145,8 @@ export const reportsMapper = {
       currency: dto.currency,
       accountId: dto.account_id,
       counterpartId: dto.counterpart,
+      metadata: metadataToDto(entity as { metadata?: string | null }),
+
     };
   },
 

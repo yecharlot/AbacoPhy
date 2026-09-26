@@ -26,6 +26,9 @@ export type Invoice = {
   issuerAddress?: string;
   issuerPhone?: string;
   cid?: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type EmitInvoiceInput = {
@@ -43,4 +46,7 @@ export type EmitInvoiceInput = {
   issuerTaxId?: string;
   issuerAddress?: string;
   issuerPhone?: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };

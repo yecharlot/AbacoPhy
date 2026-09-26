@@ -6,10 +6,8 @@ export type Equation = {
   income: number;
   expenses: number;
   netProfit: number;
-  inventoryItems?: number;
-  inventoryCostValue?: number;
-  invoicesCount?: number;
-  invoicesIssuedTotal?: number;
-  invoicesPaidTotal?: number;
-  employees?: number;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
 };
+
+export type Summary = Equation;

@@ -61,20 +61,6 @@
   $: income = num(summary?.income);
   $: expenses = num(summary?.expenses);
   $: netProfit = num(summary?.netProfit);
-  /**
-   * Patrimonio neto ampliado (consistente con la ecuación):
-   *   Patrimonio neto = Patrimonio + (Ingresos − Gastos)
-   * No usar solo equity ni solo Activo−Pasivo como sustituto confuso.
-   */
-  $: patrimonioNeto = equity + (income - expenses);
-  /** Preferir netProfit del backend si coincide; si no, I−G. */
-  $: resultadoPeriodo = Math.abs(netProfit) > 0.0001 || (income === 0 && expenses === 0)
-    ? netProfit
-    : income - expenses;
-  $: inventoryCostValue = num(summary?.inventoryCostValue);
-  $: invoicesIssuedTotal = num(summary?.invoicesIssuedTotal);
-  $: invoicesPaidTotal = num(summary?.invoicesPaidTotal);
-  $: employees = num(summary?.employees);
 </script>
 
 <div class="dashboard" data-screen="dashboard">
@@ -96,23 +82,9 @@
 
 
   {#if state.status === 'loading' && !state.summary}
-    <div class="dash-skel" aria-busy="true" aria-label="Cargando resumen">
-      <div class="sk sk-hero"></div>
-      <div class="sk-row">
-        <div class="sk sk-stat"></div>
-        <div class="sk sk-stat"></div>
-      </div>
-      <div class="sk sk-chart"></div>
-      <div class="sk-row">
-        <div class="sk sk-card"></div>
-        <div class="sk sk-card"></div>
-      </div>
-      <div class="sk sk-eq"></div>
-      <div class="sk-row">
-        <div class="sk sk-list"></div>
-        <div class="sk sk-list"></div>
-      </div>
-    </div>
+    <PanelCard title="Resumen">
+      <p class="muted">Cargando resumen financiero…</p>
+    </PanelCard>
   {:else if state.status === 'error' && !state.summary}
     <PanelCard title="Resumen">
       <p class="err">{state.error}</p>
@@ -123,13 +95,13 @@
       <StatCard
         variant="hero"
         label="Patrimonio neto"
-        amount={patrimonioNeto}
+        amount={equity}
         currency={baseCurrency}
-        caption={`Patrimonio ${equity.toFixed(2)} + (Ing. ${income.toFixed(2)} − Gas. ${expenses.toFixed(2)})`}
+        caption={`Activos ${assets.toFixed(2)} · Pasivos ${liabilities.toFixed(2)}`}
       >
         <div class="hero-actions">
-          <Badge tone={resultadoPeriodo >= 0 ? 'ok' : 'off'}>
-            {resultadoPeriodo >= 0 ? 'Resultado positivo' : 'Resultado negativo'}
+          <Badge tone={netProfit >= 0 ? 'ok' : 'off'}>
+            {netProfit >= 0 ? 'Resultado positivo' : 'Resultado negativo'}
           </Badge>
         </div>
       </StatCard>
@@ -189,31 +161,7 @@
       </PanelCard>
     </section>
 
-    <section class="operational-grid" aria-label="Resumen operativo">
-      <PanelCard title="Inventario" subtitle={`${num(summary.inventoryItems)} artículos con existencia`}>
-        <strong class="operational-value"><Money amount={inventoryCostValue} currency={baseCurrency} /></strong>
-        <small>Valor al costo</small>
-      </PanelCard>
-      <PanelCard title="Facturación" subtitle={`${num(summary.invoicesCount)} facturas emitidas`}>
-        <strong class="operational-value"><Money amount={invoicesIssuedTotal} currency={baseCurrency} /></strong>
-        <small>Cobrado: <Money amount={invoicesPaidTotal} currency={baseCurrency} /></small>
-      </PanelCard>
-      <PanelCard title="Nómina" subtitle="Trabajadores registrados">
-        <strong class="operational-value">{num(summary.employees)}</strong>
-        <small>Según registros del negocio</small>
-      </PanelCard>
-    </section>
-
-    <EquationCard
-      equation={summary}
-      currency={baseCurrency || 'CUP'}
-      assets={assets}
-      liabilities={liabilities}
-      equity={equity}
-      income={income}
-      expenses={expenses}
-      netProfit={resultadoPeriodo}
-    />
+    <EquationCard equation={summary} currency={baseCurrency || 'CUP'} />
 
     <section class="chart-grid">
       <PanelCard title="Movimientos recientes" subtitle={`${(state.entries ?? []).length} asientos`}>
@@ -271,9 +219,6 @@
     flex-direction: column;
     gap: var(--dashboard-gap, 12px);
   }
-  .operational-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--dashboard-gap, 12px); }
-  .operational-value { display: block; margin-bottom: 4px; font-size: 1.15rem; }
-  .operational-grid small { color: var(--color-text-muted); }
   .scope-row {
     display: flex;
     flex-wrap: wrap;

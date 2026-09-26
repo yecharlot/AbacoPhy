@@ -6,6 +6,9 @@ export type ReceptionLine = {
   qty: number;
   unitCost: number;
   amount: number;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 /** pendiente_entrada = económico registró; entrado = almacenero dio entrada física */
@@ -27,8 +30,9 @@ export type Reception = {
   note: string;
   enteredBy?: string;
   enteredAt?: string;
-  /** Estado visual local de detalle; nunca se serializa al backend. */
-  _expanded?: boolean;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type CreateReceptionLineInput = {
@@ -36,6 +40,9 @@ export type CreateReceptionLineInput = {
   qty: number;
   unitCost: number;
   unit?: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type CreateReceptionInput = {
@@ -49,11 +56,17 @@ export type CreateReceptionInput = {
   date?: string;
   note?: string;
   lines: CreateReceptionLineInput[];
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type EnterReceptionInput = {
   id: string;
-  /** Debe ser true en runtime: validado con el económico (EnterReception lo exige). */
-  accept: boolean;
+  /** Debe ser true: validado con el económico */
+  accept: true;
   note?: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };

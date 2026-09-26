@@ -2,20 +2,23 @@
   import { onMount } from 'svelte';
   import { Button, Card, Input } from '../../../../infrastructure/ui/shared';
   import type { TenantStore, TenantState } from '../stores/tenantStore';
-    import { on } from 'svelte/events';
 
-  export let store: TenantStore;
-  export let canEdit = true;
+  interface Props {
+    store: TenantStore;
+    canEdit?: boolean;
+  }
 
-  // Component state
-  let state: TenantState = { status: 'idle', tenant: null, error: null, saving: false };
-  let name = '';
-  let currency = 'CUP';
-  let phone = '';
-  let address = '';
-  let email = '';
-  let taxId = '';
-  let savedMsg = '';
+  let { store, canEdit = true }: Props = $props();
+
+  // Prefer explicit annotation over $state<T>() — avoids TS/svelte-check rune issues
+  let state: TenantState = $state(store.getState());
+  let name = $state('');
+  let currency = $state('CUP');
+  let phone = $state('');
+  let address = $state('');
+  let email = $state('');
+  let taxId = $state('');
+  let savedMsg = $state('');
 
   function syncForm(tenant: TenantState['tenant']) {
     if (!tenant) return;
@@ -38,7 +41,8 @@
     return unsub;
   });
 
-  async function handleSave() {
+  async function handleSave(e: Event) {
+    e.preventDefault();
     if (!canEdit || state.saving) return;
     savedMsg = '';
     try {
@@ -60,7 +64,7 @@
 {:else if state.status === 'error' && !state.tenant}
   <Card>
     <p class="err" role="alert">{state.error}</p>
-    <Button variant="secondary" on:click={() => store.load()}>Reintentar</Button>
+    <Button variant="secondary" onclick={() => store.load()}>Reintentar</Button>
   </Card>
 {:else}
   <Card>
@@ -72,7 +76,7 @@
       <p class="meta">Slug: {state.tenant.slug}</p>
     {/if}
 
-    <form on:submit|preventDefault={handleSave}>
+    <form onsubmit={handleSave}>
       <Input id="t-name" label="Nombre" bind:value={name} disabled={!canEdit || state.saving} required />
       <Input id="t-currency" label="Moneda" bind:value={currency} disabled={!canEdit || state.saving} />
       <Input id="t-phone" label="Teléfono" type="tel" bind:value={phone} disabled={!canEdit || state.saving} />

@@ -1,15 +1,19 @@
 import type { HttpClient, HttpError } from '../../../../infrastructure/data/http';
 import type { Account } from '../../domain/entities/Account';
-import type { Entry } from '../../domain/entities/Entry';
-import type { Equation } from '../../domain/entities/Equation';
-import type { JournalEntry } from '../../domain/entities/JournalEntry';
-import type { TrialBalance } from '../../domain/entities/TrialBalance';
+import type { CreateEntryInput, Entry } from '../../domain/entities/Entry';
+import type { Summary } from '../../domain/entities/Equation';
 import type {
   AccountingRepository,
-  EntriesQuery,
+  CreateEntryResult,
 } from '../../domain/repositories/AccountingRepository';
+import {
+  accountDtoToEntity,
+  createInputToDto,
+  createResponseToResult,
+  entryDtoToEntity,
+  summaryDtoToEntity,
+} from '../mappers/accountingMapper';
 import { AccountingRemoteSource } from '../sources/AccountingRemoteSource';
-import { accountingMapper, reportsMapper } from '../mappers/accountingMapper';
 
 function toUserMessage(err: unknown): string {
   if (err && typeof err === 'object' && 'message' in err) {
@@ -26,63 +30,38 @@ export class AccountingRepositoryImpl implements AccountingRepository {
     this.remote = new AccountingRemoteSource(http);
   }
 
-  async getAccounts(): Promise<Account[]> {
+  async listAccounts(): Promise<Account[]> {
     try {
-      const res = await this.remote.getAccounts();
-      return (res.accounts || []).map(accountingMapper.toAccount);
+      const dto = await this.remote.listAccounts();
+      return (dto.accounts ?? []).map(accountDtoToEntity);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
   }
 
-  async getEntries(params?: EntriesQuery): Promise<Entry[]> {
+  async listEntries(): Promise<Entry[]> {
     try {
-      const res = await this.remote.getEntries(params);
-      return (res.entries || []).map(accountingMapper.toEntry);
+      const dto = await this.remote.listEntries();
+      const raw = dto.entries ?? dto.asientos ?? [];
+      return raw.map(entryDtoToEntity);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
   }
 
-  /**
-   * Trial balance solo vía API fase 6.
-   * Sin fallback local duplicado (una fuente de verdad).
-   */
-  async getTrialBalance(): Promise<TrialBalance> {
+  async createEntry(input: CreateEntryInput): Promise<CreateEntryResult> {
     try {
-      const dto = await this.remote.getTrialBalance();
-      return reportsMapper.toTrialBalance(dto);
+      const dto = await this.remote.createEntry(createInputToDto(input));
+      return createResponseToResult(dto);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
   }
 
-  /**
-   * Diario = GET /entries mapeado a JournalEntry.
-   * Params type/from/to/limit llegan al backend (fases 5–6).
-   */
-  async getJournal(params?: EntriesQuery): Promise<JournalEntry[]> {
-    try {
-      const res = await this.remote.getJournal(params);
-      return (res.entries || []).map(reportsMapper.entryToJournal);
-    } catch (err) {
-      throw new Error(toUserMessage(err));
-    }
-  }
-
-  async getSummary(): Promise<Equation> {
+  async getSummary(): Promise<Summary> {
     try {
       const dto = await this.remote.getSummary();
-      return accountingMapper.toEquation(dto);
-    } catch (err) {
-      throw new Error(toUserMessage(err));
-    }
-  }
-
-  async createEntry(entry: Omit<Entry, 'id'>): Promise<Entry> {
-    try {
-      const dto = await this.remote.createEntry(accountingMapper.toEntryDto(entry));
-      return accountingMapper.toEntry(dto);
+      return summaryDtoToEntity(dto);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }

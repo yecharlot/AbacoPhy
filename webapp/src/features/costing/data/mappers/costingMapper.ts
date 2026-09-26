@@ -1,6 +1,7 @@
 import type { CostSheet, SaveCostSheetInput } from '../../domain/entities/CostSheet';
 import type { PriceSheet, SavePriceSheetInput } from '../../domain/entities/PriceSheet';
 import type { CostSheetDto, PriceSheetDto } from '../dto/CostingDto';
+import { normalizeMetadataField, metadataToDto } from '../../../../infrastructure/domain/metadata';
 
 export function costSheetDtoToEntity(dto: CostSheetDto): CostSheet {
   return {
@@ -19,6 +20,7 @@ export function costSheetDtoToEntity(dto: CostSheetDto): CostSheet {
     precioSugerido: dto.precio_sugerido || 0,
     currency: dto.currency || '',
     notes: dto.notes || '',
+    metadata: normalizeMetadataField(dto as { metadata?: unknown }),
   };
 }
 
@@ -48,9 +50,9 @@ export function priceSheetDtoToEntity(dto: PriceSheetDto): PriceSheet {
     price: dto.price || 0,
     currency: dto.currency || '',
     notes: dto.notes || '',
+    metadata: normalizeMetadataField(dto as { metadata?: unknown }),
   };
 }
-
 export function savePriceSheetInputToDto(input: SavePriceSheetInput): Record<string, unknown> {
   const body: Record<string, unknown> = { product_id: input.productId };
   if (input.costRef !== undefined) body.cost_ref = input.costRef;

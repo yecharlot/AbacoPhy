@@ -15,6 +15,9 @@ export type Payslip = {
   currency: string;
   status: string;
   createdAt: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type CreatePayslipInput = {
@@ -22,4 +25,7 @@ export type CreatePayslipInput = {
   period?: string;
   gross?: number;
   otherDeduct?: number;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };

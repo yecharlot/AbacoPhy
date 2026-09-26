@@ -8,6 +8,9 @@ export type WarehouseStockRow = {
   avgCost: number;
   amountBase: number;
   currency: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type UnitStockRow = {
@@ -16,9 +19,15 @@ export type UnitStockRow = {
   qty: number;
   avgCost: number;
   amountBase: number;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type WarehouseSnapshot = {
   rows: WarehouseStockRow[];
   unitStocks: UnitStockRow[];
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };

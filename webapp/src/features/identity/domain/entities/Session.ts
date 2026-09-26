@@ -9,11 +9,17 @@ export type Session = {
   tenantName?: string;
   rev?: number;
   rootCid?: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type LoginCredentials = {
   username: string;
   password: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type ChangePasswordInput = {
@@ -21,4 +27,7 @@ export type ChangePasswordInput = {
   newPassword: string;
   /** Admin/master only: change another user */
   username?: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };

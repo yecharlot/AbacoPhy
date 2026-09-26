@@ -5,6 +5,7 @@ import type {
   SyncSnapshot,
 } from '../../domain/entities/PendingOperation';
 import type { SyncGetResponseDto, SyncPushRequestDto, SyncPushResponseDto } from '../dto/SyncDto';
+import { normalizeMetadataField, metadataToDto } from '../../../../infrastructure/domain/metadata';
 
 export function snapshotDtoToEntity(dto: SyncGetResponseDto): SyncSnapshot {
   return {

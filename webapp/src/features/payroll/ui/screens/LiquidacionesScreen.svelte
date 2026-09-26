@@ -12,7 +12,6 @@
   let otherDeduct = '0';
   let formError = '';
   let formOk = '';
-  let pdfBusy = false;
 
   onMount(() => {
     const unsub = store.subscribe((s) => (state = s));
@@ -52,19 +51,6 @@
       formError = err instanceof Error ? err.message : state.error || 'Error al liquidar';
     }
   }
-
-  async function handlePdf() {
-    formError = '';
-    pdfBusy = true;
-    try {
-      await store.downloadPdf(period || 'all');
-      formOk = 'PDF de nómina descargado';
-    } catch (err) {
-      formError = err instanceof Error ? err.message : 'Error al descargar PDF de nómina';
-    } finally {
-      pdfBusy = false;
-    }
-  }
 </script>
 
 <section class="liquidaciones" data-screen="liquidaciones">
@@ -85,9 +71,6 @@
       disabled={state.status === 'loading'}
     >
       Actualizar
-    </Button>
-    <Button variant="secondary" on:click={handlePdf} disabled={pdfBusy}>
-      {pdfBusy ? 'PDF…' : 'Descargar PDF'}
     </Button>
   </header>
 

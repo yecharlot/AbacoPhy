@@ -1,6 +1,7 @@
 import type { Session } from '../../domain/entities/Session';
 import type { User } from '../../domain/entities/User';
 import type { LoginResponseDto, MeResponseDto } from '../dto/AuthDto';
+import { normalizeMetadataField, metadataToDto } from '../../../../infrastructure/domain/metadata';
 
 function mapUser(u: LoginResponseDto['user'] | MeResponseDto['user']): User {
   return {

@@ -1,14 +1,28 @@
-export interface Entry {
+export type EntryType = 'income' | 'expense' | 'transfer';
+
+export type Entry = {
   id: string;
-  date: string;
-  concept: string;
-  type: 'income' | 'expense' | 'transfer' | 'adjustment' | string;
-  amount: number;
-  currency: string;
+  type: EntryType;
   accountId: string;
-  accountName?: string;
-  /** Contrapartida (p.ej. caja) — API `counterpart`. */
+  amount: number;
+  description: string;
   counterpart?: string;
-  category?: string;
-  tags?: string[];
-}
+  date: string;
+  currency: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
+};
+
+export type CreateEntryInput = {
+  type: 'income' | 'expense';
+  accountId: string;
+  amount: number;
+  description: string;
+  counterpart?: string;
+  date?: string;
+  currency?: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
+};

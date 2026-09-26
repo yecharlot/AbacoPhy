@@ -1,10 +1,10 @@
-import type { AccountingRepository } from '../repositories/AccountingRepository';
 import type { Account } from '../entities/Account';
+import type { AccountingRepository } from '../repositories/AccountingRepository';
 
 export class ListAccounts {
-  constructor(private repository: AccountingRepository) {}
+  constructor(private readonly repo: AccountingRepository) {}
 
-  async execute(): Promise<Account[]> {
-    return this.repository.getAccounts();
+  execute(): Promise<Account[]> {
+    return this.repo.listAccounts();
   }
 }

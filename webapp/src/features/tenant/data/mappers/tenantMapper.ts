@@ -1,5 +1,6 @@
 import type { Tenant, UpdateTenantInput } from '../../domain/entities/Tenant';
 import type { TenantDto, TenantResponseDto } from '../dto/TenantDto';
+import { normalizeMetadataField, metadataToDto } from '../../../../infrastructure/domain/metadata';
 
 function unwrap(dto: TenantResponseDto): TenantDto {
   if (dto.tenant && typeof dto.tenant === 'object') return dto.tenant;
