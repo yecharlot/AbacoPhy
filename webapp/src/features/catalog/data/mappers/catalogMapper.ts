@@ -13,7 +13,7 @@ export function productDtoToEntity(dto: ProductDto): Product {
     category: dto.category || '',
     costStd: dto.cost_std || 0,
     priceSale: dto.price_sale || 0,
-    metadata: normalizeMetadataField(dto as { metadata?: unknown }),
+    metadata: normalizeMetadataField(dto),
   };
 }
 
@@ -26,7 +26,8 @@ export function createProductInputToDto(input: CreateProductInput): Record<strin
   if (input.category) body.category = input.category;
   if (input.costStd !== undefined) body.cost_std = input.costStd;
   if (input.priceSale !== undefined) body.price_sale = input.priceSale;
-  if (input.metadata) body.metadata = metadataToDto(input as { metadata?: string | null });
+  const meta = metadataToDto(input);
+  if (meta) body.metadata = meta;
   return body;
 }
 
@@ -40,7 +41,6 @@ export function updateProductInputToDto(input: UpdateProductInput): Record<strin
   if (input.category !== undefined) body.category = input.category;
   if (input.costStd !== undefined) body.cost_std = input.costStd;
   if (input.priceSale !== undefined) body.price_sale = input.priceSale;
-  if (input.metadata) body.metadata = metadataToDto(input as { metadata?: string | null });
   return body;
 }
 
@@ -51,7 +51,7 @@ export function measureUnitDtoToEntity(dto: MeasureUnitDto): MeasureUnit {
     name: dto.name || '',
     symbol: dto.symbol || '',
     active: dto.active !== false,
-    metadata: normalizeMetadataField(dto as { metadata?: unknown }),
+    metadata: normalizeMetadataField(dto),
   };
 }
 
@@ -71,6 +71,6 @@ export function currencyDtoToEntity(dto: CurrencyDto): Currency {
     name: dto.name || '',
     rate: dto.rate || 1,
     active: dto.active !== false,
-    metadata: normalizeMetadataField(dto as { metadata?: unknown }),
+    metadata: normalizeMetadataField(dto),
   };
 }

@@ -76,7 +76,7 @@ export const payrollMapper = {
       ssWorkerRate: n(dto.ss_worker_rate) || 0.05,
       active: dto.active !== false,
       unitIds: Array.isArray(dto.unit_ids) ? dto.unit_ids.map(String) : [],
-      metadata: normalizeMetadataField(dto as { metadata?: unknown }),
+      metadata: normalizeMetadataField(dto),
 
     };
   },
@@ -111,7 +111,7 @@ export const payrollMapper = {
       ss_employer_rate: input.ssEmployerRate ?? 0.125,
       ss_worker_rate: input.ssWorkerRate ?? 0.05,
       unit_ids: input.unitIds?.length ? input.unitIds : undefined,
-      metadata: metadataToDto(input as { metadata?: string | null }),
+      metadata: metadataToDto(input),
 
     };
   },
@@ -138,7 +138,7 @@ export const payrollMapper = {
       currency: dto.currency || 'CUP',
       status: dto.status || '',
       createdAt: dto.created_at || dto.date_emitted || '',
-      metadata: normalizeMetadataField(dto as { metadata?: unknown }),
+      metadata: normalizeMetadataField(dto),
 
     };
   },
@@ -149,6 +149,8 @@ export const payrollMapper = {
       period: input.period || undefined,
       gross: input.gross ?? undefined,
       other_deductions: input.otherDeduct ?? 0,
+      metadata: metadataToDto(input),
+
     };
   },
 };

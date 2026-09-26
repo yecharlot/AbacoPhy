@@ -1,10 +1,8 @@
 export {
-  parseMetadata,
-  stringifyMetadata,
   normalizeMetadataField,
   metadataToDto,
+  parseMetadata,
+  stringifyMetadata,
   metadataGet,
-  metadataSet,
   type MetaMap,
-  type WithMetadata,
 } from './metadata';

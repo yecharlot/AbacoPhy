@@ -23,7 +23,7 @@ export function warehouseRowDtoToEntity(dto: WarehouseRowDto): WarehouseStockRow
     avgCost: dto.avg_cost || 0,
     amountBase: dto.amount_base || 0,
     currency: dto.currency || '',
-      metadata: normalizeMetadataField(dto as { metadata?: unknown }),
+      metadata: normalizeMetadataField(dto),
 
   };
 }
@@ -46,7 +46,7 @@ export function salesUnitDtoToEntity(dto: SalesUnitDto): SalesUnit {
     address: dto.address || '',
     phone: dto.phone || '',
     active: dto.active !== false,
-      metadata: normalizeMetadataField(dto as { metadata?: unknown }),
+      metadata: normalizeMetadataField(dto),
 
   };
 }
@@ -94,7 +94,7 @@ export function receptionDtoToEntity(dto: ReceptionDto): Reception {
     note: d.note || '',
     enteredBy: d.entered_by,
     enteredAt: d.entered_at,
-      metadata: normalizeMetadataField(dto as { metadata?: unknown }),
+      metadata: normalizeMetadataField(dto),
 
   };
 }
@@ -145,7 +145,7 @@ export function transferDtoToEntity(dto: TransferDto): Transfer {
     lines: (dto.lines || []).map(transferLineDtoToEntity),
     status: dto.status || '',
     note: dto.note || '',
-      metadata: normalizeMetadataField(dto as { metadata?: unknown }),
+      metadata: normalizeMetadataField(dto),
 
   };
 }

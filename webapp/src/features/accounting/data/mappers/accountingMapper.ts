@@ -60,6 +60,7 @@ export const accountingMapper = {
       type: dto.type as Account['type'],
       balance: n(dto.balance),
       currency: (dto as { currency?: string }).currency ?? '',
+      metadata: normalizeMetadataField(dto),
     };
   },
 
@@ -76,7 +77,7 @@ export const accountingMapper = {
       counterpart: dto.counterpart,
       category: dto.category,
       tags: dto.tags,
-      metadata: normalizeMetadataField(dto as { metadata?: unknown }),
+      metadata: normalizeMetadataField(dto),
 
     };
   },
@@ -126,6 +127,7 @@ export const accountingMapper = {
       date: entity.date,
       currency: entity.currency || undefined,
       counterpart: entity.counterpart || undefined,
+      metadata: metadataToDto(entity),
     };
   },
 };
@@ -145,7 +147,7 @@ export const reportsMapper = {
       currency: dto.currency,
       accountId: dto.account_id,
       counterpartId: dto.counterpart,
-      metadata: metadataToDto(entity as { metadata?: string | null }),
+      metadata: normalizeMetadataField(dto),
 
     };
   },

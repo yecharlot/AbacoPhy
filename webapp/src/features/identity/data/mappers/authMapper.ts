@@ -10,6 +10,8 @@ function mapUser(u: LoginResponseDto['user'] | MeResponseDto['user']): User {
     displayName: u.display_name ?? u.username,
     role: u.role,
     tenantId: u.tenant_id,
+    metadata: normalizeMetadataField(u),
+
   };
 }
 

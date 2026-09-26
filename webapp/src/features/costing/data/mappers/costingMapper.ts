@@ -20,7 +20,7 @@ export function costSheetDtoToEntity(dto: CostSheetDto): CostSheet {
     precioSugerido: dto.precio_sugerido || 0,
     currency: dto.currency || '',
     notes: dto.notes || '',
-    metadata: normalizeMetadataField(dto as { metadata?: unknown }),
+    metadata: normalizeMetadataField(dto),
   };
 }
 
@@ -50,7 +50,7 @@ export function priceSheetDtoToEntity(dto: PriceSheetDto): PriceSheet {
     price: dto.price || 0,
     currency: dto.currency || '',
     notes: dto.notes || '',
-    metadata: normalizeMetadataField(dto as { metadata?: unknown }),
+    metadata: normalizeMetadataField(dto),
   };
 }
 export function savePriceSheetInputToDto(input: SavePriceSheetInput): Record<string, unknown> {

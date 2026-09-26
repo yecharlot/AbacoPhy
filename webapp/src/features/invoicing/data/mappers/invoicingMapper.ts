@@ -83,7 +83,7 @@ export const invoicingMapper = {
       issuerAddress: dto.issuer_address,
       issuerPhone: dto.issuer_phone,
       cid: dto.cid,
-      metadata: normalizeMetadataField(dto as { metadata?: unknown }),
+      metadata: normalizeMetadataField(dto),
 
     };
   },

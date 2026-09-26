@@ -1,32 +1,62 @@
 /**
- * Metadata flexible por entidad (compat de versión).
- * - Campo opcional en entidad/DTO: metadata?: string | null
- * - Si no viene del API → undefined / {} al parsear; la UI no rompe.
+ * Metadata opcional por entidad (JSON string).
+ * Si el API no envía el campo, devolvemos undefined — la UI no rompe.
  */
 
 export type MetaMap = Record<string, unknown>;
 
-export type WithMetadata = {
-  metadata?: string | null;
-};
-
-/** Parse seguro. Acepta string JSON u objeto. Nunca lanza. */
-export function parseMetadata(raw: unknown): MetaMap {
-  if (raw == null || raw === '') return {};
-  if (typeof raw === 'object' && !Array.isArray(raw)) return { ...(raw as MetaMap) };
-  if (typeof raw !== 'string') return {};
-  const s = raw.trim();
-  if (!s || s === 'null') return {};
+/** Acepta el DTO entero o el valor de metadata. Nunca lanza. */
+export function normalizeMetadataField(source: unknown): string | undefined {
+  let raw: unknown = source;
+  if (
+    source != null &&
+    typeof source === 'object' &&
+    !Array.isArray(source) &&
+    'metadata' in (source as object)
+  ) {
+    raw = (source as { metadata?: unknown }).metadata;
+  }
+  if (raw == null || raw === '') return undefined;
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    try {
+      const s = JSON.stringify(raw);
+      return s === '{}' ? undefined : s;
+    } catch {
+      return undefined;
+    }
+  }
+  if (typeof raw !== 'string') return undefined;
+  const t = raw.trim();
+  if (!t || t === 'null' || t === '{}') return undefined;
   try {
-    const v = JSON.parse(s) as unknown;
-    if (v && typeof v === 'object' && !Array.isArray(v)) return v as MetaMap;
+    const v = JSON.parse(t) as unknown;
+    if (v && typeof v === 'object' && !Array.isArray(v)) return t;
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Para requests: solo incluye si hay valor. */
+export function metadataToDto(source: unknown): string | undefined {
+  return normalizeMetadataField(source);
+}
+
+export function parseMetadata(raw: unknown): MetaMap {
+  const s = normalizeMetadataField(raw);
+  if (!s) {
+    if (raw && typeof raw === 'object' && !Array.isArray(raw) && !('metadata' in (raw as object))) {
+      return { ...(raw as MetaMap) };
+    }
     return {};
+  }
+  try {
+    return JSON.parse(s) as MetaMap;
   } catch {
     return {};
   }
 }
 
-/** Serializa para enviar/persistir. Vacío → undefined (omit en JSON). */
 export function stringifyMetadata(map: MetaMap | null | undefined): string | undefined {
   if (!map || Object.keys(map).length === 0) return undefined;
   try {
@@ -36,38 +66,8 @@ export function stringifyMetadata(map: MetaMap | null | undefined): string | und
   }
 }
 
-/**
- * Normaliza campo metadata desde DTO (string | object | ausente)
- * → string | undefined para la entidad de dominio.
- */
-export function normalizeMetadataField(dto: { metadata?: unknown } | null | undefined): string | undefined {
-  if (dto == null || dto.metadata == null || dto.metadata === '') return undefined;
-  if (typeof dto.metadata === 'string') {
-    const t = dto.metadata.trim();
-    if (!t || t === 'null') return undefined;
-    // Si no parsea, no propagamos basura
-    const parsed = parseMetadata(t);
-    return Object.keys(parsed).length > 0 ? t : undefined;
-  }
-  return stringifyMetadata(parseMetadata(dto.metadata));
-}
-
-/** Para request DTO: solo incluir si hay valor. */
-export function metadataToDto(entity: { metadata?: string | null } | null | undefined): string | undefined {
-  if (!entity?.metadata) return undefined;
-  const t = String(entity.metadata).trim();
-  return t || undefined;
-}
-
-export function metadataGet<T = unknown>(raw: unknown, key: string): T | undefined {
-  const m = parseMetadata(raw);
+export function metadataGet<T = unknown>(source: unknown, key: string): T | undefined {
+  const m = parseMetadata(source);
   if (!(key in m)) return undefined;
   return m[key] as T;
-}
-
-export function metadataSet(raw: unknown, key: string, value: unknown): string | undefined {
-  const m = parseMetadata(raw);
-  if (value === undefined) delete m[key];
-  else m[key] = value;
-  return stringifyMetadata(m);
 }
