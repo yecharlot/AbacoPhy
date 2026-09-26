@@ -4,6 +4,7 @@ export type ReceptionLine = {
   productName: string;
   unit?: string;
   qty: number;
+  /** Costo unitario registrado en esta recepción (entrada a promedio ponderado). */
   unitCost: number;
   amount: number;
   /** JSON string opaco; ausente si el API no lo envía. */
@@ -38,6 +39,11 @@ export type Reception = {
 export type CreateReceptionLineInput = {
   productId: string;
   qty: number;
+  /**
+   * Costo unitario de ESTA recepción.
+   * Alimenta el costo promedio ponderado del producto (solo vía recepciones).
+   * @see webapp/.policies/warehouse-recepcion-costo-promedio.md
+   */
   unitCost: number;
   unit?: string;
   /** JSON string opaco; ausente si el API no lo envía. */

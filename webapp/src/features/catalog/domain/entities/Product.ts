@@ -1,14 +1,18 @@
+/**
+ * Definición de producto (nomenclador).
+ * Sin datos económicos editables — política cliente.
+ * @see webapp/.policies/catalog-nomenclador-productos.md
+ */
 export type Product = {
   id: string;
   code: string;
   name: string;
   unit: string;
   category: string;
-  costStd: number;
-  priceSale: number;
-  /** JSON string opaco; ausente si el API no lo envía. */
+  /** Solo lectura legacy API; no UI nomenclador */
+  costStd?: number;
+  priceSale?: number;
   metadata?: string | null;
-
 };
 
 export type CreateProductInput = {
@@ -16,11 +20,7 @@ export type CreateProductInput = {
   name: string;
   unit?: string;
   category?: string;
-  costStd?: number;
-  priceSale?: number;
-  /** JSON string opaco; ausente si el API no lo envía. */
   metadata?: string | null;
-
 };
 
 export type UpdateProductInput = {
@@ -29,9 +29,5 @@ export type UpdateProductInput = {
   name?: string;
   unit?: string;
   category?: string;
-  costStd?: number;
-  priceSale?: number;
-  /** JSON string opaco; ausente si el API no lo envía. */
   metadata?: string | null;
-
 };

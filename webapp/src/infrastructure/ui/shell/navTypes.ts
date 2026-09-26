@@ -40,7 +40,7 @@ export const PLACEHOLDER_NAV: NavItem[] = [
   { id: 'facturas', label: 'Facturación', view: 'facturas' },
   { id: 'empleados', label: 'Empleados', view: 'nomina' },
   { id: 'liquidaciones', label: 'Nómina', view: 'nomina' },
-  { id: 'catalog', label: 'Catálogo', view: ['nomencladores', 'productos'] },
+  { id: 'catalog', label: 'Nomenclador', view: ['nomencladores', 'productos'] },
   { id: 'tenant', label: 'Negocio', view: 'tenant' },
   { id: 'almacen', label: 'Almacén', view: ['almacen', 'inventario'] },
   { id: 'recepcion', label: 'Recepción', view: ['recepcion', 'almacen'] },

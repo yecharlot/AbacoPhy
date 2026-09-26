@@ -36,6 +36,7 @@
   });
 
   $: products = state.products ?? [];
+  $: stockRows = state.rows ?? [];
   $: receptions = [...(state.receptions ?? [])].reverse();
   $: estimated = lines.reduce(
     (acc, line) => acc + (parseFloat(line.qty) || 0) * (parseFloat(line.unitCost) || 0),
@@ -48,14 +49,16 @@
   }
 
   function onProductChange(index: number, productId: string) {
-    const p = products.find((x) => x.id === productId);
     const next = [...lines];
+    // Sugerencia: promedio ponderado actual del stock (no costo de nomenclador).
+    // El valor que confirme el usuario en esta recepción es el que alimenta el nuevo promedio.
+    const stock = stockRows.find((r) => r.productId === productId);
+    const suggested =
+      stock && Number(stock.avgCost) > 0 ? String(stock.avgCost) : next[index].unitCost;
     next[index] = {
       ...next[index],
       productId,
-      unitCost:
-        next[index].unitCost ||
-        (p && p.costStd > 0 ? String(p.costStd) : next[index].unitCost),
+      unitCost: next[index].unitCost || suggested || '',
     };
     lines = next;
   }
@@ -86,7 +89,7 @@
     formOk = '';
 
     if (products.length === 0) {
-      formError = 'No hay productos. Cree al menos uno en Catálogo.';
+      formError = 'No hay productos. Cree al menos uno en el Nomenclador de productos.';
       return;
     }
     if (!receiver.trim()) {
@@ -109,20 +112,27 @@
     for (const line of lines) {
       if (!line.productId) continue;
       const qty = parseFloat(line.qty);
-      const unitCost = parseFloat(line.unitCost);
+      const unitCostRaw = String(line.unitCost ?? '').trim();
+      if (!unitCostRaw) {
+        formError =
+          'Indique el costo unitario de cada línea. Ese valor es de esta recepción y actualiza el costo promedio ponderado del producto.';
+        return;
+      }
+      const unitCost = parseFloat(unitCostRaw);
       if (!Number.isFinite(qty) || qty <= 0) {
         formError = 'Cada línea debe tener cantidad mayor que cero';
         return;
       }
       if (!Number.isFinite(unitCost) || unitCost < 0) {
-        formError = 'El costo unitario no puede ser negativo';
+        formError = 'El costo unitario de la recepción no puede ser negativo';
         return;
       }
+      // unitCost de la línea → backend recalcula avg_cost del producto
       payload.push({ productId: line.productId, qty, unitCost });
     }
 
     if (payload.length === 0) {
-      formError = 'Seleccione al menos un producto con cantidad';
+      formError = 'Seleccione al menos un producto con cantidad y costo unitario';
       return;
     }
 
@@ -160,7 +170,7 @@
     <div>
       <h1>Informes de recepción</h1>
       <p class="sub">
-        Entrada de mercancía al almacén central. Tras confirmar, el stock y el costo promedio se
+        Entrada de mercancía al almacén central. El costo unitario de cada línea actualiza el costo promedio ponderado del producto. Tras confirmar, el stock y el promedio se
         actualizan en el servidor.
       </p>
     </div>
@@ -185,7 +195,7 @@
 
       {#if products.length === 0}
         <p class="muted">
-          No hay productos en el nomenclador. Vaya a <strong>Catálogo</strong> y cree al menos uno
+          No hay productos en el nomenclador. Vaya a <strong>Nomenclador</strong> y cree al menos uno
           antes de recepcionar.
         </p>
       {:else}
@@ -262,13 +272,15 @@
                   />
                 </label>
                 <label class="field">
-                  <span class="lbl">Costo unit.</span>
+                  <span class="lbl">Costo unit. recepción</span>
                   <input
                     type="number"
                     min="0"
                     step="any"
                     bind:value={line.unitCost}
-                    placeholder="0.00"
+                    placeholder="Según factura"
+                    title="Costo unitario de esta recepción. Determina el nuevo promedio ponderado del producto."
+                    required
                   />
                 </label>
                 <button

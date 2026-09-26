@@ -1,4 +1,9 @@
-/** Existencias del almacén central. El costo promedio ponderado lo calcula el backend. */
+/**
+ * Existencias del almacén central.
+ * El costo promedio ponderado (`avgCost`) lo calcula el backend
+ * exclusivamente a partir de las recepciones (entradas con unit_cost).
+ * @see webapp/.policies/warehouse-recepcion-costo-promedio.md
+ */
 export type WarehouseStockRow = {
   productId: string;
   code: string;

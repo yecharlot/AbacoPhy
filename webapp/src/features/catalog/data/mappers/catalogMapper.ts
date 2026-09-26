@@ -11,36 +11,31 @@ export function productDtoToEntity(dto: ProductDto): Product {
     name: dto.name || '',
     unit: dto.unit || '',
     category: dto.category || '',
-    costStd: dto.cost_std || 0,
-    priceSale: dto.price_sale || 0,
+    costStd: dto.cost_std,
+    priceSale: dto.price_sale,
     metadata: normalizeMetadataField(dto),
   };
 }
 
 export function createProductInputToDto(input: CreateProductInput): Record<string, unknown> {
-  const body: Record<string, unknown> = {
-    name: input.name,
-  };
+  const body: Record<string, unknown> = { name: input.name };
   if (input.code) body.code = input.code;
   if (input.unit) body.unit = input.unit;
   if (input.category) body.category = input.category;
-  if (input.costStd !== undefined) body.cost_std = input.costStd;
-  if (input.priceSale !== undefined) body.price_sale = input.priceSale;
+  // Política: no enviar cost_std / price_sale
   const meta = metadataToDto(input);
   if (meta) body.metadata = meta;
   return body;
 }
 
 export function updateProductInputToDto(input: UpdateProductInput): Record<string, unknown> {
-  const body: Record<string, unknown> = {
-    id: input.id,
-  };
+  const body: Record<string, unknown> = { id: input.id };
   if (input.code !== undefined) body.code = input.code;
   if (input.name !== undefined) body.name = input.name;
   if (input.unit !== undefined) body.unit = input.unit;
   if (input.category !== undefined) body.category = input.category;
-  if (input.costStd !== undefined) body.cost_std = input.costStd;
-  if (input.priceSale !== undefined) body.price_sale = input.priceSale;
+  const meta = metadataToDto(input);
+  if (meta) body.metadata = meta;
   return body;
 }
 

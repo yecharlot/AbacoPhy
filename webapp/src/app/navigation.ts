@@ -48,7 +48,7 @@ export function screenTitle(id: ScreenId): string {
     facturas: 'Gestión de Facturas',
     empleados: 'Gestión de Empleados',
     liquidaciones: 'Liquidación de Nómina',
-    catalog: 'Catálogo / Nomencladores',
+    catalog: 'Nomenclador de productos',
     cuentas: 'Plan de Cuentas',
     reportes: 'Reportes y Balances',
     tenant: 'Configuración del Negocio',

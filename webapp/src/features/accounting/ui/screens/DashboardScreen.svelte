@@ -61,6 +61,14 @@
   $: income = num(summary?.income);
   $: expenses = num(summary?.expenses);
   $: netProfit = num(summary?.netProfit);
+  /**
+   * Patrimonio neto (KPI hero) = Activo − Pasivo.
+   * No usar solo `equity` del plan: con ecuación ampliada
+   *   Activo = Pasivo + Patrimonio + (Ingresos − Gastos)
+   * el capital contable puede ser 0 y el valor del negocio estar en el resultado.
+   * Fuente de verdad del resumen: assets/liabilities del summary backend.
+   */
+  $: patrimonioNeto = assets - liabilities;
 </script>
 
 <div class="dashboard" data-screen="dashboard">
@@ -95,7 +103,7 @@
       <StatCard
         variant="hero"
         label="Patrimonio neto"
-        amount={equity}
+        amount={patrimonioNeto}
         currency={baseCurrency}
         caption={`Activos ${assets.toFixed(2)} · Pasivos ${liabilities.toFixed(2)}`}
       >
