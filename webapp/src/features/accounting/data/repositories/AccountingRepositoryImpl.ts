@@ -50,7 +50,7 @@ export class AccountingRepositoryImpl implements AccountingRepository {
     }
   }
 
-  async getEntries(params?: { type?: string; limit?: number }): Promise<Entry[]> {
+  async getEntries(params?: { type?: string; from?: string; to?: string; limit?: number }): Promise<Entry[]> {
     try {
       const res = await this.remote.getEntries(params);
       return (res.entries || []).map(accountingMapper.toEntry);

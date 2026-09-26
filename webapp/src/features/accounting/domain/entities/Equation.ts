@@ -6,4 +6,10 @@ export type Equation = {
   income: number;
   expenses: number;
   netProfit: number;
+  inventoryItems?: number;
+  inventoryCostValue?: number;
+  invoicesCount?: number;
+  invoicesIssuedTotal?: number;
+  invoicesPaidTotal?: number;
+  employees?: number;
 };

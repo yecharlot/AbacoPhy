@@ -111,7 +111,7 @@ export function createAccountingStore(deps: Deps) {
         set({ status: 'error', error: message });
       }
     },
-    async loadEntries(params?: { type?: string; limit?: number }): Promise<void> {
+    async loadEntries(params?: { type?: string; from?: string; to?: string; limit?: number }): Promise<void> {
       set({ status: 'loading', error: null });
       try {
         const entries = await deps.listEntries.execute(params);

@@ -6,7 +6,7 @@ import type {TrialBalance} from "../entities/TrialBalance";
 
 export interface AccountingRepository {
   getAccounts(): Promise<Account[]>;
-  getEntries(params?: { type?: string; limit?: number }): Promise<Entry[]>;
+  getEntries(params?: { type?: string; from?: string; to?: string; limit?: number }): Promise<Entry[]>;
   getSummary(): Promise<Equation>;
   createEntry(entry: Omit<Entry, 'id'>): Promise<Entry>;
   getJournal(params?: { limit?: number }): Promise<JournalEntry[]>;

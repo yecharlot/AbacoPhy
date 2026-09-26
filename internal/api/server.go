@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,7 +17,7 @@ import (
 )
 
 type Server struct {
-	Store    *store.Store
+	Store     *store.Store
 	StaticDir string
 	AppAlias  string // abacophy.app.ans
 }
@@ -429,7 +430,29 @@ func (s *Server) handleEntries(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 403, map[string]string{"error": "forbidden"})
 			return
 		}
-		writeJSON(w, 200, map[string]any{"entries": snap.Entries, "rev": snap.Rev, "root_cid": snap.RootCID})
+		entryType := strings.TrimSpace(r.URL.Query().Get("type"))
+        from := strings.TrimSpace(r.URL.Query().Get("from"))
+        to := strings.TrimSpace(r.URL.Query().Get("to"))
+        limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+        entries := make([]domain.Entry, 0, len(snap.Entries))
+        for _, entry := range snap.Entries {
+        	if entryType != "" && entry.Type != entryType {
+        		continue
+        	}
+        	// Dates use ISO-8601 YYYY-MM-DD, so lexical comparison is safe and
+        	// keeps malformed optional filters from changing server state.
+        	if from != "" && entry.Date < from {
+        		continue
+        	}
+            if to != "" && entry.Date > to {
+        		continue
+        	}
+            entries = append(entries, entry)
+        }
+        if limit > 0 && len(entries) > limit {
+        	entries = entries[len(entries)-limit:]
+        }
+        writeJSON(w, 200, map[string]any{"entries": entries, "rev": snap.Rev, "root_cid": snap.RootCID})
 	case http.MethodPost:
 		var body domain.Entry
 		if err := readJSON(r, &body); err != nil {

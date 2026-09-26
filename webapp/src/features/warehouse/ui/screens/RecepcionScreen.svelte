@@ -28,6 +28,7 @@
   let formOk = '';
   let enterError = '';
   let enterOk = '';
+  let enteringId = '';
 
   // Filtros
   let filterReceiver = '';

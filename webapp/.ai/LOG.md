@@ -212,6 +212,38 @@ Cada entrada relevante debe incluir: fecha, qué se hizo, por qué, archivos toc
 
 ---
 
+## 2026-09-26 — Alineación de facturación, nómina y resumen operativo
+
+### Qué
+
+- La descarga de factura ahora consume el PDF autoritativo de `GET /invoices/pdf`; se retiró la generación local alternativa.
+- Se completó la cadena Clean Architecture de nómina para `GET /payroll/pdf`: source, repositorio, use case, DI, store y botón por período en Liquidaciones.
+- El resumen contable conserva la ecuación y mapea métricas operativas ya expuestas por `GET /reports/summary`: costo de inventario, facturación emitida/cobrada, cantidad de facturas y empleados. Dashboard las muestra sin recalcular datos de negocio.
+- Se alineó `GET /entries` con filtros `type`, `from`, `to` y `limit`; contratos frontend aceptan fechas ISO para consumirlos.
+- Se corrigieron tipos pendientes de Recepción que impedían validar el frontend.
+
+### Por qué
+
+- La revisión mostró que facturas y nómina ya tenían casi toda la estructura frontend, pero PDF de nómina era un placeholder y factura no llamaba al endpoint backend.
+- El backend ya entregaba métricas operativas en summary que no se representaban en la aplicación.
+- Los contratos frontend incluían filtros de entradas, pero el handler Go devolvía todo el libro e ignoraba query params.
+
+### Archivos
+
+- `internal/api/server.go`
+- `webapp/src/features/accounting/{data,domain,ui}/**`
+- `webapp/src/features/invoicing/ui/screens/FacturasScreen.svelte`
+- `webapp/src/features/payroll/{data,domain,di,ui}/**`
+- `webapp/src/features/warehouse/{domain,ui}/**`
+- `webapp/.roadmap/mvp/IMPLEMENTATION_CHECKLIST.md`
+
+### Decisiones
+
+- `/inventory` no se duplica en `warehouse`: esa feature ya usa las rutas operativas canónicas `/warehouse`, `/receptions` y `/transfers`, que entregan stock real y trazabilidad. El endpoint legacy de inventario permanece sin pantalla paralela para evitar dos fuentes de verdad visuales.
+- Campos de summary son opcionales en la entidad de ecuación para mantener compatibilidad con despliegues backend que todavía no los envían.
+
+---
+
 <!-- Plantilla para entradas futuras:
 
 ## YYYY-MM-DD — Título corto

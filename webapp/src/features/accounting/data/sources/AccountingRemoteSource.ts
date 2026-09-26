@@ -17,10 +17,12 @@ export class AccountingRemoteSource {
     return this.http.get<{ accounts: AccountDto[] }>('/accounts');
   }
 
-  getEntries(params?: { type?: string; limit?: number }): Promise<{ entries: EntryDto[] }> {
+  getEntries(params?: { type?: string; from?: string; to?: string; limit?: number }): Promise<{ entries: EntryDto[] }> {
     const query = new URLSearchParams();
     if (params?.type) query.append('type', params.type);
     if (params?.limit) query.append('limit', params.limit.toString());
+    if (params?.from) query.append('from', params.from);
+    if (params?.to) query.append('to', params.to);
     const path = `/entries${query.toString() ? `?${query.toString()}` : ''}`;
     return this.http.get<{ entries: EntryDto[] }>(path);
   }

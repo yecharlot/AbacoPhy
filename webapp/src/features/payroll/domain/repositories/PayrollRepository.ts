@@ -12,4 +12,5 @@ export interface PayrollRepository {
   deactivateEmployee(id: string): Promise<void>;
   getPayslips(employeeId?: string): Promise<Payslip[]>;
   createPayslip(input: CreatePayslipInput): Promise<Payslip>;
+  getPayrollPdf(period: string): Promise<Blob>;
 }

@@ -98,6 +98,12 @@ export const accountingMapper = {
           eq.neto ??
           eq.net_profit,
       ),
+      inventoryItems: n(dto.inventory_items),
+      inventoryCostValue: n(dto.inventory_cost_value),
+      invoicesCount: n(dto.invoices_count),
+      invoicesIssuedTotal: n(dto.invoices_issued_total),
+      invoicesPaidTotal: n(dto.invoices_paid_total),
+      employees: n(dto.employees),
     };
   },
 
