@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@lucide/svelte": "^1.47.0",
-    "bits-ui": "^2.19.2"
+    "bits-ui": "^2.19.2",
+    "xlsx": "^0.18.5"
   }
 }

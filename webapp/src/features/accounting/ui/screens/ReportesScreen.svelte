@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { fade, fly } from 'svelte/transition';
+  import { utils, writeFile } from 'xlsx';
+  import { Button } from '../../../../infrastructure/ui/shared';
   import type {ReportsStore, ReportType} from '../stores/reportsStore';
 
   export let store: ReportsStore;
@@ -31,6 +33,92 @@
       day: 'numeric',
     });
   };
+
+  function exportTrialBalance() {
+    if (!$store.trialBalance) return;
+
+    const data = [
+      ['Balance de Comprobación'],
+      [`Al ${formatDate($store.trialBalance.asOf)}`],
+      [],
+      ['Código', 'Cuenta', 'Débito', 'Crédito', 'Saldo'],
+      ...$store.trialBalance.accounts.map(acc => [
+        acc.accountCode,
+        acc.accountName,
+        acc.debit,
+        acc.credit,
+        acc.balance,
+      ]),
+      [],
+      ['Totales', '', $store.trialBalance.totalDebits, $store.trialBalance.totalCredits, ''],
+    ];
+
+    const ws = utils.aoa_to_sheet(data);
+    ws['!cols'] = [
+      { wch: 12 },
+      { wch: 25 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+    ];
+
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, ws, 'Balance');
+    writeFile(wb, `balance-comprobacion-${new Date().toISOString().split('T')[0]}.xlsx`);
+  }
+
+  function exportIncomeStatement() {
+    if (!$store.incomeStatement) return;
+
+    const data = [
+      ['Estado de Resultados'],
+      [new Date().toLocaleDateString('es-DO')],
+      [],
+      ['Concepto', 'Monto'],
+      ['Ingresos', $store.incomeStatement.income],
+      ['Gastos', -$store.incomeStatement.expenses],
+      [],
+      ['Utilidad Neta', $store.incomeStatement.netProfit],
+    ];
+
+    const ws = utils.aoa_to_sheet(data);
+    ws['!cols'] = [{ wch: 25 }, { wch: 15 }];
+
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, ws, 'Estado Resultados');
+    writeFile(wb, `estado-resultados-${new Date().toISOString().split('T')[0]}.xlsx`);
+  }
+
+  function exportJournal() {
+    if ($store.journal.length === 0) return;
+
+    const data = [
+      ['Libro Diario'],
+      [new Date().toLocaleDateString('es-DO')],
+      [],
+      ['Fecha', 'Descripción', 'Cuenta Débito', 'Cuenta Crédito', 'Monto'],
+      ...$store.journal.map(entry => [
+        formatDate(entry.date),
+        entry.description,
+        entry.debitAccount,
+        entry.creditAccount,
+        entry.amount,
+      ]),
+    ];
+
+    const ws = utils.aoa_to_sheet(data);
+    ws['!cols'] = [
+      { wch: 12 },
+      { wch: 30 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 15 },
+    ];
+
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, ws, 'Diario');
+    writeFile(wb, `libro-diario-${new Date().toISOString().split('T')[0]}.xlsx`);
+  }
 </script>
 
 <div class="reports-container">
@@ -64,8 +152,15 @@
         {#if $store.activeReport === 'trial-balance' && $store.trialBalance}
           <div class="trial-balance">
             <div class="report-header">
-              <h3>Balance de Comprobación</h3>
-              <p class="as-of">Al {formatDate($store.trialBalance.asOf)}</p>
+              <div class="header-top">
+                <div>
+                  <h3>Balance de Comprobación</h3>
+                  <p class="as-of">Al {formatDate($store.trialBalance.asOf)}</p>
+                </div>
+                <Button variant="secondary" size="sm" on:click={exportTrialBalance}>
+                  📥 Exportar Excel
+                </Button>
+              </div>
             </div>
             <table>
               <thead>
@@ -102,7 +197,12 @@
         {:else if $store.activeReport === 'income-statement' && $store.incomeStatement}
           <div class="income-statement">
             <div class="report-header">
-              <h3>Estado de Resultados</h3>
+              <div class="header-top">
+                <h3>Estado de Resultados</h3>
+                <Button variant="secondary" size="sm" on:click={exportIncomeStatement}>
+                  📥 Exportar Excel
+                </Button>
+              </div>
             </div>
             <div class="statement-lines">
               <div class="line">
@@ -123,8 +223,15 @@
         {:else if $store.activeReport === 'journal' && $store.journal.length > 0}
           <div class="journal">
             <div class="report-header">
-              <h3>Libro Diario</h3>
-              <p class="count">{$store.journal.length} asientos</p>
+              <div class="header-top">
+                <div>
+                  <h3>Libro Diario</h3>
+                  <p class="count">{$store.journal.length} asientos</p>
+                </div>
+                <Button variant="secondary" size="sm" on:click={exportJournal}>
+                  📥 Exportar Excel
+                </Button>
+              </div>
             </div>
             <table>
               <thead>
@@ -166,11 +273,11 @@
     margin-bottom: 8px;
     font-size: 1.5rem;
     font-weight: 700;
-    color: var(--ap-text-primary, #111827);
+    color: var(--color-text-primary);
   }
 
   .subtitle {
-    color: var(--ap-text-secondary, #6b7280);
+    color: var(--color-text-secondary);
     margin-bottom: 24px;
   }
 
@@ -178,7 +285,7 @@
     display: flex;
     gap: 8px;
     margin-bottom: 24px;
-    border-bottom: 2px solid var(--ap-border, #e5e7eb);
+    border-bottom: 2px solid var(--color-border);
   }
 
   .tab {
@@ -188,18 +295,19 @@
     border-bottom: 3px solid transparent;
     cursor: pointer;
     font-weight: 600;
-    color: var(--ap-text-secondary, #6b7280);
-    transition: all 0.2s;
+    color: var(--color-text-secondary);
+    transition: all var(--motion-fast);
     margin-bottom: -2px;
+    font-family: inherit;
   }
 
   .tab:hover {
-    color: var(--ap-primary, #3b82f6);
+    color: var(--accent-cyan);
   }
 
   .tab.active {
-    color: var(--ap-primary, #3b82f6);
-    border-bottom-color: var(--ap-primary, #3b82f6);
+    color: var(--accent-cyan);
+    border-bottom-color: var(--accent-cyan);
   }
 
   .loading, .error {
@@ -209,18 +317,18 @@
     justify-content: center;
     padding: 64px 24px;
     text-align: center;
-    color: var(--ap-text-secondary, #6b7280);
+    color: var(--color-text-secondary);
   }
 
   .error {
-    color: var(--ap-danger, #ef4444);
+    color: var(--accent-red);
   }
 
   .spinner {
     width: 48px;
     height: 48px;
-    border: 4px solid var(--ap-border, #e5e7eb);
-    border-top-color: var(--ap-primary, #3b82f6);
+    border: 4px solid var(--color-border);
+    border-top-color: var(--accent-cyan);
     border-radius: 50%;
     animation: spin 1s linear infinite;
     margin-bottom: 16px;
@@ -231,43 +339,51 @@
   }
 
   .report-content {
-    background: var(--ap-surface-soft, #f9fafb);
-    border-radius: 12px;
-    padding: 24px;
+    background: var(--color-surface-soft);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
   }
 
   .report-header {
-    margin-bottom: 20px;
+    margin-bottom: var(--space-5);
+  }
+
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: wrap;
   }
 
   .report-header h3 {
     margin: 0 0 8px 0;
     font-size: 1.25rem;
-    color: var(--ap-text-primary, #111827);
+    color: var(--color-text-primary);
   }
 
   .as-of, .count {
     margin: 0;
     font-size: 0.9rem;
-    color: var(--ap-text-secondary, #6b7280);
+    color: var(--color-text-secondary);
   }
 
   table {
     width: 100%;
     border-collapse: collapse;
-    background: white;
-    border-radius: 8px;
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
     overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-soft);
   }
 
   thead {
-    background: var(--ap-primary, #3b82f6);
-    color: white;
+    background: var(--accent-cyan);
+    color: var(--color-surface);
   }
 
   th {
-    padding: 12px;
+    padding: var(--space-3);
     text-align: left;
     font-weight: 600;
     font-size: 0.9rem;
@@ -278,9 +394,10 @@
   }
 
   td {
-    padding: 12px;
-    border-bottom: 1px solid var(--ap-border, #e5e7eb);
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
     font-size: 0.9rem;
+    color: var(--color-text-primary);
   }
 
   td.numeric {
@@ -289,30 +406,32 @@
   }
 
   tbody tr:hover {
-    background: var(--ap-surface-soft, #f9fafb);
+    background: var(--color-surface-raised);
   }
 
   tfoot {
-    background: var(--ap-surface-soft, #f9fafb);
+    background: var(--color-surface-soft);
     font-weight: 700;
   }
 
   tfoot td {
     border-bottom: none;
+    color: var(--color-text-primary);
   }
 
   .statement-lines {
-    background: white;
-    border-radius: 8px;
-    padding: 24px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+    box-shadow: var(--shadow-soft);
   }
 
   .line {
     display: flex;
     justify-content: space-between;
-    padding: 16px 0;
-    border-bottom: 1px solid var(--ap-border, #e5e7eb);
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-primary);
   }
 
   .line:last-child {
@@ -320,9 +439,9 @@
   }
 
   .line.total {
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 2px solid var(--ap-text-primary, #111827);
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 2px solid var(--color-text-primary);
     font-weight: 700;
     font-size: 1.1rem;
   }
@@ -337,7 +456,7 @@
       font-size: 0.85rem;
     }
     th, td {
-      padding: 8px;
+      padding: var(--space-2);
     }
   }
 </style>
