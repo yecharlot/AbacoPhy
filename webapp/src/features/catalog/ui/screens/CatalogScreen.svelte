@@ -1,13 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Button, Card, Input, Money } from '../../../../infrastructure/ui/shared';
+  import { Button, Card, Input } from '../../../../infrastructure/ui/shared';
   import type { CatalogStore, CatalogState } from '../stores/catalogStore';
   import type { Product } from '../../domain/entities/Product';
   import { DevSeedPanel } from '../../../../infrastructure/ui/dev';
   import { buildSampleProductsPayload, seedProductsViaStore } from '../dev/productsSeed';
 
   export let store: CatalogStore;
-  export let currencyCode = 'CUP';
 
   let state: CatalogState = store.getState();
   let activeTab: 'productos' | 'unidades' = 'productos';
@@ -22,8 +21,6 @@
   let prodName = '';
   let prodUnit = 'ud';
   let prodCategory = '';
-  let prodCostStd = '';
-  let prodPriceSale = '';
   let editingProdId: string | null = null;
 
   let muCode = '';
@@ -89,8 +86,6 @@
     prodName = '';
     prodUnit = 'ud';
     prodCategory = '';
-    prodCostStd = '';
-    prodPriceSale = '';
     formError = '';
   }
 
@@ -100,8 +95,6 @@
     prodName = p.name;
     prodUnit = p.unit || 'ud';
     prodCategory = p.category || '';
-    prodCostStd = String(p.costStd ?? 0);
-    prodPriceSale = String(p.priceSale ?? 0);
     formError = '';
     formOk = '';
     activeTab = 'productos';
@@ -124,8 +117,6 @@
           name: prodName.trim(),
           unit: prodUnit.trim() || 'ud',
           category: prodCategory.trim() || undefined,
-          costStd: parseFloat(prodCostStd) || 0,
-          priceSale: parseFloat(prodPriceSale) || 0,
         });
         formOk = 'Producto actualizado correctamente';
         showToast('ok', formOk);
@@ -135,8 +126,6 @@
           name: prodName.trim(),
           unit: prodUnit.trim() || 'ud',
           category: prodCategory.trim() || undefined,
-          costStd: parseFloat(prodCostStd) || 0,
-          priceSale: parseFloat(prodPriceSale) || 0,
         });
         formOk = 'Producto creado correctamente';
         showToast('ok', formOk);
@@ -197,7 +186,7 @@
   {#if typeof DevSeedPanel !== 'undefined'}
     <DevSeedPanel
       title="Seed productos (DEV)"
-      description="JSON: products[] con name, unit, category, price_sale, cost_std."
+      description="JSON: products[] con name, unit, category (sin costo ni precio)."
       sample={buildSampleProductsPayload()}
       onSeed={(data) => seedProductsViaStore(store, data)}
     />
@@ -205,7 +194,7 @@
 
   <header class="page-head">
     <div>
-      <h1>Catálogo</h1>
+      <h1>Nomenclador de productos</h1>
       <p class="sub">Nomenclador de productos y unidades de medida.</p>
     </div>
     <Button variant="secondary" on:click={() => store.loadAll()} disabled={state.status === 'loading'}>
@@ -267,8 +256,6 @@
                   <th>Nombre</th>
                   <th>UM</th>
                   <th>Categoría</th>
-                  <th class="num">Costo</th>
-                  <th class="num">Precio</th>
                   <th></th>
                 </tr>
               </thead>
@@ -279,8 +266,6 @@
                     <td>{p.name}</td>
                     <td>{p.unit || '—'}</td>
                     <td>{p.category || '—'}</td>
-                    <td class="num"><Money amount={p.costStd} currency={currencyCode} /></td>
-                    <td class="num"><Money amount={p.priceSale} currency={currencyCode} /></td>
                     <td>
                       <button type="button" class="link" on:click={() => startEditProduct(p)}>Editar</button>
                     </td>
@@ -295,7 +280,7 @@
       <Card>
         <h2>{editingProdId ? 'Editar producto' : 'Nuevo producto'}</h2>
         <p class="form-hint">
-          Los campos con sugerencias proponen valores ya usados en el catálogo.
+          Solo definición: código (opcional), nombre, unidad de medida y categoría. Sin costos ni precios.
         </p>
 
         <form class="product-form" on:submit={handleProductSubmit}>
@@ -359,32 +344,6 @@
                   <option value={c}></option>
                 {/each}
               </datalist>
-            </label>
-
-            <label class="field">
-              <span class="lbl">Costo estándar</span>
-              <input
-                id="prod-cost"
-                type="number"
-                min="0"
-                step="any"
-                bind:value={prodCostStd}
-                placeholder="0.00"
-                disabled={state.saving}
-              />
-            </label>
-
-            <label class="field">
-              <span class="lbl">Precio venta</span>
-              <input
-                id="prod-price"
-                type="number"
-                min="0"
-                step="any"
-                bind:value={prodPriceSale}
-                placeholder="0.00"
-                disabled={state.saving}
-              />
             </label>
           </div>
 
@@ -715,10 +674,6 @@
     padding: 0.5rem;
     border-bottom: 1px solid var(--color-border, var(--ap-border));
     color: var(--color-text-secondary, var(--ap-text-secondary));
-  }
-  .num {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
   }
   .mono {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

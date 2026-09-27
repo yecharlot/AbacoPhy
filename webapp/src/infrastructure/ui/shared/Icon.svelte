@@ -79,4 +79,4 @@
   let IconComponent = $derived(icons[name]);
 </script>
 
-<svelte:component this={IconComponent} {size} {strokeWidth} class={className} aria-hidden="true" />
+<IconComponent {size} {strokeWidth} class={className} aria-hidden="true" />

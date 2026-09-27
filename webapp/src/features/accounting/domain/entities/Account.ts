@@ -1,8 +1,13 @@
-export interface Account {
+export type AccountType = 'asset' | 'liability' | 'equity' | 'income' | 'expense';
+
+export type Account = {
   id: string;
   code: string;
   name: string;
-  type: 'asset' | 'liability' | 'equity' | 'income' | 'expense';
+  type: AccountType;
+  currency?: string;
   balance: number;
-  currency: string;
-}
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
+};

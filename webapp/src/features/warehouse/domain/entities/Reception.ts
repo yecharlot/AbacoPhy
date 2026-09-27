@@ -4,8 +4,12 @@ export type ReceptionLine = {
   productName: string;
   unit?: string;
   qty: number;
+  /** Costo unitario registrado en esta recepción (entrada a promedio ponderado). */
   unitCost: number;
   amount: number;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 /** pendiente_entrada = económico registró; entrado = almacenero dio entrada física */
@@ -27,15 +31,24 @@ export type Reception = {
   note: string;
   enteredBy?: string;
   enteredAt?: string;
-  /** Estado visual local de detalle; nunca se serializa al backend. */
-  _expanded?: boolean;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type CreateReceptionLineInput = {
   productId: string;
   qty: number;
+  /**
+   * Costo unitario de ESTA recepción.
+   * Alimenta el costo promedio ponderado del producto (solo vía recepciones).
+   * @see webapp/.policies/warehouse-recepcion-costo-promedio.md
+   */
   unitCost: number;
   unit?: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type CreateReceptionInput = {
@@ -49,11 +62,16 @@ export type CreateReceptionInput = {
   date?: string;
   note?: string;
   lines: CreateReceptionLineInput[];
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type EnterReceptionInput = {
   id: string;
-  /** Debe ser true en runtime: validado con el económico (EnterReception lo exige). */
+  /** Indica si se valida con el económico. El caso de uso lanza error si es false. */
   accept: boolean;
   note?: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
 };

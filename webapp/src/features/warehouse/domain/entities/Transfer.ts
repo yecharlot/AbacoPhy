@@ -5,6 +5,9 @@ export type TransferLine = {
   qty: number;
   unitCost: number;
   amount: number;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type Transfer = {
@@ -16,11 +19,17 @@ export type Transfer = {
   lines: TransferLine[];
   status: string;
   note: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type CreateTransferLineInput = {
   productId: string;
   qty: number;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type CreateTransferInput = {
@@ -28,4 +37,7 @@ export type CreateTransferInput = {
   date?: string;
   note?: string;
   lines: CreateTransferLineInput[];
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };

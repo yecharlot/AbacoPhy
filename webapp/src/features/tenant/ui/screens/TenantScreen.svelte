@@ -2,13 +2,16 @@
   import { onMount } from 'svelte';
   import { Button, Card, Input } from '../../../../infrastructure/ui/shared';
   import type { TenantStore, TenantState } from '../stores/tenantStore';
-    import { on } from 'svelte/events';
+
+  interface Props {
+    store: TenantStore;
+    canEdit?: boolean;
+  }
 
   export let store: TenantStore;
   export let canEdit = true;
 
-  // Component state
-  let state: TenantState = { status: 'idle', tenant: null, error: null, saving: false };
+  let state: TenantState = store.getState();
   let name = '';
   let currency = 'CUP';
   let phone = '';
@@ -38,7 +41,8 @@
     return unsub;
   });
 
-  async function handleSave() {
+  async function handleSave(e: Event) {
+    e.preventDefault();
     if (!canEdit || state.saving) return;
     savedMsg = '';
     try {
@@ -60,7 +64,7 @@
 {:else if state.status === 'error' && !state.tenant}
   <Card>
     <p class="err" role="alert">{state.error}</p>
-    <Button variant="secondary" on:click={() => store.load()}>Reintentar</Button>
+    <Button variant="secondary" onclick={() => store.load()}>Reintentar</Button>
   </Card>
 {:else}
   <Card>
@@ -72,7 +76,7 @@
       <p class="meta">Slug: {state.tenant.slug}</p>
     {/if}
 
-    <form on:submit|preventDefault={handleSave}>
+    <form onsubmit={handleSave}>
       <Input id="t-name" label="Nombre" bind:value={name} disabled={!canEdit || state.saving} required />
       <Input id="t-currency" label="Moneda" bind:value={currency} disabled={!canEdit || state.saving} />
       <Input id="t-phone" label="Teléfono" type="tel" bind:value={phone} disabled={!canEdit || state.saving} />

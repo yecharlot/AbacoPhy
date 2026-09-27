@@ -1,0 +1,17 @@
+export {
+  isJsonSyntaxValid,
+  assertJsonSyntax,
+  readMetadata,
+  readMetadataDetailed,
+  writeMetadata,
+  writeMetadataSafe,
+  normalizeMetadataField,
+  metadataToDto,
+  parseMetadata,
+  stringifyMetadata,
+  metadataGet,
+  metadataSet,
+  type MetaMap,
+  type MetadataWriteResult,
+  type MetadataReadResult,
+} from './jsonMetadata';

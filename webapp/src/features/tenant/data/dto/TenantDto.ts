@@ -12,8 +12,14 @@ export type TenantDto = {
   taxId?: string;
   settings?: Record<string, unknown>;
   [key: string]: unknown;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type TenantResponseDto = {
   tenant?: TenantDto;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 } & TenantDto;

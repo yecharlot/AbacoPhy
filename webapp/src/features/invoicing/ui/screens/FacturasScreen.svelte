@@ -7,6 +7,7 @@
   import type { SalesUnit } from '../../../warehouse/domain/entities/SalesUnit';
   import type { PayrollStore } from '../../../payroll/ui/stores/payrollStore';
   import type { WarehouseStore } from '../../../warehouse/ui/stores/warehouseStore';
+  import { openInvoicePrintWindow } from '../pdf/buildInvoicePdfHtml';
 
   export let store: InvoicingStore;
   /** Opcional: lista de trabajadores del negocio (sesión = 1 tenant). */
@@ -196,8 +197,24 @@
     formOk = '';
     pdfBusyId = inv.id;
     try {
-      await store.downloadPdf(inv.id, inv.number);
-      formOk = 'PDF de factura descargado';
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      await openInvoicePrintWindow(
+        {
+          ...inv,
+          issuerName: inv.issuerName || issuerName,
+          issuerTaxId: inv.issuerTaxId || issuerTaxId,
+          issuerAddress: inv.issuerAddress || issuerAddress,
+          issuerPhone: inv.issuerPhone || issuerPhone,
+        },
+        {
+          name: inv.issuerName || issuerName || 'ÁbacoPhy',
+          taxId: inv.issuerTaxId || issuerTaxId,
+          address: inv.issuerAddress || issuerAddress,
+          phone: inv.issuerPhone || issuerPhone,
+          logoUrl: origin ? `${origin}/abacus_color_icon.svg` : '/abacus_color_icon.svg',
+        },
+      );
+      formOk = 'Factura abierta · use «Imprimir / Guardar PDF» (incluye QR)';
     } catch (err) {
       formError = err instanceof Error ? err.message : 'No se pudo generar el documento';
     } finally {
@@ -360,7 +377,7 @@
                     disabled={pdfBusyId === inv.id}
                     on:click={() => handlePdf(inv)}
                   >
-                    {pdfBusyId === inv.id ? 'PDF…' : 'Descargar PDF'}
+                    {pdfBusyId === inv.id ? 'PDF…' : 'PDF + QR'}
                   </button>
                 </td>
               </tr>

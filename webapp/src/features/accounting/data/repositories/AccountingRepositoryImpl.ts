@@ -1,15 +1,24 @@
 import type { HttpClient, HttpError } from '../../../../infrastructure/data/http';
 import type { Account } from '../../domain/entities/Account';
-import type { Entry } from '../../domain/entities/Entry';
-import type { Equation } from '../../domain/entities/Equation';
-import type { JournalEntry } from '../../domain/entities/JournalEntry';
-import type { TrialBalance } from '../../domain/entities/TrialBalance';
+import type { CreateEntryInput, Entry } from '../../domain/entities/Entry';
+import type { Summary } from '../../domain/entities/Equation';
 import type {
   AccountingRepository,
+  CreateEntryResult,
   EntriesQuery,
 } from '../../domain/repositories/AccountingRepository';
+import type { JournalEntry } from '../../domain/entities/JournalEntry';
+import type { TrialBalance } from '../../domain/entities/TrialBalance';
+
+import {
+  accountDtoToEntity,
+  createInputToDto,
+  createResponseToResult,
+  entryDtoToEntity,
+  summaryDtoToEntity,
+  reportsMapper,
+} from '../mappers/accountingMapper';
 import { AccountingRemoteSource } from '../sources/AccountingRemoteSource';
-import { accountingMapper, reportsMapper } from '../mappers/accountingMapper';
 
 function toUserMessage(err: unknown): string {
   if (err && typeof err === 'object' && 'message' in err) {
@@ -26,65 +35,73 @@ export class AccountingRepositoryImpl implements AccountingRepository {
     this.remote = new AccountingRemoteSource(http);
   }
 
-  async getAccounts(): Promise<Account[]> {
+  async listAccounts(): Promise<Account[]> {
     try {
-      const res = await this.remote.getAccounts();
-      return (res.accounts || []).map(accountingMapper.toAccount);
+      const dto = await this.remote.getAccounts();
+      return (dto.accounts ?? []).map(accountDtoToEntity);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
   }
 
-  async getEntries(params?: EntriesQuery): Promise<Entry[]> {
+  async listEntries(params?: EntriesQuery): Promise<Entry[]> {
     try {
-      const res = await this.remote.getEntries(params);
-      return (res.entries || []).map(accountingMapper.toEntry);
+      const dto = await this.remote.getEntries(params);
+      const raw = (dto as { entries?: EntryDtoLike[]; asientos?: EntryDtoLike[] }).entries
+        ?? (dto as { asientos?: EntryDtoLike[] }).asientos
+        ?? [];
+      return raw.map(entryDtoToEntity);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
   }
 
-  /**
-   * Trial balance solo vía API fase 6.
-   * Sin fallback local duplicado (una fuente de verdad).
-   */
-  async getTrialBalance(): Promise<TrialBalance> {
+  async createEntry(input: CreateEntryInput): Promise<CreateEntryResult> {
     try {
-      const dto = await this.remote.getTrialBalance();
-      return reportsMapper.toTrialBalance(dto);
+      const entryDto = await this.remote.createEntry(createInputToDto(input));
+      return createResponseToResult(entryDto);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
   }
 
-  /**
-   * Diario = GET /entries mapeado a JournalEntry.
-   * Params type/from/to/limit llegan al backend (fases 5–6).
-   */
-  async getJournal(params?: EntriesQuery): Promise<JournalEntry[]> {
-    try {
-      const res = await this.remote.getJournal(params);
-      return (res.entries || []).map(reportsMapper.entryToJournal);
-    } catch (err) {
-      throw new Error(toUserMessage(err));
-    }
-  }
-
-  async getSummary(): Promise<Equation> {
+  async getSummary(): Promise<Summary> {
     try {
       const dto = await this.remote.getSummary();
-      return accountingMapper.toEquation(dto);
+      return summaryDtoToEntity(dto);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
   }
 
-  async createEntry(entry: Omit<Entry, 'id'>): Promise<Entry> {
+  async getJournal(params?: EntriesQuery): Promise<JournalEntry[]> {
     try {
-      const dto = await this.remote.createEntry(accountingMapper.toEntryDto(entry));
-      return accountingMapper.toEntry(dto);
+      const dto = await this.remote.getEntries(params);
+      return (dto.entries ?? []).map(reportsMapper.entryToJournal);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
   }
+
+  async getTrialBalance(): Promise<TrialBalance> {
+    const accounts = await this.listAccounts();
+    const rows = accounts.map((account) => {
+      const balance = account.balance;
+      const debit = ['asset', 'expense'].includes(account.type)
+          ? Math.max(balance, 0)
+          : Math.max(-balance, 0);
+      const credit = ['asset', 'expense'].includes(account.type)
+          ? Math.max(-balance, 0)
+          : Math.max(balance, 0);
+      return { accountId: account.id, accountName: account.name, accountCode: account.code, debit, credit, balance };
+    });
+    return {
+      accounts: rows,
+      totalDebits: rows.reduce((total, row) => total + row.debit, 0),
+      totalCredits: rows.reduce((total, row) => total + row.credit, 0),
+      asOf: new Date().toISOString(),
+    };
+  }
 }
+
+type EntryDtoLike = Parameters<typeof entryDtoToEntity>[0];

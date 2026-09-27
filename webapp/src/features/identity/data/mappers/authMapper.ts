@@ -1,14 +1,25 @@
 import type { Session } from '../../domain/entities/Session';
 import type { User } from '../../domain/entities/User';
 import type { LoginResponseDto, MeResponseDto } from '../dto/AuthDto';
+import { normalizeMetadataField, metadataToDto } from '../../../../infrastructure/domain/metadata';
 
-function mapUser(u: LoginResponseDto['user'] | MeResponseDto['user']): User {
+function mapUser(u: LoginResponseDto['user'] | MeResponseDto['user'] | null | undefined): User {
+  if (!u) {
+    return {
+      id: '',
+      username: '',
+      displayName: '',
+      role: '',
+      tenantId: '',
+    };
+  }
   return {
-    id: u.id,
-    username: u.username,
-    displayName: u.display_name ?? u.username,
-    role: u.role,
-    tenantId: u.tenant_id,
+    id: u.id ?? '',
+    username: u.username ?? '',
+    displayName: u.display_name ?? u.username ?? '',
+    role: u.role ?? '',
+    tenantId: u.tenant_id ?? '',
+    metadata: normalizeMetadataField(u),
   };
 }
 

@@ -1,5 +1,6 @@
 import type { CreateEmployeeInput, Employee, UpdateEmployeeInput } from '../../domain/entities/Employee';
 import type { CreatePayslipInput, Payslip } from '../../domain/entities/Payslip';
+import { normalizeMetadataField, metadataToDto } from '../../../../infrastructure/domain/metadata';
 
 function n(v: unknown): number {
   const x = Number(v);
@@ -26,6 +27,8 @@ type EmployeeDto = {
   ss_worker_rate?: number;
   active?: boolean;
   unit_ids?: string[];
+  metadata?: string | null;
+
 };
 
 type PayslipDto = {
@@ -49,6 +52,8 @@ type PayslipDto = {
   status?: string;
   created_at?: string;
   date_emitted?: string;
+  metadata?: string | null;
+
 };
 
 export const payrollMapper = {
@@ -71,6 +76,8 @@ export const payrollMapper = {
       ssWorkerRate: n(dto.ss_worker_rate) || 0.05,
       active: dto.active !== false,
       unitIds: Array.isArray(dto.unit_ids) ? dto.unit_ids.map(String) : [],
+      metadata: normalizeMetadataField(dto),
+
     };
   },
 
@@ -104,6 +111,8 @@ export const payrollMapper = {
       ss_employer_rate: input.ssEmployerRate ?? 0.125,
       ss_worker_rate: input.ssWorkerRate ?? 0.05,
       unit_ids: input.unitIds?.length ? input.unitIds : undefined,
+      metadata: metadataToDto(input),
+
     };
   },
 
@@ -129,6 +138,8 @@ export const payrollMapper = {
       currency: dto.currency || 'CUP',
       status: dto.status || '',
       createdAt: dto.created_at || dto.date_emitted || '',
+      metadata: normalizeMetadataField(dto),
+
     };
   },
 
@@ -138,6 +149,8 @@ export const payrollMapper = {
       period: input.period || undefined,
       gross: input.gross ?? undefined,
       other_deductions: input.otherDeduct ?? 0,
+      metadata: metadataToDto(input),
+
     };
   },
 };

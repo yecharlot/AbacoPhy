@@ -17,6 +17,9 @@ export type Employee = {
    * No es multi-tenant: el empleado pertenece al negocio de la sesión.
    */
   unitIds: string[];
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type CreateEmployeeInput = {
@@ -31,6 +34,9 @@ export type CreateEmployeeInput = {
   ssEmployerRate?: number;
   ssWorkerRate?: number;
   unitIds?: string[];
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type UpdateEmployeeInput = {
@@ -47,4 +53,7 @@ export type UpdateEmployeeInput = {
   ssWorkerRate?: number;
   active?: boolean;
   unitIds?: string[];
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };

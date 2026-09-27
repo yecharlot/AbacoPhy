@@ -10,6 +10,9 @@ export type SaleLine = {
   lineTotal: number;
   unitCost: number;
   costAmount: number;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type Sale = {
@@ -27,6 +30,9 @@ export type Sale = {
   currency: string;
   status: string;
   note: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type CreateSaleLineInput = {
@@ -34,6 +40,9 @@ export type CreateSaleLineInput = {
   qty: number;
   unitPrice?: number;
   discountPct?: number;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type CreateSaleInput = {
@@ -42,4 +51,7 @@ export type CreateSaleInput = {
   date?: string;
   note?: string;
   lines: CreateSaleLineInput[];
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };

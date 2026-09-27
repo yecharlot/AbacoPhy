@@ -8,6 +8,9 @@ export type Tenant = {
   email: string;
   taxId: string;
   settings: Record<string, unknown>;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type UpdateTenantInput = {
@@ -18,4 +21,7 @@ export type UpdateTenantInput = {
   email?: string;
   taxId?: string;
   settings?: Record<string, unknown>;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };

@@ -50,10 +50,15 @@ export function createSessionStore(deps: Deps) {
     },
     async bootstrap(): Promise<void> {
       set({ status: 'loading', error: null });
-      const session = await deps.getMe.execute();
-      if (session) {
-        set({ status: 'authenticated', session, error: null });
-      } else {
+      try {
+        const session = await deps.getMe.execute();
+        if (session) {
+          set({ status: 'authenticated', session, error: null });
+        } else {
+          set({ status: 'anonymous', session: null, error: null });
+        }
+      } catch {
+        // Nunca dejar status=loading: pantalla en blanco / skeleton eterno
         set({ status: 'anonymous', session: null, error: null });
       }
     },

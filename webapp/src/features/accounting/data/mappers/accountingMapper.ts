@@ -7,6 +7,7 @@ import type { Entry } from '../../domain/entities/Entry';
 import type { Equation } from '../../domain/entities/Equation';
 import type { JournalEntry } from '../../domain/entities/JournalEntry';
 import type { TrialBalance } from '../../domain/entities/TrialBalance';
+import { normalizeMetadataField, metadataToDto } from '../../../../infrastructure/domain/metadata';
 
 function n(v: unknown): number {
   const x = Number(v);
@@ -26,6 +27,8 @@ type EqBlock = {
   income?: number;
   expenses?: number;
   net_profit?: number;
+  metadata?: string | null;
+
 };
 
 /**
@@ -48,6 +51,90 @@ function entrySides(dto: EntryDto): { debit: string; credit: string } {
   return { debit: resultLabel, credit: counterLabel };
 }
 
+
+/** Resumen API → Equation/Summary (fuente de verdad del dashboard). */
+export function summaryDtoToEntity(dto: SummaryDto & Record<string, unknown>): Equation {
+  const eq = (dto.ecuacion ?? dto.equation ?? {}) as EqBlock;
+  const hasEq = eq && typeof eq === 'object' && Object.keys(eq).length > 0;
+  const fromEq = (k: keyof EqBlock) =>
+    hasEq && eq[k] != null && eq[k] !== '' ? n(eq[k]) : null;
+
+  const assets =
+    fromEq('activo') ?? fromEq('assets') ?? n(dto.assets ?? dto.activo);
+  const liabilities =
+    fromEq('pasivo') ?? fromEq('liabilities') ?? n(dto.liabilities ?? dto.pasivo);
+  const income =
+    fromEq('ingresos') ??
+    fromEq('income') ??
+    n(dto.income ?? dto.ingresos ?? (dto as { income_total?: number }).income_total);
+  const expenses =
+    fromEq('gastos') ??
+    fromEq('expenses') ??
+    n(dto.expenses ?? dto.gastos ?? (dto as { expense_total?: number }).expense_total);
+  const netProfit =
+    fromEq('neto') ??
+    fromEq('net_profit') ??
+    n(dto.net_profit ?? dto.neto ?? (dto as { net?: number }).net) ??
+    income - expenses;
+
+  // Capital contable (cuentas equity). Puede ser 0 con ecuación ampliada.
+  let equity =
+    fromEq('patrimonio') ?? fromEq('equity') ?? n(dto.equity ?? dto.patrimonio);
+
+  // Si el backend no manda patrimonio pero sí activo/pasivo, no inventamos equity
+  // en el mapper: el KPI "Patrimonio neto" del dashboard usa assets - liabilities.
+
+  return {
+    assets,
+    liabilities,
+    equity,
+    income,
+    expenses,
+    netProfit,
+    metadata: normalizeMetadataField(dto),
+  };
+}
+
+export function accountDtoToEntity(dto: AccountDto): Account {
+  return accountingMapper.toAccount(dto);
+}
+export function entryDtoToEntity(dto: EntryDto): Entry {
+  return {
+    id: dto.id ?? '',
+    type: (dto.type as Entry['type']) || 'transfer',
+    accountId: dto.account_id ?? '',
+    amount: n(dto.amount),
+    description: (dto as { description?: string }).description || dto.concept || '',
+    counterpart: dto.counterpart,
+    date: dto.date ?? '',
+    currency: dto.currency ?? '',
+    metadata: normalizeMetadataField(dto),
+  };
+}
+export function createInputToDto(input: { type: string; accountId: string; amount: number; description: string; counterpart?: string; date?: string; currency?: string; metadata?: string | null }): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    type: input.type,
+    account_id: input.accountId,
+    amount: input.amount,
+    description: input.description,
+  };
+  if (input.counterpart) body.counterpart = input.counterpart;
+  if (input.date) body.date = input.date;
+  if (input.currency) body.currency = input.currency;
+  const meta = metadataToDto(input);
+  if (meta) body.metadata = meta;
+  return body;
+}
+export function createResponseToResult(dto: EntryDto & { asiento?: EntryDto; entry?: EntryDto; ecuacion?: EqBlock; equation?: EqBlock; rev?: number; root_cid?: string }): { entry: Entry; equation: Equation | null; rev?: number; rootCid?: string } {
+  const raw = dto.asiento ?? dto.entry ?? dto;
+  return {
+    entry: entryDtoToEntity(raw as EntryDto),
+    equation: dto.ecuacion || dto.equation ? summaryDtoToEntity({ ecuacion: dto.ecuacion ?? dto.equation } as SummaryDto) : null,
+    rev: dto.rev,
+    rootCid: dto.root_cid,
+  };
+}
+
 export const accountingMapper = {
   toAccount(dto: AccountDto): Account {
     return {
@@ -57,14 +144,17 @@ export const accountingMapper = {
       type: dto.type as Account['type'],
       balance: n(dto.balance),
       currency: (dto as { currency?: string }).currency ?? '',
+      metadata: normalizeMetadataField(dto),
     };
   },
 
   toEntry(dto: EntryDto): Entry {
+    const description = dto.description || dto.concept || '';
     return {
       id: dto.id,
       date: dto.date,
-      concept: dto.concept || dto.description || '',
+      description,
+      concept: description,
       type: dto.type as Entry['type'],
       amount: n(dto.amount),
       currency: dto.currency ?? '',
@@ -73,43 +163,13 @@ export const accountingMapper = {
       counterpart: dto.counterpart,
       category: dto.category,
       tags: dto.tags,
+      metadata: normalizeMetadataField(dto),
+
     };
   },
 
   toEquation(dto: SummaryDto & Record<string, unknown>): Equation {
-    const eq = (dto.ecuacion ?? dto.equation ?? {}) as EqBlock;
-    return {
-      assets: n(dto.assets ?? dto.activo ?? eq.activo ?? eq.assets),
-      liabilities: n(dto.liabilities ?? dto.pasivo ?? eq.pasivo ?? eq.liabilities),
-      equity: n(dto.equity ?? dto.patrimonio ?? eq.patrimonio ?? eq.equity),
-      income: n(
-        dto.income ??
-          dto.ingresos ??
-          (dto as { income_total?: number }).income_total ??
-          eq.ingresos ??
-          eq.income,
-      ),
-      expenses: n(
-        dto.expenses ??
-          dto.gastos ??
-          (dto as { expense_total?: number }).expense_total ??
-          eq.gastos ??
-          eq.expenses,
-      ),
-      netProfit: n(
-        dto.net_profit ??
-          dto.neto ??
-          (dto as { net?: number }).net ??
-          eq.neto ??
-          eq.net_profit,
-      ),
-      inventoryItems: n(dto.inventory_items),
-      inventoryCostValue: n(dto.inventory_cost_value),
-      invoicesCount: n(dto.invoices_count),
-      invoicesIssuedTotal: n(dto.invoices_issued_total),
-      invoicesPaidTotal: n(dto.invoices_paid_total),
-      employees: n(dto.employees),
-    };
+    return summaryDtoToEntity(dto);
   },
 
   toEntryDto(entity: Omit<Entry, 'id'>): Record<string, unknown> {
@@ -121,6 +181,7 @@ export const accountingMapper = {
       date: entity.date,
       currency: entity.currency || undefined,
       counterpart: entity.counterpart || undefined,
+      metadata: metadataToDto(entity),
     };
   },
 };
@@ -140,6 +201,8 @@ export const reportsMapper = {
       currency: dto.currency,
       accountId: dto.account_id,
       counterpartId: dto.counterpart,
+      metadata: normalizeMetadataField(dto),
+
     };
   },
 

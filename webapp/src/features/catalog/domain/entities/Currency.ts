@@ -3,4 +3,7 @@ export type Currency = {
   name: string;
   rate: number;
   active: boolean;
+  /** JSON string opaco; opcional (API puede omitirlo). */
+  metadata?: string | null;
+
 };

@@ -4,10 +4,10 @@ import type {
   SalesUnit,
   UnitStockRowRef,
 } from '../../../warehouse/domain/entities/SalesUnit';
-import type { WarehouseStockRow } from '../../../warehouse/domain/entities/Stock';
-import type { GetSalesUnits, GetWarehouseStock } from '../../../warehouse/domain/usecases';
+import type { GetSalesUnits } from '../../../warehouse/domain/usecases';
 import type { CreateSaleInput, Sale } from '../../domain/entities/Sale';
 import type { ListSales, RegisterSale } from '../../domain/usecases';
+import type { GetWarehouseStock } from '../../../warehouse/domain/usecases';
 
 export type PosStatus = 'idle' | 'loading' | 'success' | 'error' | 'empty';
 
@@ -16,9 +16,8 @@ export type PosState = {
   sales: Sale[];
   products: Product[];
   units: SalesUnit[];
+  /** Stock por unidad (para validar / mostrar disponible en UI). */
   unitStocks: UnitStockRowRef[];
-  /** Stock almacén central (cuando no hay unidad seleccionada). */
-  warehouseRows: WarehouseStockRow[];
   lastSale: Sale | null;
   error: string | null;
   saving: boolean;
@@ -29,11 +28,7 @@ type Deps = {
   registerSale: RegisterSale;
   getProducts: GetProducts;
   getSalesUnits: GetSalesUnits;
-  getWarehouseStock?: GetWarehouseStock;
-  appDataBus?: {
-    on(event: 'ledger.changed' | 'stock.changed', listener: () => void): () => void;
-    emit(event: 'ledger.changed' | 'stock.changed'): void;
-  };
+  getWarehouseStock: GetWarehouseStock;
 };
 
 export function createPosStore(deps: Deps) {
@@ -43,7 +38,6 @@ export function createPosStore(deps: Deps) {
     products: [],
     units: [],
     unitStocks: [],
-    warehouseRows: [],
     lastSale: null,
     error: null,
     saving: false,
@@ -63,41 +57,6 @@ export function createPosStore(deps: Deps) {
     return err instanceof Error ? err.message : fallback;
   }
 
-  async function loadAll(): Promise<void> {
-    set({ status: 'loading', error: null });
-    try {
-      const [sales, products, unitsSnapshot, warehouse] = await Promise.all([
-        deps.listSales.execute(),
-        deps.getProducts.execute().catch(() => [] as Product[]),
-        deps.getSalesUnits.execute().catch(() => ({
-          units: [] as SalesUnit[],
-          stocks: [] as UnitStockRowRef[],
-        })),
-        deps.getWarehouseStock
-          ? deps.getWarehouseStock.execute().catch(() => ({ rows: [], unitStocks: [] }))
-          : Promise.resolve({ rows: [] as WarehouseStockRow[], unitStocks: [] }),
-      ]);
-      set({
-        status: sales.length ? 'success' : 'empty',
-        sales,
-        products,
-        units: unitsSnapshot.units,
-        unitStocks: unitsSnapshot.stocks ?? [],
-        warehouseRows: warehouse.rows ?? [],
-        error: null,
-      });
-    } catch (err) {
-      set({ status: 'error', error: messageOf(err, 'Error al cargar el punto de venta') });
-    }
-  }
-
-  const unsubBus = deps.appDataBus?.on('stock.changed', () => {
-    void loadAll();
-  });
-  const unsubLedger = deps.appDataBus?.on('ledger.changed', () => {
-    void loadAll();
-  });
-
   return {
     subscribe(fn: (s: PosState) => void): () => void {
       listeners.add(fn);
@@ -107,19 +66,35 @@ export function createPosStore(deps: Deps) {
     getState(): PosState {
       return state;
     },
-    destroy(): void {
-      unsubBus?.();
-      unsubLedger?.();
+    async loadAll(): Promise<void> {
+      set({ status: 'loading', error: null });
+      try {
+        const [sales, products, unitsSnapshot] = await Promise.all([
+          deps.listSales.execute(),
+          deps.getProducts.execute().catch(() => [] as Product[]),
+          deps.getSalesUnits.execute().catch(() => ({
+            units: [] as SalesUnit[],
+            stocks: [] as UnitStockRowRef[],
+          })),
+        ]);
+        set({
+          status: sales.length ? 'success' : 'empty',
+          sales,
+          products,
+          units: unitsSnapshot.units,
+          unitStocks: unitsSnapshot.stocks ?? [],
+          error: null,
+        });
+      } catch (err) {
+        set({ status: 'error', error: messageOf(err, 'Error al cargar el punto de venta') });
+      }
     },
-    loadAll,
     async registerSale(input: CreateSaleInput): Promise<void> {
       set({ saving: true, error: null });
       try {
         const sale = await deps.registerSale.execute(input);
         set({ saving: false, lastSale: sale });
-        deps.appDataBus?.emit('ledger.changed');
-        deps.appDataBus?.emit('stock.changed');
-        await loadAll();
+        await this.loadAll();
       } catch (err) {
         set({ saving: false, error: messageOf(err, 'Error al registrar la venta') });
         throw err;

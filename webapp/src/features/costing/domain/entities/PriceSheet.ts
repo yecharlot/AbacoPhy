@@ -9,6 +9,9 @@ export type PriceSheet = {
   price: number;
   currency: string;
   notes: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type SavePriceSheetInput = {
@@ -18,4 +21,7 @@ export type SavePriceSheetInput = {
   price?: number;
   currency?: string;
   notes?: string;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };

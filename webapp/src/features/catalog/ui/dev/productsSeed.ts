@@ -51,8 +51,6 @@ export async function seedProductsViaStore(
       name: p.name.trim(),
       unit: p.unit ?? 'ud',
       category: p.category,
-      costStd: p.cost_std,
-      priceSale: p.price_sale,
       code: p.code,
     };
     try {

@@ -1,12 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Button, Card, Input, Money } from '../../../../infrastructure/ui/shared';
+  import { Button, Card, Money } from '../../../../infrastructure/ui/shared';
   import type { WarehouseState, WarehouseStore } from '../stores/warehouseStore';
   import type { CreateReceptionLineInput } from '../../domain/entities/Reception';
   import { DevSeedPanel } from '../../../../infrastructure/ui/dev';
   import { buildSampleWarehouseOpsPayload, seedWarehouseOpsViaStore } from '../dev/opsSeed';
 
   export let store: WarehouseStore;
+  /**
+   * Usuarios sugeridos para «Quién recibe» (roles master, admin, económico, almacenero).
+   * Proviene del listado de usuarios del negocio; el padre filtra por rol.
+   */
+  export let receiverCandidates: Array<{ name: string; role: string }> = [];
 
   type DraftLine = {
     productId: string;
@@ -26,18 +31,6 @@
   let lines: DraftLine[] = [{ productId: '', qty: '', unitCost: '' }];
   let formError = '';
   let formOk = '';
-  let enterError = '';
-  let enterOk = '';
-  let enteringId = '';
-
-  // Filtros
-  let filterReceiver = '';
-  let filterInvoice = '';
-  let filterSupplier = '';
-  let filterProduct = '';
-  let filterMinCost = '';
-  let filterMaxCost = '';
-  let filterPanelOpen = false;
 
   onMount(() => {
     const unsub = store.subscribe((s: WarehouseState) => {
@@ -48,24 +41,17 @@
   });
 
   $: products = state.products ?? [];
+  $: receiverNames = (receiverCandidates ?? [])
+    .map((c) => (c.name || '').trim())
+    .filter(Boolean);
+  $: receiverDatalistId = 'reception-receiver-suggestions';
+
+  $: stockRows = state.rows ?? [];
   $: receptions = [...(state.receptions ?? [])].reverse();
   $: estimated = lines.reduce(
     (acc, line) => acc + (parseFloat(line.qty) || 0) * (parseFloat(line.unitCost) || 0),
     0,
   );
-
-  $: filteredReceptions = receptions.filter(r => {
-    const receiverMatch = !filterReceiver || (r.receiver || '').toLowerCase().includes(filterReceiver.toLowerCase());
-    const invoiceMatch = !filterInvoice || (r.invoiceRef || '').toLowerCase().includes(filterInvoice.toLowerCase());
-    const supplierMatch = !filterSupplier || (r.supplier || '').toLowerCase().includes(filterSupplier.toLowerCase());
-    const productMatch = !filterProduct || (r.lines?.some(ln => 
-      (ln.productName || productLabel(ln.productId)).toLowerCase().includes(filterProduct.toLowerCase())
-    ) ?? false);
-    const minCostMatch = !filterMinCost || r.totalCost >= parseFloat(filterMinCost);
-    const maxCostMatch = !filterMaxCost || r.totalCost <= parseFloat(filterMaxCost);
-    
-    return receiverMatch && invoiceMatch && supplierMatch && productMatch && minCostMatch && maxCostMatch;
-  });
 
   function productLabel(id: string): string {
     const p = products.find((x) => x.id === id);
@@ -73,14 +59,16 @@
   }
 
   function onProductChange(index: number, productId: string) {
-    const p = products.find((x) => x.id === productId);
     const next = [...lines];
+    // Sugerencia: promedio ponderado actual del stock (no costo de nomenclador).
+    // El valor que confirme el usuario en esta recepción es el que alimenta el nuevo promedio.
+    const stock = stockRows.find((r) => r.productId === productId);
+    const suggested =
+      stock && Number(stock.avgCost) > 0 ? String(stock.avgCost) : next[index].unitCost;
     next[index] = {
       ...next[index],
       productId,
-      unitCost:
-        next[index].unitCost ||
-        (p && p.costStd > 0 ? String(p.costStd) : next[index].unitCost),
+      unitCost: next[index].unitCost || suggested || '',
     };
     lines = next;
   }
@@ -105,51 +93,13 @@
     lines = [{ productId: '', qty: '', unitCost: '' }];
   }
 
-  function clearFilters() {
-    filterReceiver = '';
-    filterInvoice = '';
-    filterSupplier = '';
-    filterProduct = '';
-    filterMinCost = '';
-    filterMaxCost = '';
-  }
-
-  $: hasActiveFilters = !!(
-    filterReceiver ||
-    filterInvoice ||
-    filterSupplier ||
-    filterProduct ||
-    filterMinCost ||
-    filterMaxCost
-  );
-
-  function isPending(status: string | undefined): boolean {
-    const s = (status || '').toLowerCase();
-    return s === 'pendiente_entrada' || s === 'pendiente';
-  }
-
-  async function handleEnter(r: { id: string; number?: string }) {
-    enterError = '';
-    enterOk = '';
-    enteringId = r.id;
-    try {
-      await store.enterReception({ id: r.id, accept: true });
-      enterOk = `Entrada al almacén registrada · ${r.number || r.id}`;
-    } catch (err) {
-      enterError =
-        err instanceof Error ? err.message : 'No se pudo dar entrada al almacén';
-    } finally {
-      enteringId = '';
-    }
-  }
-
   async function handleSubmit(e: Event) {
     e.preventDefault();
     formError = '';
     formOk = '';
 
     if (products.length === 0) {
-      formError = 'No hay productos. Cree al menos uno en Catálogo.';
+      formError = 'No hay productos. Cree al menos uno en el Nomenclador de productos.';
       return;
     }
     if (!receiver.trim()) {
@@ -172,20 +122,27 @@
     for (const line of lines) {
       if (!line.productId) continue;
       const qty = parseFloat(line.qty);
-      const unitCost = parseFloat(line.unitCost);
+      const unitCostRaw = String(line.unitCost ?? '').trim();
+      if (!unitCostRaw) {
+        formError =
+          'Indique el costo unitario de cada línea. Ese valor es de esta recepción y actualiza el costo promedio ponderado del producto.';
+        return;
+      }
+      const unitCost = parseFloat(unitCostRaw);
       if (!Number.isFinite(qty) || qty <= 0) {
         formError = 'Cada línea debe tener cantidad mayor que cero';
         return;
       }
       if (!Number.isFinite(unitCost) || unitCost < 0) {
-        formError = 'El costo unitario no puede ser negativo';
+        formError = 'El costo unitario de la recepción no puede ser negativo';
         return;
       }
+      // unitCost de la línea → backend recalcula avg_cost del producto
       payload.push({ productId: line.productId, qty, unitCost });
     }
 
     if (payload.length === 0) {
-      formError = 'Seleccione al menos un producto con cantidad';
+      formError = 'Seleccione al menos un producto con cantidad y costo unitario';
       return;
     }
 
@@ -223,7 +180,7 @@
     <div>
       <h1>Informes de recepción</h1>
       <p class="sub">
-        Entrada de mercancía al almacén central. Tras confirmar, el stock y el costo promedio se
+        Entrada de mercancía al almacén central. El costo unitario de cada línea actualiza el costo promedio ponderado del producto. Tras confirmar, el stock y el promedio se
         actualizan en el servidor.
       </p>
     </div>
@@ -248,7 +205,7 @@
 
       {#if products.length === 0}
         <p class="muted">
-          No hay productos en el nomenclador. Vaya a <strong>Catálogo</strong> y cree al menos uno
+          No hay productos en el nomenclador. Vaya a <strong>Nomenclador</strong> y cree al menos uno
           antes de recepcionar.
         </p>
       {:else}
@@ -260,7 +217,23 @@
             </label>
             <label class="field">
               <span class="lbl">Quién recibe <span class="req">*</span></span>
-              <input bind:value={receiver} placeholder="Nombre del receptor" disabled={state.saving} />
+              <input
+                bind:value={receiver}
+                list={receiverDatalistId}
+                placeholder={receiverNames.length
+                  ? 'Escriba o elija un usuario…'
+                  : 'Nombre del receptor'}
+                autocomplete="off"
+                disabled={state.saving}
+              />
+              <datalist id={receiverDatalistId}>
+                {#each receiverCandidates as c (c.name + c.role)}
+                  <option value={c.name}>{c.role}</option>
+                {/each}
+              </datalist>
+              {#if receiverNames.length}
+                <p class="field-hint">Sugerencias: master, admin, económico, almacenero</p>
+              {/if}
             </label>
             <label class="field check">
               <span class="lbl">¿Con factura?</span>
@@ -325,13 +298,15 @@
                   />
                 </label>
                 <label class="field">
-                  <span class="lbl">Costo unit.</span>
+                  <span class="lbl">Costo unitario</span>
                   <input
                     type="number"
                     min="0"
                     step="any"
                     bind:value={line.unitCost}
-                    placeholder="0.00"
+                    placeholder="Según factura"
+                    title="Costo unitario de esta recepción. Determina el nuevo promedio ponderado del producto."
+                    required
                   />
                 </label>
                 <button
@@ -363,119 +338,26 @@
     </Card>
 
     <Card>
-      <h2>Historial ({filteredReceptions.length}/{receptions.length})</h2>
+      <h2>Historial ({receptions.length})</h2>
       {#if state.status === 'loading' && receptions.length === 0}
         <p class="muted">Cargando recepciones…</p>
       {:else if receptions.length === 0}
         <p class="muted">Aún no hay informes de recepción confirmados.</p>
       {:else}
-        <div class="filter-bar" aria-label="Panel de filtros de recepciones">
-          <div class="filter-trigger-wrap">
-            <button
-              type="button"
-              class="filter-trigger"
-              title="Abrir panel de filtros"
-              aria-label="Abrir panel de filtros"
-              on:click={() => (filterPanelOpen = !filterPanelOpen)}
-            >
-              <span class="filter-trigger-icon">⚙</span>
-              <span>Filtros</span>
-            </button>
-
-            {#if hasActiveFilters}
-              <button
-                type="button"
-                class="filter-clear-inline"
-                title="Borrar filtros"
-                aria-label="Borrar filtros"
-                on:click={clearFilters}
-              >
-                Limpiar
-              </button>
-            {/if}
-          </div>
-
-          {#if filterPanelOpen}
-            <div class="filters-panel" role="dialog" aria-label="Panel de filtros del historial">
-              <div class="filters-grid">
-                <div class="filter-field">
-                  <label class="filter-label">Receptor</label>
-                  <input
-                    type="text"
-                    class="filter-input"
-                    placeholder="Buscar por receptor…"
-                    bind:value={filterReceiver}
-                  />
-                </div>
-                <div class="filter-field">
-                  <label class="filter-label">Nº Factura</label>
-                  <input
-                    type="text"
-                    class="filter-input"
-                    placeholder="Buscar por factura…"
-                    bind:value={filterInvoice}
-                  />
-                </div>
-                <div class="filter-field">
-                  <label class="filter-label">Proveedor</label>
-                  <input
-                    type="text"
-                    class="filter-input"
-                    placeholder="Buscar por proveedor…"
-                    bind:value={filterSupplier}
-                  />
-                </div>
-                <div class="filter-field">
-                  <label class="filter-label">Producto</label>
-                  <input
-                    type="text"
-                    class="filter-input"
-                    placeholder="Buscar por producto…"
-                    bind:value={filterProduct}
-                  />
-                </div>
-                <div class="filter-field">
-                  <label class="filter-label">Costo mín.</label>
-                  <input
-                    type="number"
-                    class="filter-input"
-                    placeholder="0.00"
-                    min="0"
-                    step="0.01"
-                    bind:value={filterMinCost}
-                  />
-                </div>
-                <div class="filter-field">
-                  <label class="filter-label">Costo máx.</label>
-                  <input
-                    type="number"
-                    class="filter-input"
-                    placeholder="9999.99"
-                    min="0"
-                    step="0.01"
-                    bind:value={filterMaxCost}
-                  />
-                </div>
-              </div>
-            </div>
-          {/if}
-        </div>
-
-        <div class="history-container">
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Nº</th>
-                  <th>Fecha</th>
-                  <th>Proveedor</th>
-                  <th>Líneas</th>
-                  <th class="num">Total</th>
-                  <th>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each filteredReceptions as r (r.id)}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nº</th>
+                <th>Fecha</th>
+                <th>Proveedor</th>
+                <th>Líneas</th>
+                <th class="num">Total</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each receptions as r (r.id)}
                 <tr>
                   <td class="mono">{r.number}</td>
                   <td>{r.date}</td>
@@ -484,70 +366,27 @@
                     {#if r.receiver}<div class="muted-inline">Recibe: {r.receiver}</div>{/if}
                   </td>
                   <td>
-                    <div class="lines-display">
-                      <button class="lines-toggle" on:click={() => r._expanded = !r._expanded}>
-                        <span class="toggle-icon">{r._expanded ? '▼' : '▶'}</span>
-                        <span class="lines-count">{r.lines?.length ?? 0} items</span>
-                      </button>
-                    </div>
-                  </td>
-                  <td class="num"><Money amount={r.totalCost} currency={r.currency} /></td>
-                  <td><span class="pill" class:pill-pending={isPending(r.status)} class:pill-ok={!isPending(r.status) && (r.status || '').toLowerCase() === 'entrado'}>{r.status || '—'}</span></td>
-                  <td class="actions">
-                    {#if isPending(r.status)}
-                      <Button
-                        type="button"
-                        variant="primary"
-                        size="sm"
-                        disabled={!!enteringId || state.saving}
-                        on:click={() => handleEnter(r)}
-                      >
-                        {enteringId === r.id ? '⏳ Entrando…' : '✓ Dar entrada'}
-                      </Button>
-                    {:else}
-                      <span class="muted-sm">—</span>
+                    <span class="muted-inline">{r.lines?.length ?? 0}</span>
+                    {#if r.lines?.length}
+                      <details class="detail">
+                        <summary>ver</summary>
+                        <ul>
+                          {#each r.lines as ln, j (j)}
+                            <li>
+                              {ln.productName || productLabel(ln.productId)} · {ln.qty} ×
+                              <Money amount={ln.unitCost} />
+                            </li>
+                          {/each}
+                        </ul>
+                      </details>
                     {/if}
                   </td>
+                  <td class="num"><Money amount={r.totalCost} currency={r.currency} /></td>
+                  <td><span class="pill">{r.status || '—'}</span></td>
                 </tr>
-                {#if r.lines?.length && r._expanded}
-                  <tr class="detail-row">
-                    <td colspan="7">
-                      <div class="detail-panel">
-                        <div class="detail-header">
-                          <h4>Artículos recibidos</h4>
-                          <span class="detail-count">{r.lines.length} productos</span>
-                        </div>
-                        <div class="detail-grid">
-                          {#each r.lines as ln, j (j)}
-                            <div class="line-card">
-                              <div class="line-card-header">
-                                <strong class="line-product-name">{ln.productName || productLabel(ln.productId)}</strong>
-                              </div>
-                              <div class="line-card-body">
-                                <div class="line-stat">
-                                  <span class="stat-label">Cantidad</span>
-                                  <span class="stat-value">{ln.qty}</span>
-                                </div>
-                                <div class="line-stat">
-                                  <span class="stat-label">Costo unit.</span>
-                                  <span class="stat-value"><Money amount={ln.unitCost} /></span>
-                                </div>
-                                <div class="line-stat total">
-                                  <span class="stat-label">Subtotal</span>
-                                  <span class="stat-value"><Money amount={ln.qty * ln.unitCost} /></span>
-                                </div>
-                              </div>
-                            </div>
-                          {/each}
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                {/if}
               {/each}
             </tbody>
           </table>
-        </div>
         </div>
       {/if}
     </Card>
@@ -589,23 +428,22 @@
   .layout {
     display: grid;
     gap: 14px;
-    height: calc(100vh - 280px);
   }
   @media (min-width: 1100px) {
     .layout {
-      grid-template-columns: 1fr 1.5fr;
+      grid-template-columns: 1.15fr 1fr;
       align-items: start;
     }
   }
   .form-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px 12px;
+    gap: 14px 16px;
   }
   .field {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
     min-width: 0;
   }
   .field-span { grid-column: 1 / -1; }
@@ -637,16 +475,11 @@
     font-size: 0.85rem;
     color: var(--color-text-secondary);
   }
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 0 0.75rem;
-  }
   .lines-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin: 0.75rem 0 0.5rem;
+    margin: 1rem 0 0.5rem;
   }
   .lines {
     display: flex;
@@ -715,8 +548,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    margin-top: 0.75rem;
-    padding-top: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 0.75rem;
     border-top: 1px solid var(--color-border, var(--ap-border));
   }
   .estimate {
@@ -752,10 +585,6 @@
     color: var(--color-text-secondary, var(--ap-text-secondary));
     vertical-align: top;
   }
-  td.actions {
-    text-align: right;
-    vertical-align: middle;
-  }
   .num {
     text-align: right;
     font-variant-numeric: tabular-nums;
@@ -767,115 +596,17 @@
   .pill {
     font-size: 0.68rem;
     font-weight: 650;
-    padding: 4px 10px;
+    padding: 2px 8px;
     border-radius: 999px;
     background: color-mix(in srgb, var(--accent-green, #b7f56a) 16%, transparent);
     color: var(--accent-green, var(--ap-ok));
   }
-  .pill-pending {
-    background: color-mix(in srgb, var(--accent-yellow, #ffe35a) 18%, transparent);
-    color: var(--accent-yellow, var(--ap-text-secondary));
-    font-weight: 700;
-  }
-  .pill-ok {
-    background: color-mix(in srgb, var(--accent-green, #b7f56a) 18%, transparent);
-    color: var(--accent-green, var(--ap-ok));
-  }
-  .detail-row {
-    border: none !important;
-    background: transparent;
-  }
-  .detail-row td {
-    padding: 0 0.5rem 1rem 0.5rem;
-    border: none;
-    background: transparent;
-  }
-  .detail-panel {
-    background: color-mix(in srgb, var(--accent-cyan) 6%, transparent);
-    border-left: 3px solid var(--accent-cyan);
-    border-radius: 10px;
-    padding: 16px;
-    margin: 8px 0;
-  }
-  .detail-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--color-border);
-  }
-  .detail-header h4 {
-    margin: 0;
-    font-size: 0.9rem;
-    font-weight: 650;
-    color: var(--color-text-primary);
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-  }
-  .detail-count {
+  .detail {
     font-size: 0.75rem;
-    color: var(--color-text-muted);
-    font-weight: 600;
   }
-  .detail-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 12px;
-  }
-  .line-card {
-    background: var(--color-surface-soft);
-    border: 1px solid var(--color-border);
-    border-left: 3px solid var(--accent-cyan);
-    border-radius: 8px;
-    overflow: hidden;
-  }
-  .line-card-header {
-    padding: 12px;
-    background: color-mix(in srgb, var(--accent-cyan) 4%, transparent);
-    border-bottom: 1px solid var(--color-border);
-  }
-  .line-product-name {
-    display: block;
-    font-size: 0.9rem;
-    color: var(--color-text-primary);
-    word-break: break-word;
-    line-height: 1.3;
-  }
-  .line-card-body {
-    padding: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .line-stat {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    font-size: 0.85rem;
-  }
-  .line-stat.total {
-    padding-top: 8px;
-    border-top: 1px solid var(--color-border);
-    font-weight: 600;
-  }
-  .stat-label {
-    color: var(--color-text-secondary);
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    font-weight: 600;
-  }
-  .stat-value {
-    color: var(--color-text-primary);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    text-align: right;
-  }
-  .line-stat.total .stat-value {
-    color: var(--accent-cyan);
-    font-size: 0.95rem;
+  .detail ul {
+    margin: 4px 0 0;
+    padding-left: 1.1rem;
   }
   .muted,
   .muted-inline {
@@ -896,151 +627,9 @@
     background: color-mix(in srgb, var(--accent-green, #b7f56a) 12%, transparent);
     color: var(--accent-green, var(--ap-ok));
   }
-  .lines-display {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .lines-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 8px;
-    border: none;
-    background: none;
-    cursor: pointer;
-    color: var(--color-text-primary);
-    font-weight: 600;
-    font-size: 0.85rem;
-    font-family: inherit;
-    transition: all var(--motion-fast);
-  }
-  .lines-toggle:hover {
-    color: var(--accent-cyan);
-  }
-  .toggle-icon {
-    display: inline-block;
-    font-size: 0.7rem;
-    transition: transform var(--motion-fast);
-  }
-  .lines-count {
-    font-weight: 600;
-    color: inherit;
-    font-size: 0.85rem;
-  }
-  .history-container {
-    display: flex;
-    flex-direction: column;
-    max-height: calc(100vh - 400px);
-    overflow-y: auto;
-    overflow-x: hidden;
-    border-radius: 8px;
-  }
-  .history-container::-webkit-scrollbar {
-    width: 8px;
-  }
-  .history-container::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .history-container::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--color-border) 150%, transparent);
-    border-radius: 4px;
-  }
-  .history-container::-webkit-scrollbar-thumb:hover {
-    background: var(--color-border);
-  }
-  .filter-bar {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-bottom: 14px;
-  }
-  .filter-trigger-wrap {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-  .filter-trigger {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    border: 1px solid var(--color-border);
-    border-radius: 10px;
-    background: var(--color-surface-soft);
-    color: var(--color-text-primary);
-    font-family: inherit;
-    font-size: 0.82rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all var(--motion-fast);
-  }
-  .filter-trigger:hover {
-    border-color: var(--accent-cyan);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 35%, transparent);
-  }
-  .filter-trigger-icon {
-    font-size: 0.95rem;
-    color: var(--accent-cyan);
-    line-height: 1;
-  }
-  .filter-clear-inline {
-    appearance: none;
-    border: none;
-    background: transparent;
-    color: var(--color-text-secondary);
-    font-family: inherit;
+  .field-hint {
+    margin: 0.25rem 0 0;
     font-size: 0.78rem;
-    font-weight: 700;
-    cursor: pointer;
-    padding: 0;
-  }
-  .filter-clear-inline:hover {
-    color: var(--accent-red);
-  }
-  .filters-panel {
-    background: color-mix(in srgb, var(--accent-cyan) 4%, transparent);
-    border: 1px solid var(--color-border);
-    border-radius: 10px;
-    padding: 14px;
-  }
-  .filters-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 10px;
-  }
-  .filter-field {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .filter-label {
-    font-size: 0.7rem;
-    font-weight: 650;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    color: var(--color-text-muted);
-  }
-  .filter-input {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 1px solid var(--color-border);
-    background: var(--color-surface-soft);
-    color: var(--color-text-primary);
-    font-family: inherit;
-    font-size: 0.85rem;
-    transition: all var(--motion-fast);
-  }
-  .filter-input:focus {
-    outline: none;
-    border-color: var(--accent-cyan);
-    background: var(--color-surface);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-cyan) 8%, transparent);
-  }
-  .filter-input::placeholder {
-    color: var(--color-text-muted);
+    color: var(--ap-text-secondary, #8a9a94);
   }
 </style>

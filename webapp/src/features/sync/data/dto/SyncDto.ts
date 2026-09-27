@@ -3,6 +3,9 @@ export type SyncGetResponseDto = {
   root_cid?: string;
   rootCid?: string;
   snapshot?: unknown;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type SyncPushRequestDto = {
@@ -10,6 +13,9 @@ export type SyncPushRequestDto = {
   invoices: Record<string, unknown>[];
   inventory: Record<string, unknown>[];
   client_rev: number;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type SyncPushResponseDto = {
@@ -17,6 +23,9 @@ export type SyncPushResponseDto = {
   root_cid?: string;
   accepted?: number;
   applied?: number;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };
 
 export type QueueStorageDto = {
@@ -27,4 +36,7 @@ export type QueueStorageDto = {
     createdAt: string;
   }[];
   clientRev: number;
+  /** JSON string opaco; ausente si el API no lo envía. */
+  metadata?: string | null;
+
 };

@@ -6,10 +6,16 @@ export type ProductDto = {
   category?: string;
   cost_std?: number;
   price_sale?: number;
+  /** JSON string opaco; opcional (API puede omitirlo). */
+  metadata?: string | null;
+
 };
 
 export type ProductsResponseDto = {
   products?: ProductDto[];
+  /** JSON string opaco; opcional (API puede omitirlo). */
+  metadata?: string | null;
+
 };
 
 export type MeasureUnitDto = {
@@ -18,10 +24,16 @@ export type MeasureUnitDto = {
   name: string;
   symbol?: string;
   active?: boolean;
+  /** JSON string opaco; opcional (API puede omitirlo). */
+  metadata?: string | null;
+
 };
 
 export type MeasureUnitsResponseDto = {
   units?: MeasureUnitDto[];
+  /** JSON string opaco; opcional (API puede omitirlo). */
+  metadata?: string | null;
+
 };
 
 export type CurrencyDto = {
@@ -29,8 +41,14 @@ export type CurrencyDto = {
   name: string;
   rate: number;
   active?: boolean;
+  /** JSON string opaco; opcional (API puede omitirlo). */
+  metadata?: string | null;
+
 };
 
 export type CurrenciesResponseDto = {
   currencies?: CurrencyDto[];
+  /** JSON string opaco; opcional (API puede omitirlo). */
+  metadata?: string | null;
+
 };

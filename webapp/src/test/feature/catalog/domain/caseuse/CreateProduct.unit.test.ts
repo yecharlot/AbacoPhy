@@ -11,9 +11,7 @@ describe('CreateProduct', () => {
                 code: 'codeTest',
                 name: 'nameTest',
                 unit: 'unitTest',
-                category: 'categoryTest',
-                costStd: 32,
-                priceSale: 1
+                category: 'categoryTest'
             }
         )).resolves.toEqual([]);
     });
