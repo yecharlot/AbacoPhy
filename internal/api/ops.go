@@ -421,6 +421,10 @@ func (s *Server) handleReceptions(w http.ResponseWriter, r *http.Request) {
 		}
 		body.Status = "pendiente_entrada"
 		body.CreatedBy = sess.UserID
+		if body.Metadata == nil {
+			body.Metadata = domain.Metadata{}
+		}
+		body.Metadata["int.reception_status"] = "pending_entry"
 		body.CreatedAt = time.Now().UTC()
 		var total float64
 		for i := range body.Lines {
@@ -446,14 +450,8 @@ func (s *Server) handleReceptions(w http.ResponseWriter, r *http.Request) {
 			total += ln.Amount
 		}
 		body.TotalCost = total
-		// Contabilidad: productos a cuenta Inventario (aún no stock físico de almacén)
-		domain.ApplyInventoryIn(snap, total)
-		snap.Entries = append(snap.Entries, domain.Entry{
-			ID: uuid.NewString(), TenantID: sess.TenantID, Date: body.Date, Type: "inventory",
-			Amount: total, Currency: body.Currency,
-			Description: fmt.Sprintf("IR %s pendiente entrada · %s · receptor %s", body.Number, body.Supplier, body.Receiver),
-			CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
-		})
+		// La recepción es documental. No afecta stock, costo promedio ni contabilidad
+		// de inventario hasta que almacén confirme la entrada física.
 		snap.Receptions = append(snap.Receptions, body)
 		s.audit(snap, sess, "recepcion.creada",
 			fmt.Sprintf("Informe %s · factura=%v · total %.2f %s · %d líneas · pendiente almacén",
@@ -490,14 +488,15 @@ func (s *Server) handleReceptionEnter(w http.ResponseWriter, r *http.Request, se
 	var req struct {
 		ID     string `json:"id"`
 		Note   string `json:"note,omitempty"`
-		Accept bool   `json:"accept"` // true = validado con económico
+		Reason string `json:"reason,omitempty"`
+		Accept bool   `json:"accept"` // true = entrada confirmada; false = problema
 	}
 	if err := readJSON(r, &req); err != nil || req.ID == "" {
 		writeJSON(w, 400, map[string]string{"error": "id de informe requerido"})
 		return
 	}
-	if !req.Accept {
-		writeJSON(w, 400, map[string]string{"error": "confirme la validación con el económico (accept=true)"})
+	if !req.Accept && strings.TrimSpace(req.Reason) == "" {
+		writeJSON(w, 400, map[string]string{"error": "indique el motivo del problema de entrada"})
 		return
 	}
 	idx := -1
@@ -518,6 +517,23 @@ func (s *Server) handleReceptionEnter(w http.ResponseWriter, r *http.Request, se
 	}
 	if rn.Status == "anulado" {
 		writeJSON(w, 409, map[string]string{"error": "informe anulado"})
+		return
+	}
+	if !req.Accept {
+		now := time.Now().UTC()
+		rn.Status = "problemas_entrada"
+		if rn.Metadata == nil {
+			rn.Metadata = domain.Metadata{}
+		}
+		rn.Metadata["int.reception_status"] = "entry_problem"
+		rn.Metadata["int.reception_problem_reason"] = strings.TrimSpace(req.Reason)
+		rn.Metadata["int.reception_entry_actor"] = sess.UserID
+		rn.Metadata["int.reception_entry_at"] = now.Format(time.RFC3339)
+		rn.Note = strings.TrimSpace(strings.Trim(strings.Join([]string{rn.Note, strings.TrimSpace(req.Reason)}, " · "), "·"))
+		s.audit(snap, sess, "recepcion.problema_entrada",
+			fmt.Sprintf("Problema entrada IR %s · %s", rn.Number, strings.TrimSpace(req.Reason)), rn.ID)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 200, map[string]any{"reception": rn, "message": "Problema de entrada registrado"})
 		return
 	}
 	for i := range rn.Lines {
@@ -546,6 +562,12 @@ func (s *Server) handleReceptionEnter(w http.ResponseWriter, r *http.Request, se
 	rn.Status = "entrado"
 	rn.EnteredBy = sess.UserID
 	rn.EnteredAt = &now
+	if rn.Metadata == nil {
+		rn.Metadata = domain.Metadata{}
+	}
+	rn.Metadata["int.reception_status"] = "entry_confirmed"
+	rn.Metadata["int.reception_entry_actor"] = sess.UserID
+	rn.Metadata["int.reception_entry_at"] = now.Format(time.RFC3339)
 	if req.Note != "" {
 		if rn.Note != "" {
 			rn.Note = rn.Note + " · "
