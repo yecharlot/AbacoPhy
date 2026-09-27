@@ -53,9 +53,10 @@ type UnitStock struct {
 }
 
 // Informe de recepción (módulo desacoplable "recepcion").
-// Flujo: económico registra compra (con/sin factura) → cuenta Inventario + aviso a almacén;
-// almacenero valida y da entrada física al almacén (status entrado).
-// Status: pendiente_entrada | entrado | anulado
+// Flujo: económico registra compra documental → aviso a almacén;
+// almacenero valida físicamente y da entrada o reporta problema.
+// Status: pendiente_entrada | entrado | problemas_entrada | anulado.
+// Estado visual canónico: Metadata int.reception_status.
 type ReceptionNote struct {
 	ID           string          `json:"id"`
 	TenantID     string          `json:"tenant_id"`
