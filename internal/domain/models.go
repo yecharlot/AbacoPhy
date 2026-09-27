@@ -2,6 +2,17 @@ package domain
 
 import "time"
 
+// Metadata is an open JSON bag for future features (payload injection).
+// Optional on all entities; omitempty keeps backward compatibility with old snapshots/API clients.
+// Business-critical accounting fields must NOT live only here.
+type Metadata map[string]any
+
+// MetaEntity is implemented by domain objects that carry Metadata (for the handler chain).
+type MetaEntity interface {
+	GetMetadata() Metadata
+	SetMetadata(Metadata)
+}
+
 const (
 	RoleMaster   = "master"
 	RoleAdmin    = "admin"
@@ -30,6 +41,7 @@ type Tenant struct {
 	CreatedAt   time.Time         `json:"created_at"`
 	UpdatedAt   time.Time         `json:"updated_at"`
 	Active      bool              `json:"active"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type User struct {
@@ -46,6 +58,7 @@ type User struct {
 	Active       bool      `json:"active"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type CurrencyRate struct {
@@ -54,6 +67,7 @@ type CurrencyRate struct {
 	Rate      float64   `json:"rate"`
 	Active    bool      `json:"active"`
 	UpdatedAt time.Time `json:"updated_at"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type Account struct {
@@ -71,6 +85,7 @@ type Account struct {
 	Active    bool      `json:"active"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type Entry struct {
@@ -89,6 +104,7 @@ type Entry struct {
 	CreatedBy    string    `json:"created_by"`
 	CID          string    `json:"cid,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type InventoryItem struct {
@@ -106,6 +122,7 @@ type InventoryItem struct {
 	Category   string    `json:"category,omitempty"`
 	Active     bool      `json:"active"`
 	UpdatedAt  time.Time `json:"updated_at"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type InventoryMove struct {
@@ -119,6 +136,7 @@ type InventoryMove struct {
 	Note       string    `json:"note,omitempty"`
 	CreatedBy  string    `json:"created_by"`
 	CreatedAt  time.Time `json:"created_at"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type Employee struct {
@@ -146,6 +164,7 @@ type Employee struct {
 	Active          bool      `json:"active"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at,omitempty"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type Payslip struct {
@@ -166,6 +185,7 @@ type Payslip struct {
 	Status         string    `json:"status"`
 	CreatedBy      string    `json:"created_by,omitempty"`
 	CreatedAt      time.Time `json:"created_at"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type Invoice struct {
@@ -184,6 +204,7 @@ type Invoice struct {
 	CID        string        `json:"cid,omitempty"`
 	CreatedBy  string        `json:"created_by"`
 	CreatedAt  time.Time     `json:"created_at"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type InvoiceLine struct {
@@ -191,6 +212,7 @@ type InvoiceLine struct {
 	Qty         float64 `json:"qty"`
 	UnitPrice   float64 `json:"unit_price"`
 	Amount      float64 `json:"amount"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type AuditEntry struct {
@@ -203,6 +225,7 @@ type AuditEntry struct {
 	Ref       string    `json:"ref,omitempty"`
 	CID       string    `json:"cid,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type BackupMeta struct {
@@ -212,6 +235,7 @@ type BackupMeta struct {
 	UserID    string    `json:"user_id"`
 	Username  string    `json:"username,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type StoreSnapshot struct {
@@ -244,6 +268,7 @@ type StoreSnapshot struct {
 	Rev        int64                     `json:"rev"`
 	RootCID    string                    `json:"root_cid,omitempty"`
 	UpdatedAt  time.Time                 `json:"updated_at"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type JobPosition struct {
@@ -253,6 +278,7 @@ type JobPosition struct {
 	Name      string    `json:"name"`
 	Active    bool      `json:"active"`
 	CreatedAt time.Time `json:"created_at"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type TokenSession struct {
@@ -261,4 +287,5 @@ type TokenSession struct {
 	TenantID  string    `json:"tenant_id"`
 	Role      string    `json:"role"`
 	ExpiresAt time.Time `json:"expires_at"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }

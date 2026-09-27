@@ -17,6 +17,7 @@ type Product struct {
 	Active       bool      `json:"active"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 // Unidad de venta (punto de venta del negocio).
@@ -29,6 +30,7 @@ type SalesUnit struct {
 	Phone     string    `json:"phone,omitempty"`
 	Active    bool      `json:"active"`
 	CreatedAt time.Time `json:"created_at"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 // Stock en almacén central (por producto).
@@ -37,6 +39,7 @@ type WarehouseStock struct {
 	Qty        float64 `json:"qty"`
 	AvgCost    float64 `json:"avg_cost"` // promedio ponderado
 	AmountBase float64 `json:"amount_base"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 // Stock en una unidad de venta.
@@ -46,6 +49,7 @@ type UnitStock struct {
 	Qty        float64 `json:"qty"`
 	AvgCost    float64 `json:"avg_cost"`
 	AmountBase float64 `json:"amount_base"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 // Informe de recepción (módulo desacoplable "recepcion").
@@ -71,6 +75,7 @@ type ReceptionNote struct {
 	EnteredBy    string          `json:"entered_by,omitempty"`
 	EnteredAt    *time.Time      `json:"entered_at,omitempty"`
 	Note         string          `json:"note,omitempty"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type ReceptionLine struct {
@@ -81,6 +86,7 @@ type ReceptionLine struct {
 	Qty         float64 `json:"qty"`
 	UnitCost    float64 `json:"unit_cost"`
 	Amount      float64 `json:"amount"` // importe línea = qty * unit_cost
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 // Transferencia almacén → unidad de venta.
@@ -96,6 +102,7 @@ type StockTransfer struct {
 	CreatedBy string         `json:"created_by"`
 	CreatedAt time.Time      `json:"created_at"`
 	Note      string         `json:"note,omitempty"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type TransferLine struct {
@@ -105,6 +112,7 @@ type TransferLine struct {
 	Qty         float64 `json:"qty"`
 	UnitCost    float64 `json:"unit_cost"`
 	Amount      float64 `json:"amount"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 // Venta de mostrador / vendedor (tributa a contabilidad).
@@ -126,6 +134,7 @@ type POSSale struct {
 	CreatedBy   string       `json:"created_by"`
 	CreatedAt   time.Time    `json:"created_at"`
 	Note        string       `json:"note,omitempty"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type POSLine struct {
@@ -139,6 +148,7 @@ type POSLine struct {
 	LineTotal   float64 `json:"line_total"`
 	UnitCost    float64 `json:"unit_cost"`
 	CostAmount  float64 `json:"cost_amount"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 // Ficha de costo (estructura orientada a normas cubanas de costos).
@@ -162,6 +172,7 @@ type CostSheet struct {
 	CreatedBy       string    `json:"created_by"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 // Contadores de documentos por tenant.
@@ -172,4 +183,5 @@ type DocCounters struct {
 	POSSaleSeq    int `json:"pos_sale_seq"`
 	UnitSeq       int `json:"unit_seq"`
 	JobSeq        int `json:"job_seq"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }

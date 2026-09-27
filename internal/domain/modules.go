@@ -103,6 +103,7 @@ type MeasureUnit struct {
 	Active    bool      `json:"active"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 // PriceSheet — ficha de precio (distinta de ficha de costo).
@@ -123,6 +124,7 @@ type PriceSheet struct {
 	CreatedBy     string    `json:"created_by"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 // OnlineOrder — pedido online (cliente final → negocio).
@@ -140,6 +142,7 @@ type OnlineOrder struct {
 	Notes       string            `json:"notes,omitempty"`
 	CreatedAt   time.Time         `json:"created_at"`
 	UpdatedAt   time.Time         `json:"updated_at"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
 type OnlineOrderLine struct {
@@ -149,4 +152,5 @@ type OnlineOrderLine struct {
 	Qty         float64 `json:"qty"`
 	UnitPrice   float64 `json:"unit_price"`
 	LineTotal   float64 `json:"line_total"`
+	Metadata   Metadata  `json:"metadata,omitempty"`
 }
