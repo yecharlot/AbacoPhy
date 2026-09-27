@@ -383,8 +383,8 @@ Solo admin/master pueden indicar `username` distinto al propio.
 
 ### Informe de recepción
 - `GET /api/v1/receptions`
-- `POST /api/v1/receptions` — `{ "supplier?", "doc_ref?", "lines":[{ "product_id", "qty", "unit_cost" }] }`  
-  Actualiza stock, promedio ponderado, inventario clásico y cuenta 1300.
+- `POST /api/v1/receptions` — registra la compra documental; **no actualiza stock ni costo promedio**.  
+- `POST /api/v1/receptions/enter` — almacenero confirma la entrada física (`accept=true`) o registra un problema (`accept=false`, `reason` obligatorio). Solo una entrada confirmada actualiza stock, promedio ponderado y reconocimiento contable de inventario.
 
 ### Transferencias almacén → unidad
 - `GET /api/v1/transfers`
