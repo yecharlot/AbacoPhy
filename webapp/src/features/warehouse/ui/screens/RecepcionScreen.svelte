@@ -48,6 +48,10 @@
 
   $: stockRows = state.rows ?? [];
   $: receptions = [...(state.receptions ?? [])].reverse();
+  $: problemReceptions = receptions.filter((r) => r.metadataState?.receptionStatus === 'entry_problem');
+  $: receptionVisualStatus = (r: (typeof receptions)[number]) =>
+    r.metadataState?.receptionStatus ??
+    (r.status === 'entrado' ? 'entry_confirmed' : r.status === 'problemas_entrada' ? 'entry_problem' : 'pending_entry');
   $: estimated = lines.reduce(
     (acc, line) => acc + (parseFloat(line.qty) || 0) * (parseFloat(line.unitCost) || 0),
     0,
@@ -125,7 +129,7 @@
       const unitCostRaw = String(line.unitCost ?? '').trim();
       if (!unitCostRaw) {
         formError =
-          'Indique el costo unitario de cada línea. Ese valor es de esta recepción y actualiza el costo promedio ponderado del producto.';
+          'Indique el costo unitario documental de cada línea. El costo promedio solo cambia cuando Almacén confirma la entrada.';
         return;
       }
       const unitCost = parseFloat(unitCostRaw);
@@ -157,7 +161,7 @@
         date: date || undefined,
         lines: payload,
       });
-      formOk = `Recepción confirmada · total estimado ${estimated.toFixed(2)}`;
+      formOk = `Informe registrado · pendiente de entrada física · total documental ${estimated.toFixed(2)}`;
       resetForm();
     } catch (err) {
       formError =
@@ -180,8 +184,7 @@
     <div>
       <h1>Informes de recepción</h1>
       <p class="sub">
-        Entrada de mercancía al almacén central. El costo unitario de cada línea actualiza el costo promedio ponderado del producto. Tras confirmar, el stock y el promedio se
-        actualizan en el servidor.
+        Registre la compra documental. Este informe no modifica stock ni costo promedio; Almacén debe verificar físicamente y dar entrada.
       </p>
     </div>
     <Button variant="secondary" on:click={() => store.loadAll()} disabled={state.status === 'loading'}>
@@ -197,6 +200,23 @@
   {/if}
   {#if formError}
     <p class="banner err" role="alert">{formError}</p>
+  {/if}
+
+  {#if problemReceptions.length > 0}
+    <Card>
+      <h2>Entradas con problemas ({problemReceptions.length})</h2>
+      <div class="problem-list">
+        {#each problemReceptions as r (r.id)}
+          <article class="problem-item">
+            <div>
+              <strong>{r.number}</strong>
+              <span class="muted-inline"> · {r.supplier || 'Sin proveedor'}</span>
+            </div>
+            <p>{r.metadataState?.problemReason || r.note || 'El almacén reportó un problema sin detalle.'}</p>
+          </article>
+        {/each}
+      </div>
+    </Card>
   {/if}
 
   <div class="layout">
@@ -358,6 +378,7 @@
             </thead>
             <tbody>
               {#each receptions as r (r.id)}
+                {@const visual = receptionVisualStatus(r)}
                 <tr>
                   <td class="mono">{r.number}</td>
                   <td>{r.date}</td>
@@ -382,7 +403,11 @@
                     {/if}
                   </td>
                   <td class="num"><Money amount={r.totalCost} currency={r.currency} /></td>
-                  <td><span class="pill">{r.status || '—'}</span></td>
+                  <td>
+                    <span class:pending={visual === 'pending_entry'} class:confirmed={visual === 'entry_confirmed'} class:problem={visual === 'entry_problem'} class="status-pill">
+                        {visual === 'pending_entry' ? 'Pendiente dar entrada' : visual === 'entry_confirmed' ? 'Entrada confirmada' : 'Problema con la entrada'}
+                      </span>
+                    </td>
                 </tr>
               {/each}
             </tbody>
@@ -593,6 +618,20 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 0.8rem;
   }
+   .status-pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 999px;
+  }
+  .status-pill.pending { background: color-mix(in srgb, #f59e0b 16%, transparent); color: #b45309; }
+  .status-pill.confirmed { background: color-mix(in srgb, var(--accent-green, #b7f56a) 16%, transparent); color: var(--accent-green, var(--ap-ok)); }
+  .status-pill.problem { background: color-mix(in srgb, var(--accent-red, #f17b7b) 14%, transparent); color: var(--accent-red, var(--ap-danger)); }
+  .problem-list { display: flex; flex-direction: column; gap: 8px; }
+  .problem-item { padding: 10px 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--accent-red, #f17b7b) 28%, var(--ap-border)); background: color-mix(in srgb, var(--accent-red, #f17b7b) 6%, transparent); }
+  .problem-item p { margin: 5px 0 0; font-size: 0.82rem; color: var(--color-text-secondary, var(--ap-text-secondary)); }
   .pill {
     font-size: 0.68rem;
     font-weight: 650;

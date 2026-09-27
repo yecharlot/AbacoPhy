@@ -14,13 +14,14 @@ export class EnterReception {
     if (!id) {
       throw new Error('Indique el informe de recepción a entrar');
     }
-    if (!input.accept) {
-      throw new Error('Debe confirmar la validación (accept=true) para dar entrada');
+    if (!input.accept && !(input.reason || '').trim()) {
+      throw new Error('Indique el motivo del problema de entrada');
     }
     return this.repo.enterReception({
       id,
-      accept: true,
+      accept: input.accept,
       note: input.note?.trim() || undefined,
+      reason: input.accept ? undefined : input.reason?.trim(),
     });
   }
 }

@@ -38,10 +38,25 @@ describe('EnterReception', () => {
     );
   });
 
-  it('rechaza accept false', async () => {
+  it('permite registrar un problema con motivo', async () => {
+    const repo = mockOf<WarehouseRepository>({
+      enterReception: vi.fn().mockResolvedValue(reception),
+    });
+    await expect(
+      new EnterReception(repo).execute({ id: 'r1', accept: false, reason: 'Faltan 2 unidades' }),
+    ).resolves.toEqual(reception);
+    expect(repo.enterReception).toHaveBeenCalledWith({
+      id: 'r1',
+      accept: false,
+      note: undefined,
+      reason: 'Faltan 2 unidades',
+    });
+  });
+
+  it('rechaza problema sin motivo', async () => {
     const repo = mockOf<WarehouseRepository>({ enterReception: vi.fn() });
     await expect(new EnterReception(repo).execute({ id: 'r1', accept: false })).rejects.toThrow(
-      /accept/i,
+      /motivo/i,
     );
   });
 });

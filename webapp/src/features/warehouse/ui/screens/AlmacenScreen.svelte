@@ -39,10 +39,17 @@
   let topStock: ChartPoint[] = [];
   let distribution: ChartPoint[] = [];
   let receptionFlow: ChartPoint[] = [];
+  let entryError = '';
 
   $: topStock = topStockByValue(state.rows);
   $: distribution = stockDistribution(state.rows, state.unitStocks, state.units);
   $: receptionFlow = receptionsSeries(state.receptions);
+  $: pendingReceptions = state.receptions.filter((r) =>
+    !r.metadataState?.receptionStatus || r.metadataState.receptionStatus === 'pending_entry'
+  );
+  $: problemReceptions = state.receptions.filter((r) =>
+    r.metadataState?.receptionStatus === 'entry_problem' || r.status === 'problemas_entrada'
+  );
   $: baseCurrency = state.rows.length > 0 ? state.rows[0].currency : '';
 
   function unitLabel(unitId: string): string {
@@ -55,6 +62,26 @@
     if (row) return `${row.code} · ${row.name}`;
     const product = state.products.find((p) => p.id === productId);
     return product ? `${product.code} · ${product.name}` : productId;
+  }
+
+  async function confirmReception(id: string) {
+    entryError = '';
+    try {
+      await store.enterReception({ id, accept: true });
+    } catch (err) {
+      entryError = err instanceof Error ? err.message : 'No se pudo dar entrada';
+    }
+  }
+
+  async function reportReceptionProblem(id: string) {
+    const reason = window.prompt('Indique el motivo del problema con la entrada:')?.trim() || '';
+    if (!reason) return;
+    entryError = '';
+    try {
+      await store.enterReception({ id, accept: false, reason });
+    } catch (err) {
+      entryError = err instanceof Error ? err.message : 'No se pudo registrar el problema';
+    }
   }
 
   async function handleCreateUnit(e: Event) {
@@ -80,6 +107,61 @@
     }
   }
 </script>
+
+<Card>
+  <div class="head">
+    <div>
+      <h2>Recepciones pendientes de entrada</h2>
+      <p class="muted">Compruebe físicamente la mercancía antes de afectar existencias o costo promedio.</p>
+    </div>
+    <Badge tone={pendingReceptions.length ? 'default' : 'off'}>{pendingReceptions.length}</Badge>
+  </div>
+  {#if entryError}<p class="err">{entryError}</p>{/if}
+  {#if pendingReceptions.length === 0}
+    <p class="muted">No hay informes pendientes de entrada.</p>
+  {:else}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Nº</th><th>Fecha</th><th>Proveedor</th><th>Líneas</th><th>Acciones</th></tr></thead>
+        <tbody>
+          {#each pendingReceptions as r (r.id)}
+            <tr>
+              <td class="mono">{r.number}</td>
+              <td>{r.date}</td>
+              <td>{r.supplier || '—'}</td>
+              <td>{r.lines.length}</td>
+              <td>
+                <div class="reception-actions">
+                  <Button on:click={() => confirmReception(r.id)} disabled={state.saving}>Dar entrada</Button>
+                  <Button variant="secondary" on:click={() => reportReceptionProblem(r.id)} disabled={state.saving}>Reportar problema</Button>
+                </div>
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+  {/if}
+</Card>
+
+<Card>
+  <div class="head">
+    <h2>Problemas de entrada</h2>
+    <Badge tone={problemReceptions.length ? 'off' : 'default'}>{problemReceptions.length}</Badge>
+  </div>
+  {#if problemReceptions.length === 0}
+    <p class="muted">No hay problemas de entrada reportados.</p>
+  {:else}
+    <div class="problem-list">
+      {#each problemReceptions as r (r.id)}
+        <article class="problem-item">
+          <strong>{r.number}</strong>
+          <p>{r.metadataState?.problemReason || r.note || 'Sin motivo registrado.'}</p>
+        </article>
+      {/each}
+    </div>
+  {/if}
+</Card>
 
 <section class="analytics">
   <div class="stats">
@@ -313,6 +395,10 @@
   .form-actions {
     margin-top: 1rem;
   }
+  .reception-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .problem-list { display: flex; flex-direction: column; gap: 8px; }
+  .problem-item { padding: 10px 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--accent-red, #f17b7b) 28%, var(--ap-border)); background: color-mix(in srgb, var(--accent-red, #f17b7b) 6%, transparent); }
+  .problem-item p { margin: 4px 0 0; font-size: 0.82rem; color: var(--ap-text-secondary); }
   .ok-banner {
     color: var(--accent-green, var(--ap-ok));
     font-size: 0.85rem;

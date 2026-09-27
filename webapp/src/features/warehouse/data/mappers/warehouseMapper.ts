@@ -58,6 +58,23 @@ export function createSalesUnitInputToDto(input: CreateSalesUnitInput): Record<s
   return body;
 }
 
+function readReceptionMetadata(value: unknown): Reception['metadataState'] {
+  let metadata: Record<string, unknown> | null = null;
+  if (typeof value === 'string') {
+    try { metadata = JSON.parse(value) as Record<string, unknown>; } catch { return undefined; }
+  } else if (value && typeof value === 'object') {
+    metadata = value as Record<string, unknown>;
+  }
+  const state = metadata?.['int.reception_status'];
+  if (state !== 'pending_entry' && state !== 'entry_confirmed' && state !== 'entry_problem') return undefined;
+  return {
+    receptionStatus: state,
+    problemReason: typeof metadata?.['int.reception_problem_reason'] === 'string' ? metadata['int.reception_problem_reason'] as string : undefined,
+    entryActor: typeof metadata?.['int.reception_entry_actor'] === 'string' ? metadata['int.reception_entry_actor'] as string : undefined,
+    entryAt: typeof metadata?.['int.reception_entry_at'] === 'string' ? metadata['int.reception_entry_at'] as string : undefined,
+  };
+}
+
 function receptionLineDtoToEntity(dto: ReceptionLineDto): ReceptionLine {
   return {
     productId: dto.product_id,
@@ -92,6 +109,7 @@ export function receptionDtoToEntity(dto: ReceptionDto): Reception {
     currency: d.currency || '',
     status: d.status || '',
     note: d.note || '',
+    metadataState: readReceptionMetadata(d.metadata),
     enteredBy: d.entered_by,
     enteredAt: d.entered_at,
       metadata: normalizeMetadataField(dto),
@@ -118,9 +136,10 @@ export function createReceptionInputToDto(input: CreateReceptionInput): Record<s
   return body;
 }
 
-export function enterReceptionInputToDto(input: { id: string; accept: boolean; note?: string }): Record<string, unknown> {
+export function enterReceptionInputToDto(input: { id: string; accept: boolean; note?: string; reason?: string }): Record<string, unknown> {
   const body: Record<string, unknown> = { id: input.id, accept: input.accept };
   if (input.note) body.note = input.note;
+  if (input.reason) body.reason = input.reason;
   return body;
 }
 

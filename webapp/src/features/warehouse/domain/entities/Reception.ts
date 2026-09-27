@@ -4,7 +4,7 @@ export type ReceptionLine = {
   productName: string;
   unit?: string;
   qty: number;
-  /** Costo unitario registrado en esta recepción (entrada a promedio ponderado). */
+  /** Costo unitario documental registrado en esta recepción. Solo entra al promedio al confirmar en Almacén. */
   unitCost: number;
   amount: number;
   /** JSON string opaco; ausente si el API no lo envía. */
@@ -12,8 +12,16 @@ export type ReceptionLine = {
 
 };
 
-/** pendiente_entrada = económico registró; entrado = almacenero dio entrada física */
-export type ReceptionStatus = 'pendiente_entrada' | 'entrado' | 'anulado' | string;
+export type ReceptionStatus = 'pendiente_entrada' | 'entrado' | 'problemas_entrada' | 'anulado' | string;
+
+export type ReceptionVisualStatus = 'pending_entry' | 'entry_confirmed' | 'entry_problem';
+
+export type ReceptionMetadata = {
+  receptionStatus?: ReceptionVisualStatus;
+  problemReason?: string;
+  entryActor?: string;
+  entryAt?: string;
+};
 
 export type Reception = {
   id: string;
@@ -33,6 +41,7 @@ export type Reception = {
   enteredAt?: string;
   /** JSON string opaco; ausente si el API no lo envía. */
   metadata?: string | null;
+  metadataState?: ReceptionMetadata;
 
 };
 
@@ -41,7 +50,7 @@ export type CreateReceptionLineInput = {
   qty: number;
   /**
    * Costo unitario de ESTA recepción.
-   * Alimenta el costo promedio ponderado del producto (solo vía recepciones).
+   * Costo documental de esta compra. Solo pasa a inventario cuando almacén confirma la entrada.
    * @see webapp/.policies/warehouse-recepcion-costo-promedio.md
    */
   unitCost: number;
@@ -69,9 +78,10 @@ export type CreateReceptionInput = {
 
 export type EnterReceptionInput = {
   id: string;
-  /** Indica si se valida con el económico. El caso de uso lanza error si es false. */
+  /** true = entrada física confirmada; false = registrar problema de entrada. */
   accept: boolean;
   note?: string;
+  reason?: string;
   /** JSON string opaco; ausente si el API no lo envía. */
   metadata?: string | null;
 };
