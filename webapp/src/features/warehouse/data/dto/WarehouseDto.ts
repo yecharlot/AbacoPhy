@@ -62,6 +62,7 @@ export type ReceptionDto = {
   currency?: string;
   status?: string;
   note?: string;
+  metadata?: Record<string, unknown> | string | null;
 };
 
 export type ReceptionsResponseDto = {
