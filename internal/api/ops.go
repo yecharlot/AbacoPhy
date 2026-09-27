@@ -558,6 +558,15 @@ func (s *Server) handleReceptionEnter(w http.ResponseWriter, r *http.Request, se
 		p.UpdatedAt = time.Now().UTC()
 		s.mirrorInventoryFromProduct(snap, p, st)
 	}
+	// El reconocimiento contable de inventario ocurre junto con la entrada física.
+	domain.ApplyInventoryIn(snap, rn.TotalCost)
+	snap.Entries = append(snap.Entries, domain.Entry{
+		ID: uuid.NewString(), TenantID: sess.TenantID, Date: rn.Date, Type: "inventory",
+		Amount: rn.TotalCost, Currency: rn.Currency,
+		Description: fmt.Sprintf("Entrada almacén IR %s · %s · validado por almacenero", rn.Number, rn.Supplier),
+		CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
+	})
+
 	now := time.Now().UTC()
 	rn.Status = "entrado"
 	rn.EnteredBy = sess.UserID
