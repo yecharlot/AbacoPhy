@@ -78,6 +78,19 @@
   let toastMsg = $state('');
   let sessionState: SessionState = $state(sessionStore.getState());
   let loginAttempted = $state(false);
+  let masterState = $state(masterStore.getState());
+
+  const RECEIVER_ROLES = new Set(['master', 'admin', 'economico', 'almacenero']);
+  const receiverCandidates = $derived(
+    (masterState.users ?? [])
+      .filter((u) => u.active !== false && RECEIVER_ROLES.has(String(u.role || '').toLowerCase()))
+      .map((u) => ({
+        name: (u.displayName || u.username || '').trim(),
+        role: String(u.role || ''),
+      }))
+      .filter((c) => c.name),
+  );
+
 
   const navItems = $derived(
     filterNavByViews(PLACEHOLDER_NAV, sessionState.session?.views ?? null),
@@ -134,6 +147,11 @@
     const unsubSession = sessionStore.subscribe((s) => {
       sessionState = s;
     });
+    const unsubMaster = masterStore.subscribe((s) => {
+      masterState = s;
+    });
+    // Usuarios para autocomplete de receptor en recepciones
+    void masterStore.loadAll().catch(() => undefined);
 
     void sessionStore.bootstrap();
 
@@ -141,6 +159,7 @@
       unsubNet();
       unsubScreen();
       unsubSession();
+      unsubMaster();
     };
   });
 
@@ -234,7 +253,7 @@
     {:else if activeId === 'almacen'}
       <AlmacenScreen store={warehouseStore} />
     {:else if activeId === 'recepcion'}
-      <RecepcionScreen store={warehouseStore} />
+      <RecepcionScreen store={warehouseStore} receiverCandidates={receiverCandidates} />
     {:else if activeId === 'transferencias'}
       <TransferenciasScreen store={warehouseStore} />
     {:else if activeId === 'pos'}

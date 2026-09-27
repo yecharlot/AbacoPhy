@@ -7,6 +7,11 @@
   import { buildSampleWarehouseOpsPayload, seedWarehouseOpsViaStore } from '../dev/opsSeed';
 
   export let store: WarehouseStore;
+  /**
+   * Usuarios sugeridos para «Quién recibe» (roles master, admin, económico, almacenero).
+   * Proviene del listado de usuarios del negocio; el padre filtra por rol.
+   */
+  export let receiverCandidates: Array<{ name: string; role: string }> = [];
 
   type DraftLine = {
     productId: string;
@@ -36,6 +41,11 @@
   });
 
   $: products = state.products ?? [];
+  $: receiverNames = (receiverCandidates ?? [])
+    .map((c) => (c.name || '').trim())
+    .filter(Boolean);
+  $: receiverDatalistId = 'reception-receiver-suggestions';
+
   $: stockRows = state.rows ?? [];
   $: receptions = [...(state.receptions ?? [])].reverse();
   $: estimated = lines.reduce(
@@ -207,7 +217,23 @@
             </label>
             <label class="field">
               <span class="lbl">Quién recibe <span class="req">*</span></span>
-              <input bind:value={receiver} placeholder="Nombre del receptor" disabled={state.saving} />
+              <input
+                bind:value={receiver}
+                list={receiverDatalistId}
+                placeholder={receiverNames.length
+                  ? 'Escriba o elija un usuario…'
+                  : 'Nombre del receptor'}
+                autocomplete="off"
+                disabled={state.saving}
+              />
+              <datalist id={receiverDatalistId}>
+                {#each receiverCandidates as c (c.name + c.role)}
+                  <option value={c.name}>{c.role}</option>
+                {/each}
+              </datalist>
+              {#if receiverNames.length}
+                <p class="field-hint">Sugerencias: master, admin, económico, almacenero</p>
+              {/if}
             </label>
             <label class="field check">
               <span class="lbl">¿Con factura?</span>
@@ -272,7 +298,7 @@
                   />
                 </label>
                 <label class="field">
-                  <span class="lbl">Costo unit. recepción</span>
+                  <span class="lbl">Costo unitario</span>
                   <input
                     type="number"
                     min="0"
@@ -605,5 +631,10 @@
   .banner.ok {
     background: color-mix(in srgb, var(--accent-green, #b7f56a) 12%, transparent);
     color: var(--accent-green, var(--ap-ok));
+  }
+  .field-hint {
+    margin: 0.25rem 0 0;
+    font-size: 0.78rem;
+    color: var(--ap-text-secondary, #8a9a94);
   }
 </style>
