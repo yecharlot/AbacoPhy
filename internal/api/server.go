@@ -82,6 +82,16 @@ func (s *Server) Handler() http.Handler {
 		w.Header().Set("Content-Type", "image/svg+xml")
 		http.ServeFile(w, r, filepath.Join(s.StaticDir, "app", "icon.svg"))
 	}))
+	// Built webapp twin assets (static/assets from web/dist)
+	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir(filepath.Join(s.StaticDir, "assets")))))
+	mux.HandleFunc("/abacus_color_icon.svg", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/svg+xml")
+		http.ServeFile(w, r, filepath.Join(s.StaticDir, "abacus_color_icon.svg"))
+	})
+	mux.HandleFunc("/favicon.svg", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/svg+xml")
+		http.ServeFile(w, r, filepath.Join(s.StaticDir, "favicon.svg"))
+	})
 	mux.HandleFunc("/", s.servePWA)
 
 	s.registerOpsRoutes(mux)
@@ -1215,14 +1225,21 @@ func (s *Server) handleInvoicePDF(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) servePWA(w http.ResponseWriter, r *http.Request) {
-	// Preferir static/app/index.html
-	path := filepath.Join(s.StaticDir, "app", "index.html")
-	if _, err := os.Stat(path); err == nil {
-		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-		w.Header().Set("Pragma", "no-cache")
-		http.ServeFile(w, r, path)
-		return
+	// Prefer webapp twin: static/index.html, then static/app/index.html
+	candidates := []string{
+		filepath.Join(s.StaticDir, "index.html"),
+		filepath.Join(s.StaticDir, "app", "index.html"),
 	}
+	for _, path := range candidates {
+		if _, err := os.Stat(path); err == nil {
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			w.Header().Set("Pragma", "no-cache")
+			http.ServeFile(w, r, path)
+			return
+		}
+	}
+	path := "" // fall through
+	_ = path
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write([]byte(`<!DOCTYPE html><html><body><h1>ÁbacoPhy</h1><p>PWA no embebida. Coloca static/app/index.html</p></body></html>`))
 }
