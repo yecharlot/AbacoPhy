@@ -4,7 +4,7 @@ export type ReceptionLine = {
   productName: string;
   unit?: string;
   qty: number;
-  /** Costo unitario registrado en esta recepción (entrada a promedio ponderado). */
+  /** Costo unitario documental registrado en esta recepción. Solo entra al promedio al confirmar en Almacén. */
   unitCost: number;
   amount: number;
   /** JSON string opaco; ausente si el API no lo envía. */
@@ -57,7 +57,6 @@ export type CreateReceptionLineInput = {
   unit?: string;
   /** JSON string opaco; ausente si el API no lo envía. */
   metadata?: string | null;
-  metadataState?: ReceptionMetadata;
 
 };
 
