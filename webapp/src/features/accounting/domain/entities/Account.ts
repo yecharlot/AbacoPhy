@@ -5,6 +5,7 @@ export type Account = {
   code: string;
   name: string;
   type: AccountType;
+  currency?: string;
   balance: number;
   /** JSON string opaco; ausente si el API no lo envía. */
   metadata?: string | null;

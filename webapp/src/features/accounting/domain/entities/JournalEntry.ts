@@ -11,4 +11,5 @@ export type JournalEntry = {
   currency?: string;
   accountId?: string;
   counterpartId?: string;
+  metadata?: string | null;
 };

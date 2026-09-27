@@ -296,14 +296,6 @@
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
-  .form {
-    margin-top: 1rem;
-  }
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 0.75rem;
-  }
   .unit-form {
     margin-top: 1rem;
   }

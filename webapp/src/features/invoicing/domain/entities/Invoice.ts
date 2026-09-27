@@ -1,5 +1,12 @@
 import type { InvoiceLine } from './InvoiceLine';
 
+export type InvoiceStatus = 'draft' | 'issued' | 'paid' | 'cancelled';
+
+export type EmitInvoiceResult = {
+  invoice: Invoice;
+  entryId?: string;
+};
+
 export type Invoice = {
   id: string;
   number: string;
@@ -10,7 +17,7 @@ export type Invoice = {
   tax: number;
   total: number;
   currency: string;
-  status: string;
+  status: InvoiceStatus;
   issuedAt: string;
   /** Usuario de sesión que registró (backend CreatedBy) */
   createdBy?: string;
@@ -47,7 +54,7 @@ export type EmitInvoiceInput = {
   issuerTaxId?: string;
   issuerAddress?: string;
   issuerPhone?: string;
+  issuedAt?: string;
   /** JSON string opaco; ausente si el API no lo envía. */
   metadata?: string | null;
-
 };

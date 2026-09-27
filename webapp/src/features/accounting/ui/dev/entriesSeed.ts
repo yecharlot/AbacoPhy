@@ -138,6 +138,7 @@ export async function seedEntriesViaStore(
     const body: Omit<Entry, 'id' | 'type'> = {
       date: row.date,
       concept: row.concept,
+      description: row.concept,
       amount: Number(row.amount),
       currency: row.currency ?? 'CUP',
       accountId,

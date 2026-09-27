@@ -3,7 +3,7 @@ import type { CatalogRepository } from '../../catalog/domain/repositories/Catalo
 import { GetProducts } from '../../catalog/domain/usecases';
 import type { WarehouseRepository } from '../../warehouse/domain/repositories/WarehouseRepository';
 import { GetSalesUnits } from '../../warehouse/domain/usecases';
-import { GetWarehouseStock } from '../../warehouse/domain/usecases/GetWarehouseStock';
+import { GetWarehouseStock } from '../../warehouse/domain/usecases';
 import { SalesRepositoryImpl } from '../data/repositories/SalesRepositoryImpl';
 import { ListSales, RegisterSale } from '../domain/usecases';
 import { createPosStore, type PosStore } from '../ui/stores/posStore';
@@ -26,7 +26,6 @@ export function createPosModule(container: AppContainer, deps: PosModuleDeps): P
     getProducts: new GetProducts(deps.catalog),
     getSalesUnits: new GetSalesUnits(deps.warehouse),
     getWarehouseStock: new GetWarehouseStock(deps.warehouse),
-    appDataBus: container.appDataBus,
   });
 
   return { posStore };

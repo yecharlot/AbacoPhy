@@ -38,7 +38,7 @@
         type="button"
         class="nav-item"
         class:active={item.id === activeId}
-        on:click={() => {
+        onclick={() => {
           onNavigate?.(item.id);
           onClose?.();
         }}
@@ -50,9 +50,6 @@
 </aside>
 
 <style>
-  .image-icon {
-
-  }
   .sidebar {
     width: var(--sidebar-w, var(--ap-sidebar-w));
     position: fixed;

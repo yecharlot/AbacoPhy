@@ -486,14 +486,6 @@
     color: var(--color-text-muted);
     text-transform: capitalize;
   }
-  .account-chevron {
-    flex: 0 0 auto;
-    opacity: 0.55;
-    transition: transform 180ms ease;
-  }
-  .account-menu.open .account-chevron {
-    transform: rotate(180deg);
-  }
   .account-backdrop {
     position: fixed;
     inset: 0;
@@ -560,9 +552,6 @@
     .account-trigger {
       padding: 4px;
       max-width: none;
-    }
-    .account-chevron {
-      display: none;
     }
   }
 

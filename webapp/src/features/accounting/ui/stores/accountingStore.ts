@@ -1,11 +1,11 @@
 import type { Account } from '../../domain/entities/Account';
-import type { Entry } from '../../domain/entities/Entry';
+import type { CreateEntryInput, Entry } from '../../domain/entities/Entry';
 import type { Equation } from '../../domain/entities/Equation';
-import type { ListAccounts } from '../../domain/usecases/ListAccounts';
-import type { ListEntries } from '../../domain/usecases/ListEntries';
-import type { GetSummary } from '../../domain/usecases/GetSummary';
-import type { CreateIncomeEntry } from '../../domain/usecases/CreateIncomeEntry';
-import type { CreateExpenseEntry } from '../../domain/usecases/CreateExpenseEntry';
+import type { ListAccounts } from '../../domain/usecases';
+import type { ListEntries } from '../../domain/usecases';
+import type { GetSummary } from '../../domain/usecases';
+import type { CreateIncomeEntry } from '../../domain/usecases';
+import type { CreateExpenseEntry } from '../../domain/usecases';
 
 export type AccountingStatus = 'idle' | 'loading' | 'success' | 'error' | 'empty';
 
@@ -103,7 +103,7 @@ export function createAccountingStore(deps: Deps) {
         set({ status: 'error', error: message });
       }
     },
-    async addIncome(entry: Omit<Entry, 'id' | 'type'>): Promise<void> {
+    async addIncome(entry: Omit<CreateEntryInput, 'type'>): Promise<void> {
       set({ saving: true, error: null });
       try {
         await deps.createIncome.execute(entry);
@@ -114,7 +114,7 @@ export function createAccountingStore(deps: Deps) {
         throw err;
       }
     },
-    async addExpense(entry: Omit<Entry, 'id' | 'type'>): Promise<void> {
+    async addExpense(entry: Omit<CreateEntryInput, 'type'>): Promise<void> {
       set({ saving: true, error: null });
       try {
         await deps.createExpense.execute(entry);
@@ -124,6 +124,12 @@ export function createAccountingStore(deps: Deps) {
         set({ saving: false, error: message });
         throw err;
       }
+    },
+    createIncome(entry: Omit<CreateEntryInput, 'type'>): Promise<void> {
+      return this.addIncome(entry);
+    },
+    createExpense(entry: Omit<CreateEntryInput, 'type'>): Promise<void> {
+      return this.addExpense(entry);
     },
   };
 }

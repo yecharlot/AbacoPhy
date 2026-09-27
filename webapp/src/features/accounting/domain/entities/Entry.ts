@@ -11,6 +11,11 @@ export type Entry = {
   currency: string;
   /** JSON string opaco; ausente si el API no lo envía. */
   metadata?: string | null;
+  /** Alias legacy de description conservado para pantallas y datos existentes. */
+  concept?: string;
+  accountName?: string;
+  category?: string;
+  tags?: string[];
 
 };
 
@@ -19,6 +24,7 @@ export type CreateEntryInput = {
   accountId: string;
   amount: number;
   description: string;
+  concept?: string;
   counterpart?: string;
   date?: string;
   currency?: string;

@@ -1,6 +1,15 @@
 import type { Account } from '../entities/Account';
 import type { CreateEntryInput, Entry } from '../entities/Entry';
 import type { Equation, Summary } from '../entities/Equation';
+import type { JournalEntry } from '../entities/JournalEntry';
+import type { TrialBalance } from '../entities/TrialBalance';
+
+export type EntriesQuery = {
+  type?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+};
 
 export type CreateEntryResult = {
   entry: Entry;
@@ -11,7 +20,9 @@ export type CreateEntryResult = {
 
 export interface AccountingRepository {
   listAccounts(): Promise<Account[]>;
-  listEntries(): Promise<Entry[]>;
+  listEntries(params?: EntriesQuery): Promise<Entry[]>;
   createEntry(input: CreateEntryInput): Promise<CreateEntryResult>;
   getSummary(): Promise<Summary>;
+  getJournal(params?: EntriesQuery): Promise<JournalEntry[]>;
+  getTrialBalance(): Promise<TrialBalance>;
 }

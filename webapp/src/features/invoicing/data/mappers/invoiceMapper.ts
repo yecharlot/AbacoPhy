@@ -2,7 +2,6 @@ import type {
   EmitInvoiceInput,
   EmitInvoiceResult,
   Invoice,
-  InvoiceLine,
   InvoiceStatus,
 } from '../../domain/entities/Invoice';
 import type {
@@ -11,7 +10,8 @@ import type {
   InvoiceDto,
   InvoiceLineDto,
 } from '../dto/InvoiceDto';
-import { normalizeMetadataField, metadataToDto } from '../../../../infrastructure/domain/metadata';
+import { normalizeMetadataField, metadataToDto } from '../../../../infrastructure/data/metadata';
+import type {InvoiceLine} from "../../domain/entities/InvoiceLine";
 
 const STATUSES: InvoiceStatus[] = ['draft', 'issued', 'paid', 'cancelled'];
 
@@ -24,6 +24,7 @@ function lineDtoToEntity(dto: InvoiceLineDto): InvoiceLine {
     description: String(dto.description ?? ''),
     qty: Number(dto.qty ?? 0),
     unitPrice: Number(dto.unit_price ?? dto.unitPrice ?? 0),
+    amount: Number(dto.qty ?? 0) * Number(dto.unit_price ?? dto.unitPrice ?? 0),
   };
 }
 
@@ -43,6 +44,7 @@ export function invoiceDtoToEntity(dto: InvoiceDto): Invoice {
     tax,
     subtotal,
     total: Number(dto.total ?? subtotal + tax),
+    currency: String((dto as { currency?: string }).currency ?? 'CUP'),
     status: asStatus(dto.status),
     issuedAt: String(dto.issued_at ?? dto.issuedAt ?? ''),
     cid: dto.cid ?? dto.root_cid,

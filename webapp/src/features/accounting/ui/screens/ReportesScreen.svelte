@@ -71,7 +71,7 @@
     </Button>
   </header>
 
-  <nav class="tabs" role="tablist" aria-label="Tipo de reporte">
+  <div class="tabs" role="tablist" aria-label="Tipo de reporte">
     <button
       type="button"
       role="tab"
@@ -102,7 +102,7 @@
     >
       Libro diario
     </button>
-  </nav>
+  </div>
 
   {#if loading}
     <Card>

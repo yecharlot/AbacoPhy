@@ -7,6 +7,7 @@ import type {
 import type { GetSalesUnits } from '../../../warehouse/domain/usecases';
 import type { CreateSaleInput, Sale } from '../../domain/entities/Sale';
 import type { ListSales, RegisterSale } from '../../domain/usecases';
+import type { GetWarehouseStock } from '../../../warehouse/domain/usecases';
 
 export type PosStatus = 'idle' | 'loading' | 'success' | 'error' | 'empty';
 
@@ -27,6 +28,7 @@ type Deps = {
   registerSale: RegisterSale;
   getProducts: GetProducts;
   getSalesUnits: GetSalesUnits;
+  getWarehouseStock: GetWarehouseStock;
 };
 
 export function createPosStore(deps: Deps) {

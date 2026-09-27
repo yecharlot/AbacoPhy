@@ -7,7 +7,6 @@
   import { buildSampleProductsPayload, seedProductsViaStore } from '../dev/productsSeed';
 
   export let store: CatalogStore;
-  export let currencyCode = 'CUP';
 
   let state: CatalogState = store.getState();
   let activeTab: 'productos' | 'unidades' = 'productos';
@@ -675,10 +674,6 @@
     padding: 0.5rem;
     border-bottom: 1px solid var(--color-border, var(--ap-border));
     color: var(--color-text-secondary, var(--ap-text-secondary));
-  }
-  .num {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
   }
   .mono {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

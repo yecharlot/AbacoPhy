@@ -149,10 +149,12 @@ export const accountingMapper = {
   },
 
   toEntry(dto: EntryDto): Entry {
+    const description = dto.description || dto.concept || '';
     return {
       id: dto.id,
       date: dto.date,
-      concept: dto.concept || dto.description || '',
+      description,
+      concept: description,
       type: dto.type as Entry['type'],
       amount: n(dto.amount),
       currency: dto.currency ?? '',

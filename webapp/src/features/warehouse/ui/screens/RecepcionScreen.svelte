@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Button, Card, Input, Money } from '../../../../infrastructure/ui/shared';
+  import { Button, Card, Money } from '../../../../infrastructure/ui/shared';
   import type { WarehouseState, WarehouseStore } from '../stores/warehouseStore';
   import type { CreateReceptionLineInput } from '../../domain/entities/Reception';
   import { DevSeedPanel } from '../../../../infrastructure/ui/dev';
@@ -474,11 +474,6 @@
     gap: 8px;
     font-size: 0.85rem;
     color: var(--color-text-secondary);
-  }
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 0 0.75rem;
   }
   .lines-head {
     display: flex;

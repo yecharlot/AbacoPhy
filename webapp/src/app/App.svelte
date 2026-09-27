@@ -16,9 +16,9 @@
   import { createIdentityModule } from '../features/identity/di';
   import { createTenantModule } from '../features/tenant/di';
   import { createCatalogModule } from '../features/catalog/di/catalogModule';
-  import { createAccountingModule } from '../features/accounting/di/accountingModule';
-  import { createInvoicingModule } from '../features/invoicing/di/invoicingModule';
-  import { createPayrollModule } from '../features/payroll/di/payrollModule';
+  import { createAccountingModule } from '../features/accounting/di';
+  import { createInvoicingModule } from '../features/invoicing/di';
+  import { createPayrollModule } from '../features/payroll/di';
   import { createWarehouseModule } from '../features/warehouse/di';
   import { createPosModule } from '../features/pos/di';
   import { createCostingModule } from '../features/costing/di';
@@ -56,7 +56,7 @@
   const { sessionStore } = createIdentityModule(container);
   const { tenantStore } = createTenantModule(container);
   const { catalogStore, repository: catalogRepository } = createCatalogModule(container);
-  const { accountingStore, reportsStore } = createAccountingModule(container);
+  const { accountingStore } = createAccountingModule(container);
   const { invoicingStore } = createInvoicingModule(container);
   const { payrollStore } = createPayrollModule(container);
   // Fase 8 — las features reciben contratos de dominio, nunca implementaciones ajenas
@@ -239,7 +239,7 @@
     {:else if activeId === 'cuentas'}
       <CuentasScreen store={accountingStore} />
     {:else if activeId === 'reportes'}
-      <ReportesScreen store={reportsStore} />
+      <ReportesScreen store={accountingStore} />
     {:else if activeId === 'facturas'}
       <FacturasScreen store={invoicingStore} />
     {:else if activeId === 'empleados'}
@@ -249,7 +249,7 @@
     {:else if activeId === 'tenant'}
       <TenantScreen store={tenantStore} canEdit={canEditTenant} />
     {:else if activeId === 'catalog'}
-      <CatalogScreen store={catalogStore} currencyCode="CUP" />
+      <CatalogScreen store={catalogStore} />
     {:else if activeId === 'almacen'}
       <AlmacenScreen store={warehouseStore} />
     {:else if activeId === 'recepcion'}
@@ -257,7 +257,7 @@
     {:else if activeId === 'transferencias'}
       <TransferenciasScreen store={warehouseStore} />
     {:else if activeId === 'pos'}
-      <PosScreen store={posStore} userRole={userRole} userDisplayName={userDisplayName} />
+      <PosScreen store={posStore} />
     {:else if activeId === 'fichas-costo'}
       <FichasCostoScreen store={costingStore} />
     {:else if activeId === 'fichas-precio'}
@@ -301,11 +301,3 @@
 
 <Toast message={toastMsg} visible={!!toastMsg} />
 
-<style>
-  .boot {
-    min-height: 100dvh;
-    display: grid;
-    place-items: center;
-    color: var(--ap-text-secondary);
-  }
-</style>

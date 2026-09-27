@@ -1,6 +1,12 @@
 import type { EmitInvoiceInput, Invoice } from '../../domain/entities/Invoice';
 import type { InvoiceLine } from '../../domain/entities/InvoiceLine';
-import { normalizeMetadataField, metadataToDto } from '../../../../infrastructure/domain/metadata';
+import { normalizeMetadataField, metadataToDto } from '../../../../infrastructure/data/metadata';
+
+function invoiceStatus(value: string | undefined): Invoice['status'] {
+  return ['draft', 'issued', 'paid', 'cancelled'].includes(value ?? '')
+      ? (value as Invoice['status'])
+      : 'draft';
+}
 
 function n(v: unknown): number {
   const x = Number(v);
@@ -71,7 +77,7 @@ export const invoicingMapper = {
       tax: n(dto.tax),
       total: n(dto.total),
       currency: dto.currency || 'CUP',
-      status: dto.status || 'draft',
+      status: invoiceStatus(dto.status),
       issuedAt: dto.issued_at || '',
       createdBy: dto.created_by,
       operatorId: dto.operator_id,
