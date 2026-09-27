@@ -42,7 +42,7 @@ export function userDtoToEntity(dto: UserDto): PlatformUser {
     id: dto.id,
     username: dto.username || '',
     displayName: dto.display_name || dto.username || '',
-    role: dto.role || '',
+    role: String(dto.role || '').trim().toLowerCase(),
     active: dto.active !== false,
     modules: dto.modules || {},
   };
@@ -52,7 +52,8 @@ export function createUserInputToDto(input: CreateUserInput): Record<string, unk
   const body: Record<string, unknown> = {
     username: input.username,
     password: input.password,
-    role: input.role,
+    // Rol obligatorio — backend valida contra ValidRoles()
+    role: String(input.role || '').trim().toLowerCase(),
   };
   if (input.displayName) body.display_name = input.displayName;
   return body;
@@ -61,7 +62,7 @@ export function createUserInputToDto(input: CreateUserInput): Record<string, unk
 export function updateUserInputToDto(input: UpdateUserInput): Record<string, unknown> {
   const body: Record<string, unknown> = { id: input.id };
   if (input.displayName !== undefined) body.display_name = input.displayName;
-  if (input.role !== undefined) body.role = input.role;
+  if (input.role !== undefined && input.role !== '') body.role = String(input.role).trim().toLowerCase();
   if (input.password) body.password = input.password;
   if (input.active !== undefined) body.active = input.active;
   if (input.modules !== undefined) body.modules = input.modules;

@@ -1,51 +1,14 @@
 /**
- * Autorización en UI — espejo de internal/auth/auth.go ViewACL + session.views.
- *
- * Fuente de verdad del servidor:
- * - Rol del usuario → en BD (JSON store, campo user.role)
- * - ViewACL (rol → vistas) → en código Go
- * - Módulos del tenant → en BD (snapshot Modules)
- * - Login responde session.views = ViewsForRole(role, snap)
- *
- * La UI solo oculta/redirige; la API sigue validando con RequireView.
+ * Acceso a pantallas.
+ * Fuente de verdad UI: política FE por rol + overrides (metadata / storage).
+ * session.views del backend se ignora para mostrar menú (no se toca el backend).
  */
-
 import type { Session } from './entities/Session';
-
-/** Claves de vista del backend (ViewACL). */
-export type BackendView =
-  | 'dashboard'
-  | 'ingresos'
-  | 'gastos'
-  | 'cuentas'
-  | 'inventario'
-  | 'nomina'
-  | 'facturas'
-  | 'reportes'
-  | 'usuarios'
-  | 'tenant'
-  | 'master'
-  | 'sync'
-  | 'monedas'
-  | 'traza'
-  | 'salvas'
-  | 'cuentas_t'
-  | 'nomencladores'
-  | 'productos'
-  | 'cargos'
-  | 'measure_units'
-  | 'almacen'
-  | 'unidades'
-  | 'recepcion'
-  | 'vendedor'
-  | 'fichas_costo'
-  | 'fichas_precio'
-  | 'pedidos_online'
-  | 'tienda';
+import { resolveScreensForSession } from './resolveUiAccess';
 
 /**
- * Screen id (App.svelte / nav) → vista(s) ACL requeridas.
- * Basta con tener una de las vistas listadas.
+ * Mapeo pantalla → claves ViewACL (referencia / compat).
+ * La autorización UI ya no depende de estas claves del backend.
  */
 export const SCREEN_VIEWS: Record<string, string[]> = {
   home: ['dashboard', 'reportes'],
@@ -69,52 +32,61 @@ export const SCREEN_VIEWS: Record<string, string[]> = {
   traza: ['traza'],
   salvas: ['salvas'],
   usuarios: ['usuarios'],
+  permisos: ['usuarios', 'master'],
   master: ['master'],
 };
 
-export function viewsOf(session: Session | null | undefined): Set<string> {
-  return new Set(session?.views ?? []);
+export function uiScreensOf(session: Session | null | undefined): Set<string> {
+  return new Set(resolveScreensForSession(session));
 }
 
-/** true si la sesión puede abrir esa pantalla. */
+/** @deprecated usar uiScreensOf — se mantiene por compat de imports */
+export function viewsOf(session: Session | null | undefined): Set<string> {
+  return uiScreensOf(session);
+}
+
 export function canAccessScreen(
   session: Session | null | undefined,
   screenId: string,
 ): boolean {
   if (!session) return false;
-  const required = SCREEN_VIEWS[screenId];
-  if (!required || required.length === 0) return true;
-  const views = viewsOf(session);
-  if (views.size === 0) return false;
-  return required.some((v) => views.has(v));
+  const id = screenId === 'home' ? 'dashboard' : screenId;
+  const allowed = uiScreensOf(session);
+  if (allowed.size === 0) return false;
+  return allowed.has(id);
 }
 
 export function canAccessView(
   session: Session | null | undefined,
   view: string,
 ): boolean {
+  // Compat: si alguien pregunta por clave backend, mapear a pantallas que la usan
   if (!session) return false;
-  return viewsOf(session).has(view);
+  const allowed = uiScreensOf(session);
+  if (allowed.has(view)) return true;
+  for (const [screen, keys] of Object.entries(SCREEN_VIEWS)) {
+    if (keys.includes(view) && allowed.has(screen)) return true;
+  }
+  return false;
 }
 
-/** Primera pantalla permitida (para redirigir tras login o al denegar). */
 export function firstAllowedScreen(session: Session | null | undefined): string {
   const order = [
     'dashboard',
-    'ingresos',
-    'gastos',
-    'reportes',
     'pos',
     'almacen',
+    'reportes',
+    'ingresos',
+    'gastos',
+    'recepcion',
     'catalog',
     'tenant',
   ];
   for (const id of order) {
     if (canAccessScreen(session, id)) return id;
   }
-  // fallback: cualquier nav conocida
-  for (const id of Object.keys(SCREEN_VIEWS)) {
-    if (canAccessScreen(session, id)) return id;
+  for (const id of uiScreensOf(session)) {
+    return id;
   }
   return 'dashboard';
 }

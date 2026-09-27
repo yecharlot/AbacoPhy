@@ -61,7 +61,8 @@ export function screenTitle(id: ScreenId): string {
     pedidos: 'Pedidos Online',
     traza: 'Traza de Operaciones',
     salvas: 'Salvas del Negocio',
-    usuarios: 'Usuarios y Roles',
+    permisos: 'Permisos UI',
+  usuarios: 'Usuarios y Roles',
     master: 'Configuración Master',
     sync: 'Sincronización',
   };

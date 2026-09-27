@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import '../infrastructure/ui/theme/tokens.css';
-  import { AppShell, filterNavByViews, PLACEHOLDER_NAV, ForbiddenScreen, BootSkeleton } from '../infrastructure/ui/shell';
+  import { AppShell, filterNavByViews, filterNavByScreenIds, PLACEHOLDER_NAV, ForbiddenScreen, BootSkeleton } from '../infrastructure/ui/shell';
   import { canAccessScreen, firstAllowedScreen } from '../features/identity/domain/access';
+  import { resolveScreensForSession } from '../features/identity/domain/resolveUiAccess';
   import { Card, Button, Toast } from '../infrastructure/ui/shared';
   import { createAppContainer } from '../infrastructure/di';
   import { subscribeNetworkStatus } from '../infrastructure/data/http';
@@ -48,6 +49,7 @@
   import SalvasScreen from '../features/audit/ui/screens/SalvasScreen.svelte';
   import MasterScreen from '../features/master/ui/screens/MasterScreen.svelte';
   import UsuariosScreen from '../features/master/ui/screens/UsuariosScreen.svelte';
+  import PermisosScreen from '../features/master/ui/screens/PermisosScreen.svelte';
   import type { SessionState } from '../features/identity/ui/stores/sessionStore';
 
   const container = createAppContainer({
@@ -93,7 +95,10 @@
 
 
   const navItems = $derived(
-    filterNavByViews(PLACEHOLDER_NAV, sessionState.session?.views ?? null),
+    filterNavByScreenIds(
+      PLACEHOLDER_NAV,
+      sessionState.session ? resolveScreensForSession(sessionState.session) : [],
+    ),
   );
 
   const userRole = $derived(sessionState.session?.user?.role ?? '');
@@ -270,6 +275,8 @@
       <SalvasScreen store={auditStore} />
     {:else if activeId === 'usuarios'}
       <UsuariosScreen store={masterStore} />
+    {:else if activeId === 'permisos'}
+      <PermisosScreen store={masterStore} tenantId={sessionState.session?.user?.tenantId ?? ''} />
     {:else if activeId === 'master'}
       <MasterScreen store={masterStore} />
     {:else}
