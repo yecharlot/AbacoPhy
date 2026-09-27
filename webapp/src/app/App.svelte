@@ -2,8 +2,7 @@
   import { onMount } from 'svelte';
   import '../infrastructure/ui/theme/tokens.css';
   import { AppShell, filterNavByViews, filterNavByScreenIds, PLACEHOLDER_NAV, ForbiddenScreen, BootSkeleton } from '../infrastructure/ui/shell';
-  import { canAccessScreen, firstAllowedScreen } from '../features/identity/domain/access';
-  import { resolveScreensForSession } from '../features/identity/domain/resolveUiAccess';
+  import { canAccessScreen, firstAllowedScreen, effectiveScreens } from '../features/identity/domain/access';
   import { Card, Button, Toast } from '../infrastructure/ui/shared';
   import { createAppContainer } from '../infrastructure/di';
   import { subscribeNetworkStatus } from '../infrastructure/data/http';
@@ -94,26 +93,20 @@
   );
 
 
-  const navItems = $derived.by(() => {
-    const session = sessionState.session;
+  function buildNavItems(session: typeof sessionState.session) {
     if (!session) return [];
     try {
-      let screens = resolveScreensForSession(session);
-      if (!screens.length && session.views?.length) {
-        // Fallback: no dejar menú vacío (pantalla negra / shell inútil)
-        return filterNavByViews(PLACEHOLDER_NAV, session.views);
+      const screens = effectiveScreens(session);
+      if (screens.length) {
+        const byPolicy = filterNavByScreenIds(PLACEHOLDER_NAV, screens);
+        if (byPolicy.length) return byPolicy;
       }
-      if (!screens.length) {
-        // Último recurso: al menos dashboard + pos según rol
-        const role = (session.user?.role || '').toLowerCase();
-        screens = role === 'vendedor' ? ['pos'] : ['dashboard'];
-      }
-      const items = filterNavByScreenIds(PLACEHOLDER_NAV, screens);
-      return items.length ? items : filterNavByViews(PLACEHOLDER_NAV, session.views ?? null);
     } catch {
-      return filterNavByViews(PLACEHOLDER_NAV, session.views ?? null);
+      /* política FE no debe tumbar la app */
     }
-  });
+    return filterNavByViews(PLACEHOLDER_NAV, session.views ?? null);
+  }
+  const navItems = $derived(buildNavItems(sessionState.session));
 
   const userRole = $derived(sessionState.session?.user?.role ?? '');
   const userLabel = $derived(
