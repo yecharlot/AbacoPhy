@@ -1,3 +1,26 @@
+## 2026-09-27 — Separación de recepción documental y entrada física de almacén
+
+### Qué
+
+- El Informe de recepción queda como documento de compra/recepción documental, sin efecto físico sobre existencias ni costo promedio al crearse.
+- La actualización de WarehouseStock, AvgCost y el reconocimiento contable de inventario ocurre al confirmar la entrada física desde Almacén.
+- Estados operativos en metadata: int.reception_status = pending_entry | entry_confirmed | entry_problem.
+- Los problemas guardan motivo, actor y fecha en metadata.
+- Informes de recepción ya no ofrecen acción de entrada; muestran estados y un bloque de entradas problemáticas.
+- Almacén incorpora recepciones pendientes, Dar entrada y Reportar problema.
+
+### Decisiones
+
+- El costo unitario del informe es documental hasta la validación física.
+- int.reception_status es la fuente visual canónica; status permanece por compatibilidad.
+- accept=false registra una incidencia y requiere motivo.
+- No se añadió una segunda fuente de stock ni lógica de promedio en frontend.
+
+### Verificación pendiente
+
+- Ejecutar npm run check y las pruebas Go/Vitest antes de mergear.
+
+---
 # LOG — ÁbacoPhy Webapp
 
 Registro cronológico de implementaciones y decisiones del módulo `webapp/`.
