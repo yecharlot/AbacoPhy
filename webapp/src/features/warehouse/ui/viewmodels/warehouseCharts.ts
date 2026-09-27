@@ -3,7 +3,7 @@ import type { ChartPoint } from '../../../../infrastructure/ui/charts';
 import { paletteColor } from '../../../../infrastructure/ui/charts';
 import type { SalesUnit } from '../../domain/entities/SalesUnit';
 import type { UnitStockRow, WarehouseStockRow } from '../../domain/entities/Stock';
-import type { Reception } from '../../domain/entities/Reception';
+import { getReceptionVisualStatus, type Reception } from '../../domain/entities/Reception';
 
 export function topStockByValue(rows: WarehouseStockRow[], limit = 6): ChartPoint[] {
   return [...rows]
@@ -44,6 +44,7 @@ export function stockDistribution(
 export function receptionsSeries(receptions: Reception[], limit = 8): ChartPoint[] {
   const totals = new Map<string, number>();
   for (const reception of receptions) {
+    if (getReceptionVisualStatus(reception) !== 'entry_confirmed') continue;
     const key = reception.date || '—';
     totals.set(key, (totals.get(key) ?? 0) + reception.totalCost);
   }

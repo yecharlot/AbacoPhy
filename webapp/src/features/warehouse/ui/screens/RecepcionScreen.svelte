@@ -2,9 +2,12 @@
   import { onMount } from 'svelte';
   import { Button, Card, Money } from '../../../../infrastructure/ui/shared';
   import type { WarehouseState, WarehouseStore } from '../stores/warehouseStore';
-  import type { CreateReceptionLineInput } from '../../domain/entities/Reception';
   import { DevSeedPanel } from '../../../../infrastructure/ui/dev';
   import { buildSampleWarehouseOpsPayload, seedWarehouseOpsViaStore } from '../dev/opsSeed';
+  import {
+    getReceptionVisualStatus,
+    type CreateReceptionLineInput,
+  } from '../../domain/entities/Reception';
 
   export let store: WarehouseStore;
   /**
@@ -48,10 +51,9 @@
 
   $: stockRows = state.rows ?? [];
   $: receptions = [...(state.receptions ?? [])].reverse();
-  $: problemReceptions = receptions.filter((r) => r.metadataState?.receptionStatus === 'entry_problem');
-  $: receptionVisualStatus = (r: (typeof receptions)[number]) =>
-    r.metadataState?.receptionStatus ??
-    (r.status === 'entrado' ? 'entry_confirmed' : r.status === 'problemas_entrada' ? 'entry_problem' : 'pending_entry');
+  $: problemReceptions = receptions.filter(
+          (r) => getReceptionVisualStatus(r) === 'entry_problem',
+  );
   $: estimated = lines.reduce(
     (acc, line) => acc + (parseFloat(line.qty) || 0) * (parseFloat(line.unitCost) || 0),
     0,
@@ -378,7 +380,7 @@
             </thead>
             <tbody>
               {#each receptions as r (r.id)}
-                {@const visual = receptionVisualStatus(r)}
+                {@const visual = getReceptionVisualStatus(r)}
                 <tr>
                   <td class="mono">{r.number}</td>
                   <td>{r.date}</td>
@@ -404,8 +406,14 @@
                   </td>
                   <td class="num"><Money amount={r.totalCost} currency={r.currency} /></td>
                   <td>
-                    <span class:pending={visual === 'pending_entry'} class:confirmed={visual === 'entry_confirmed'} class:problem={visual === 'entry_problem'} class="status-pill">
-                        {visual === 'pending_entry' ? 'Pendiente dar entrada' : visual === 'entry_confirmed' ? 'Entrada confirmada' : 'Problema con la entrada'}
+                    <span class:pending={visual === 'pending_entry'} class:confirmed={visual === 'entry_confirmed'} class:problem={visual === 'entry_problem'} class:cancelled={visual === 'cancelled'} class="status-pill">
+                        {visual === 'pending_entry'
+                                ? 'Pendiente dar entrada'
+                                : visual === 'entry_confirmed'
+                                        ? 'Entrada confirmada'
+                                        : visual === 'entry_problem'
+                                                ? 'Problema con la entrada'
+                                                : 'Recepción anulada'}
                       </span>
                     </td>
                 </tr>
@@ -424,6 +432,7 @@
     flex-direction: column;
     gap: 14px;
   }
+  .status-pill.cancelled { background: color-mix(in srgb, var(--ap-text-muted) 14%, transparent); color: var(--ap-text-muted); }
   .page-head {
     display: flex;
     flex-wrap: wrap;
@@ -632,14 +641,6 @@
   .problem-list { display: flex; flex-direction: column; gap: 8px; }
   .problem-item { padding: 10px 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--accent-red, #f17b7b) 28%, var(--ap-border)); background: color-mix(in srgb, var(--accent-red, #f17b7b) 6%, transparent); }
   .problem-item p { margin: 5px 0 0; font-size: 0.82rem; color: var(--color-text-secondary, var(--ap-text-secondary)); }
-  .pill {
-    font-size: 0.68rem;
-    font-weight: 650;
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--accent-green, #b7f56a) 16%, transparent);
-    color: var(--accent-green, var(--ap-ok));
-  }
   .detail {
     font-size: 0.75rem;
   }

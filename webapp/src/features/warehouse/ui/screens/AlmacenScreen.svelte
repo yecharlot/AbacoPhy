@@ -14,6 +14,7 @@
     stockDistribution,
     topStockByValue,
   } from '../viewmodels/warehouseCharts';
+  import { getReceptionVisualStatus } from '../../domain/entities/Reception';
 
   export let store: WarehouseStore;
 
@@ -44,11 +45,11 @@
   $: topStock = topStockByValue(state.rows);
   $: distribution = stockDistribution(state.rows, state.unitStocks, state.units);
   $: receptionFlow = receptionsSeries(state.receptions);
-  $: pendingReceptions = state.receptions.filter((r) =>
-    !r.metadataState?.receptionStatus || r.metadataState.receptionStatus === 'pending_entry'
+  $: pendingReceptions = state.receptions.filter(
+          (r) => getReceptionVisualStatus(r) === 'pending_entry',
   );
-  $: problemReceptions = state.receptions.filter((r) =>
-    r.metadataState?.receptionStatus === 'entry_problem' || r.status === 'problemas_entrada'
+  $: problemReceptions = state.receptions.filter(
+          (r) => getReceptionVisualStatus(r) === 'entry_problem',
   );
   $: baseCurrency = state.rows.length > 0 ? state.rows[0].currency : '';
 
