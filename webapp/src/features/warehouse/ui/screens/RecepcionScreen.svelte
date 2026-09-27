@@ -378,6 +378,7 @@
             </thead>
             <tbody>
               {#each receptions as r (r.id)}
+                {@const visual = receptionVisualStatus(r)}
                 <tr>
                   <td class="mono">{r.number}</td>
                   <td>{r.date}</td>
@@ -403,8 +404,7 @@
                   </td>
                   <td class="num"><Money amount={r.totalCost} currency={r.currency} /></td>
                   <td>
-                      {@const visual = receptionVisualStatus(r)}
-                      <span class:pending={visual === 'pending_entry'} class:confirmed={visual === 'entry_confirmed'} class:problem={visual === 'entry_problem'} class="status-pill">
+                    <span class:pending={visual === 'pending_entry'} class:confirmed={visual === 'entry_confirmed'} class:problem={visual === 'entry_problem'} class="status-pill">
                         {visual === 'pending_entry' ? 'Pendiente dar entrada' : visual === 'entry_confirmed' ? 'Entrada confirmada' : 'Problema con la entrada'}
                       </span>
                     </td>
