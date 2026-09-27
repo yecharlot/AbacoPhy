@@ -8,17 +8,17 @@
     canEdit?: boolean;
   }
 
-  let { store, canEdit = true }: Props = $props();
+  export let store: TenantStore;
+  export let canEdit = true;
 
-  // Prefer explicit annotation over $state<T>() — avoids TS/svelte-check rune issues
-  let state: TenantState = $state(store.getState());
-  let name = $state('');
-  let currency = $state('CUP');
-  let phone = $state('');
-  let address = $state('');
-  let email = $state('');
-  let taxId = $state('');
-  let savedMsg = $state('');
+  let state: TenantState = store.getState();
+  let name = '';
+  let currency = 'CUP';
+  let phone = '';
+  let address = '';
+  let email = '';
+  let taxId = '';
+  let savedMsg = '';
 
   function syncForm(tenant: TenantState['tenant']) {
     if (!tenant) return;

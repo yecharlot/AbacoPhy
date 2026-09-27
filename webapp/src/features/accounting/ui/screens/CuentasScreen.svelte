@@ -17,9 +17,9 @@
   });
 </script>
 
-{#if state.accountsStatus === 'loading' && state.accounts.length === 0}
+{#if state.status === 'loading' && state.accounts.length === 0}
   <Card><p class="muted">Cargando cuentas…</p></Card>
-{:else if state.accountsStatus === 'error' && state.accounts.length === 0}
+{:else if state.status === 'error' && state.accounts.length === 0}
   <Card>
     <p class="err" role="alert">{state.error}</p>
     <Button variant="secondary" on:click={() => store.loadAccounts()}>Reintentar</Button>
