@@ -609,3 +609,181 @@ internal/api/extra.go    # route trial-balance + handleTrialBalance + import sor
 - Endpoint dedicado de journal con líneas débito/crédito expandidas (hoy basta `/entries`).
 - Paginación por cursor/`offset`.
 - `gofmt` obligatorio tras copiar (imports de `extra.go` pueden reordenarse).
+
+
+---
+
+# Backend Log — Recepción documental vs entrada física de almacén
+
+## Fase 7 — Separación de informe de recepción y entrada física
+
+**Fecha:** 2026-09-27  
+**Rama:** `reception-policy-update`  
+**PR:** #9 — `fix(warehouse): separar recepción documental de entrada física`  
+**Archivos principales:** `internal/api/ops.go`, `internal/domain/ops.go`  
+**Estado:** aplicado en la rama
+
+### Propósito
+
+Separar explícitamente el **Informe de recepción** (documento/declaración de una compra recibida) de la **entrada física de mercancía al almacén**.
+
+La creación del informe de recepción **no representa todavía una entrada física validada**. El usuario económico/comprador puede declarar la compra, pero solamente el usuario de almacén (`almacenero`) valida lo que físicamente llegó y decide si se da entrada o se reporta un problema.
+
+### Regla principal de negocio
+
+Al crear:
+
+`POST /api/v1/receptions`
+
+el backend **NO debe**:
+
+- modificar `WarehouseStock`;
+- modificar el costo promedio ponderado (`AvgCost`);
+- registrar todavía el reconocimiento contable de inventario como entrada física.
+
+El informe conserva el costo unitario de compra como **dato documental** hasta que Almacén confirme físicamente la entrada.
+
+Esto permite que el documento represente una compra aunque la entrega real tenga diferencias por faltantes, deterioro, robo, daños, sustituciones u otras incidencias.
+
+### Estado de la recepción
+
+La recepción conserva su `status` para compatibilidad de API, pero la fuente operativa/visual nueva es el metadata:
+
+- `int.reception_status = "pending_entry"` → pendiente de entrada
+- `int.reception_status = "entry_confirmed"` → entrada confirmada
+- `int.reception_status = "entry_problem"` → entrada con problema
+
+Cuando existe un problema se almacenan además:
+
+- `int.reception_problem_reason` → motivo obligatorio
+- `int.reception_entry_actor` → usuario que validó/reportó
+- `int.reception_entry_at` → fecha/hora de la acción
+
+### Flujo backend
+
+```text
+POST /api/v1/receptions
+        |
+        v
+Informe documental
+        |
+        +--> metadata: pending_entry
+        |
+        +--> NO stock
+        +--> NO AvgCost
+        +--> NO reconocimiento contable de inventario
+        |
+        v
+Visible para Almacén
+        |
+        +-----------------------------+
+        |                             |
+        v                             v
+Dar entrada                    Reportar problema
+accept=true                    accept=false + reason
+        |                             |
+        v                             v
+entry_confirmed                 entry_problem
+        |                             |
+        +--> stock + AvgCost          +--> NO stock/costo
+        +--> reconocimiento           +--> guarda motivo
+            contable de inventario
+```
+
+### Endpoint `POST /api/v1/receptions/enter`
+
+El endpoint de entrada física recibe:
+
+```json
+{
+  "reception_id": "...",
+  "accept": true,
+  "reason": ""
+}
+```
+
+#### Confirmación física
+
+Con `accept=true`:
+
+1. valida la recepción;
+2. actualiza `int.reception_status = "entry_confirmed"`;
+3. registra actor y timestamp;
+4. aplica la entrada física al stock;
+5. actualiza el costo promedio ponderado;
+6. reconoce contablemente el inventario mediante `domain.ApplyInventoryIn` y su `Entry`.
+
+#### Problema de recepción
+
+Con `accept=false`:
+
+1. exige `reason` no vacío;
+2. guarda `Status = "problemas_entrada"`;
+3. guarda `int.reception_status = "entry_problem"`;
+4. guarda `int.reception_problem_reason`;
+5. registra actor y timestamp;
+6. **no modifica stock ni costo promedio**;
+7. **no reconoce inventario contablemente**.
+
+### Compatibilidad y trazabilidad
+
+La metadata queda asociada a la propia recepción para que frontend y backend puedan determinar de forma inequívoca:
+
+- si está pendiente;
+- si la entrada física fue confirmada;
+- si existe un problema;
+- quién realizó la validación;
+- cuándo ocurrió;
+- por qué se rechazó o marcó como problemática.
+
+### Impacto para el frontend
+
+El frontend debe interpretar los estados de metadata así:
+
+| Estado | Visual | Acción |
+|--------|--------|--------|
+| `pending_entry` | naranja | visible para Almacén; permite dar entrada o reportar problema |
+| `entry_confirmed` | verde | entrada física confirmada |
+| `entry_problem` | rojo | mostrar motivo del problema |
+
+La pantalla de **Informe de recepción** es documental y **no debe ofrecer “Dar entrada”**.
+
+La pantalla de **Almacén** es la responsable de las acciones físicas:
+
+- **Dar entrada**
+- **Reportar problema** (con motivo obligatorio)
+
+Además, Informes de recepción debe mostrar un bloque específico de **Entradas con problemas**, incluyendo el motivo almacenado.
+
+### Archivos modificados
+
+```text
+internal/api/ops.go
+internal/domain/ops.go
+API.md
+docs/FLUJO_RECEPCION.md
+webapp/src/features/warehouse/domain/entities/Reception.ts
+webapp/src/features/warehouse/data/dto/WarehouseDto.ts
+webapp/src/features/warehouse/data/mappers/warehouseMapper.ts
+webapp/src/features/warehouse/data/sources/WarehouseRemoteSource.ts
+webapp/src/features/warehouse/domain/usecases/EnterReception.ts
+webapp/src/features/warehouse/domain/repositories/WarehouseRepository.ts
+webapp/src/features/warehouse/ui/screens/RecepcionScreen.svelte
+webapp/src/features/warehouse/ui/screens/AlmacenScreen.svelte
+webapp/src/test/feature/warehouse/domain/caseuse/EnterReception.unit.test.ts
+webapp/.policies/warehouse/warehouse-recepcion-costo-promedio.md
+webapp/.roadmap/mvp/ENTREGA2_RECEPCIONES.md
+webapp/.ai/LOG.md
+```
+
+### Nota para mantenimiento backend
+
+La distinción importante es:
+
+```text
+Recepción = documento de compra / declaración
+Entrada de almacén = validación física
+```
+
+No volver a acoplar la creación de `Reception` con `WarehouseStock` o `AvgCost`. Esas mutaciones pertenecen a la confirmación física realizada desde Almacén.
+
