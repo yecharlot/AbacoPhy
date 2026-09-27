@@ -17,7 +17,7 @@ export interface WarehouseRepository {
   createSalesUnit(input: CreateSalesUnitInput): Promise<SalesUnit>;
   getReceptions(): Promise<Reception[]>;
   createReception(input: CreateReceptionInput): Promise<Reception>;
-  /** Almacenero/admin: da entrada física al stock (pendiente_entrada → entrado). */
+  /** Almacenero/admin: confirma entrada física o registra un problema sin mover stock. */
   enterReception(input: EnterReceptionInput): Promise<Reception>;
   getTransfers(): Promise<Transfer[]>;
   createTransfer(input: CreateTransferInput): Promise<Transfer>;
