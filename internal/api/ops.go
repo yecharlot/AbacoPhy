@@ -460,7 +460,7 @@ func (s *Server) handleReceptions(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 201, map[string]any{
 			"reception": body,
 			"notify":    "almacen",
-			"message":   "Informe registrado. Cuenta inventario actualizada. Almacén debe validar y dar entrada.",
+			"message":   "Informe registrado. No se actualiza stock ni costo promedio; Almacén debe validar y dar entrada.",
 		})
 
 	default:
