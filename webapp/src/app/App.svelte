@@ -94,17 +94,31 @@
   );
 
 
-  const navItems = $derived(
-    filterNavByScreenIds(
-      PLACEHOLDER_NAV,
-      sessionState.session ? resolveScreensForSession(sessionState.session) : [],
-    ),
-  );
+  const navItems = $derived.by(() => {
+    const session = sessionState.session;
+    if (!session) return [];
+    try {
+      let screens = resolveScreensForSession(session);
+      if (!screens.length && session.views?.length) {
+        // Fallback: no dejar menú vacío (pantalla negra / shell inútil)
+        return filterNavByViews(PLACEHOLDER_NAV, session.views);
+      }
+      if (!screens.length) {
+        // Último recurso: al menos dashboard + pos según rol
+        const role = (session.user?.role || '').toLowerCase();
+        screens = role === 'vendedor' ? ['pos'] : ['dashboard'];
+      }
+      const items = filterNavByScreenIds(PLACEHOLDER_NAV, screens);
+      return items.length ? items : filterNavByViews(PLACEHOLDER_NAV, session.views ?? null);
+    } catch {
+      return filterNavByViews(PLACEHOLDER_NAV, session.views ?? null);
+    }
+  });
 
   const userRole = $derived(sessionState.session?.user?.role ?? '');
   const userLabel = $derived(
-    sessionState.session
-      ? `${sessionState.session.user.displayName} · ${sessionState.session.user.role}`
+    sessionState.session?.user
+      ? `${sessionState.session.user.displayName || sessionState.session.user.username || ''} · ${sessionState.session.user.role || ''}`
       : '',
   );
   const userDisplayName = $derived(
@@ -115,7 +129,7 @@
 
   const brandSubtitle = $derived(sessionState.session?.tenantName ?? 'Negocio');
 
-  const isMaster = $derived(sessionState.session?.user.role === 'master');
+  const isMaster = $derived(sessionState.session?.user?.role === 'master');
 
   const canEditTenant = $derived(
     (sessionState.session?.views ?? []).includes('tenant'),
@@ -191,6 +205,12 @@
     loginAttempted = true;
     try {
       await sessionStore.login(username, password);
+      const s = sessionStore.getState().session;
+      if (s) {
+        const id = firstAllowedScreen(s);
+        setScreen(id);
+        activeId = id;
+      }
       showToast('Sesión iniciada');
     } catch {
       /* error in sessionState */

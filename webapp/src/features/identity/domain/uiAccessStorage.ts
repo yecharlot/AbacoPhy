@@ -1,8 +1,3 @@
-/**
- * Persistencia FE de la política de pantallas.
- * - localStorage por tenant (overrides de rol y de usuario)
- * - Forma alineada a metadata.ui_access para futuros sync con API
- */
 import {
   emptyUiAccessConfig,
   type UiAccessConfig,
@@ -15,7 +10,16 @@ function keyFor(tenantId: string | null | undefined): string {
   return `${PREFIX}:${tenantId || 'default'}`;
 }
 
+function canUseStorage(): boolean {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage !== null;
+  } catch {
+    return false;
+  }
+}
+
 export function loadUiAccessConfig(tenantId?: string | null): UiAccessConfig {
+  if (!canUseStorage()) return emptyUiAccessConfig();
   try {
     const raw = localStorage.getItem(keyFor(tenantId));
     if (!raw) return emptyUiAccessConfig();
@@ -35,14 +39,18 @@ export function saveUiAccessConfig(
   tenantId: string | null | undefined,
   config: UiAccessConfig,
 ): void {
-  localStorage.setItem(keyFor(tenantId), JSON.stringify(config));
+  if (!canUseStorage()) return;
+  try {
+    localStorage.setItem(keyFor(tenantId), JSON.stringify(config));
+  } catch {
+    /* quota / private mode */
+  }
 }
 
-/** Lee ui_access desde metadata JSON string del usuario (si existe). */
 export function parseUserUiAccessFromMetadata(
   metadata: string | null | undefined,
 ): UserUiAccess | null {
-  if (!metadata || !metadata.trim()) return null;
+  if (!metadata || !String(metadata).trim()) return null;
   try {
     const obj = JSON.parse(metadata) as Record<string, unknown>;
     const ua = obj.ui_access as UserUiAccess | undefined;
@@ -57,13 +65,12 @@ export function parseUserUiAccessFromMetadata(
   }
 }
 
-/** Fusiona ui_access en un string metadata existente. */
 export function mergeUiAccessIntoMetadata(
   metadata: string | null | undefined,
   access: UserUiAccess | null,
 ): string {
   let base: Record<string, unknown> = {};
-  if (metadata && metadata.trim()) {
+  if (metadata && String(metadata).trim()) {
     try {
       const p = JSON.parse(metadata) as Record<string, unknown>;
       if (p && typeof p === 'object' && !Array.isArray(p)) base = { ...p };
@@ -71,13 +78,7 @@ export function mergeUiAccessIntoMetadata(
       base = {};
     }
   }
-  if (!access) {
-    delete base.ui_access;
-  } else {
-    base.ui_access = {
-      mode: access.mode,
-      screens: access.screens,
-    };
-  }
+  if (!access) delete base.ui_access;
+  else base.ui_access = { mode: access.mode, screens: access.screens };
   return JSON.stringify(base);
 }
