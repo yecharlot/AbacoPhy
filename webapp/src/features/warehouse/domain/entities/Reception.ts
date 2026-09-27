@@ -69,10 +69,9 @@ export type CreateReceptionInput = {
 
 export type EnterReceptionInput = {
   id: string;
-  /** Debe ser true: validado con el económico */
-  accept: true;
+  /** Indica si se valida con el económico. El caso de uso lanza error si es false. */
+  accept: boolean;
   note?: string;
   /** JSON string opaco; ausente si el API no lo envía. */
   metadata?: string | null;
-
 };

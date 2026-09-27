@@ -31,6 +31,7 @@ export type Invoice = {
 
 };
 
+
 export type EmitInvoiceInput = {
   clientName: string;
   clientTax?: string;
