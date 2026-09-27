@@ -267,6 +267,92 @@ Cada entrada relevante debe incluir: fecha, qué se hizo, por qué, archivos toc
 
 ---
 
+## 2026-09-27 — Estado único entre recepción y almacén
+
+### Qué
+
+- Se centralizó la resolución del estado visual de una recepción en el dominio de `warehouse` y ambas pantallas la consumen.
+- Almacén solo muestra como pendientes los informes realmente pendientes; los informes confirmados, con incidencias o anulados ya no pueden aparecer en esa cola por ausencia de metadata legacy.
+- El historial de Recepción ahora reconoce incidencias legacy y presenta explícitamente las recepciones anuladas.
+- La gráfica de entradas del almacén usa únicamente recepciones físicamente confirmadas, por lo que sus importes corresponden al stock y costo promedio ya afectados.
+- Se añadieron pruebas unitarias para la compatibilidad de estados y el filtro de la gráfica.
+
+### Por qué
+
+- `status` y `int.reception_status` representan el mismo flujo en formatos compatible y canónico. Interpretarlos de forma distinta en cada vista podía desalinear las colas, las incidencias y los indicadores durante una migración o ante registros anteriores.
+
+### Archivos
+
+| Ruta | Acción |
+|------|--------|
+| `webapp/src/features/warehouse/domain/entities/Reception.ts` | Modificado |
+| `webapp/src/features/warehouse/ui/screens/{AlmacenScreen,RecepcionScreen}.svelte` | Modificados |
+| `webapp/src/features/warehouse/ui/viewmodels/warehouseCharts.ts` | Modificado |
+| `webapp/src/test/feature/warehouse/{domain/entities,ui/viewmodels}/**` | Creados |
+
+### Decisiones
+
+- La metadata reconocida se mantiene como estado canónico; `status` es el fallback para conservar visibilidad correcta de registros legacy.
+- Una recepción anulada no es pendiente ni una incidencia: se muestra como estado propio y no admite entrada física desde la cola.
+
+---
+
+## 2026-09-27 — Tablero operativo de almacén y seguimiento de recepciones
+
+### Qué
+
+- Se rediseñó la vista **Almacén central** para pantallas de laptop: una columna izquierda desplazable con indicadores de costo, salud del stock y demanda; a la derecha, una bandeja de recepciones y una tabla de existencias con desplazamiento propio.
+- La bandeja muestra informes pendientes e incidencias. Permite dar entrada, resolver una incidencia o rechazar/actualizar el rechazo usando el caso de uso de entrada existente.
+- La tabla de stock incorpora búsqueda por nombre/código, filtros por estado y etiquetas visuales de habilitado, casi agotado y agotado.
+- Se añadieron agregaciones de presentación para valor de inventario, umbral relativo de alerta y demanda por transferencias. No se modifican reglas de costo, stock ni contabilidad.
+- Informes de recepción ahora explica que las incidencias resueltas o rechazadas en Almacén se reflejan tras actualizar su listado.
+
+### Por qué
+
+- Concentrar la operación diaria del almacenero en indicadores accionables, controles de entrada y existencias sin mezclar los flujos documentales propios de Económico.
+- Hacer visible el puente de estados entre Informes de recepción y Almacén, preservando el endpoint y permisos autoritativos existentes.
+
+### Archivos
+
+- `webapp/src/features/warehouse/ui/screens/AlmacenScreen.svelte`
+- `webapp/src/features/warehouse/ui/screens/RecepcionScreen.svelte`
+- `webapp/src/features/warehouse/ui/viewmodels/warehouseInsights.ts`
+
+### Decisiones
+
+- Mientras el API no publique mínimos por producto, «casi agotado» usa un umbral de presentación relativo: el mayor entre 5 unidades y el 10 % de la mayor existencia. El tablero muestra ese criterio de manera explícita.
+- «Más solicitados» se calcula solo con las líneas de transferencias documentadas al punto de venta, por lo que no infiere ventas ni demanda fuera de esos datos.
+
+---
+
+## 2026-09-27 — Tablero operativo de almacén y seguimiento de recepciones
+
+### Qué
+
+- Se rediseñó la vista **Almacén central** para pantallas de laptop: una columna izquierda desplazable con indicadores de costo, salud del stock y demanda; a la derecha, una bandeja de recepciones y una tabla de existencias con desplazamiento propio.
+- La bandeja muestra informes pendientes e incidencias. Permite dar entrada, resolver una incidencia o rechazar/actualizar el rechazo usando el caso de uso de entrada existente.
+- La tabla de stock incorpora búsqueda por nombre/código, filtros por estado y etiquetas visuales de habilitado, casi agotado y agotado.
+- Se añadieron agregaciones de presentación para valor de inventario, alerta por capacidad de transferencia y demanda por transferencias. No se modifican reglas de costo, stock ni contabilidad.
+- Informes de recepción ahora explica que las incidencias resueltas o rechazadas en Almacén se reflejan tras actualizar su listado.
+
+### Por qué
+
+- Concentrar la operación diaria del almacenero en indicadores accionables, controles de entrada y existencias sin mezclar los flujos documentales propios de Económico.
+- Hacer visible el puente de estados entre Informes de recepción y Almacén, preservando el endpoint y permisos autoritativos existentes.
+
+### Archivos
+
+- `webapp/src/features/warehouse/ui/screens/AlmacenScreen.svelte`
+- `webapp/src/features/warehouse/ui/screens/RecepcionScreen.svelte`
+- `webapp/src/features/warehouse/ui/viewmodels/warehouseInsights.ts`
+
+### Decisiones
+
+- «Casi agotado» se determina por producto: la existencia debe ser menor que la mayor cantidad de una transferencia previa de ese producto. Así la alerta indica una incapacidad operativa real para repetir la mayor salida documentada.
+- «Más solicitados» se calcula solo con las líneas de transferencias documentadas al punto de venta, por lo que no infiere ventas ni demanda fuera de esos datos.
+
+---
+
 <!-- Plantilla para entradas futuras:
 
 ## YYYY-MM-DD — Título corto

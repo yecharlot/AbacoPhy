@@ -14,7 +14,11 @@ export type ReceptionLine = {
 
 export type ReceptionStatus = 'pendiente_entrada' | 'entrado' | 'problemas_entrada' | 'anulado' | string;
 
-export type ReceptionVisualStatus = 'pending_entry' | 'entry_confirmed' | 'entry_problem';
+export type ReceptionVisualStatus =
+    | 'pending_entry'
+    | 'entry_confirmed'
+    | 'entry_problem'
+    | 'cancelled';
 
 export type ReceptionMetadata = {
   receptionStatus?: ReceptionVisualStatus;
@@ -85,3 +89,27 @@ export type EnterReceptionInput = {
   /** JSON string opaco; ausente si el API no lo envía. */
   metadata?: string | null;
 };
+
+/**
+ * Resolves the single UI state shared by Reception and Warehouse.
+ *
+ * New API records carry `int.reception_status` in metadata. The legacy `status`
+ * remains a compatible fallback for records created before that metadata existed.
+ * This keeps a confirmed (or problematic) reception out of the pending queue even
+ * when the two API representations are temporarily not both present.
+ */
+export function getReceptionVisualStatus(reception: Reception): ReceptionVisualStatus {
+  const metadataStatus = reception.metadataState?.receptionStatus;
+  if (metadataStatus) return metadataStatus;
+
+  switch (reception.status) {
+    case 'entrado':
+      return 'entry_confirmed';
+    case 'problemas_entrada':
+      return 'entry_problem';
+    case 'anulado':
+      return 'cancelled';
+    default:
+      return 'pending_entry';
+  }
+}

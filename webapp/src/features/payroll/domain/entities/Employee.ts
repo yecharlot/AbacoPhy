@@ -53,7 +53,7 @@ export type UpdateEmployeeInput = {
   ssWorkerRate?: number;
   active?: boolean;
   unitIds?: string[];
-  /** JSON string opaco; ausente si el API no lo envía. */
+  /** JSON string opaco; ausente si el API no lo envía */
   metadata?: string | null;
 
 };
