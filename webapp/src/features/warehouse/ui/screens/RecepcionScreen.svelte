@@ -129,7 +129,7 @@
       const unitCostRaw = String(line.unitCost ?? '').trim();
       if (!unitCostRaw) {
         formError =
-          'Indique el costo unitario de cada línea. Ese valor es de esta recepción y actualiza el costo promedio ponderado del producto.';
+          'Indique el costo unitario documental de cada línea. El costo promedio solo cambia cuando Almacén confirma la entrada.';
         return;
       }
       const unitCost = parseFloat(unitCostRaw);
@@ -184,8 +184,7 @@
     <div>
       <h1>Informes de recepción</h1>
       <p class="sub">
-        Entrada de mercancía al almacén central. El costo unitario de cada línea actualiza el costo promedio ponderado del producto. Tras confirmar, el stock y el promedio se
-        actualizan en el servidor.
+        Registre la compra documental. Este informe no modifica stock ni costo promedio; Almacén debe verificar físicamente y dar entrada.
       </p>
     </div>
     <Button variant="secondary" on:click={() => store.loadAll()} disabled={state.status === 'loading'}>
