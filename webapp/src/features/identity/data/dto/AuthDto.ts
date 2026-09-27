@@ -20,7 +20,7 @@ export type LoginResponseDto = {
   };
   views?: string[];
   modules?: Record<string, boolean>;
-  /** JSON string opaco; ausente si el API no lo envía. */
+  /** JSON string opaco; ausente si el API no lo envía.*/
   metadata?: string | null;
 
 };
