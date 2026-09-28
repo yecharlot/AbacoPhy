@@ -39,7 +39,10 @@
     return [...ASSIGNABLE_ROLES];
   })();
 
-  $: if (roleOptions.length && !roleOptions.includes(normalizeRole(role))) {
+  $: if (
+    roleOptions.length &&
+    !(roleOptions as readonly string[]).includes(normalizeRole(role))
+  ) {
     role = roleOptions[0];
   }
 

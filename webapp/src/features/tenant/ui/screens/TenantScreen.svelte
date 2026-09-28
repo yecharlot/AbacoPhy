@@ -284,7 +284,7 @@
   {:else}
     <div class="split">
       <!-- Columna izquierda: datos del negocio -->
-      <Card class="col-left">
+      <div class="col-left"><Card>
         <div class="panel-head">
           <div>
             <h2 class="panel-title">Datos del negocio</h2>
@@ -357,10 +357,11 @@
           <p class="ok">{savedMsg}</p>
         {/if}
       </Card>
+      </div>
 
       <!-- Columna derecha: formulario PDV + listado -->
       <div class="col-right">
-        <Card class="unit-form-card">
+        <div class="unit-form-card"><Card>
           <div class="panel-head">
             <div>
               <h2 class="panel-title">{formTitle}</h2>
@@ -435,8 +436,9 @@
             </form>
           {/if}
         </Card>
+        </div>
 
-        <Card class="unit-list-card">
+        <div class="unit-list-card"><Card>
           <div class="panel-head">
             <div>
               <h2 class="panel-title">Listado de puntos de venta</h2>
@@ -518,6 +520,7 @@
             {/if}
           </div>
         </Card>
+        </div>
       </div>
     </div>
   {/if}

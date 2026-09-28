@@ -186,11 +186,11 @@
     try {
       // Resolver tid: prop > primer usuario con tenantId > vacío (guarda en global+default)
       const propTid = (tenantId && String(tenantId).trim()) || '';
-      const fallbackTid =
-        propTid ||
-        state.users?.find((u) => u.tenantId)?.tenantId ||
+      // PlatformUser no trae tenantId; usar tenants del masterStore si hace falta
+      const fromTenants =
+        (state as { tenants?: { id?: string }[] }).tenants?.find((x) => x?.id)?.id ||
         '';
-      const tid = fallbackTid;
+      const tid = propTid || fromTenants || '';
 
       // config ya tiene TODOS los cambios aplicados por toggleRoleScreen /
       // toggleUserScreen / setUserMode / clearUserOverride / resetRoleToDefault.
