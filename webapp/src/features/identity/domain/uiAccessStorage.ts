@@ -51,38 +51,54 @@ function mergeConfigs(base: UiAccessConfig, extra: UiAccessConfig): UiAccessConf
 }
 
 /**
- * Carga: global → tenant → default → resto de claves del prefijo.
- * Así el login encuentra lo que guardó Permisos aunque cambie tenantId.
+ * Carga la configuración de interfaz guardada.
+ * Busca primero la clave canónica global (fuente de verdad universal del frontend).
+ * Si hay un tenantId específico configurado, se evalúa con prioridad local si contiene datos.
+ * IMPORTANTE: No se hace merge ciego de claves porque mezclar claves de distintas fechas
+ * provoca que datos obsoletos sobreescriban las configuraciones recientes.
  */
 export function loadUiAccessConfig(tenantId?: string | null): UiAccessConfig {
   if (!canUseStorage()) return emptyUiAccessConfig();
   try {
-    let acc = emptyUiAccessConfig();
-    const ordered: string[] = [
+    const t = (tenantId || '').trim();
+    // Prioridad canónica:
+    // 1. Clave global canónica (fuente de verdad configurada por Master/Admin en la UI)
+    // 2. Clave específica del tenant si existe
+    // 3. Clave default
+    const candidateKeys = [
       UI_ACCESS_GLOBAL_KEY,
-      keyFor(tenantId),
+      t ? keyFor(t) : null,
       keyFor('default'),
-      keyFor(''),
-    ];
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith(PREFIX) && !ordered.includes(k)) ordered.push(k);
-      }
-    } catch {
-      /* ignore */
-    }
-    for (const k of ordered) {
+    ].filter(Boolean) as string[];
+
+    for (const k of candidateKeys) {
       const parsed = parseConfig(localStorage.getItem(k));
-      if (parsed) acc = mergeConfigs(acc, parsed);
+      if (
+        parsed &&
+        (Object.keys(parsed.roleScreens || {}).length > 0 ||
+          Object.keys(parsed.userAccess || {}).length > 0)
+      ) {
+        return parsed;
+      }
     }
-    return acc;
+
+    // Si ninguna tiene overrides pero alguna existe parseable:
+    for (const k of candidateKeys) {
+      const parsed = parseConfig(localStorage.getItem(k));
+      if (parsed) return parsed;
+    }
+
+    return emptyUiAccessConfig();
   } catch {
     return emptyUiAccessConfig();
   }
 }
 
-/** Guarda en global + tenant + default. */
+/** 
+ * Guarda en global + tenant + default para garantizar que cualquier sesión
+ * (sea master sin tenant, o usuario dentro de un tenant) encuentre exactamente
+ * la misma configuración guardada, sin discrepancias.
+ */
 export function saveUiAccessConfig(
   tenantId: string | null | undefined,
   config: UiAccessConfig,
@@ -95,9 +111,29 @@ export function saveUiAccessConfig(
   };
   const raw = JSON.stringify(payload);
   try {
+    const t = (tenantId || '').trim();
+    // 1. Guardar en la clave global universal
     localStorage.setItem(UI_ACCESS_GLOBAL_KEY, raw);
-    localStorage.setItem(keyFor(tenantId), raw);
+    // 2. Sincronizar clave de default
     localStorage.setItem(keyFor('default'), raw);
+    // 3. Sincronizar clave específica si hay tenant
+    if (t) {
+      localStorage.setItem(keyFor(t), raw);
+    }
+
+    // 4. Sincronizar todas las claves existentes con PREFIX en localStorage
+    // para sobreescribir cualquier clave vieja que pueda haber quedado de sesiones previas
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(PREFIX)) {
+          localStorage.setItem(k, raw);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
         new CustomEvent('abacophy-ui-access-changed', { detail: payload }),

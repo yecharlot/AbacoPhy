@@ -172,8 +172,8 @@
 
     const onAccess = () => { accessRev += 1; };
     window.addEventListener('abacophy-ui-access-changed', onAccess);
+    window.addEventListener('storage', onAccess);
     void sessionStore.bootstrap();
-
 
     return () => {
       unsubNet();
@@ -181,7 +181,7 @@
       unsubSession();
       unsubMaster();
       window.removeEventListener('abacophy-ui-access-changed', onAccess);
-
+      window.removeEventListener('storage', onAccess);
     };
   });
 
@@ -210,6 +210,9 @@
       await sessionStore.login(username, password);
       const s = sessionStore.getState().session;
       if (s) {
+        // Disparar evento para que navItems re-compute con la política FE guardada
+        accessRev += 1;
+        window.dispatchEvent(new CustomEvent('abacophy-ui-access-changed'));
         const id = firstAllowedScreen(s);
         setScreen(id);
         activeId = id;
@@ -223,6 +226,7 @@
   async function handleLogout() {
     await sessionStore.logout();
     loginAttempted = false;
+    accessRev += 1;
     setScreen('home');
     showToast('Sesión cerrada');
   }

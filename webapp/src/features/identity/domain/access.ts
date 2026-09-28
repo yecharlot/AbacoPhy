@@ -1,6 +1,7 @@
 import type { Session } from './entities/Session';
 import { defaultScreensForRole } from './uiAccessPolicy';
 import { isKnownProductRole, resolveScreensForSession } from './resolveUiAccess';
+import { loadUiAccessConfig } from './uiAccessStorage';
 
 export const SCREEN_VIEWS: Record<string, string[]> = {
   home: ['dashboard', 'reportes'],
@@ -60,6 +61,22 @@ export function effectiveScreens(session: Session | null | undefined): string[] 
 
   const fe = feScreensSafe(session);
   if (fe.length > 0) return fe;
+
+  // Si fe está vacío, verificar si fue explícitamente configurado como vacío en la política FE
+  try {
+    const config = loadUiAccessConfig(session.user?.tenantId);
+    if (session.user?.id && config.userAccess?.[session.user.id]) {
+      return config.userAccess[session.user.id].screens || [];
+    }
+    if (session.user?.username && config.userAccess?.[session.user.username]) {
+      return config.userAccess[session.user.username].screens || [];
+    }
+    if (Array.isArray(config.roleScreens?.[role])) {
+      return config.roleScreens[role];
+    }
+  } catch {
+    /* fallback */
+  }
 
   if (isKnownProductRole(role)) {
     const d = defaultScreensForRole(role);

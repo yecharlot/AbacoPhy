@@ -26,6 +26,7 @@ function normalizeRole(role: string): string {
 export function resolveScreensForUser(input: {
   role: string;
   userId?: string;
+  username?: string;
   metadata?: string | null;
   config?: UiAccessConfig;
   tenantId?: string | null;
@@ -36,20 +37,21 @@ export function resolveScreensForUser(input: {
 
     // Panel guardó override de este rol
     const panel = config.roleScreens?.[role];
-    const roleBase =
-      Array.isArray(panel) && panel.length > 0
-        ? panel.map(String)
-        : defaultScreensForRole(role);
+    const roleBase = Array.isArray(panel)
+      ? panel.map(String)
+      : defaultScreensForRole(role);
 
     let userOverride: UserUiAccess | null = null;
     if (input.userId && config.userAccess?.[input.userId]) {
       userOverride = config.userAccess[input.userId];
+    } else if (input.username && config.userAccess?.[input.username]) {
+      userOverride = config.userAccess[input.username];
     }
     if (!userOverride) {
       userOverride = parseUserUiAccessFromMetadata(input.metadata);
     }
 
-    if (userOverride?.screens?.length) {
+    if (userOverride?.screens) {
       if (userOverride.mode === 'replace') {
         return uniq(userOverride.screens);
       }
@@ -75,6 +77,7 @@ export function resolveScreensForSession(
     return resolveScreensForUser({
       role: session.user.role || '',
       userId: session.user.id,
+      username: session.user.username,
       metadata: session.user.metadata ?? null,
       tenantId: tid,
     });

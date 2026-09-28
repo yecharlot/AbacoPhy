@@ -25,6 +25,16 @@
   let notice = '';
   let error = '';
   let savedPulse = false;
+  let isSaving = false;
+
+  // Solo recargar config si tenantId cambia externamente (no sobreescribir ediciones en curso)
+  let _lastTenantId = tenantId;
+  $: if (tenantId !== _lastTenantId) {
+    _lastTenantId = tenantId;
+    if (!isSaving) {
+      config = loadUiAccessConfig(tenantId);
+    }
+  }
 
   const manageRoles = Object.keys(ROLE_DEFAULT_SCREENS).filter((r) => r !== 'master');
 
@@ -69,7 +79,9 @@
     void store.loadAll();
     config = loadUiAccessConfig(tenantId);
     const onAccess = () => {
-      config = loadUiAccessConfig(tenantId);
+      if (!isSaving) {
+        config = loadUiAccessConfig(tenantId);
+      }
     };
     window.addEventListener('abacophy-ui-access-changed', onAccess);
     return () => {
@@ -79,7 +91,7 @@
   });
 
   $: roleScreenSet = new Set(
-    config.roleScreens[selectedRole]?.length
+    Array.isArray(config.roleScreens[selectedRole])
       ? config.roleScreens[selectedRole]
       : defaultScreensForRole(selectedRole),
   );
@@ -92,7 +104,7 @@
   $: defaultCount = defaultScreensForRole(selectedRole).length;
   $: isCustomRole =
     tab === 'roles' &&
-    !!config.roleScreens[selectedRole]?.length &&
+    Array.isArray(config.roleScreens[selectedRole]) &&
     JSON.stringify([...(config.roleScreens[selectedRole] || [])].sort()) !==
       JSON.stringify([...defaultScreensForRole(selectedRole)].sort());
 
@@ -109,7 +121,7 @@
 
   function toggleRoleScreen(screenId: string) {
     const current = new Set(
-      config.roleScreens[selectedRole]?.length
+      Array.isArray(config.roleScreens[selectedRole])
         ? config.roleScreens[selectedRole]
         : defaultScreensForRole(selectedRole),
     );
@@ -170,39 +182,52 @@
   function save() {
     notice = '';
     error = '';
+    isSaving = true;
     try {
-      // Si el prop viene vacío, intentar tenant del primer usuario cargado
-      const tid =
-        (tenantId && String(tenantId).trim()) ||
-        state.users?.[0]?.tenantId ||
+      // Resolver tid: prop > primer usuario con tenantId > vacío (guarda en global+default)
+      const propTid = (tenantId && String(tenantId).trim()) || '';
+      const fallbackTid =
+        propTid ||
+        state.users?.find((u) => u.tenantId)?.tenantId ||
         '';
-      // Materializar roles tocados: si el set visible no es default y no está en config, persistirlo
-      const roleKey = (selectedRole || '').toLowerCase();
-      let nextConfig = config;
-      if (tab === 'roles' && roleKey) {
-        const screens = [...roleScreenSet];
-        nextConfig = {
-          ...config,
-          roleScreens: {
-            ...config.roleScreens,
-            [roleKey]: screens,
-          },
-        };
-        config = nextConfig;
+      const tid = fallbackTid;
+
+      // config ya tiene TODOS los cambios aplicados por toggleRoleScreen /
+      // toggleUserScreen / setUserMode / clearUserOverride / resetRoleToDefault.
+      saveUiAccessConfig(tid, config);
+
+      if (tab === 'roles') {
+        const roleKey = (selectedRole || '').toLowerCase();
+        const saved = Array.isArray(config.roleScreens[roleKey])
+          ? config.roleScreens[roleKey]
+          : defaultScreensForRole(roleKey);
+        const count = saved.length;
+        notice =
+          `Rol «${roleLabel(selectedRole)}»: ${count} pantalla${count !== 1 ? 's' : ''} guardadas. ` +
+          'Esta configuración es ahora la fuente de verdad activa para este rol.';
+      } else {
+        if (selectedUserId) {
+          const ua = config.userAccess?.[selectedUserId];
+          const count = ua?.screens?.length ?? 0;
+          const modeLabel = ua?.mode === 'extra' ? 'acceso especial' : 'reemplazo de rol';
+          notice =
+            `Excepción de usuario guardada: ${count} pantalla${count !== 1 ? 's' : ''} (${modeLabel}). ` +
+            'Esta configuración es ahora la fuente de verdad activa para este usuario.';
+        } else {
+          notice = 'Permisos guardados correctamente.';
+        }
       }
-      saveUiAccessConfig(tid, nextConfig);
-      // Verificación inmediata de lectura
-      const verify = loadUiAccessConfig(tid);
-      const saved = verify.roleScreens?.[roleKey] || [];
-      notice =
-        `Permisos guardados (${saved.length || roleScreenSet.size} pantallas en «${roleKey || 'rol'}»). ` +
-        'Cierre sesión y entre de nuevo con el usuario para aplicar el menú.';
+
       savedPulse = true;
       setTimeout(() => {
         savedPulse = false;
       }, 1500);
     } catch (e) {
       error = e instanceof Error ? e.message : 'No se pudo guardar';
+    } finally {
+      setTimeout(() => {
+        isSaving = false;
+      }, 100);
     }
   }
 </script>
