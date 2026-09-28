@@ -5,7 +5,7 @@
   import { DevSeedPanel } from '../../../../infrastructure/ui/dev';
   import { buildSampleWarehouseOpsPayload, seedWarehouseOpsViaStore } from '../dev/opsSeed';
   import {
-    getReceptionVisualStatus,
+    getReceptionVisualStatus, isReceptionAbandoned, receptionAbandonReason, receptionStatusLabel,
     type CreateReceptionLineInput,
   } from '../../domain/entities/Reception';
 
@@ -52,9 +52,10 @@
   $: stockRows = state.rows ?? [];
   $: receptions = [...(state.receptions ?? [])].reverse();
   $: problemReceptions = receptions.filter(
-          (r) => getReceptionVisualStatus(r) === 'entry_problem',
+          (r) => getReceptionVisualStatus(r) === 'entry_problem' && !isReceptionAbandoned(r),
   );
-  $: estimated = lines.reduce(
+    $: abandonedReceptions = receptions.filter((r) => isReceptionAbandoned(r));
+$: estimated = lines.reduce(
     (acc, line) => acc + (parseFloat(line.qty) || 0) * (parseFloat(line.unitCost) || 0),
     0,
   );
@@ -220,6 +221,25 @@
       </div>
     </Card>
   {/if}
+
+  {#if abandonedReceptions.length > 0}
+    <Card>
+      <h2>Recepciones abandonadas ({abandonedReceptions.length})</h2>
+      <p class="form-hint">
+        Cerradas en almacén sin entrada de stock. Genere un informe nuevo si la compra sigue vigente.
+      </p>
+      <div class="abandoned-list">
+        {#each abandonedReceptions as rec (rec.id)}
+          <article class="abandoned-item">
+            <strong>{rec.number}</strong>
+            <span>{rec.date} · {rec.supplier || 'Sin proveedor'}</span>
+            <p>{receptionAbandonReason(rec)}</p>
+          </article>
+        {/each}
+      </div>
+    </Card>
+  {/if}
+
 
   <div class="layout">
     <Card>
@@ -406,7 +426,7 @@
                   </td>
                   <td class="num"><Money amount={r.totalCost} currency={r.currency} /></td>
                   <td>
-                    <span class:pending={visual === 'pending_entry'} class:confirmed={visual === 'entry_confirmed'} class:problem={visual === 'entry_problem'} class:cancelled={visual === 'cancelled'} class="status-pill">
+                    <span class:pending={visual === 'pending_entry'} class:confirmed={visual === 'entry_confirmed'} class:problem={visual === 'entry_problem'} class:abandoned={visual === 'abandoned'} class="status-pill">
                         {visual === 'pending_entry'
                                 ? 'Pendiente dar entrada'
                                 : visual === 'entry_confirmed'
@@ -432,7 +452,7 @@
     flex-direction: column;
     gap: 14px;
   }
-  .status-pill.cancelled { background: color-mix(in srgb, var(--ap-text-muted) 14%, transparent); color: var(--ap-text-muted); }
+  .status-pill.abandoned { background: color-mix(in srgb, var(--ap-text-muted) 14%, transparent); color: var(--ap-text-muted); }
   .page-head {
     display: flex;
     flex-wrap: wrap;
@@ -640,6 +660,18 @@
   .status-pill.problem { background: color-mix(in srgb, var(--accent-red, #f17b7b) 14%, transparent); color: var(--accent-red, var(--ap-danger)); }
   .problem-list { display: flex; flex-direction: column; gap: 8px; }
   .problem-item { padding: 10px 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--accent-red, #f17b7b) 28%, var(--ap-border)); background: color-mix(in srgb, var(--accent-red, #f17b7b) 6%, transparent); }
+  .abandoned-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .abandoned-item {
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px dashed color-mix(in srgb, var(--ap-text-muted) 40%, var(--ap-border));
+    background: color-mix(in srgb, var(--ap-text-muted) 6%, transparent);
+  }
+  .abandoned-item p { margin: 5px 0 0; font-size: 0.82rem; color: var(--color-text-secondary, var(--ap-text-secondary)); }
+  .status-pill.abandoned {
+    background: color-mix(in srgb, var(--ap-text-muted) 14%, transparent);
+    color: var(--ap-text-muted);
+  }
   .problem-item p { margin: 5px 0 0; font-size: 0.82rem; color: var(--color-text-secondary, var(--ap-text-secondary)); }
   .detail {
     font-size: 0.75rem;
