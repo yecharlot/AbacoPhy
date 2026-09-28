@@ -14,6 +14,7 @@ export {
   writeMetadataSafe,
   normalizeMetadataField,
   metadataToDto,
+  metadataToApiObject,
   parseMetadata,
   stringifyMetadata,
   metadataGet,

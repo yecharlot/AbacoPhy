@@ -40,7 +40,8 @@ export class CatalogRepositoryImpl implements CatalogRepository {
   async createProduct(input: CreateProductInput): Promise<Product> {
     try {
       const dto = await this.remote.createProduct(createProductInputToDto(input));
-      return productDtoToEntity(dto);
+      const raw = (dto as { product?: import('../dto/CatalogDto').ProductDto }).product ?? dto;
+      return productDtoToEntity(raw as import('../dto/CatalogDto').ProductDto);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
@@ -49,7 +50,8 @@ export class CatalogRepositoryImpl implements CatalogRepository {
   async updateProduct(input: UpdateProductInput): Promise<Product> {
     try {
       const dto = await this.remote.updateProduct(updateProductInputToDto(input));
-      return productDtoToEntity(dto);
+      const raw = (dto as { product?: import('../dto/CatalogDto').ProductDto }).product ?? dto;
+      return productDtoToEntity(raw as import('../dto/CatalogDto').ProductDto);
     } catch (err) {
       throw new Error(toUserMessage(err));
     }
