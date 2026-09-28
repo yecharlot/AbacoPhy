@@ -68,7 +68,14 @@
     });
     void store.loadAll();
     config = loadUiAccessConfig(tenantId);
-    return unsub;
+    const onAccess = () => {
+      config = loadUiAccessConfig(tenantId);
+    };
+    window.addEventListener('abacophy-ui-access-changed', onAccess);
+    return () => {
+      unsub();
+      window.removeEventListener('abacophy-ui-access-changed', onAccess);
+    };
   });
 
   $: roleScreenSet = new Set(
@@ -164,12 +171,36 @@
     notice = '';
     error = '';
     try {
-      saveUiAccessConfig(tenantId, config);
-      notice = 'Permisos guardados en este navegador. Recarga o vuelve a entrar para aplicarlos.';
+      // Si el prop viene vacío, intentar tenant del primer usuario cargado
+      const tid =
+        (tenantId && String(tenantId).trim()) ||
+        state.users?.[0]?.tenantId ||
+        '';
+      // Materializar roles tocados: si el set visible no es default y no está en config, persistirlo
+      const roleKey = (selectedRole || '').toLowerCase();
+      let nextConfig = config;
+      if (tab === 'roles' && roleKey) {
+        const screens = [...roleScreenSet];
+        nextConfig = {
+          ...config,
+          roleScreens: {
+            ...config.roleScreens,
+            [roleKey]: screens,
+          },
+        };
+        config = nextConfig;
+      }
+      saveUiAccessConfig(tid, nextConfig);
+      // Verificación inmediata de lectura
+      const verify = loadUiAccessConfig(tid);
+      const saved = verify.roleScreens?.[roleKey] || [];
+      notice =
+        `Permisos guardados (${saved.length || roleScreenSet.size} pantallas en «${roleKey || 'rol'}»). ` +
+        'Cierre sesión y entre de nuevo con el usuario para aplicar el menú.';
       savedPulse = true;
       setTimeout(() => {
         savedPulse = false;
-      }, 1200);
+      }, 1500);
     } catch (e) {
       error = e instanceof Error ? e.message : 'No se pudo guardar';
     }

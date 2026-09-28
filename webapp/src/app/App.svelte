@@ -74,6 +74,8 @@
   const { masterStore } = createMasterModule(container);
 
   let activeId = $state(getScreen());
+  let accessRev = $state(0);
+
   let online = $state(true);
   let theme: ThemeMode = $state('light');
   let toastMsg = $state('');
@@ -106,7 +108,10 @@
     }
     return filterNavByViews(PLACEHOLDER_NAV, session.views ?? null);
   }
-  const navItems = $derived(buildNavItems(sessionState.session));
+  const navItems = $derived.by(() => {
+    void accessRev;
+    return buildNavItems(sessionState.session);
+  });
 
   const userRole = $derived(sessionState.session?.user?.role ?? '');
   const userLabel = $derived(
@@ -165,13 +170,18 @@
     // Usuarios para autocomplete de receptor en recepciones
     void masterStore.loadAll().catch(() => undefined);
 
+    const onAccess = () => { accessRev += 1; };
+    window.addEventListener('abacophy-ui-access-changed', onAccess);
     void sessionStore.bootstrap();
+
 
     return () => {
       unsubNet();
       unsubScreen();
       unsubSession();
       unsubMaster();
+      window.removeEventListener('abacophy-ui-access-changed', onAccess);
+
     };
   });
 
@@ -265,7 +275,7 @@
     {:else if activeId === 'liquidaciones'}
       <LiquidacionesScreen store={payrollStore} />
     {:else if activeId === 'tenant'}
-      <TenantScreen store={tenantStore} canEdit={canEditTenant} />
+      <TenantScreen store={tenantStore} warehouseStore={warehouseStore} canEdit={canEditTenant} />
     {:else if activeId === 'catalog'}
       <CatalogScreen store={catalogStore} />
     {:else if activeId === 'almacen'}

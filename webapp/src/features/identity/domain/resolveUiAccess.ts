@@ -1,6 +1,7 @@
 import type { Session } from './entities/Session';
 import {
   defaultScreensForRole,
+  ROLE_DEFAULT_SCREENS,
   type UiAccessConfig,
   type UserUiAccess,
 } from './uiAccessPolicy';
@@ -10,9 +11,18 @@ import {
 } from './uiAccessStorage';
 
 function uniq(ids: string[]): string[] {
-  return [...new Set((ids || []).filter(Boolean))];
+  return [...new Set((ids || []).map(String).map((s) => s.trim()).filter(Boolean))];
 }
 
+function normalizeRole(role: string): string {
+  return String(role || '').trim().toLowerCase();
+}
+
+/**
+ * 1) roleScreens[rol] del panel (si existe y no vacío) → esa lista exacta
+ * 2) si no → ROLE_DEFAULT_SCREENS[rol]
+ * 3) + userAccess / metadata (extra = unión, replace = sustituye)
+ */
 export function resolveScreensForUser(input: {
   role: string;
   userId?: string;
@@ -21,13 +31,14 @@ export function resolveScreensForUser(input: {
   tenantId?: string | null;
 }): string[] {
   try {
-    const role = String(input.role || '').trim().toLowerCase();
+    const role = normalizeRole(input.role);
     const config = input.config ?? loadUiAccessConfig(input.tenantId);
 
-    const fromRoleConfig = config.roleScreens?.[role];
+    // Panel guardó override de este rol
+    const panel = config.roleScreens?.[role];
     const roleBase =
-      fromRoleConfig && fromRoleConfig.length > 0
-        ? fromRoleConfig
+      Array.isArray(panel) && panel.length > 0
+        ? panel.map(String)
         : defaultScreensForRole(role);
 
     let userOverride: UserUiAccess | null = null;
@@ -39,12 +50,13 @@ export function resolveScreensForUser(input: {
     }
 
     if (userOverride?.screens?.length) {
-      if (userOverride.mode === 'extra') {
-        return uniq([...(roleBase || []), ...userOverride.screens]);
+      if (userOverride.mode === 'replace') {
+        return uniq(userOverride.screens);
       }
-      return uniq(userOverride.screens);
+      return uniq([...roleBase, ...userOverride.screens]);
     }
-    return uniq(roleBase || []);
+
+    return uniq(roleBase);
   } catch {
     return [];
   }
@@ -56,13 +68,24 @@ export function resolveScreensForSession(
 ): string[] {
   if (!session?.user) return [];
   try {
+    const tid =
+      tenantId ??
+      session.user.tenantId ??
+      null;
     return resolveScreensForUser({
       role: session.user.role || '',
       userId: session.user.id,
-      metadata: session.user.metadata,
-      tenantId: tenantId ?? session.user.tenantId,
+      metadata: session.user.metadata ?? null,
+      tenantId: tid,
     });
   } catch {
     return [];
   }
+}
+
+export function isKnownProductRole(role: string): boolean {
+  return Object.prototype.hasOwnProperty.call(
+    ROLE_DEFAULT_SCREENS,
+    normalizeRole(role),
+  );
 }
