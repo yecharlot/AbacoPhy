@@ -1050,7 +1050,10 @@ func (s *Server) handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 		snap.Tenant.RolePermissions[body.Role] = clean
 		snap.Tenant.UpdatedAt = time.Now().UTC()
 		s.audit(snap, sess, "permisos.rol.edicion", "Edición de permisos del rol «"+roleLabelES(body.Role)+"»", body.Role)
-		_ = s.Store.Put(snap)
+		if err := s.Store.Put(snap); err != nil {
+			writeJSON(w, 500, map[string]string{"error": "no se pudieron persistir los permisos del rol: " + err.Error()})
+			return
+		}
 		writeJSON(w, 200, map[string]any{"role": body.Role, "permissions": clean})
 	default:
 		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
@@ -1195,7 +1198,10 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 		}
 		u.UpdatedAt = time.Now().UTC()
 		s.audit(snap, sess, "usuario.edicion", "Edición de usuario «"+u.Username+"» · rol «"+roleLabelES(u.Role)+"»", u.ID)
-		_ = s.Store.Put(snap)
+		if err := s.Store.Put(snap); err != nil {
+			writeJSON(w, 500, map[string]string{"error": "no se pudieron persistir los cambios del usuario: " + err.Error()})
+			return
+		}
 		writeJSON(w, 200, map[string]any{"user": publicUser(u), "views": auth.ViewsForUser(u.Role, snap, u)})
 	case http.MethodDelete:
 		id := r.URL.Query().Get("id")
