@@ -1,5 +1,6 @@
 import type { HttpClient } from '../../../../infrastructure/data/http';
 import type { ModulesSnapshot } from '../../domain/entities/ModuleMeta';
+import type { RolePermissions } from '../../domain/repositories/MasterRepository';
 import type {
   CreateUserInput,
   PlatformUser,
@@ -89,6 +90,24 @@ export class MasterRepositoryImpl implements MasterRepository {
       };
     } catch (err) {
       throw new Error(messageOf(err, 'No se pudieron cargar los usuarios'));
+    }
+  }
+
+  async getRolePermissions(): Promise<RolePermissions> {
+    try {
+      const dto = await this.remote.getRolePermissions();
+      return dto.roles || {};
+    } catch (err) {
+      throw new Error(messageOf(err, 'No se pudieron cargar los permisos por rol'));
+    }
+  }
+
+  async updateRolePermissions(role: string, permissions: Record<string, boolean>): Promise<Record<string, boolean>> {
+    try {
+      const dto = await this.remote.updateRolePermissions({ role, permissions });
+      return dto.permissions || permissions;
+    } catch (err) {
+      throw new Error(messageOf(err, 'No se pudieron guardar los permisos del rol'));
     }
   }
 
