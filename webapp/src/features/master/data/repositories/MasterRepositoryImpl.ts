@@ -135,6 +135,20 @@ export class MasterRepositoryImpl implements MasterRepository {
     try {
       const dto = await this.remote.updateUser(updateUserInputToDto(input));
       if (!dto.user) throw new Error('Respuesta de usuario vacía');
+
+      // Confirmar contra una lectura nueva que las excepciones de módulos
+      // realmente quedaron persistidas y no solo reflejadas en la respuesta del PUT.
+      if (input.modules) {
+        const verified = await this.remote.getUsers();
+        const remote = (verified.users || []).find((u) => u.id === input.id);
+        if (!remote) throw new Error('El usuario actualizado no apareció en la lectura posterior.');
+        for (const [key, value] of Object.entries(input.modules)) {
+          if ((remote.modules?.[key] === true) !== (value === true)) {
+            throw new Error('El backend no devolvió las autorizaciones recién guardadas del usuario.');
+          }
+        }
+      }
+
       return userDtoToEntity(dto.user);
     } catch (err) {
       throw new Error(messageOf(err, 'No se pudo modificar el usuario'));
