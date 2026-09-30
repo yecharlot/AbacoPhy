@@ -17,6 +17,213 @@
   let statusFilter: 'all' | 'available' | 'low' | 'out' = 'all';
   let actionError = '';
 
+  /** Unidades de venta (mismos destinos que Transferencias). */
+  $: salesUnits = (state.units ?? []).filter((u) => u.active !== false);
+
+  type PreTransferItem = {
+    key: string;
+    productId: string;
+    productCode: string;
+    productName: string;
+    qty: number;
+    unitId: string;
+    unitName: string;
+  };
+
+  /** Carrito de pre-transferencias (no ejecuta hasta "Realizar transferencia"). */
+  let preTransfers: PreTransferItem[] = [];
+
+  /** Modal transferencia individual. */
+  let transferModalOpen = false;
+  let transferProductId = '';
+  let transferProductName = '';
+  let transferProductCode = '';
+  let transferMaxQty = 0;
+  let transferQty = '';
+  let transferUnitId = '';
+  let transferModalError = '';
+
+  /** Modal resumen multi. */
+  let multiModalOpen = false;
+  let multiError = '';
+  let transferNotice = '';
+
+  function openTransferModal(row: { productId: string; name: string; code: string; qty: number }) {
+    if (row.qty <= 0) {
+      actionError = 'Sin stock disponible para transferir';
+      return;
+    }
+    transferProductId = row.productId;
+    transferProductName = row.name;
+    transferProductCode = row.code || '';
+    transferMaxQty = row.qty;
+    transferQty = '';
+    transferUnitId = salesUnits[0]?.id || '';
+    transferModalError = '';
+    transferModalOpen = true;
+  }
+
+  function closeTransferModal() {
+    transferModalOpen = false;
+    transferModalError = '';
+  }
+
+  function unitLabel(id: string): string {
+    const u = salesUnits.find((x) => x.id === id);
+    return u ? `${u.code || ''} · ${u.name}`.trim() : id;
+  }
+
+  function stockOf(productId: string): number {
+    return state.rows.find((r) => r.productId === productId)?.qty ?? 0;
+  }
+
+  /** Misma validación/payload que TransferenciasScreen → store.addTransfer. */
+  async function executeTransfer(unitId: string, lines: { productId: string; qty: number }[], note?: string) {
+    if (!unitId) throw new Error('Seleccione la unidad de venta destino');
+    if (!lines.length) throw new Error('La transferencia necesita al menos una línea');
+    for (const line of lines) {
+      if (!line.productId) throw new Error('Cada línea necesita un producto');
+      if (line.qty <= 0) throw new Error('La cantidad debe ser mayor que cero');
+      const available = stockOf(line.productId);
+      if (line.qty > available) {
+        throw new Error(`Stock insuficiente (disponible: ${available})`);
+      }
+    }
+    await store.addTransfer({
+      unitId,
+      lines,
+      note: note?.trim() || undefined,
+    });
+  }
+
+  async function confirmSingleTransfer() {
+    transferModalError = '';
+    const qty = parseFloat(transferQty);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      transferModalError = 'Indique una cantidad mayor que cero';
+      return;
+    }
+    if (qty > transferMaxQty) {
+      transferModalError = `Stock insuficiente (disponible: ${transferMaxQty})`;
+      return;
+    }
+    if (!transferUnitId) {
+      transferModalError = salesUnits.length
+        ? 'Seleccione el punto de venta destino'
+        : 'No hay puntos de venta. Declárelos en Negocio.';
+      return;
+    }
+    try {
+      await executeTransfer(transferUnitId, [{ productId: transferProductId, qty }]);
+      transferNotice = `Transferencia de ${qty} × ${transferProductName} confirmada`;
+      closeTransferModal();
+      setTimeout(() => { transferNotice = ''; }, 2800);
+    } catch (err) {
+      transferModalError = err instanceof Error ? err.message : 'No se pudo transferir';
+    }
+  }
+
+  function addToPreTransfer() {
+    transferModalError = '';
+    const qty = parseFloat(transferQty);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      transferModalError = 'Indique una cantidad mayor que cero';
+      return;
+    }
+    if (qty > transferMaxQty) {
+      transferModalError = `Stock insuficiente (disponible: ${transferMaxQty})`;
+      return;
+    }
+    if (!transferUnitId) {
+      transferModalError = salesUnits.length
+        ? 'Seleccione el punto de venta destino'
+        : 'No hay puntos de venta. Declárelos en Negocio.';
+      return;
+    }
+    const key = `${transferProductId}::${transferUnitId}`;
+    const existing = preTransfers.find((p) => p.key === key);
+    if (existing) {
+      const nextQty = existing.qty + qty;
+      if (nextQty > stockOf(transferProductId)) {
+        transferModalError = `La pre-transferencia superaría el stock (${stockOf(transferProductId)})`;
+        return;
+      }
+      preTransfers = preTransfers.map((p) =>
+        p.key === key ? { ...p, qty: nextQty } : p,
+      );
+    } else {
+      preTransfers = [
+        ...preTransfers,
+        {
+          key,
+          productId: transferProductId,
+          productCode: transferProductCode,
+          productName: transferProductName,
+          qty,
+          unitId: transferUnitId,
+          unitName: unitLabel(transferUnitId),
+        },
+      ];
+    }
+    closeTransferModal();
+    transferNotice = 'Añadido a pre-transferencia';
+    setTimeout(() => { transferNotice = ''; }, 2200);
+  }
+
+  function removePreTransfer(key: string) {
+    preTransfers = preTransfers.filter((p) => p.key !== key);
+  }
+
+  function clearPreTransfers() {
+    preTransfers = [];
+  }
+
+  function openMultiModal() {
+    multiError = '';
+    if (!preTransfers.length) return;
+    multiModalOpen = true;
+  }
+
+  function closeMultiModal() {
+    multiModalOpen = false;
+    multiError = '';
+  }
+
+  /** Agrupa por unitId y reutiliza store.addTransfer (misma lógica que Transferencias). */
+  async function confirmMultiTransfer() {
+    multiError = '';
+    if (!preTransfers.length) {
+      multiError = 'No hay líneas en la pre-transferencia';
+      return;
+    }
+    // Validar stock actual
+    for (const item of preTransfers) {
+      const available = stockOf(item.productId);
+      if (item.qty > available) {
+        multiError = `Stock insuficiente para ${item.productName} (disponible: ${available})`;
+        return;
+      }
+    }
+    const byUnit = new Map<string, { productId: string; qty: number }[]>();
+    for (const item of preTransfers) {
+      const list = byUnit.get(item.unitId) || [];
+      list.push({ productId: item.productId, qty: item.qty });
+      byUnit.set(item.unitId, list);
+    }
+    try {
+      for (const [unitId, lines] of byUnit) {
+        await executeTransfer(unitId, lines, 'Transferencia múltiple desde Almacén');
+      }
+      clearPreTransfers();
+      closeMultiModal();
+      transferNotice = 'Transferencia múltiple confirmada · stock actualizado';
+      setTimeout(() => { transferNotice = ''; }, 3000);
+    } catch (err) {
+      multiError = err instanceof Error ? err.message : 'No se pudo completar la transferencia';
+    }
+  }
+
+
   /** Marcador FE de abandono (mismo que domain RECEPTION_ABANDON_MARKER). */
   const ABANDON_MARKER = '[ABANDONADO]';
 
@@ -284,6 +491,25 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
           <div><p class="eyebrow">Inventario físico</p><h2 id="stock-title">Stock del almacén</h2></div>
           <span class="result-count">{filteredRows.length} de {state.rows.length}</span>
         </div>
+        {#if transferNotice}
+          <p class="banner ok" role="status">{transferNotice}</p>
+        {/if}
+        {#if preTransfers.length > 0}
+          <div class="pre-xfer-bar">
+            <div>
+              <strong>Pre-transferencia</strong>
+              <span>{preTransfers.length} línea{preTransfers.length === 1 ? '' : 's'} preparada{preTransfers.length === 1 ? '' : 's'}</span>
+            </div>
+            <div class="pre-xfer-actions">
+              <Button type="button" onclick={openMultiModal} disabled={state.saving}>
+                Realizar transferencia
+              </Button>
+              <Button type="button" variant="secondary" onclick={clearPreTransfers} disabled={state.saving}>
+                Vaciar lista
+              </Button>
+            </div>
+          </div>
+        {/if}
         <div class="stock-tools">
           <label><span class="sr-only">Buscar producto por nombre o código</span><input bind:value={query} placeholder="Buscar por producto o código" /></label>
           <div class="filter-group" aria-label="Filtrar por estado de stock">
@@ -304,7 +530,7 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
             <p class="empty-state">No hay productos que coincidan con este filtro.</p>
           {:else}
             <table>
-              <thead><tr><th>Producto</th><th>Estado</th><th class="num">Disponible</th><th class="num">Costo prom.</th><th class="num">Importe</th></tr></thead>
+              <thead><tr><th>Producto</th><th>Estado</th><th class="num">Disponible</th><th class="num">Costo prom.</th><th class="num">Importe</th><th class="actions-col">Acciones</th></tr></thead>
               <tbody>
               {#each filteredRows as row (row.productId)}
                 {@const health = stockHealth(row.qty, insight.lowThreshold)}
@@ -314,6 +540,15 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
                   <td class="num quantity">{row.qty}</td>
                   <td class="num"><Money amount={row.avgCost} currency={row.currency} /></td>
                   <td class="num"><Money amount={row.amountBase} currency={row.currency} /></td>
+                  <td class="actions-col">
+                    <button
+                      type="button"
+                      class="xfer-btn"
+                      title="Transferir este producto del almacén a un punto de venta declarado en el negocio"
+                      disabled={state.saving || row.qty <= 0}
+                      onclick={() => openTransferModal(row)}
+                    >Transferir</button>
+                  </td>
                 </tr>
               {/each}
               </tbody>
@@ -323,6 +558,112 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
       </section>
     </div>
   </div>
+
+  {#if transferModalOpen}
+    <div class="modal-backdrop" role="presentation" onclick={closeTransferModal}>
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="xfer-title"
+        onclick={(e) => e.stopPropagation()}
+      >
+        <h3 id="xfer-title">Transferir a punto de venta</h3>
+        <p class="modal-sub">
+          <strong>{transferProductName}</strong>
+          {#if transferProductCode}<span class="muted"> · {transferProductCode}</span>{/if}
+          · disponible {transferMaxQty}
+        </p>
+        <p class="modal-hint">
+          Mueve stock del almacén central al PDV. No es venta ni compra; el inventario sigue en el negocio.
+        </p>
+        <label class="field">
+          <span>Cantidad</span>
+          <input type="number" min="0.01" step="any" bind:value={transferQty} disabled={state.saving} />
+        </label>
+        <label class="field">
+          <span>Punto de venta destino</span>
+          <select bind:value={transferUnitId} disabled={state.saving || salesUnits.length === 0}>
+            {#if salesUnits.length === 0}
+              <option value="">Sin puntos de venta</option>
+            {:else}
+              {#each salesUnits as u (u.id)}
+                <option value={u.id}>{u.code} · {u.name}</option>
+              {/each}
+            {/if}
+          </select>
+        </label>
+        {#if transferModalError}
+          <p class="banner error" role="alert">{transferModalError}</p>
+        {/if}
+        <div class="modal-actions">
+          <Button type="button" onclick={confirmSingleTransfer} disabled={state.saving}>
+            {state.saving ? 'Transfiriendo…' : 'Confirmar transferencia'}
+          </Button>
+          <Button type="button" variant="secondary" onclick={addToPreTransfer} disabled={state.saving}>
+            Añadir a pre-transferencia
+          </Button>
+          <Button type="button" variant="secondary" onclick={closeTransferModal} disabled={state.saving}>
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  {#if multiModalOpen}
+    <div class="modal-backdrop" role="presentation" onclick={closeMultiModal}>
+      <div
+        class="modal modal-wide"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="multi-title"
+        onclick={(e) => e.stopPropagation()}
+      >
+        <h3 id="multi-title">Confirmar transferencia múltiple</h3>
+        <p class="modal-hint">Se ejecutará con la misma lógica que la vista Transferencias (por punto de venta).</p>
+        <div class="multi-table-wrap">
+          <table class="multi-table">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th class="num">Cantidad</th>
+                <th>Punto de venta</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each preTransfers as item (item.key)}
+                <tr>
+                  <td>
+                    <strong>{item.productName}</strong>
+                    {#if item.productCode}<small>{item.productCode}</small>{/if}
+                  </td>
+                  <td class="num">{item.qty}</td>
+                  <td>{item.unitName}</td>
+                  <td>
+                    <button type="button" class="linkish" onclick={() => removePreTransfer(item.key)}>Quitar</button>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+        {#if multiError}
+          <p class="banner error" role="alert">{multiError}</p>
+        {/if}
+        <div class="modal-actions">
+          <Button type="button" onclick={confirmMultiTransfer} disabled={state.saving}>
+            {state.saving ? 'Transfiriendo…' : 'Confirmar todas'}
+          </Button>
+          <Button type="button" variant="secondary" onclick={closeMultiModal} disabled={state.saving}>
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
 </section>
 
 <style>
@@ -345,4 +686,62 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
   .stock-head { margin-bottom: 12px; }.result-count { color: var(--ap-text-muted); font-size: .73rem; }.stock-tools { align-items: flex-start; gap: 9px; padding-bottom: 12px; border-bottom: 1px solid var(--ap-border); }.stock-tools label { flex: 1; }.stock-tools input { width: 100%; box-sizing: border-box; border: 1px solid var(--ap-border); border-radius: 9px; padding: 8px 10px; background: var(--ap-bg); color: var(--ap-text); font: inherit; font-size: .78rem; }.filter-group { gap: 4px; flex-wrap: wrap; justify-content: flex-end; }.filter-group button { border: 1px solid transparent; background: var(--ap-primary-soft); color: var(--ap-text-secondary); border-radius: 7px; padding: 6px 8px; font: inherit; font-size: .68rem; cursor: pointer; }.filter-group button.active { color: var(--ap-primary); border-color: color-mix(in srgb, var(--ap-primary) 35%, var(--ap-border)); background: color-mix(in srgb, var(--ap-primary) 13%, transparent); }.stock-scroll { margin-top: 2px; } table { width: 100%; border-collapse: collapse; font-size: .79rem; } th { position: sticky; top: 0; z-index: 1; text-align: left; padding: 9px 8px; color: var(--ap-text-muted); background: var(--ap-bg-elevated); border-bottom: 1px solid var(--ap-border); font-size: .65rem; letter-spacing: .07em; text-transform: uppercase; } td { padding: 10px 8px; border-bottom: 1px solid var(--ap-border); color: var(--ap-text-secondary); } td strong, td small { display: block; } td strong { color: var(--ap-text); font-size: .8rem; } td small { color: var(--ap-text-muted); font-size: .67rem; margin-top: 2px; }.num { text-align: right; font-variant-numeric: tabular-nums; }.quantity { color: var(--ap-text); font-weight: 750; }.stock-state { display: inline-flex; align-items: center; gap: 5px; color: var(--ap-text-secondary); font-size: .68rem; white-space: nowrap; }.empty-state { color: var(--ap-text-muted); font-size: .82rem; padding: 20px 2px; }.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
   @media (min-width: 1100px) { .warehouse { height: calc(100dvh - 174px); max-height: 860px; }.warehouse-layout { grid-template-columns: minmax(290px, .9fr) minmax(560px, 1.65fr); flex: 1; overflow: hidden; }.insights-column { overflow-y: auto; padding-right: 4px; }.operations-column { min-height: 0; } }
   @media (max-width: 760px) { .reception-item { align-items: flex-start; flex-wrap: wrap; }.reception-meta { text-align: left; }.reception-actions { width: 100%; }.stock-tools { flex-direction: column; }.stock-tools label { width: 100%; }.filter-group { justify-content: flex-start; }.operations-column { grid-template-rows: auto minmax(350px, 1fr); }.reception-scroll { max-height: 340px; } th:nth-child(4), td:nth-child(4) { display: none; } }
+
+  .pre-xfer-bar {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: 10px; margin-bottom: 10px; padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--accent-cyan, #61e6e1) 35%, var(--ap-border));
+    background: color-mix(in srgb, var(--accent-cyan, #61e6e1) 8%, transparent);
+  }
+  .pre-xfer-bar strong { display: block; font-size: .82rem; }
+  .pre-xfer-bar span { font-size: .72rem; color: var(--ap-text-secondary); }
+  .pre-xfer-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .actions-col { text-align: right; white-space: nowrap; width: 1%; }
+  .xfer-btn {
+    font-size: .68rem; font-weight: 650; padding: 6px 9px; border-radius: 8px;
+    border: 1px solid var(--ap-border); background: color-mix(in srgb, var(--ap-bg-elevated) 80%, transparent);
+    color: var(--ap-text); cursor: pointer;
+  }
+  .xfer-btn:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--accent-cyan, #61e6e1) 50%, var(--ap-border));
+    color: var(--accent-cyan, #61e6e1);
+  }
+  .xfer-btn:disabled { opacity: .45; cursor: not-allowed; }
+  .banner.ok { color: var(--ap-ok, #b7f56a); font-size: .82rem; margin: 0 0 8px; }
+  .modal-backdrop {
+    position: fixed; inset: 0; z-index: 80;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px; background: rgba(5, 8, 18, 0.72);
+    backdrop-filter: blur(4px);
+  }
+  .modal {
+    width: min(420px, 100%);
+    max-height: min(90vh, 640px);
+    overflow: auto;
+    padding: 1.1rem 1.15rem 1.2rem;
+    border-radius: 16px;
+    border: 1px solid var(--ap-border);
+    background: var(--ap-bg-elevated, #171b29);
+    box-shadow: 0 20px 50px rgba(0,0,0,.45);
+  }
+  .modal-wide { width: min(560px, 100%); }
+  .modal h3 { margin: 0 0 .35rem; font-size: 1.05rem; }
+  .modal-sub { margin: 0 0 .5rem; font-size: .88rem; }
+  .modal-hint { margin: 0 0 .85rem; font-size: .78rem; color: var(--ap-text-secondary); }
+  .modal .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: .7rem; font-size: .78rem; }
+  .modal .field span { color: var(--ap-text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; font-size: .65rem; }
+  .modal input, .modal select {
+    padding: 8px 10px; border-radius: 10px;
+    border: 1px solid var(--ap-border); background: var(--ap-bg, #050812); color: var(--ap-text);
+  }
+  .modal-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: .5rem; }
+  .multi-table-wrap { overflow: auto; max-height: 280px; margin-bottom: .75rem; }
+  .multi-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+  .multi-table th { text-align: left; font-size: .65rem; text-transform: uppercase; letter-spacing: .05em; color: var(--ap-text-muted); padding: 6px 4px; border-bottom: 1px solid var(--ap-border); }
+  .multi-table td { padding: 8px 4px; border-bottom: 1px solid var(--ap-border); vertical-align: top; }
+  .multi-table small { display: block; color: var(--ap-text-muted); font-size: .7rem; }
+  .linkish { background: none; border: none; color: var(--accent-cyan, #61e6e1); cursor: pointer; font-size: .75rem; padding: 0; }
+  .muted { color: var(--ap-text-muted); }
+
 </style>

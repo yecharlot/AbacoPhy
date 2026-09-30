@@ -1,5 +1,5 @@
 import type { Invoice } from '../../domain/entities/Invoice';
-import { buildInvoiceQrPayload, qrDataUrlFromText } from './qrDataUrl';
+import { buildInvoiceQrPayload, qrDataUrlFromText, qrRemoteUrl } from './qrDataUrl';
 
 export type InvoiceIssuer = {
   name: string;
@@ -46,6 +46,7 @@ export async function buildInvoicePdfHtml(
     cid: inv.cid || undefined,
   });
   const qrImg = await qrDataUrlFromText(qrPayload, 140);
+  const qrRemote = qrRemoteUrl(qrPayload, 140);
 
   const rows = (inv.lines || [])
     .map(
@@ -59,9 +60,12 @@ export async function buildInvoicePdfHtml(
     )
     .join('');
 
+  // data-URL (preferido para imprimir offline) o URL remota; texto como último recurso
   const qrBlock = qrImg
-    ? `<img class="qr" src="${qrImg}" alt="QR factura" />`
-    : `<pre class="qr-fallback">${esc(qrPayload)}</pre>`;
+    ? `<img class="qr" src="${qrImg}" width="140" height="140" alt="QR factura" />`
+    : `<img class="qr" src="${qrRemote}" width="140" height="140" alt="QR factura" crossorigin="anonymous"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+       <pre class="qr-fallback" style="display:none">${esc(qrPayload)}</pre>`;
 
   return `<!DOCTYPE html>
 <html lang="es">

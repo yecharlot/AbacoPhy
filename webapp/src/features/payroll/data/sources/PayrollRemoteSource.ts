@@ -1,10 +1,15 @@
 import type { HttpClient } from '../../../../infrastructure/data/http';
 
+export type EmployeesApiResponse = {
+  employees?: unknown[];
+  trabajadores?: unknown[];
+};
+
 export class PayrollRemoteSource {
   constructor(private readonly http: HttpClient) {}
 
-  getEmployees(): Promise<{ employees: unknown[] }> {
-    return this.http.get<{ employees: unknown[] }>('/payroll/employees');
+  getEmployees(): Promise<EmployeesApiResponse> {
+    return this.http.get<EmployeesApiResponse>('/payroll/employees');
   }
 
   async createEmployee(body: Record<string, unknown>): Promise<unknown> {
