@@ -20,6 +20,8 @@
   let error = '';
   let savedPulse = false;
   let isSaving = false;
+  let roleDraftDirty = false;
+  let userDraftDirty = false;
 
   const manageRoles = Object.keys(ROLE_DEFAULT_SCREENS).filter((r) => r !== 'master');
   const SCREEN_GROUPS: { id: string; label: string; ids: string[] }[] = [
@@ -49,6 +51,7 @@
   function loadSelectedRole(role: string) {
     selectedRole = role;
     draftRolePermissions = { ...(state.rolePermissions[role] || {}) };
+    roleDraftDirty = false;
     notice = '';
     error = '';
   }
@@ -83,6 +86,7 @@
     selectedUserId = id;
     const user = state.users.find((u) => u.id === id);
     draftUserModules = { ...(user?.modules || {}) };
+    userDraftDirty = false;
     userQuery = user ? (user.displayName || user.username) + ' · ' + user.username : '';
     notice = '';
     error = '';
@@ -92,6 +96,7 @@
     selectedUserId = '';
     userQuery = '';
     draftUserModules = {};
+    userDraftDirty = false;
     notice = '';
     error = '';
   }
@@ -106,25 +111,25 @@
     }).slice(0, 8);
   }
 
-  function toggleRoleScreen(screenId: string) {
+  function setRoleScreen(screenId: string, checked: boolean) {
     const keys = SCREEN_VIEWS[screenId] ?? [];
     if (!keys.length) return;
-    const enabled = roleScreenAllowed(screenId);
     const next = { ...draftRolePermissions };
-    for (const key of keys) next[key] = !enabled;
+    for (const key of keys) next[key] = checked;
     draftRolePermissions = next;
+    roleDraftDirty = true;
     notice = '';
     error = '';
   }
 
-  function toggleUserScreen(screenId: string) {
+  function setUserScreen(screenId: string, checked: boolean) {
     if (!selectedUserId) return;
     const keys = SCREEN_VIEWS[screenId] ?? [];
     if (!keys.length) return;
-    const enabled = userScreenAllowed(screenId);
     const next = { ...draftUserModules };
-    for (const key of keys) next[key] = !enabled;
+    for (const key of keys) next[key] = checked;
     draftUserModules = next;
+    userDraftDirty = true;
     notice = '';
     error = '';
   }
@@ -136,6 +141,7 @@
       isSaving = true;
       void store.updateRolePermissions(selectedRole, { ...draftRolePermissions })
         .then(() => {
+          roleDraftDirty = false;
           notice = 'Permisos de «' + roleLabel(selectedRole) + '» guardados en el backend.';
           savedPulse = true;
           setTimeout(() => (savedPulse = false), 1500);
@@ -149,6 +155,7 @@
     void store.editUser({ id: selectedUserId, modules: { ...draftUserModules } })
       .then(() => {
         const user = selectedUser();
+        userDraftDirty = false;
         notice = 'Autorizaciones de «' + (user?.displayName || user?.username || 'usuario') + '» guardadas en el backend.';
         savedPulse = true;
         setTimeout(() => (savedPulse = false), 1500);
@@ -163,9 +170,9 @@
       state = s;
       if (selectedUserId) {
         const remote = s.users.find((u) => u.id === selectedUserId);
-        if (remote && !isSaving) draftUserModules = { ...remote.modules };
+        if (remote && !isSaving && !userDraftDirty) draftUserModules = { ...remote.modules };
       }
-      if (!isSaving) {
+      if (!isSaving && !roleDraftDirty) {
         draftRolePermissions = { ...(s.rolePermissions[selectedRole] || {}) };
       }
     });
@@ -267,7 +274,7 @@
                     class="tile-input"
                     type="checkbox"
                     checked={roleScreenAllowed(sid)}
-                    onclick={() => toggleRoleScreen(sid)}
+                    onchange={(event) => setRoleScreen(sid, (event.currentTarget as HTMLInputElement).checked)}
                     aria-label={'Permitir ' + catalogLabel(sid) + ' para ' + roleLabel(selectedRole)}
                   />
                   <span class="tile-check" aria-hidden="true"></span>
@@ -346,7 +353,7 @@
                       class="tile-input"
                       type="checkbox"
                       checked={userScreenAllowed(sid)}
-                      onclick={() => toggleUserScreen(sid)}
+                      onchange={(event) => setUserScreen(sid, (event.currentTarget as HTMLInputElement).checked)}
                       aria-label={'Permitir ' + catalogLabel(sid) + ' al usuario seleccionado'}
                     />
                     <span class="tile-check" aria-hidden="true"></span>
