@@ -735,7 +735,8 @@
     width: 1px;
     height: 1px;
     opacity: 0;
-    pointer-events: none;
+    pointer-events: auto;
+    cursor: pointer;
   }
 
   .tile:has(.tile-input:focus-visible) {
