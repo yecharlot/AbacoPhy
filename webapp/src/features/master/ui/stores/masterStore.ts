@@ -10,6 +10,7 @@ import type {
   CreateUser,
   DeactivateUser,
   GetModules,
+  GetRolePermissions,
   ListTenants,
   ListUsers,
   ResetPlatform,
@@ -39,6 +40,7 @@ type Deps = {
   createTenant: CreateTenant;
   resetPlatform: ResetPlatform;
   getModules: GetModules;
+  getRolePermissions: GetRolePermissions;
   updateModules: UpdateModules;
   updateRolePermissions: UpdateRolePermissions;
   listUsers: ListUsers;
