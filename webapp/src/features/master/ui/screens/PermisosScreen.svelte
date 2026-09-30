@@ -15,6 +15,7 @@
   let selectedUserId = '';
   let userQuery = '';
   let draftUserModules: Record<string, boolean> = {};
+  let draftRolePermissions: Record<string, boolean> = {};
   let notice = '';
   let error = '';
   let savedPulse = false;
@@ -43,6 +44,21 @@
 
   function selectedUser() {
     return state.users.find((u) => u.id === selectedUserId) ?? null;
+  }
+
+  function loadSelectedRole(role: string) {
+    selectedRole = role;
+    draftRolePermissions = { ...(state.rolePermissions[role] || {}) };
+    notice = '';
+    error = '';
+  }
+
+  function roleScreenAllowed(screenId: string): boolean {
+    const keys = SCREEN_VIEWS[screenId] ?? [];
+    if (!keys.length) return false;
+    return keys.every((key) => Object.prototype.hasOwnProperty.call(draftRolePermissions, key)
+      ? draftRolePermissions[key] === true
+      : defaultScreensForRole(selectedRole).includes(screenId));
   }
 
   function roleBaseHasScreen(role: string, screenId: string): boolean {
@@ -90,6 +106,17 @@
     }).slice(0, 8);
   }
 
+  function toggleRoleScreen(screenId: string) {
+    const keys = SCREEN_VIEWS[screenId] ?? [];
+    if (!keys.length) return;
+    const enabled = roleScreenAllowed(screenId);
+    const next = { ...draftRolePermissions };
+    for (const key of keys) next[key] = !enabled;
+    draftRolePermissions = next;
+    notice = '';
+    error = '';
+  }
+
   function toggleUserScreen(screenId: string) {
     if (!selectedUserId) return;
     const keys = SCREEN_VIEWS[screenId] ?? [];
@@ -106,9 +133,15 @@
     notice = '';
     error = '';
     if (tab === 'roles') {
-      notice = 'La matriz por rol muestra la política base definida por el backend. Las excepciones se gestionan por usuario.';
-      savedPulse = true;
-      setTimeout(() => (savedPulse = false), 1500);
+      isSaving = true;
+      void store.updateRolePermissions(selectedRole, { ...draftRolePermissions })
+        .then(() => {
+          notice = 'Permisos de «' + roleLabel(selectedRole) + '» guardados en el backend.';
+          savedPulse = true;
+          setTimeout(() => (savedPulse = false), 1500);
+        })
+        .catch((e) => { error = e instanceof Error ? e.message : 'No se pudieron guardar los permisos del rol.'; })
+        .finally(() => { isSaving = false; });
       return;
     }
     if (!selectedUserId) { error = 'Seleccione un usuario antes de guardar.'; return; }
@@ -132,13 +165,16 @@
         const remote = s.users.find((u) => u.id === selectedUserId);
         if (remote && !isSaving) draftUserModules = { ...remote.modules };
       }
+      if (!isSaving) {
+        draftRolePermissions = { ...(s.rolePermissions[selectedRole] || {}) };
+      }
     });
     void store.loadAll();
     return unsub;
   });
 
   $: selectedCount = tab === 'roles'
-    ? defaultScreensForRole(selectedRole).length
+    ? screensInGroup(SCREEN_GROUPS.flatMap((g) => g.ids), true).filter(roleScreenAllowed).length
     : screensInGroup(SCREEN_GROUPS.flatMap((g) => g.ids), true).filter(userScreenAllowed).length;
   $: defaultCount = defaultScreensForRole(selectedRole).length;
 </script>
@@ -195,9 +231,9 @@
       <div class="panel-head">
         <div>
           <h2 class="panel-title">Matriz por rol</h2>
-          <p class="panel-sub">Seleccione un rol para consultar las pantallas que el backend autoriza por defecto.</p>
+          <p class="panel-sub">Seleccione un rol y active o desactive las pantallas que ese rol puede utilizar.</p>
         </div>
-        <span class="ghost-btn readonly-badge">Política base del sistema</span>
+        <span class="ghost-btn">Edición por rol</span>
       </div>
 
       <div class="role-chips" role="listbox" aria-label="Roles">
@@ -208,7 +244,7 @@
             class:on={selectedRole === r}
             role="option"
             aria-selected={selectedRole === r}
-            on:click={() => (selectedRole = r)}
+            on:click={() => loadSelectedRole(r)}
           >
             {roleLabel(r)}
           </button>
@@ -216,12 +252,7 @@
       </div>
 
       <p class="default-hint">
-        Default de producto para <strong>{roleLabel(selectedRole)}</strong>:
-        {#if defaultScreensForRole(selectedRole).length}
-          {defaultScreensForRole(selectedRole).map(catalogLabel).join(' · ')}
-        {:else}
-          ninguna
-        {/if}
+        Permisos efectivos configurados para <strong>{roleLabel(selectedRole)}</strong>. Los cambios afectan a los usuarios de ese rol que no tengan una excepción individual.
       </p>
 
       {#each SCREEN_GROUPS as group (group.id)}
@@ -234,14 +265,14 @@
                 <button
                   type="button"
                   class="tile"
-                  class:on={defaultScreensForRole(selectedRole).includes(sid)}
-                  aria-pressed={defaultScreensForRole(selectedRole).includes(sid)}
-                  aria-disabled="true"
+                  class:on={roleScreenAllowed(sid)}
+                  aria-pressed={roleScreenAllowed(sid)}
+                  on:click={() => toggleRoleScreen(sid)}
                 >
                   <span class="tile-check" aria-hidden="true"></span>
                   <span class="tile-body">
                     <span class="tile-label">{catalogLabel(sid)}</span>
-                    <span class="tile-id">base del rol</span>
+                    <span class="tile-id">{roleScreenAllowed(sid) ? 'permitida' : 'bloqueada'}</span>
                   </span>
                 </button>
               {/each}
@@ -344,13 +375,13 @@
           {#if tab === 'users'}
             Los cambios se guardan en el backend y se aplican a la sesión del usuario.
           {:else}
-            La matriz muestra los permisos base definidos por el backend para cada rol.
+            Los cambios de rol se guardan en el backend y pasan a formar parte de la autorización efectiva.
           {/if}
         </p>
       {/if}
     </div>
     <Button type="button" disabled={isSaving} on:click={save}>
-      {isSaving ? 'Guardando…' : tab === 'users' ? 'Guardar autorizaciones' : 'Actualizar vista'}
+      {isSaving ? 'Guardando…' : tab === 'users' ? 'Guardar autorizaciones' : 'Guardar permisos del rol'}
     </Button>
   </footer>
 </section>
