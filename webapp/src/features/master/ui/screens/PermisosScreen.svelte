@@ -58,18 +58,6 @@
       : roleBaseHasScreen(user.role, screenId));
   }
 
-  function userExplicitState(screenId: string): 'grant' | 'revoke' | 'role' | 'mixed' {
-    const user = selectedUser();
-    if (!user) return 'role';
-    const keys = SCREEN_VIEWS[screenId] ?? [];
-    const explicit = keys.filter((key) => Object.prototype.hasOwnProperty.call(draftUserModules, key));
-    if (!explicit.length) return 'role';
-    const enabled = explicit.filter((key) => draftUserModules[key]).length;
-    if (enabled === explicit.length) return 'grant';
-    if (enabled === 0) return 'revoke';
-    return 'mixed';
-  }
-
   function loadSelectedUser(id: string) {
     selectedUserId = id;
     const user = state.users.find((u) => u.id === id);
@@ -157,8 +145,7 @@
       <p class="eyebrow">Control de acceso · cliente</p>
       <h1>Permisos de interfaz</h1>
       <p class="lede">
-        Define qué pantallas ve cada rol y excepciones por usuario. No modifica el ViewACL del
-        servidor; solo la UI de este negocio en el cliente.
+        Consulta la política base de acceso por rol y permite gestionar excepciones explícitas por usuario directamente contra el backend.
       </p>
     </div>
     <div class="hero-stats">
@@ -203,7 +190,7 @@
       <div class="panel-head">
         <div>
           <h2 class="panel-title">Matriz por rol</h2>
-          <p class="panel-sub">Elija un rol y marque las pantallas visibles en el menú.</p>
+          <p class="panel-sub">Seleccione un rol para consultar las pantallas que el backend autoriza por defecto.</p>
         </div>
         <span class="ghost-btn readonly-badge">Política base del sistema</span>
       </div>
