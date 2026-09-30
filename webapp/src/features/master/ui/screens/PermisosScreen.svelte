@@ -267,7 +267,7 @@
                     class="tile-input"
                     type="checkbox"
                     checked={roleScreenAllowed(sid)}
-                    onchange={() => toggleRoleScreen(sid)}
+                    onclick={() => toggleRoleScreen(sid)}
                     aria-label={'Permitir ' + catalogLabel(sid) + ' para ' + roleLabel(selectedRole)}
                   />
                   <span class="tile-check" aria-hidden="true"></span>
@@ -346,7 +346,7 @@
                       class="tile-input"
                       type="checkbox"
                       checked={userScreenAllowed(sid)}
-                      onchange={() => toggleUserScreen(sid)}
+                      onclick={() => toggleUserScreen(sid)}
                       aria-label={'Permitir ' + catalogLabel(sid) + ' al usuario seleccionado'}
                     />
                     <span class="tile-check" aria-hidden="true"></span>
@@ -426,7 +426,7 @@
       color-mix(in srgb, var(--accent-cyan, #61e6e1) 35%, transparent) 0%,
       transparent 70%
     );
-    pointer-events: none;
+    pointer-events: auto;
   }
   .hero-text {
     position: relative;
