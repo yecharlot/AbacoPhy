@@ -174,7 +174,10 @@
     if (tab === 'roles') {
       isSaving = true;
       void store.updateRolePermissions(selectedRole, { ...draftRolePermissions })
-        .then(() => {
+        .then(async () => {
+          // Volver a leer el backend inmediatamente: la pantalla no debe considerar
+          // guardado un estado que el servidor no pueda devolver después.
+          await store.loadAll();
           roleDraftDirty = false;
           notice = 'Permisos de «' + roleLabel(selectedRole) + '» guardados en el backend.';
           savedPulse = true;
@@ -218,9 +221,13 @@
     return unsub;
   });
 
-  $: selectedCount = tab === 'roles'
-    ? screensInGroup(SCREEN_GROUPS.flatMap((g) => g.ids), true).filter(roleScreenAllowed).length
-    : screensInGroup(SCREEN_GROUPS.flatMap((g) => g.ids), true).filter(userScreenAllowed).length;
+  // Depender directamente de los mapas reactivos evita que Svelte pierda la
+  // dependencia indirecta que existía al calcularlo mediante roleScreenAllowed().
+  $: selectedCount = screensInGroup(SCREEN_GROUPS.flatMap((g) => g.ids), true)
+    .filter((screenId) => tab === 'roles'
+      ? roleChecked[screenId] === true
+      : userChecked[screenId] === true
+    ).length;
   $: defaultCount = defaultScreensForRole(selectedRole).length;
 </script>
 
