@@ -141,11 +141,6 @@ func CanAccessUser(snap *domain.StoreSnapshot, role, view string, user *domain.U
 	}
 	return true
 }
-	if !ModuleEnabled(snap, view) {
-		return false
-	}
-	return UserModuleAllowed(user, view)
-}
 
 func HashPassword(pw string) (string, error) {
 	b, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
