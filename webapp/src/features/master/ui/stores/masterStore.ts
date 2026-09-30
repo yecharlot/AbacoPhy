@@ -14,6 +14,7 @@ import type {
   ListUsers,
   ResetPlatform,
   UpdateModules,
+  UpdateRolePermissions,
   UpdateUser,
 } from '../../domain/usecases';
 
@@ -27,6 +28,7 @@ export type MasterState = {
   role: string;
   users: PlatformUser[];
   roles: string[];
+  rolePermissions: Record<string, Record<string, boolean>>;
   notice: string | null;
   error: string | null;
   saving: boolean;
@@ -38,6 +40,7 @@ type Deps = {
   resetPlatform: ResetPlatform;
   getModules: GetModules;
   updateModules: UpdateModules;
+  updateRolePermissions: UpdateRolePermissions;
   listUsers: ListUsers;
   createUser: CreateUser;
   updateUser: UpdateUser;
@@ -53,6 +56,7 @@ export function createMasterStore(deps: Deps) {
     role: '',
     users: [],
     roles: [],
+    rolePermissions: {},
     notice: null,
     error: null,
     saving: false,
@@ -84,12 +88,15 @@ export function createMasterStore(deps: Deps) {
     async loadAll(): Promise<void> {
       set({ status: 'loading', error: null });
       try {
-        const [modules, tenants, usersSnapshot] = await Promise.all([
+        const [modules, tenants, usersSnapshot, rolePermissions] = await Promise.all([
           deps.getModules.execute(),
           deps.listTenants.execute().catch(() => [] as TenantSummary[]),
           deps.listUsers
             .execute()
             .catch(() => ({ users: [] as PlatformUser[], roles: [] as string[] })),
+          deps.getRolePermissions
+            .execute()
+            .catch(() => ({})),
         ]);
         set({
           status: 'success',
@@ -99,6 +106,7 @@ export function createMasterStore(deps: Deps) {
           tenants,
           users: usersSnapshot.users,
           roles: usersSnapshot.roles,
+          rolePermissions,
           error: null,
         });
       } catch (err) {
@@ -133,6 +141,20 @@ export function createMasterStore(deps: Deps) {
         set({ saving: false, modules });
       } catch (err) {
         set({ saving: false, error: messageOf(err, 'Error al actualizar los módulos') });
+        throw err;
+      }
+    },
+    async updateRolePermissions(role: string, permissions: Record<string, boolean>): Promise<void> {
+      set({ saving: true, error: null, notice: null });
+      try {
+        const saved = await deps.updateRolePermissions.execute({ role, permissions });
+        set({
+          saving: false,
+          rolePermissions: { ...state.rolePermissions, [role]: saved },
+          notice: 'Permisos del rol guardados',
+        });
+      } catch (err) {
+        set({ saving: false, error: messageOf(err, 'Error al guardar los permisos del rol') });
         throw err;
       }
     },
