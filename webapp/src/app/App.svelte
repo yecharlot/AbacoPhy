@@ -275,7 +275,13 @@
     {:else if activeId === 'facturas'}
       <FacturasScreen store={invoicingStore} />
     {:else if activeId === 'empleados'}
-      <EmpleadosScreen store={payrollStore} />
+      <EmpleadosScreen
+        store={payrollStore}
+        masterStore={masterStore}
+        warehouseStore={warehouseStore}
+        tenantId={sessionState.session?.user?.tenantId ?? sessionState.session?.tenantId ?? ''}
+        sessionRole={sessionState.session?.user?.role ?? ''}
+      />
     {:else if activeId === 'liquidaciones'}
       <LiquidacionesScreen store={payrollStore} />
     {:else if activeId === 'tenant'}

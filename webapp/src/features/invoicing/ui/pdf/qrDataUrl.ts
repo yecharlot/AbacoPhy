@@ -1,21 +1,7 @@
 /**
- * Genera un data-URL PNG de un QR con el payload de la factura.
- * Preferencia: API pública (sin dependencia npm). Si falla, devuelve null
- * y la plantilla muestra el texto del payload.
+ * Genera un data-URL PNG de un QR.
+ * Varias fuentes públicas (sin npm). Si todas fallan → null (plantilla usa fallback).
  */
-export async function qrDataUrlFromText(text: string, size = 160): Promise<string | null> {
-  const encoded = encodeURIComponent(text);
-  // quickchart.io — PNG QR
-  const url = `https://quickchart.io/qr?text=${encoded}&size=${size}&margin=1&dark=0f172a&light=ffffff`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    return await blobToDataUrl(blob);
-  } catch {
-    return null;
-  }
-}
 
 function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -24,6 +10,36 @@ function blobToDataUrl(blob: Blob): Promise<string> {
     r.onerror = () => reject(r.error);
     r.readAsDataURL(blob);
   });
+}
+
+/** URL remota usable como <img src> si no hay data-URL. */
+export function qrRemoteUrl(text: string, size = 160): string {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(text)}`;
+}
+
+export async function qrDataUrlFromText(text: string, size = 160): Promise<string | null> {
+  const encoded = encodeURIComponent(text);
+  const candidates = [
+    `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encoded}`,
+    `https://quickchart.io/qr?text=${encoded}&size=${size}&margin=2&dark=0f172a&light=ffffff`,
+  ];
+
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, { mode: 'cors', credentials: 'omit' });
+      if (!res.ok) continue;
+      const blob = await res.blob();
+      if (!blob || blob.size < 32) continue;
+      // Algunos proxies devuelven HTML de error
+      if (blob.type && !blob.type.startsWith('image') && !blob.type.includes('octet')) {
+        continue;
+      }
+      return await blobToDataUrl(blob);
+    } catch {
+      /* siguiente fuente */
+    }
+  }
+  return null;
 }
 
 export type InvoiceQrPayload = {
@@ -40,6 +56,5 @@ export type InvoiceQrPayload = {
 };
 
 export function buildInvoiceQrPayload(p: InvoiceQrPayload): string {
-  // JSON compacto legible por apps de escaneo
   return JSON.stringify(p);
 }

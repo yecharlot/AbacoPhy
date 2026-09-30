@@ -5,25 +5,36 @@
   import { DevSeedPanel } from '../../../../infrastructure/ui/dev';
   import { buildSampleWarehouseOpsPayload, seedWarehouseOpsViaStore } from '../dev/opsSeed';
   import {
-    getReceptionVisualStatus, isReceptionAbandoned, receptionAbandonReason, receptionStatusLabel,
+    getReceptionVisualStatus,
+    isReceptionAbandoned,
+    receptionAbandonReason,
+    receptionStatusLabel,
     type CreateReceptionLineInput,
+    type Reception,
   } from '../../domain/entities/Reception';
+  import {
+    filterReceptionsForReport,
+    openReceptionReportWindow,
+    type ReceptionReportKind,
+  } from '../pdf/buildReceptionReportHtml';
 
   export let store: WarehouseStore;
-  /**
-   * Usuarios sugeridos para «Quién recibe» (roles master, admin, económico, almacenero).
-   * Proviene del listado de usuarios del negocio; el padre filtra por rol.
-   */
   export let receiverCandidates: Array<{ name: string; role: string }> = [];
+  export let businessName: string = '';
+  export let businessCurrency: string = 'CUP';
 
   type DraftLine = {
     productId: string;
+    /** Texto del buscador / etiqueta visible: código · nombre */
+    productQuery: string;
     qty: string;
     unitCost: string;
   };
 
   let state: WarehouseState = store.getState();
 
+  // Formulario (cerrado por defecto)
+  let showForm = false;
   let supplier = '';
   let docRef = '';
   let note = '';
@@ -31,9 +42,34 @@
   let hasInvoice = true;
   let invoiceRef = '';
   let receiver = '';
-  let lines: DraftLine[] = [{ productId: '', qty: '', unitCost: '' }];
+  let lines: DraftLine[] = [{ productId: '', productQuery: '', qty: '', unitCost: '' }];
   let formError = '';
   let formOk = '';
+
+  // Secciones secundarias (laterales, nunca debajo del historial)
+  let showAbandoned = false;
+  /** Visible mientras haya incidencias; auto-abierto. */
+  let showProblems = false;
+  let showFilters = true;
+  let problemsUserClosed = false;
+
+  // Detalles expandibles por recepción
+  let expandedIds: Record<string, boolean> = {};
+
+  // Filtros historial
+  let filterDateFrom = '';
+  let filterDateTo = '';
+  let filterValueMin = '';
+  let filterValueMax = '';
+  let filterProduct = '';
+  let filterCode = '';
+
+  // Informe
+  let showReportModal = false;
+  let reportKind: ReceptionReportKind = 'general';
+  let reportFrom = '';
+  let reportTo = '';
+  let reportError = '';
 
   onMount(() => {
     const unsub = store.subscribe((s: WarehouseState) => {
@@ -48,14 +84,68 @@
     .map((c) => (c.name || '').trim())
     .filter(Boolean);
   $: receiverDatalistId = 'reception-receiver-suggestions';
-
   $: stockRows = state.rows ?? [];
   $: receptions = [...(state.receptions ?? [])].reverse();
   $: problemReceptions = receptions.filter(
-          (r) => getReceptionVisualStatus(r) === 'entry_problem' && !isReceptionAbandoned(r),
+    (r) => getReceptionVisualStatus(r) === 'entry_problem' && !isReceptionAbandoned(r),
   );
-    $: abandonedReceptions = receptions.filter((r) => isReceptionAbandoned(r));
-$: estimated = lines.reduce(
+  $: abandonedReceptions = receptions.filter((r) => isReceptionAbandoned(r));
+  // Auto-abrir panel de problemas si hay al menos una incidencia
+  $: if (problemReceptions.length > 0) {
+    showProblems = true;
+    problemsUserClosed = false;
+  } else if (!problemsUserClosed) {
+    showProblems = false;
+  }
+
+  $: sideOpen = showProblems || showAbandoned;
+
+  function toggleProblems() {
+    if (problemReceptions.length > 0) {
+      showProblems = true;
+      return;
+    }
+    showProblems = !showProblems;
+    problemsUserClosed = !showProblems;
+  }
+
+  function toggleAbandoned() {
+    showAbandoned = !showAbandoned;
+  }
+  $: mainHistory = receptions.filter((r) => !isReceptionAbandoned(r));
+
+  $: filteredHistory = mainHistory.filter((r) => {
+    if (filterDateFrom && (r.date || '') < filterDateFrom) return false;
+    if (filterDateTo && (r.date || '') > filterDateTo) return false;
+    const total = Number(r.totalCost) || 0;
+    if (filterValueMin !== '' && total < parseFloat(filterValueMin)) return false;
+    if (filterValueMax !== '' && total > parseFloat(filterValueMax)) return false;
+    if (filterCode.trim()) {
+      const q = filterCode.trim().toLowerCase();
+      const hay = `${r.number || ''} ${r.docRef || ''} ${r.invoiceRef || ''}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (filterProduct.trim()) {
+      const q = filterProduct.trim().toLowerCase();
+      const hit = (r.lines || []).some((l) => {
+        const s = `${l.productCode || ''} ${l.productName || ''} ${l.productId || ''}`.toLowerCase();
+        return s.includes(q);
+      });
+      if (!hit) return false;
+    }
+    return true;
+  });
+
+  $: hasActiveFilters = !!(
+    filterDateFrom ||
+    filterDateTo ||
+    filterValueMin ||
+    filterValueMax ||
+    filterProduct.trim() ||
+    filterCode.trim()
+  );
+
+  $: estimated = lines.reduce(
     (acc, line) => acc + (parseFloat(line.qty) || 0) * (parseFloat(line.unitCost) || 0),
     0,
   );
@@ -65,23 +155,76 @@ $: estimated = lines.reduce(
     return p ? `${p.code || '—'} · ${p.name}` : id;
   }
 
-  function onProductChange(index: number, productId: string) {
+  function productUnit(id: string): string {
+    return products.find((x) => x.id === id)?.unit || '';
+  }
+
+  /** Picker predictivo por línea (evita <select> con miles de opciones). */
+  let pickerOpenIndex: number | null = null;
+  const PICKER_LIMIT = 40;
+
+  function closeProductPicker() {
+    pickerOpenIndex = null;
+  }
+
+  function openProductPicker(index: number) {
+    pickerOpenIndex = index;
+  }
+
+  function filterProducts(query: string) {
+    const q = (query || '').trim().toLowerCase();
+    const list = products || [];
+    if (!q) return list.slice(0, PICKER_LIMIT);
+    const out: typeof list = [];
+    for (const p of list) {
+      const hay = `${p.code || ''} ${p.name || ''} ${p.unit || ''} ${p.category || ''}`.toLowerCase();
+      if (hay.includes(q)) {
+        out.push(p);
+        if (out.length >= PICKER_LIMIT) break;
+      }
+    }
+    return out;
+  }
+
+  function onProductQueryInput(index: number, value: string) {
     const next = [...lines];
-    // Sugerencia: promedio ponderado actual del stock (no costo de nomenclador).
-    // El valor que confirme el usuario en esta recepción es el que alimenta el nuevo promedio.
+    next[index] = {
+      ...next[index],
+      productQuery: value,
+      // Si el usuario edita el texto, invalidar selección previa
+      productId: '',
+    };
+    lines = next;
+    pickerOpenIndex = index;
+  }
+
+  function selectProduct(index: number, productId: string) {
+    const p = products.find((x) => x.id === productId);
+    if (!p) return;
+    const next = [...lines];
     const stock = stockRows.find((r) => r.productId === productId);
     const suggested =
       stock && Number(stock.avgCost) > 0 ? String(stock.avgCost) : next[index].unitCost;
     next[index] = {
       ...next[index],
-      productId,
+      productId: p.id,
+      productQuery: `${p.code || '—'} · ${p.name}`,
       unitCost: next[index].unitCost || suggested || '',
     };
     lines = next;
+    closeProductPicker();
+  }
+
+  function clearProduct(index: number) {
+    const next = [...lines];
+    next[index] = { ...next[index], productId: '', productQuery: '' };
+    lines = next;
+    openProductPicker(index);
   }
 
   function addLine() {
-    lines = [...lines, { productId: '', qty: '', unitCost: '' }];
+    lines = [...lines, { productId: '', productQuery: '', qty: '', unitCost: '' }];
+    closeProductPicker();
   }
 
   function removeLine(index: number) {
@@ -97,7 +240,41 @@ $: estimated = lines.reduce(
     hasInvoice = true;
     invoiceRef = '';
     receiver = '';
-    lines = [{ productId: '', qty: '', unitCost: '' }];
+    lines = [{ productId: '', productQuery: '', qty: '', unitCost: '' }];
+    closeProductPicker();
+    formError = '';
+  }
+
+  function openForm() {
+    resetForm();
+    formOk = '';
+    showForm = true;
+  }
+
+  function closeForm() {
+    showForm = false;
+    formError = '';
+  }
+
+  function clearFilters() {
+    filterDateFrom = '';
+    filterDateTo = '';
+    filterValueMin = '';
+    filterValueMax = '';
+    filterProduct = '';
+    filterCode = '';
+  }
+
+  function toggleDetails(id: string) {
+    expandedIds = { ...expandedIds, [id]: !expandedIds[id] };
+  }
+
+  function statusTone(r: Reception): string {
+    const v = getReceptionVisualStatus(r);
+    if (v === 'entry_confirmed') return 'ok';
+    if (v === 'entry_problem') return 'warn';
+    if (v === 'abandoned' || v === 'cancelled') return 'off';
+    return 'pending';
   }
 
   async function handleSubmit(e: Event) {
@@ -144,7 +321,6 @@ $: estimated = lines.reduce(
         formError = 'El costo unitario de la recepción no puede ser negativo';
         return;
       }
-      // unitCost de la línea → backend recalcula avg_cost del producto
       payload.push({ productId: line.productId, qty, unitCost });
     }
 
@@ -166,11 +342,46 @@ $: estimated = lines.reduce(
       });
       formOk = `Informe registrado · pendiente de entrada física · total documental ${estimated.toFixed(2)}`;
       resetForm();
+      showForm = false;
     } catch (err) {
       formError =
         err instanceof Error
           ? err.message
           : state.error || 'No se pudo confirmar la recepción';
+    }
+  }
+
+  function openReportModal() {
+    reportKind = 'general';
+    reportFrom = '';
+    reportTo = '';
+    reportError = '';
+    showReportModal = true;
+  }
+
+  function closeReportModal() {
+    showReportModal = false;
+    reportError = '';
+  }
+
+  function generateReport() {
+    reportError = '';
+    try {
+      const rows = filterReceptionsForReport(receptions, {
+        kind: reportKind,
+        periodFrom: reportFrom || undefined,
+        periodTo: reportTo || undefined,
+      });
+      openReceptionReportWindow(rows, {
+        kind: reportKind,
+        businessName,
+        currency: businessCurrency || 'CUP',
+        periodFrom: reportFrom || undefined,
+        periodTo: reportTo || undefined,
+      });
+      closeReportModal();
+    } catch (err) {
+      reportError = err instanceof Error ? err.message : 'No se pudo generar el informe';
     }
   }
 </script>
@@ -187,10 +398,11 @@ $: estimated = lines.reduce(
     <div>
       <h1>Informes de recepción</h1>
       <p class="sub">
-        Registre la compra documental. Este informe no modifica stock ni costo promedio; Almacén debe verificar físicamente y dar entrada.
+        Compra documental: no modifica stock ni costo promedio hasta que Almacén confirma la entrada
+        física.
       </p>
     </div>
-    <Button variant="secondary" on:click={() => store.loadAll()} disabled={state.status === 'loading'}>
+    <Button variant="secondary" onclick={() => store.loadAll()} disabled={state.status === 'loading'}>
       Actualizar
     </Button>
   </header>
@@ -198,493 +410,799 @@ $: estimated = lines.reduce(
   {#if state.status === 'error' && state.error}
     <p class="banner err" role="alert">{state.error}</p>
   {/if}
-  {#if formOk}
+  {#if formOk && !showForm}
     <p class="banner ok" role="status">{formOk}</p>
   {/if}
-  {#if formError}
-    <p class="banner err" role="alert">{formError}</p>
-  {/if}
 
-  {#if problemReceptions.length > 0}
-    <Card>
-      <h2>Entradas con problemas ({problemReceptions.length})</h2>
-      <div class="problem-list">
-        {#each problemReceptions as r (r.id)}
-          <article class="problem-item">
-            <div>
-              <strong>{r.number}</strong>
-              <span class="muted-inline"> · {r.supplier || 'Sin proveedor'}</span>
-            </div>
-            <p>{r.metadataState?.problemReason || r.note || 'El almacén reportó un problema sin detalle.'}</p>
-          </article>
-        {/each}
+  <!-- Acciones -->
+  <div class="actions-row" role="toolbar" aria-label="Acciones de recepción">
+    <Button type="button" onclick={openForm} disabled={state.saving}>Nueva recepción</Button>
+    <Button type="button" variant="secondary" onclick={openReportModal}>Generar informes</Button>
+    <Button
+      type="button"
+      variant="secondary"
+      onclick={toggleProblems}
+      disabled={problemReceptions.length > 0 && showProblems}
+      title={problemReceptions.length > 0 ? 'Visible mientras haya incidencias' : ''}
+    >
+      {#if problemReceptions.length > 0}
+        Problemas ({problemReceptions.length})
+      {:else}
+        {showProblems ? 'Ocultar problemas' : 'Ver recepciones con problemas'}
+      {/if}
+    </Button>
+    <Button type="button" variant="secondary" onclick={toggleAbandoned}>
+      {showAbandoned
+        ? 'Ocultar descartadas'
+        : `Ver descartadas${abandonedReceptions.length ? ` (${abandonedReceptions.length})` : ''}`}
+    </Button>
+  </div>
+
+  <div class="main-layout" class:side-open={sideOpen}>
+    <aside class="side-col" aria-label="Paneles secundarios de recepción">
+      {#if showProblems}
+        <div class="side-panel slide-in">
+<Card>
+        <div class="sec-head">
+          <h2>Recepciones con problemas ({problemReceptions.length})</h2>
+        </div>
+        {#if problemReceptions.length === 0}
+          <p class="muted">No hay recepciones con incidencia abierta.</p>
+        {:else}
+          <ul class="rx-list compact">
+            {#each problemReceptions as r (r.id)}
+              <li class="rx-item issue">
+                <div class="rx-row">
+                  <div class="rx-main">
+                    <span class="dot warn"></span>
+                    <div>
+                      <strong class="mono">{r.number}</strong>
+                      <p class="rx-meta">{r.supplier || 'Sin proveedor'} · {r.date}</p>
+                      <p class="issue-text">
+                        {r.metadataState?.problemReason || r.note || 'Problema sin detalle'}
+                      </p>
+                    </div>
+                  </div>
+                  <Money amount={r.totalCost} currency={r.currency || businessCurrency} />
+                </div>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </Card>
+        </div>
+      {/if}
+      {#if showAbandoned}
+        <div class="side-panel slide-in">
+<Card>
+        <div class="sec-head">
+          <h2>Recepciones descartadas ({abandonedReceptions.length})</h2>
+        </div>
+        {#if abandonedReceptions.length === 0}
+          <p class="muted">No hay recepciones abandonadas.</p>
+        {:else}
+          <ul class="rx-list compact">
+            {#each abandonedReceptions as r (r.id)}
+              <li class="rx-item dim">
+                <div class="rx-row">
+                  <div class="rx-main">
+                    <span class="dot off"></span>
+                    <div>
+                      <strong class="mono">{r.number}</strong>
+                      <p class="rx-meta">{r.date} · Abandonada</p>
+                      <p class="issue-text">{receptionAbandonReason(r)}</p>
+                    </div>
+                  </div>
+                  <Money amount={r.totalCost} currency={r.currency || businessCurrency} />
+                </div>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </Card>
+        </div>
+      {/if}
+    </aside>
+
+    <div class="history-col">
+  <!-- Historial principal -->
+  <Card>
+    <div class="list-head">
+      <div>
+        <p class="eyebrow">Consulta</p>
+        <h2>Historial de informes</h2>
       </div>
-    </Card>
-  {/if}
+      <div class="list-head-side">
+        <span class="result-count"
+          >{filteredHistory.length}{hasActiveFilters ? ` de ${mainHistory.length}` : ''}</span
+        >
+        <Button type="button" variant="secondary" onclick={() => (showFilters = !showFilters)}>
+          {showFilters ? 'Ocultar filtros' : 'Mostrar filtros'}
+        </Button>
+      </div>
+    </div>
 
-  {#if abandonedReceptions.length > 0}
-    <Card>
-      <h2>Recepciones abandonadas ({abandonedReceptions.length})</h2>
-      <p class="form-hint">
-        Cerradas en almacén sin entrada de stock. Genere un informe nuevo si la compra sigue vigente.
+    {#if showFilters}
+      <div class="filters" aria-label="Filtros de recepción">
+        <label class="f">
+          <span>Desde</span>
+          <input type="date" bind:value={filterDateFrom} />
+        </label>
+        <label class="f">
+          <span>Hasta</span>
+          <input type="date" bind:value={filterDateTo} />
+        </label>
+        <label class="f">
+          <span>Valor mín.</span>
+          <input type="number" step="any" min="0" bind:value={filterValueMin} placeholder="0" />
+        </label>
+        <label class="f">
+          <span>Valor máx.</span>
+          <input type="number" step="any" min="0" bind:value={filterValueMax} placeholder="—" />
+        </label>
+        <label class="f grow">
+          <span>Producto</span>
+          <input type="search" bind:value={filterProduct} placeholder="Código o nombre" />
+        </label>
+        <label class="f grow">
+          <span>Código / factura</span>
+          <input type="search" bind:value={filterCode} placeholder="Nº IR, factura…" />
+        </label>
+        {#if hasActiveFilters}
+          <div class="f-actions">
+            <Button type="button" variant="secondary" onclick={clearFilters}>Limpiar filtros</Button>
+          </div>
+        {/if}
+      </div>
+    {/if}
+
+    {#if state.status === 'loading' && receptions.length === 0}
+      <p class="muted">Cargando recepciones…</p>
+    {:else if filteredHistory.length === 0}
+      <p class="empty">
+        {mainHistory.length === 0
+          ? 'Aún no hay informes de recepción.'
+          : 'Ninguna recepción coincide con los filtros.'}
       </p>
-      <div class="abandoned-list">
-        {#each abandonedReceptions as rec (rec.id)}
-          <article class="abandoned-item">
-            <strong>{rec.number}</strong>
-            <span>{rec.date} · {rec.supplier || 'Sin proveedor'}</span>
-            <p>{receptionAbandonReason(rec)}</p>
-          </article>
+    {:else}
+      <ul class="rx-list">
+        {#each filteredHistory as r (r.id)}
+          {@const visual = getReceptionVisualStatus(r)}
+          {@const open = !!expandedIds[r.id]}
+          <li class="rx-item" class:open>
+            <div class="rx-row">
+              <div class="rx-main">
+                <span class="dot {statusTone(r)}" aria-hidden="true"></span>
+                <div>
+                  <strong class="mono">{r.number || '—'}</strong>
+                  <p class="rx-meta">
+                    {r.date || '—'}
+                    {#if r.supplier} · {r.supplier}{/if}
+                    · {(r.lines || []).length} línea{(r.lines || []).length === 1 ? '' : 's'}
+                  </p>
+                </div>
+              </div>
+              <div class="rx-side">
+                <Money amount={r.totalCost} currency={r.currency || businessCurrency} />
+                <span class="pill {statusTone(r)}">{receptionStatusLabel(visual)}</span>
+                <Button type="button" variant="secondary" onclick={() => toggleDetails(r.id)}>
+                  {open ? 'Ocultar detalles' : 'Ver detalles'}
+                </Button>
+              </div>
+            </div>
+            {#if open}
+              <div class="rx-details">
+                <div class="details-inner">
+                  {#if r.receiver}
+                    <p class="detail-note"><strong>Recibe:</strong> {r.receiver}</p>
+                  {/if}
+                  {#if r.docRef || r.invoiceRef}
+                    <p class="detail-note">
+                      <strong>Doc:</strong>
+                      {r.invoiceRef || r.docRef}
+                    </p>
+                  {/if}
+                  {#if (r.lines || []).length === 0}
+                    <p class="muted">Sin líneas de producto.</p>
+                  {:else}
+                    <table class="lines-table">
+                      <thead>
+                        <tr>
+                          <th>Producto</th>
+                          <th class="num">Cant.</th>
+                          <th class="num">Costo unit.</th>
+                          <th class="num">Importe</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {#each r.lines as l}
+                          <tr>
+                            <td>
+                              <strong>{l.productName || '—'}</strong>
+                              <small>{l.productCode || '—'}</small>
+                            </td>
+                            <td class="num">{l.qty}</td>
+                            <td class="num"
+                              ><Money amount={l.unitCost} currency={r.currency || businessCurrency} /></td
+                            >
+                            <td class="num"
+                              ><Money amount={l.amount} currency={r.currency || businessCurrency} /></td
+                            >
+                          </tr>
+                        {/each}
+                      </tbody>
+                    </table>
+                  {/if}
+                  {#if r.note}
+                    <p class="detail-note muted">{r.note}</p>
+                  {/if}
+                </div>
+              </div>
+            {/if}
+          </li>
         {/each}
+      </ul>
+    {/if}
+  </Card>
+
+    </div>
+  </div>
+
+</section>
+
+<!-- Modal nueva recepción -->
+{#if showForm}
+  <div class="modal-backdrop" role="presentation" onclick={closeForm}>
+    <div
+      class="modal modal-form"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="new-rx-title"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <div class="modal-head">
+        <h3 id="new-rx-title">Nueva recepción</h3>
+        <p class="modal-sub">
+          Informe documental de compra. Stock y costo promedio solo cambian cuando Almacén da entrada.
+        </p>
       </div>
-    </Card>
-  {/if}
-
-
-  <div class="layout">
-    <Card>
-      <h2>Nueva recepción</h2>
 
       {#if products.length === 0}
-        <p class="muted">
-          No hay productos en el nomenclador. Vaya a <strong>Nomenclador</strong> y cree al menos uno
-          antes de recepcionar.
-        </p>
+        <p class="banner err">No hay productos en el nomenclador.</p>
+        <div class="modal-actions">
+          <Button type="button" variant="secondary" onclick={closeForm}>Cerrar</Button>
+        </div>
       {:else}
-        <form class="form" on:submit={handleSubmit}>
+        <form class="form" onsubmit={handleSubmit}>
           <div class="form-grid">
             <label class="field">
-              <span class="lbl">Fecha</span>
+              <span>Fecha</span>
               <input type="date" bind:value={date} disabled={state.saving} />
             </label>
             <label class="field">
-              <span class="lbl">Quién recibe <span class="req">*</span></span>
+              <span>Quién recibe</span>
               <input
-                bind:value={receiver}
+                type="text"
                 list={receiverDatalistId}
-                placeholder={receiverNames.length
-                  ? 'Escriba o elija un usuario…'
-                  : 'Nombre del receptor'}
-                autocomplete="off"
+                bind:value={receiver}
                 disabled={state.saving}
+                placeholder="Nombre"
+                autocomplete="off"
               />
               <datalist id={receiverDatalistId}>
-                {#each receiverCandidates as c (c.name + c.role)}
-                  <option value={c.name}>{c.role}</option>
+                {#each receiverNames as n}
+                  <option value={n}></option>
                 {/each}
               </datalist>
-              {#if receiverNames.length}
-                <p class="field-hint">Sugerencias: master, admin, económico, almacenero</p>
-              {/if}
             </label>
-            <label class="field check">
-              <span class="lbl">¿Con factura?</span>
-              <label class="check-row">
-                <input type="checkbox" bind:checked={hasInvoice} disabled={state.saving} />
-                <span>Compra con factura de proveedor</span>
-              </label>
+            <label class="field span-2 check">
+              <input type="checkbox" bind:checked={hasInvoice} disabled={state.saving} />
+              Compra con factura
             </label>
             {#if hasInvoice}
               <label class="field">
-                <span class="lbl">Nº factura <span class="req">*</span></span>
-                <input bind:value={invoiceRef} placeholder="Número de factura" disabled={state.saving} />
+                <span>Nº factura</span>
+                <input type="text" bind:value={invoiceRef} disabled={state.saving} />
               </label>
               <label class="field">
-                <span class="lbl">Proveedor <span class="req">*</span></span>
-                <input bind:value={supplier} placeholder="Nombre del proveedor" disabled={state.saving} />
+                <span>Proveedor</span>
+                <input type="text" bind:value={supplier} disabled={state.saving} />
               </label>
             {:else}
               <label class="field">
-                <span class="lbl">Proveedor</span>
-                <input bind:value={supplier} placeholder="Opcional" disabled={state.saving} />
+                <span>Proveedor (opc.)</span>
+                <input type="text" bind:value={supplier} disabled={state.saving} />
               </label>
               <label class="field">
-                <span class="lbl">Documento ref.</span>
-                <input bind:value={docRef} placeholder="Guía / remisión" disabled={state.saving} />
+                <span>Ref. documento (opc.)</span>
+                <input type="text" bind:value={docRef} disabled={state.saving} />
               </label>
             {/if}
-            <label class="field field-span">
-              <span class="lbl">Nota</span>
-              <input bind:value={note} placeholder="Opcional" disabled={state.saving} />
+            <label class="field span-2">
+              <span>Nota</span>
+              <input type="text" bind:value={note} disabled={state.saving} placeholder="Opcional" />
             </label>
           </div>
 
           <div class="lines-head">
-            <h3>Líneas</h3>
-            <Button type="button" variant="secondary" on:click={addLine}>+ Línea</Button>
+            <h4>Líneas · estimado <Money amount={estimated} currency={businessCurrency} /></h4>
+            <Button type="button" variant="secondary" onclick={addLine} disabled={state.saving}
+              >+ Línea</Button
+            >
           </div>
 
-          <div class="lines">
-            {#each lines as line, i (i)}
-              <div class="line-row">
-                <label class="field grow">
-                  <span class="lbl">Producto</span>
-                  <select
-                    value={line.productId}
-                    on:change={(e) => onProductChange(i, e.currentTarget.value)}
-                  >
-                    <option value="">Seleccionar…</option>
-                    {#each products as p (p.id)}
-                      <option value={p.id}>{p.code || '—'} · {p.name}</option>
-                    {/each}
-                  </select>
-                </label>
-                <label class="field">
-                  <span class="lbl">Cantidad</span>
+          {#each lines as line, i (i)}
+            <div class="line-row">
+              <div class="field grow product-picker">
+                <span>Producto</span>
+                <div class="picker-control">
                   <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    bind:value={line.qty}
-                    placeholder="0"
+                    type="search"
+                    value={line.productQuery}
+                    disabled={state.saving}
+                    placeholder="Buscar por código o nombre…"
+                    autocomplete="off"
+                    oninput={(e) =>
+                      onProductQueryInput(i, (e.currentTarget as HTMLInputElement).value)}
+                    onfocus={() => openProductPicker(i)}
+                    onkeydown={(e) => {
+                      if (e.key === 'Escape') closeProductPicker();
+                    }}
                   />
-                </label>
-                <label class="field">
-                  <span class="lbl">Costo unitario</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    bind:value={line.unitCost}
-                    placeholder="Según factura"
-                    title="Costo unitario de esta recepción. Determina el nuevo promedio ponderado del producto."
-                    required
-                  />
-                </label>
-                <button
-                  type="button"
-                  class="remove"
-                  title="Quitar línea"
-                  on:click={() => removeLine(i)}
-                  disabled={lines.length <= 1}
-                >
-                  ×
-                </button>
+                  {#if line.productId}
+                    <span class="unit-badge" title="Unidad de medida">{productUnit(line.productId)}</span>
+                    <button
+                      type="button"
+                      class="clear-prod"
+                      disabled={state.saving}
+                      onclick={() => clearProduct(i)}
+                      aria-label="Quitar producto">×</button
+                    >
+                  {/if}
+                </div>
+                {#if pickerOpenIndex === i}
+                  {@const matches = filterProducts(line.productQuery)}
+                  <ul class="picker-list" role="listbox">
+                    {#if matches.length === 0}
+                      <li class="picker-empty">Sin coincidencias</li>
+                    {:else}
+                      {#each matches as p (p.id)}
+                        <li role="option">
+                          <button
+                            type="button"
+                            class="picker-option"
+                            class:selected={line.productId === p.id}
+                            onclick={() => selectProduct(i, p.id)}
+                          >
+                            <span class="po-main"
+                              ><strong>{p.code || '—'}</strong> · {p.name}</span
+                            >
+                            <span class="po-unit">{p.unit || '—'}</span>
+                          </button>
+                        </li>
+                      {/each}
+                      {#if products.length > PICKER_LIMIT && !(line.productQuery || '').trim()}
+                        <li class="picker-hint">Escriba para filtrar · {products.length} productos</li>
+                      {/if}
+                    {/if}
+                  </ul>
+                {/if}
               </div>
-            {/each}
-          </div>
-
-          <div class="footer-bar">
-            <p class="estimate">
-              Total estimado: <strong><Money amount={estimated} /></strong>
-            </p>
-            <div class="actions">
-              <Button type="button" variant="secondary" on:click={resetForm}>Limpiar</Button>
-              <Button type="submit" disabled={state.saving || products.length === 0}>
-                {state.saving ? 'Confirmando…' : 'Confirmar recepción'}
-              </Button>
+              <label class="field qty">
+                <span>Cantidad{#if line.productId && productUnit(line.productId)}
+                    <em class="unit-inline">({productUnit(line.productId)})</em>{/if}</span
+                >
+                <input type="number" min="0.01" step="any" bind:value={line.qty} disabled={state.saving} />
+              </label>
+              <label class="field qty">
+                <span>Costo unitario</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  bind:value={line.unitCost}
+                  disabled={state.saving}
+                />
+              </label>
+              <button
+                type="button"
+                class="remove"
+                disabled={state.saving || lines.length <= 1}
+                onclick={() => removeLine(i)}
+                aria-label="Quitar línea">×</button
+              >
             </div>
+          {/each}
+
+          {#if formError}
+            <p class="banner err" role="alert">{formError}</p>
+          {/if}
+
+          <div class="modal-actions">
+            <Button type="submit" disabled={state.saving}>
+              {state.saving ? 'Guardando…' : 'Registrar recepción'}
+            </Button>
+            <Button type="button" variant="secondary" onclick={closeForm} disabled={state.saving}
+              >Cancelar</Button
+            >
           </div>
         </form>
       {/if}
-    </Card>
-
-    <Card>
-      <h2>Historial ({receptions.length})</h2>
-      {#if state.status === 'loading' && receptions.length === 0}
-        <p class="muted">Cargando recepciones…</p>
-      {:else if receptions.length === 0}
-        <p class="muted">Aún no hay informes de recepción confirmados.</p>
-      {:else}
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Nº</th>
-                <th>Fecha</th>
-                <th>Proveedor</th>
-                <th>Líneas</th>
-                <th class="num">Total</th>
-                <th>Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each receptions as r (r.id)}
-                {@const visual = getReceptionVisualStatus(r)}
-                <tr>
-                  <td class="mono">{r.number}</td>
-                  <td>{r.date}</td>
-                  <td>
-                    {r.supplier || '—'}
-                    {#if r.receiver}<div class="muted-inline">Recibe: {r.receiver}</div>{/if}
-                  </td>
-                  <td>
-                    <span class="muted-inline">{r.lines?.length ?? 0}</span>
-                    {#if r.lines?.length}
-                      <details class="detail">
-                        <summary>ver</summary>
-                        <ul>
-                          {#each r.lines as ln, j (j)}
-                            <li>
-                              {ln.productName || productLabel(ln.productId)} · {ln.qty} ×
-                              <Money amount={ln.unitCost} />
-                            </li>
-                          {/each}
-                        </ul>
-                      </details>
-                    {/if}
-                  </td>
-                  <td class="num"><Money amount={r.totalCost} currency={r.currency} /></td>
-                  <td>
-                    <span class:pending={visual === 'pending_entry'} class:confirmed={visual === 'entry_confirmed'} class:problem={visual === 'entry_problem'} class:abandoned={visual === 'abandoned'} class="status-pill">
-                        {visual === 'pending_entry'
-                                ? 'Pendiente dar entrada'
-                                : visual === 'entry_confirmed'
-                                        ? 'Entrada confirmada'
-                                        : visual === 'entry_problem'
-                                                ? 'Problema con la entrada'
-                                                : 'Recepción anulada'}
-                      </span>
-                    </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      {/if}
-    </Card>
+    </div>
   </div>
-</section>
+{/if}
+
+<!-- Modal informes -->
+{#if showReportModal}
+  <div class="modal-backdrop" role="presentation" onclick={closeReportModal}>
+    <div
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="rx-report-title"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <h3 id="rx-report-title">Generar informes</h3>
+      <p class="modal-sub">Seleccione el tipo. Se abrirá una vista lista para imprimir o guardar como PDF.</p>
+
+      <fieldset class="report-kinds">
+        <legend class="sr-only">Tipo</legend>
+        <label class="radio"
+          ><input type="radio" bind:group={reportKind} value="general" /> Informe general del historial</label
+        >
+        <label class="radio"
+          ><input type="radio" bind:group={reportKind} value="confirmed" /> Recepciones confirmadas</label
+        >
+        <label class="radio"
+          ><input type="radio" bind:group={reportKind} value="rejected" /> Recepciones rechazadas</label
+        >
+        <label class="radio"
+          ><input type="radio" bind:group={reportKind} value="abandoned" /> Descartadas / abandonadas</label
+        >
+        <label class="radio"
+          ><input type="radio" bind:group={reportKind} value="problems" /> Con problemas</label
+        >
+      </fieldset>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Desde (opc.)</span>
+          <input type="date" bind:value={reportFrom} />
+        </label>
+        <label class="field">
+          <span>Hasta (opc.)</span>
+          <input type="date" bind:value={reportTo} />
+        </label>
+      </div>
+
+      {#if reportError}
+        <p class="banner err" role="alert">{reportError}</p>
+      {/if}
+
+      <div class="modal-actions">
+        <Button type="button" onclick={generateReport}>Generar PDF</Button>
+        <Button type="button" variant="secondary" onclick={closeReportModal}>Cancelar</Button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .recepcion {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 0.85rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding-bottom: 1.5rem;
   }
-  .status-pill.abandoned { background: color-mix(in srgb, var(--ap-text-muted) 14%, transparent); color: var(--ap-text-muted); }
   .page-head {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 12px;
+    gap: 0.75rem;
   }
-  h1 {
-    margin: 0;
-    font-size: 1.25rem;
-    letter-spacing: -0.02em;
-  }
-  h2 {
-    margin: 0 0 0.75rem;
-    font-size: 0.95rem;
-  }
-  h3 {
-    margin: 0;
-    font-size: 0.85rem;
+  .page-head h1 {
+    margin: 0 0 0.25rem;
+    font-size: clamp(1.2rem, 2.2vw, 1.45rem);
+    font-weight: 700;
   }
   .sub {
-    margin: 4px 0 0;
-    font-size: 0.8rem;
-    color: var(--color-text-muted, var(--ap-text-muted));
-    max-width: 52ch;
+    margin: 0;
+    font-size: 0.88rem;
+    color: var(--color-text-secondary, var(--ap-text-secondary));
+    max-width: 38rem;
   }
-  .layout {
-    display: grid;
-    gap: 14px;
-  }
-  @media (min-width: 1100px) {
-    .layout {
-      grid-template-columns: 1.15fr 1fr;
-      align-items: start;
-    }
-  }
-  .form-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px 16px;
-  }
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 0;
-  }
-  .field-span { grid-column: 1 / -1; }
-  .lbl {
+  .eyebrow {
+    margin: 0 0 0.2rem;
     font-size: 0.68rem;
     font-weight: 650;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
+    color: var(--accent-cyan, #61e6e1);
+  }
+
+  .actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .list-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+  .list-head h2 {
+    margin: 0;
+    font-size: 1.05rem;
+  }
+  .list-head-side {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .result-count {
+    font-size: 0.75rem;
     color: var(--color-text-muted, var(--ap-text-muted));
   }
-  .req { color: var(--accent-red, #f17b7b); }
-  .field input, .check-row {
-    font-family: inherit;
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem 0.65rem;
+    margin-bottom: 0.85rem;
+    align-items: flex-end;
   }
-  .field input {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 10px 12px;
-    border-radius: 12px;
+  .filters .f {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 110px;
+  }
+  .filters .f.grow {
+    flex: 1 1 140px;
+  }
+  .filters .f span {
+    font-size: 0.62rem;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted, var(--ap-text-muted));
+  }
+  .filters input {
+    padding: 7px 9px;
+    border-radius: 10px;
     border: 1px solid var(--color-border, var(--ap-border));
-    background: var(--color-surface-soft, transparent);
+    background: var(--color-bg, #050812);
     color: var(--color-text-primary, var(--ap-text));
+    font-size: 0.84rem;
+    min-height: 36px;
+  }
+  .f-actions {
+    display: flex;
+    align-items: flex-end;
+  }
+
+  .rx-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+  .rx-item {
+    border: 1px solid var(--color-border, var(--ap-border));
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--color-bg, #050812) 35%, transparent);
+    overflow: hidden;
+  }
+  .rx-item.issue {
+    border-color: color-mix(in srgb, var(--accent-orange, #f0a35e) 40%, var(--ap-border));
+  }
+  .rx-item.dim {
+    opacity: 0.9;
+  }
+  .rx-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.55rem;
+    padding: 0.65rem 0.75rem;
+  }
+  .rx-main {
+    display: flex;
+    gap: 0.55rem;
+    align-items: flex-start;
+    min-width: 0;
+  }
+  .rx-meta {
+    margin: 0.12rem 0 0;
+    font-size: 0.75rem;
+    color: var(--color-text-secondary, var(--ap-text-secondary));
+  }
+  .rx-side {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    margin-top: 0.35rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot.ok {
+    background: var(--accent-green, #b7f56a);
+  }
+  .dot.warn {
+    background: var(--accent-orange, #f0a35e);
+  }
+  .dot.pending {
+    background: var(--accent-cyan, #61e6e1);
+  }
+  .dot.off {
+    background: var(--ap-text-muted, #858c9d);
+  }
+  .pill {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.18rem 0.5rem;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .pill.ok {
+    background: color-mix(in srgb, var(--accent-green, #b7f56a) 16%, transparent);
+    color: var(--accent-green, #b7f56a);
+  }
+  .pill.warn {
+    background: color-mix(in srgb, var(--accent-orange, #f0a35e) 16%, transparent);
+    color: var(--accent-orange, #f0a35e);
+  }
+  .pill.pending {
+    background: color-mix(in srgb, var(--accent-cyan, #61e6e1) 16%, transparent);
+    color: var(--accent-cyan, #61e6e1);
+  }
+  .pill.off {
+    background: color-mix(in srgb, var(--ap-text-muted) 14%, transparent);
+    color: var(--ap-text-muted);
+  }
+  .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 0.88rem;
   }
-  .check-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.85rem;
-    color: var(--color-text-secondary);
-  }
-  .lines-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin: 1rem 0 0.5rem;
-  }
-  .lines {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .line-row {
-    display: grid;
-    grid-template-columns: 1fr 100px 110px 32px;
-    gap: 8px;
-    align-items: end;
-  }
-  @media (max-width: 640px) {
-    .line-row {
-      grid-template-columns: 1fr 1fr;
-    }
-    .remove {
-      grid-column: 2;
-      justify-self: end;
-    }
-  }
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 0;
-  }
-  .field.grow {
-    min-width: 0;
-  }
-  .lbl {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--color-text-secondary, var(--ap-text-secondary));
-  }
-  select,
-  .line-row input {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 8px 10px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border, var(--ap-border));
-    background: var(--color-bg, transparent);
-    color: var(--color-text-primary, var(--ap-text));
-    font-family: inherit;
-    font-size: 0.85rem;
-  }
-  .remove {
-    width: 32px;
-    height: 36px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border, var(--ap-border));
-    background: transparent;
-    color: var(--color-text-muted);
-    font-size: 1.2rem;
-    cursor: pointer;
-    line-height: 1;
-  }
-  .remove:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-  }
-  .footer-bar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 1rem;
-    padding-top: 0.75rem;
+
+  .rx-details {
     border-top: 1px solid var(--color-border, var(--ap-border));
+    animation: slideIn 0.28s ease both;
   }
-  .estimate {
-    margin: 0;
-    font-size: 0.9rem;
-    color: var(--color-text-secondary);
+  .details-inner {
+    padding: 0.65rem 0.75rem 0.85rem;
   }
-  .actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
-  .table-wrap {
-    overflow-x: auto;
-  }
-  table {
+  .lines-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.84rem;
+    font-size: 0.8rem;
   }
-  th {
+  .lines-table th {
     text-align: left;
-    font-size: 0.7rem;
-    letter-spacing: 0.04em;
+    font-size: 0.62rem;
     text-transform: uppercase;
+    letter-spacing: 0.04em;
     color: var(--color-text-muted, var(--ap-text-muted));
-    padding: 0.45rem 0.5rem;
+    padding: 4px 6px;
     border-bottom: 1px solid var(--color-border, var(--ap-border));
   }
-  td {
-    padding: 0.5rem;
+  .lines-table td {
+    padding: 6px;
     border-bottom: 1px solid var(--color-border, var(--ap-border));
-    color: var(--color-text-secondary, var(--ap-text-secondary));
     vertical-align: top;
+  }
+  .lines-table small {
+    display: block;
+    color: var(--color-text-muted, var(--ap-text-muted));
+    font-size: 0.7rem;
   }
   .num {
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
-  .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  .detail-note {
+    margin: 0 0 0.4rem;
     font-size: 0.8rem;
   }
-   .status-pill {
-    display: inline-flex;
-    align-items: center;
-    font-size: 0.68rem;
-    font-weight: 700;
-    padding: 3px 8px;
-    border-radius: 999px;
+  .issue-text {
+    margin: 0.25rem 0 0;
+    font-size: 0.78rem;
+    color: var(--color-text-secondary, var(--ap-text-secondary));
   }
-  .status-pill.pending { background: color-mix(in srgb, #f59e0b 16%, transparent); color: #b45309; }
-  .status-pill.confirmed { background: color-mix(in srgb, var(--accent-green, #b7f56a) 16%, transparent); color: var(--accent-green, var(--ap-ok)); }
-  .status-pill.problem { background: color-mix(in srgb, var(--accent-red, #f17b7b) 14%, transparent); color: var(--accent-red, var(--ap-danger)); }
-  .problem-list { display: flex; flex-direction: column; gap: 8px; }
-  .problem-item { padding: 10px 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--accent-red, #f17b7b) 28%, var(--ap-border)); background: color-mix(in srgb, var(--accent-red, #f17b7b) 6%, transparent); }
-  .abandoned-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
-  .abandoned-item {
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px dashed color-mix(in srgb, var(--ap-text-muted) 40%, var(--ap-border));
-    background: color-mix(in srgb, var(--ap-text-muted) 6%, transparent);
+
+  .main-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+    align-items: start;
   }
-  .abandoned-item p { margin: 5px 0 0; font-size: 0.82rem; color: var(--color-text-secondary, var(--ap-text-secondary)); }
-  .status-pill.abandoned {
-    background: color-mix(in srgb, var(--ap-text-muted) 14%, transparent);
-    color: var(--ap-text-muted);
+  .side-col {
+    display: none;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
   }
-  .problem-item p { margin: 5px 0 0; font-size: 0.82rem; color: var(--color-text-secondary, var(--ap-text-secondary)); }
-  .detail {
-    font-size: 0.75rem;
+  .main-layout.side-open .side-col {
+    display: flex;
   }
-  .detail ul {
-    margin: 4px 0 0;
-    padding-left: 1.1rem;
+  @media (min-width: 960px) {
+    .main-layout.side-open {
+      grid-template-columns: minmax(240px, 0.4fr) minmax(0, 1fr);
+    }
+    .side-col {
+      position: sticky;
+      top: 0.5rem;
+      max-height: calc(100dvh - 8rem);
+      overflow-y: auto;
+    }
   }
-  .muted,
-  .muted-inline {
+  /* Móvil: paneles arriba del historial (no bajo lista larga) */
+  @media (max-width: 959px) {
+    .side-col {
+      order: -1;
+    }
+  }
+  .side-panel {
+    min-width: 0;
+  }
+  .slide-in {
+    animation: sideSlideIn 0.28s ease both;
+  }
+  @keyframes sideSlideIn {
+    from {
+      opacity: 0;
+      transform: translateX(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  .sec-head h2 {
+    margin: 0 0 0.65rem;
+    font-size: 0.98rem;
+  }
+  .history-col {
+    min-width: 0;
+  }
+
+  .empty,
+  .muted {
     color: var(--color-text-muted, var(--ap-text-muted));
     font-size: 0.85rem;
   }
+  .empty {
+    text-align: center;
+    padding: 1rem 0;
+  }
+
   .banner {
     margin: 0;
     padding: 10px 12px;
@@ -699,9 +1217,249 @@ $: estimated = lines.reduce(
     background: color-mix(in srgb, var(--accent-green, #b7f56a) 12%, transparent);
     color: var(--accent-green, var(--ap-ok));
   }
-  .field-hint {
-    margin: 0.25rem 0 0;
-    font-size: 0.78rem;
-    color: var(--ap-text-secondary, #8a9a94);
+
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background: rgba(5, 8, 18, 0.72);
+    backdrop-filter: blur(4px);
   }
+  .modal {
+    width: min(440px, 100%);
+    max-height: min(92vh, 740px);
+    overflow: auto;
+    padding: 1.1rem 1.15rem 1.2rem;
+    border-radius: 16px;
+    border: 1px solid var(--color-border, var(--ap-border));
+    background: var(--color-surface, var(--ap-bg-elevated, #171b29));
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+  }
+  .modal-form {
+    width: min(580px, 100%);
+  }
+  .modal h3 {
+    margin: 0 0 0.3rem;
+    font-size: 1.05rem;
+  }
+  .modal-sub {
+    margin: 0 0 0.85rem;
+    font-size: 0.82rem;
+    color: var(--color-text-secondary, var(--ap-text-secondary));
+  }
+  .modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 0.85rem;
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.55rem 0.65rem;
+  }
+  .form-grid .span-2 {
+    grid-column: 1 / -1;
+  }
+  @media (max-width: 520px) {
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.78rem;
+  }
+  .field span {
+    font-size: 0.62rem;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted, var(--ap-text-muted));
+  }
+  .field input,
+  .field select {
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--color-border, var(--ap-border));
+    background: var(--color-bg, #050812);
+    color: var(--color-text-primary, var(--ap-text));
+    min-height: 38px;
+  }
+  .field.check {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.85rem;
+  }
+  .lines-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0.85rem 0 0.45rem;
+  }
+  .lines-head h4 {
+    margin: 0;
+    font-size: 0.85rem;
+  }
+  .line-row {
+    display: grid;
+    grid-template-columns: 1fr minmax(72px, 0.22fr) minmax(88px, 0.28fr) 32px;
+    gap: 8px;
+    align-items: end;
+    margin-bottom: 0.45rem;
+  }
+  @media (max-width: 560px) {
+    .line-row {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  .remove {
+    width: 32px;
+    height: 38px;
+    border-radius: 10px;
+    border: 1px solid var(--color-border, var(--ap-border));
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 1.2rem;
+    cursor: pointer;
+  }
+  .remove:disabled {
+    opacity: 0.35;
+  }
+  .report-kinds {
+    border: none;
+    margin: 0 0 0.75rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+  .radio {
+    display: flex;
+    gap: 0.45rem;
+    font-size: 0.86rem;
+    cursor: pointer;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  @media (max-width: 600px) {
+    .actions-row > :global(button) {
+      flex: 1 1 calc(50% - 0.25rem);
+      min-height: 40px;
+    }
+  }
+
+  .product-picker {
+    position: relative;
+    z-index: 2;
+  }
+  .picker-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+  }
+  .picker-control input {
+    flex: 1;
+    min-width: 0;
+  }
+  .unit-badge {
+    flex-shrink: 0;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 4px 7px;
+    border-radius: 8px;
+    border: 1px solid var(--color-border, var(--ap-border));
+    color: var(--accent-cyan, #61e6e1);
+    background: color-mix(in srgb, var(--accent-cyan, #61e6e1) 10%, transparent);
+  }
+  .clear-prod {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border: 1px solid var(--color-border, var(--ap-border));
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    line-height: 1;
+  }
+  .picker-list {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 4px;
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    max-height: 220px;
+    overflow-y: auto;
+    border-radius: 12px;
+    border: 1px solid var(--color-border, var(--ap-border));
+    background: var(--color-surface, var(--ap-bg-elevated, #171b29));
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  }
+  .picker-option {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    text-align: left;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-text-primary, var(--ap-text));
+    cursor: pointer;
+    font-size: 0.82rem;
+  }
+  .picker-option:hover,
+  .picker-option.selected {
+    background: color-mix(in srgb, var(--accent-cyan, #61e6e1) 12%, transparent);
+  }
+  .po-main {
+    min-width: 0;
+  }
+  .po-unit {
+    flex-shrink: 0;
+    font-size: 0.68rem;
+    font-weight: 650;
+    text-transform: uppercase;
+    color: var(--color-text-muted, var(--ap-text-muted));
+  }
+  .picker-empty,
+  .picker-hint {
+    padding: 8px 10px;
+    font-size: 0.78rem;
+    color: var(--color-text-muted, var(--ap-text-muted));
+  }
+  .unit-inline {
+    font-style: normal;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--accent-cyan, #61e6e1);
+    margin-left: 4px;
+  }
+
 </style>
