@@ -98,10 +98,31 @@ func ModuleEnabled(snap *domain.StoreSnapshot, mod string) bool {
 }
 
 // DefaultModulesForRole: módulos que el rol puede usar (todos en true).
+// CanInTenant resolves the effective role policy. A persisted tenant policy
+// overrides the built-in ViewACL for the selected role; roles without a
+// persisted policy keep the built-in defaults.
+func CanInTenant(snap *domain.StoreSnapshot, role, view string) bool {
+	if role == domain.RoleMaster {
+		return true
+	}
+	if snap != nil && snap.Tenant.RolePermissions != nil {
+		if permissions, ok := snap.Tenant.RolePermissions[role]; ok {
+			if allowed, exists := permissions[view]; exists {
+				return allowed
+			}
+		}
+	}
+	return Can(role, view)
+}
+
 func DefaultModulesForRole(role string) map[string]bool {
+	return DefaultModulesForRoleInTenant(nil, role)
+}
+
+func DefaultModulesForRoleInTenant(snap *domain.StoreSnapshot, role string) map[string]bool {
 	out := map[string]bool{}
 	for view := range ViewACL {
-		if Can(role, view) {
+		if CanInTenant(snap, role, view) {
 			out[view] = true
 		}
 	}
@@ -136,7 +157,7 @@ func CanAccessUser(snap *domain.StoreSnapshot, role, view string, user *domain.U
 			return v
 		}
 	}
-	if !Can(role, view) {
+	if !CanInTenant(snap, role, view) {
 		return false
 	}
 	return true
