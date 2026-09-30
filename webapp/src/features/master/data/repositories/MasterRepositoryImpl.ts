@@ -105,7 +105,17 @@ export class MasterRepositoryImpl implements MasterRepository {
   async updateRolePermissions(role: string, permissions: Record<string, boolean>): Promise<Record<string, boolean>> {
     try {
       const dto = await this.remote.updateRolePermissions({ role, permissions });
-      return dto.permissions || permissions;
+      const saved = dto.permissions || permissions;
+      // Confirmar inmediatamente contra el backend, no solo contra la respuesta del PUT.
+      const verified = await this.remote.getRolePermissions();
+      const remote = verified.roles?.[role] || {};
+      const keys = new Set([...Object.keys(saved), ...Object.keys(remote)]);
+      for (const key of keys) {
+        if ((remote[key] === true) !== (saved[key] === true)) {
+          throw new Error('El backend no devolvió los permisos recién guardados del rol.');
+        }
+      }
+      return saved;
     } catch (err) {
       throw new Error(messageOf(err, 'No se pudieron guardar los permisos del rol'));
     }
