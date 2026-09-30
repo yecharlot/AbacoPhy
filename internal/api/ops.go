@@ -1119,7 +1119,7 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 			ID: uuid.NewString(), TenantID: sess.TenantID,
 			Username: strings.TrimSpace(body.Username), DisplayName: body.DisplayName,
 			Role: body.Role, PasswordHash: hash, Active: true,
-			Modules: auth.DefaultModulesForRole(body.Role),
+			Modules: nil,
 			CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
 		}
 		if u.DisplayName == "" {
