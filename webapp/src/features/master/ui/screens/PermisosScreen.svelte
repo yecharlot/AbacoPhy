@@ -262,19 +262,20 @@
             <h3 class="group-title">{group.label}</h3>
             <div class="tile-grid">
               {#each ids as sid (sid)}
-                <button
-                  type="button"
-                  class="tile"
-                  class:on={roleScreenAllowed(sid)}
-                  aria-pressed={roleScreenAllowed(sid)}
-                  on:click={() => toggleRoleScreen(sid)}
-                >
+                <label class="tile" class:on={roleScreenAllowed(sid)}>
+                  <input
+                    class="tile-input"
+                    type="checkbox"
+                    checked={roleScreenAllowed(sid)}
+                    onchange={() => toggleRoleScreen(sid)}
+                    aria-label={'Permitir ' + catalogLabel(sid) + ' para ' + roleLabel(selectedRole)}
+                  />
                   <span class="tile-check" aria-hidden="true"></span>
                   <span class="tile-body">
                     <span class="tile-label">{catalogLabel(sid)}</span>
                     <span class="tile-id">{roleScreenAllowed(sid) ? 'permitida' : 'bloqueada'}</span>
                   </span>
-                </button>
+                </label>
               {/each}
             </div>
           </div>
@@ -340,19 +341,20 @@
               <h3 class="group-title">{group.label}</h3>
               <div class="tile-grid">
                 {#each ids as sid (sid)}
-                  <button
-                    type="button"
-                    class="tile"
-                    class:on={userScreenAllowed(sid)}
-                    aria-pressed={userScreenAllowed(sid)}
-                    on:click={() => toggleUserScreen(sid)}
-                  >
+                  <label class="tile" class:on={userScreenAllowed(sid)}>
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      checked={userScreenAllowed(sid)}
+                      onchange={() => toggleUserScreen(sid)}
+                      aria-label={'Permitir ' + catalogLabel(sid) + ' al usuario seleccionado'}
+                    />
                     <span class="tile-check" aria-hidden="true"></span>
                     <span class="tile-body">
                       <span class="tile-label">{catalogLabel(sid)}</span>
                       <span class="tile-id">{sid}</span>
                     </span>
-                  </button>
+                  </label>
                 {/each}
               </div>
             </div>
@@ -683,6 +685,19 @@
     background: color-mix(in srgb, var(--accent-cyan, #61e6e1) 12%, transparent);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-cyan, #61e6e1) 20%, transparent);
   }
+  .tile-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .tile:has(.tile-input:focus-visible) {
+    outline: 2px solid color-mix(in srgb, var(--accent-cyan, #61e6e1) 70%, transparent);
+    outline-offset: 2px;
+  }
+
   .tile-check {
     flex-shrink: 0;
     width: 1.05rem;
