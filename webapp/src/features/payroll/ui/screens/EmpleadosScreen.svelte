@@ -54,6 +54,9 @@
   let usernameOptions: string[] = [];
   let selectedUsername = '';
   let positionPickerOpen = false;
+  let contactEmail = '';
+  let avatarUrl = '';
+  let avatarBroken = false;
 
   // Nomenclador cargos form
   let posName = '';
@@ -122,7 +125,8 @@
     }
     for (const e of employees) {
       const meta = parseEmployeeMeta(e.metadata);
-      const firstUnit = (e.unitIds && e.unitIds[0]) || '';
+      const unitListIds = e.unitIds?.length ? e.unitIds : meta.unitIds || [];
+      const firstUnit = unitListIds[0] || '';
       if (firstUnit && map.has(firstUnit)) {
         map.get(firstUnit)!.items.push(e);
       } else if (firstUnit) {
@@ -215,6 +219,9 @@
     usernameOptions = [];
     selectedUsername = '';
     positionPickerOpen = false;
+    contactEmail = '';
+    avatarUrl = '';
+    avatarBroken = false;
     formError = '';
   }
 
@@ -287,6 +294,9 @@
     positionQuery = meta.positionName || e.role || '';
     selectedUsername = meta.username || '';
     usernameOptions = selectedUsername ? [selectedUsername] : [];
+    contactEmail = meta.contactEmail || '';
+    avatarUrl = meta.avatarUrl || '';
+    avatarBroken = false;
     formError = '';
     formOk = '';
     showForm = true;
@@ -324,8 +334,11 @@
           positionId: pos.id,
           positionName: pos.name,
           locationLabel,
+          unitIds,
           username: selectedUsername || parseEmployeeMeta(existing?.metadata).username,
           userId: parseEmployeeMeta(existing?.metadata).userId,
+          contactEmail: contactEmail.trim() || undefined,
+          avatarUrl: (avatarUrl || '').trim() || undefined,
         });
         await store.editEmployee({
           id: editingId,
@@ -336,7 +349,7 @@
           hireDate: hireDate || undefined,
           salary: sal,
           currency,
-          unitIds,
+          // unitIds solo en metadata (API Go no tiene el campo)
           metadata: meta,
         });
         formOk = 'Trabajador actualizado';
@@ -393,6 +406,9 @@
           userId,
           laborStatus: 'active',
           locationLabel,
+          unitIds,
+          contactEmail: contactEmail.trim() || undefined,
+          avatarUrl: (avatarUrl || '').trim() || undefined,
         });
 
         await store.addEmployee({
@@ -403,7 +419,7 @@
           hireDate: hireDate || undefined,
           salary: sal,
           currency: (currency || 'CUP').trim() || 'CUP',
-          unitIds,
+          // unitIds solo en metadata — no van en el body HTTP
           metadata: meta,
         });
         formOk = userWasNew
@@ -546,12 +562,55 @@
           <div class="form-grid">
             <label class="field span-2">
               <span>Nombre completo <em class="req">*</em></span>
-              <input bind:value={name} oninput={onNameInput} disabled={state.saving} required />
+              <input
+                bind:value={name}
+                oninput={onNameInput}
+                disabled={state.saving}
+                required
+              />
+            </label>
+
+            <label class="field">
+              <span>Correo de contacto</span>
+              <input
+                type="email"
+                bind:value={contactEmail}
+                placeholder="opcional"
+                disabled={state.saving}
+                autocomplete="email"
+              />
             </label>
             <label class="field">
               <span>Carnet de identidad</span>
               <input bind:value={ci} disabled={state.saving} />
             </label>
+
+            <div class="field span-2 photo-url-field">
+              <span>URL de foto de perfil</span>
+              <div class="photo-url-row">
+                <input
+                  type="url"
+                  bind:value={avatarUrl}
+                  placeholder="https://… pegar URL de imagen"
+                  disabled={state.saving}
+                  oninput={() => (avatarBroken = false)}
+                />
+                {#if avatarUrl.trim()}
+                  <div class="photo-preview">
+                    {#if !avatarBroken}
+                      <img
+                        src={avatarUrl.trim()}
+                        alt="Vista previa"
+                        class="photo-preview-img"
+                        onerror={() => (avatarBroken = true)}
+                      />
+                    {:else}
+                      <span class="photo-preview-err">No se pudo cargar la imagen</span>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
+            </div>
             <label class="field">
               <span>Departamento</span>
               <input bind:value={department} disabled={state.saving} />
@@ -736,7 +795,11 @@
                   {#each rows as e (e.id)}
                     {@const meta = parseEmployeeMeta(e.metadata)}
                     <li class="emp-item" class:off={!e.active}>
-                      <div class="emp-main">
+                      <div class="emp-main emp-main-row">
+                        {#if meta.avatarUrl}
+                          <img class="emp-avatar" src={meta.avatarUrl} alt="" loading="lazy" />
+                        {/if}
+                        <div>
                         <strong>{e.name}</strong>
                         <p class="meta-line">
                           {meta.positionName || '—'} · {roleLabel(e.role || '')}
@@ -748,7 +811,11 @@
                         <p class="meta-line">
                           CI: {e.ci || '—'} · Alta: {e.hireDate || '—'} ·
                           <Money amount={e.salary} currency={e.currency} />
+                          {#if meta.contactEmail}
+                            · {meta.contactEmail}
+                          {/if}
                         </p>
+                        </div>
                       </div>
                       <div class="emp-actions">
                         <Button type="button" variant="secondary" onclick={() => startEdit(e)}
@@ -943,6 +1010,44 @@
     display: flex;
     flex-direction: column;
     gap: 0.45rem;
+  }
+  .emp-main-row {
+    display: flex;
+    gap: 0.65rem;
+    align-items: flex-start;
+  }
+  .photo-url-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: flex-start;
+  }
+  .photo-url-row input {
+    flex: 1 1 220px;
+    min-width: 0;
+  }
+  .photo-preview {
+    flex: 0 0 auto;
+  }
+  .photo-preview-img {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--color-border, var(--ap-border));
+    background: #1a1f2e;
+  }
+  .photo-preview-err {
+    font-size: 0.75rem;
+    color: var(--accent-red, #f17b7b);
+  }
+  .emp-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #1a1f2e;
   }
   .emp-item {
     display: flex;

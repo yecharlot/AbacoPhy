@@ -3,6 +3,8 @@ import type { CreatePayslipInput, Payslip } from '../../domain/entities/Payslip'
 import {
   normalizeMetadataField,
   metadataToApiObject,
+  metadataToDto,
+  readMetadata,
 } from '../../../../infrastructure/domain/metadata';
 
 function n(v: unknown): number {
@@ -65,6 +67,15 @@ export const payrollMapper = {
       dto.name ||
       [dto.first_name, dto.last_name].filter(Boolean).join(' ').trim() ||
       '';
+    const metaStr = normalizeMetadataField(dto);
+    const metaMap = readMetadata(dto);
+    // unitIds solo viven en metadata (Go no tiene unit_ids en Employee)
+    let unitIds: string[] = [];
+    if (Array.isArray(metaMap.unitIds)) {
+      unitIds = metaMap.unitIds.map(String);
+    } else if (Array.isArray(dto.unit_ids)) {
+      unitIds = dto.unit_ids.map(String);
+    }
     return {
       id: dto.id || '',
       name,
@@ -78,9 +89,8 @@ export const payrollMapper = {
       ssEmployerRate: n(dto.ss_employer_rate) || 0.125,
       ssWorkerRate: n(dto.ss_worker_rate) || 0.05,
       active: dto.active !== false,
-      unitIds: Array.isArray(dto.unit_ids) ? dto.unit_ids.map(String) : [],
-      metadata: normalizeMetadataField(dto),
-
+      unitIds,
+      metadata: metaStr,
     };
   },
 
@@ -97,36 +107,30 @@ export const payrollMapper = {
     if (input.ssEmployerRate !== undefined) body.ss_employer_rate = input.ssEmployerRate;
     if (input.ssWorkerRate !== undefined) body.ss_worker_rate = input.ssWorkerRate;
     if (input.active !== undefined) body.active = input.active;
-    if (input.unitIds !== undefined) body.unit_ids = input.unitIds;
-    if (input.metadata !== undefined) {
-      const metaObj = metadataToApiObject(input);
-      if (metaObj) body.metadata = metaObj;
-      else if (input.metadata === null || input.metadata === '') body.metadata = undefined;
-    }
+    // NUNCA unit_ids: DisallowUnknownFields en backend
+    const metaObj = metadataToApiObject(input);
+    if (metaObj) body.metadata = metaObj;
     return body;
   },
 
   toEmployeeDto(input: CreateEmployeeInput): Record<string, unknown> {
+    // Solo campos del struct domain.Employee (Go).
+    // unit_ids NO existe → DisallowUnknownFields rechaza el body entero
+    // y el handler responde genérico «nombre del trabajador requerido».
     const name = (input.name || '').trim();
     const body: Record<string, unknown> = {
       name,
-      // alias por si el backend valida «nombre»
-      nombre: name,
       salary: input.salary,
-      currency: input.currency || 'CUP',
+      currency: (input.currency || 'CUP').trim() || 'CUP',
       vac_rate: input.vacRate ?? 0.09,
       ss_employer_rate: input.ssEmployerRate ?? 0.125,
       ss_worker_rate: input.ssWorkerRate ?? 0.05,
     };
     if (input.ci) body.ci = input.ci;
-    if (input.role) {
-      body.role = input.role;
-      body.position = input.role;
-    }
+    if (input.role) body.role = input.role;
     if (input.department) body.department = input.department;
     if (input.hireDate) body.hire_date = input.hireDate;
-    if (input.unitIds?.length) body.unit_ids = input.unitIds;
-    // Go Metadata map[string]any → objeto JSON, no string
+    // Metadata como objeto (map[string]any), no string JSON
     const metaObj = metadataToApiObject(input);
     if (metaObj) body.metadata = metaObj;
     return body;
