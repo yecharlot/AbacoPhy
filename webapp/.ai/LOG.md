@@ -351,6 +351,7 @@ Cada entrada relevante debe incluir: fecha, qué se hizo, por qué, archivos toc
 - «Casi agotado» se determina por producto: la existencia debe ser menor que la mayor cantidad de una transferencia previa de ese producto. Así la alerta indica una incapacidad operativa real para repetir la mayor salida documentada.
 - «Más solicitados» se calcula solo con las líneas de transferencias documentadas al punto de venta, por lo que no infiere ventas ni demanda fuera de esos datos.
 
+
 ---
 
 <!-- Plantilla para entradas futuras:

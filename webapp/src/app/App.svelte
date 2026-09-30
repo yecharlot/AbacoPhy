@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import '../infrastructure/ui/theme/tokens.css';
-  import { AppShell, filterNavByViews, PLACEHOLDER_NAV, ForbiddenScreen, BootSkeleton } from '../infrastructure/ui/shell';
-  import { canAccessScreen, firstAllowedScreen } from '../features/identity/domain/access';
+  import { AppShell, filterNavByViews, filterNavByScreenIds, PLACEHOLDER_NAV, ForbiddenScreen, BootSkeleton } from '../infrastructure/ui/shell';
+  import { canAccessScreen, firstAllowedScreen, effectiveScreens } from '../features/identity/domain/access';
   import { Card, Button, Toast } from '../infrastructure/ui/shared';
   import { createAppContainer } from '../infrastructure/di';
   import { subscribeNetworkStatus } from '../infrastructure/data/http';
@@ -48,6 +48,7 @@
   import SalvasScreen from '../features/audit/ui/screens/SalvasScreen.svelte';
   import MasterScreen from '../features/master/ui/screens/MasterScreen.svelte';
   import UsuariosScreen from '../features/master/ui/screens/UsuariosScreen.svelte';
+  import PermisosScreen from '../features/master/ui/screens/PermisosScreen.svelte';
   import type { SessionState } from '../features/identity/ui/stores/sessionStore';
 
   const container = createAppContainer({
@@ -73,6 +74,8 @@
   const { masterStore } = createMasterModule(container);
 
   let activeId = $state(getScreen());
+  let accessRev = $state(0);
+
   let online = $state(true);
   let theme: ThemeMode = $state('light');
   let toastMsg = $state('');
@@ -92,14 +95,28 @@
   );
 
 
-  const navItems = $derived(
-    filterNavByViews(PLACEHOLDER_NAV, sessionState.session?.views ?? null),
-  );
+  function buildNavItems(session: typeof sessionState.session) {
+    if (!session) return [];
+    try {
+      const screens = effectiveScreens(session);
+      if (screens.length) {
+        const byPolicy = filterNavByScreenIds(PLACEHOLDER_NAV, screens);
+        if (byPolicy.length) return byPolicy;
+      }
+    } catch {
+      /* política FE no debe tumbar la app */
+    }
+    return filterNavByViews(PLACEHOLDER_NAV, session.views ?? null);
+  }
+  const navItems = $derived.by(() => {
+    void accessRev;
+    return buildNavItems(sessionState.session);
+  });
 
   const userRole = $derived(sessionState.session?.user?.role ?? '');
   const userLabel = $derived(
-    sessionState.session
-      ? `${sessionState.session.user.displayName} · ${sessionState.session.user.role}`
+    sessionState.session?.user
+      ? `${sessionState.session.user.displayName || sessionState.session.user.username || ''} · ${sessionState.session.user.role || ''}`
       : '',
   );
   const userDisplayName = $derived(
@@ -110,7 +127,7 @@
 
   const brandSubtitle = $derived(sessionState.session?.tenantName ?? 'Negocio');
 
-  const isMaster = $derived(sessionState.session?.user.role === 'master');
+  const isMaster = $derived(sessionState.session?.user?.role === 'master');
 
   const canEditTenant = $derived(
     (sessionState.session?.views ?? []).includes('tenant'),
@@ -153,6 +170,9 @@
     // Usuarios para autocomplete de receptor en recepciones
     void masterStore.loadAll().catch(() => undefined);
 
+    const onAccess = () => { accessRev += 1; };
+    window.addEventListener('abacophy-ui-access-changed', onAccess);
+    window.addEventListener('storage', onAccess);
     void sessionStore.bootstrap();
 
     return () => {
@@ -160,6 +180,8 @@
       unsubScreen();
       unsubSession();
       unsubMaster();
+      window.removeEventListener('abacophy-ui-access-changed', onAccess);
+      window.removeEventListener('storage', onAccess);
     };
   });
 
@@ -186,6 +208,15 @@
     loginAttempted = true;
     try {
       await sessionStore.login(username, password);
+      const s = sessionStore.getState().session;
+      if (s) {
+        // Disparar evento para que navItems re-compute con la política FE guardada
+        accessRev += 1;
+        window.dispatchEvent(new CustomEvent('abacophy-ui-access-changed'));
+        const id = firstAllowedScreen(s);
+        setScreen(id);
+        activeId = id;
+      }
       showToast('Sesión iniciada');
     } catch {
       /* error in sessionState */
@@ -195,6 +226,7 @@
   async function handleLogout() {
     await sessionStore.logout();
     loginAttempted = false;
+    accessRev += 1;
     setScreen('home');
     showToast('Sesión cerrada');
   }
@@ -247,7 +279,7 @@
     {:else if activeId === 'liquidaciones'}
       <LiquidacionesScreen store={payrollStore} />
     {:else if activeId === 'tenant'}
-      <TenantScreen store={tenantStore} canEdit={canEditTenant} />
+      <TenantScreen store={tenantStore} warehouseStore={warehouseStore} canEdit={canEditTenant} />
     {:else if activeId === 'catalog'}
       <CatalogScreen store={catalogStore} />
     {:else if activeId === 'almacen'}
@@ -270,6 +302,8 @@
       <SalvasScreen store={auditStore} />
     {:else if activeId === 'usuarios'}
       <UsuariosScreen store={masterStore} />
+    {:else if activeId === 'permisos'}
+      <PermisosScreen store={masterStore} tenantId={sessionState.session?.user?.tenantId ?? ''} />
     {:else if activeId === 'master'}
       <MasterScreen store={masterStore} />
     {:else}

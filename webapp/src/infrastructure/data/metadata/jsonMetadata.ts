@@ -202,10 +202,56 @@ export function normalizeMetadataField(source: unknown): string | undefined {
  * Toma entity.metadata o el valor directo; formato inválido → undefined (no lanza en mapper).
  * Para fallar en UI usar writeMetadata / writeMetadataSafe.
  */
+/**
+ * Entity/input → string metadata para dominio FE.
+ * Si `source` es una entidad (CreateProductInput, etc.) SOLO usa `.metadata`.
+ * Nunca serializa el objeto entero (provocaba metadata string en API y
+ * "nombre requerido" por fallo de unmarshal en Go).
+ */
 export function metadataToDto(source: unknown): string | undefined {
-  const raw = extractRaw(source);
-  const r = writeMetadataSafe(raw);
-  return r.ok ? r.value : undefined;
+  if (source == null || source === "") return undefined;
+
+  // String JSON directo
+  if (typeof source === "string") {
+    const r = writeMetadataSafe(source);
+    return r.ok ? r.value : undefined;
+  }
+
+  if (typeof source === "object" && !Array.isArray(source)) {
+    const obj = source as Record<string, unknown>;
+    // Entidad / input con campo metadata (aunque sea undefined)
+    if ("metadata" in obj) {
+      const m = obj.metadata;
+      if (m == null || m === "") return undefined;
+      const r = writeMetadataSafe(m);
+      return r.ok ? r.value : undefined;
+    }
+    // Mapa plano de metadata (sin claves típicas de entidad)
+    const entityKeys = ["id", "name", "code", "unit", "category", "password", "username", "role"];
+    const looksLikeEntity = entityKeys.some((k) => k in obj);
+    if (looksLikeEntity) return undefined;
+    const r = writeMetadataSafe(obj);
+    return r.ok ? r.value : undefined;
+  }
+
+  return undefined;
+}
+
+/** Valor listo para body API Go (`Metadata map[string]any`). */
+export function metadataToApiObject(
+  source: unknown,
+): Record<string, unknown> | undefined {
+  const raw = metadataToDto(source);
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    /* ignore */
+  }
+  return undefined;
 }
 
 export function parseMetadata(raw: unknown): MetaMap {

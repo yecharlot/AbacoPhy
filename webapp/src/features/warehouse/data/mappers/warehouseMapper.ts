@@ -1,6 +1,7 @@
 import type { UnitStockRow, WarehouseStockRow } from '../../domain/entities/Stock';
 import type { SalesUnit, CreateSalesUnitInput } from '../../domain/entities/SalesUnit';
 import type { Reception, ReceptionLine, CreateReceptionInput } from '../../domain/entities/Reception';
+import { RECEPTION_ABANDON_MARKER } from '../../domain/entities/Reception';
 import type { Transfer, TransferLine, CreateTransferInput } from '../../domain/entities/Transfer';
 import type {
   ReceptionDto,
@@ -72,6 +73,7 @@ function readReceptionMetadata(value: unknown): Reception['metadataState'] {
     problemReason: typeof metadata?.['int.reception_problem_reason'] === 'string' ? metadata['int.reception_problem_reason'] as string : undefined,
     entryActor: typeof metadata?.['int.reception_entry_actor'] === 'string' ? metadata['int.reception_entry_actor'] as string : undefined,
     entryAt: typeof metadata?.['int.reception_entry_at'] === 'string' ? metadata['int.reception_entry_at'] as string : undefined,
+    abandonReason: typeof metadata?.['int.reception_abandon_reason'] === 'string' ? metadata['int.reception_abandon_reason'] as string : undefined,
   };
 }
 
@@ -87,6 +89,42 @@ function receptionLineDtoToEntity(dto: ReceptionLineDto): ReceptionLine {
   };
 }
 
+
+
+/** Si el backend solo guardó incidencia, el marcador FE eleva a abandoned en UI. */
+function normalizeReceptionMetadataState(
+  state: Reception['metadataState'],
+  note?: string,
+): Reception['metadataState'] {
+  if (!state) {
+    if (note && note.includes(RECEPTION_ABANDON_MARKER)) {
+      return {
+        receptionStatus: 'abandoned',
+        abandonReason: note.replace(RECEPTION_ABANDON_MARKER, '').trim(),
+        problemReason: note,
+      };
+    }
+    return state;
+  }
+  const reason = state.problemReason || state.abandonReason || note || '';
+  if (
+    state.receptionStatus === 'abandoned' ||
+    state.receptionStatus === 'cancelled' ||
+    (reason && reason.includes(RECEPTION_ABANDON_MARKER))
+  ) {
+    const clean = reason
+      .replace(RECEPTION_ABANDON_MARKER, '')
+      .replace(/^\s*ABANDONO\s*:\s*/i, '')
+      .trim();
+    return {
+      ...state,
+      receptionStatus: 'abandoned',
+      abandonReason: state.abandonReason || clean || reason,
+      problemReason: state.problemReason,
+    };
+  }
+  return state;
+}
 export function receptionDtoToEntity(dto: ReceptionDto): Reception {
   const d = dto as ReceptionDto & {
     has_invoice?: boolean;
@@ -109,7 +147,7 @@ export function receptionDtoToEntity(dto: ReceptionDto): Reception {
     currency: d.currency || '',
     status: d.status || '',
     note: d.note || '',
-    metadataState: readReceptionMetadata(d.metadata),
+    metadataState: normalizeReceptionMetadataState(readReceptionMetadata(d.metadata), d.note || ''),
     enteredBy: d.entered_by,
     enteredAt: d.entered_at,
       metadata: normalizeMetadataField(dto),
@@ -136,7 +174,12 @@ export function createReceptionInputToDto(input: CreateReceptionInput): Record<s
   return body;
 }
 
-export function enterReceptionInputToDto(input: { id: string; accept: boolean; note?: string; reason?: string }): Record<string, unknown> {
+export function enterReceptionInputToDto(input: {
+  id: string;
+  accept: boolean;
+  note?: string;
+  reason?: string;
+}): Record<string, unknown> {
   const body: Record<string, unknown> = { id: input.id, accept: input.accept };
   if (input.note) body.note = input.note;
   if (input.reason) body.reason = input.reason;

@@ -2,7 +2,10 @@ import type { Product, CreateProductInput, UpdateProductInput } from '../../doma
 import type { MeasureUnit, CreateMeasureUnitInput } from '../../domain/entities/MeasureUnit';
 import type { Currency } from '../../domain/entities/Currency';
 import type { ProductDto, MeasureUnitDto, CurrencyDto } from '../dto/CatalogDto';
-import { normalizeMetadataField, metadataToDto } from '../../../../infrastructure/domain/metadata';
+import {
+  normalizeMetadataField,
+  metadataToApiObject,
+} from '../../../../infrastructure/domain/metadata';
 
 export function productDtoToEntity(dto: ProductDto): Product {
   return {
@@ -17,13 +20,19 @@ export function productDtoToEntity(dto: ProductDto): Product {
   };
 }
 
+/**
+ * Body POST /products.
+ * name obligatorio (trim). metadata solo si existe, como **objeto** (Go map).
+ */
 export function createProductInputToDto(input: CreateProductInput): Record<string, unknown> {
-  const body: Record<string, unknown> = { name: input.name };
-  if (input.code) body.code = input.code;
-  if (input.unit) body.unit = input.unit;
-  if (input.category) body.category = input.category;
-  // Política: no enviar cost_std / price_sale
-  const meta = metadataToDto(input);
+  const name = String(input.name ?? '').trim();
+  const body: Record<string, unknown> = { name };
+  if (input.code?.trim()) body.code = input.code.trim();
+  if (input.unit?.trim()) body.unit = input.unit.trim();
+  else body.unit = 'ud';
+  if (input.category?.trim()) body.category = input.category.trim();
+  // Nunca metadataToDto(input) — serializaba todo el input y rompía el decode Go
+  const meta = metadataToApiObject(input.metadata);
   if (meta) body.metadata = meta;
   return body;
 }
@@ -31,10 +40,10 @@ export function createProductInputToDto(input: CreateProductInput): Record<strin
 export function updateProductInputToDto(input: UpdateProductInput): Record<string, unknown> {
   const body: Record<string, unknown> = { id: input.id };
   if (input.code !== undefined) body.code = input.code;
-  if (input.name !== undefined) body.name = input.name;
+  if (input.name !== undefined) body.name = String(input.name).trim();
   if (input.unit !== undefined) body.unit = input.unit;
   if (input.category !== undefined) body.category = input.category;
-  const meta = metadataToDto(input);
+  const meta = metadataToApiObject(input.metadata);
   if (meta) body.metadata = meta;
   return body;
 }
@@ -56,7 +65,8 @@ export function createMeasureUnitInputToDto(input: CreateMeasureUnitInput): Reco
     name: input.name,
     symbol: input.symbol || '',
   };
-  if (input.metadata) body.metadata = input.metadata;
+  const meta = metadataToApiObject(input.metadata);
+  if (meta) body.metadata = meta;
   return body;
 }
 

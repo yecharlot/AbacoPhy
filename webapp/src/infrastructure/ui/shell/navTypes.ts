@@ -11,7 +11,18 @@ export type NavItem = {
   view?: string | string[];
 };
 
+/** Filtra nav por ids de pantalla (política FE). */
+export function filterNavByScreenIds(
+  items: NavItem[],
+  screenIds: string[] | null | undefined,
+): NavItem[] {
+  if (!screenIds || screenIds.length === 0) return [];
+  const set = new Set(screenIds);
+  return items.filter((i) => set.has(i.id));
+}
+
 export function filterNavByViews(
+
   items: NavItem[],
   views: string[] | null | undefined,
 ): NavItem[] {
@@ -52,5 +63,6 @@ export const PLACEHOLDER_NAV: NavItem[] = [
   { id: 'traza', label: 'Traza', view: 'traza' },
   { id: 'salvas', label: 'Salvas', view: 'salvas' },
   { id: 'usuarios', label: 'Usuarios', view: 'usuarios' },
+  { id: 'permisos', label: 'Permisos UI', view: ['usuarios', 'master'] },
   { id: 'master', label: 'Master', view: 'master' },
 ];

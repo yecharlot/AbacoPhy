@@ -17,6 +17,51 @@
   let statusFilter: 'all' | 'available' | 'low' | 'out' = 'all';
   let actionError = '';
 
+  /** Marcador FE de abandono (mismo que domain RECEPTION_ABANDON_MARKER). */
+  const ABANDON_MARKER = '[ABANDONADO]';
+
+  function isReceptionAbandoned(reception: {
+    status?: string;
+    note?: string;
+    metadataState?: {
+      receptionStatus?: string;
+      problemReason?: string;
+      abandonReason?: string;
+    };
+  }): boolean {
+    if (reception.status === 'anulado') return true;
+    const st = reception.metadataState?.receptionStatus;
+    if (st === 'abandoned' || st === 'cancelled') return true;
+    if (reception.metadataState?.abandonReason) return true;
+    const parts = [
+      reception.metadataState?.problemReason,
+      reception.metadataState?.abandonReason,
+      reception.note,
+    ];
+    for (const p of parts) {
+      if (p && String(p).includes(ABANDON_MARKER)) return true;
+    }
+    return false;
+  }
+
+  function receptionAbandonReason(reception: {
+    note?: string;
+    metadataState?: { problemReason?: string; abandonReason?: string };
+  }): string {
+    const raw =
+      reception.metadataState?.abandonReason ||
+      reception.metadataState?.problemReason ||
+      reception.note ||
+      '';
+    const clean = String(raw)
+      .replaceAll(ABANDON_MARKER, '')
+      .replace(/^\s*ABANDONO\s*:\s*/i, '')
+      .replace(/^[\s·]+/, '')
+      .trim();
+    return clean || 'Sin motivo registrado';
+  }
+
+
   onMount(() => {
     const unsubscribe = store.subscribe((next: WarehouseState) => {
       state = next;
@@ -34,11 +79,18 @@
           reception.metadataState?.receptionStatus === 'pending_entry' ||
           (!reception.metadataState?.receptionStatus && reception.status === 'pendiente_entrada'),
   );
-  $: problemReceptions = state.receptions.filter((reception) =>
-          reception.metadataState?.receptionStatus === 'entry_problem' || reception.status === 'problemas_entrada',
+  $: problemReceptions = state.receptions.filter((reception) => {
+    if (isReceptionAbandoned(reception)) return false;
+    const v = reception.metadataState?.receptionStatus;
+    return (
+      v === 'entry_problem' ||
+      (!v && reception.status === 'problemas_entrada')
+    );
+  });
+  $: abandonedReceptions = state.receptions.filter((reception) =>
+    isReceptionAbandoned(reception),
   );
-
-  $: normalizedQuery = query.trim().toLocaleLowerCase();
+$: normalizedQuery = query.trim().toLocaleLowerCase();
   $: filteredRows = state.rows.filter((row) => {
     const matchesSearch = !normalizedQuery ||
             row.name.toLocaleLowerCase().includes(normalizedQuery) ||
@@ -63,16 +115,43 @@
     }
   }
 
-  async function rejectReception(id: string) {
-    const reason = window.prompt('Motivo para rechazar la entrada:')?.trim();
+  async function reportProblem(id: string) {
+    const reason = window
+      .prompt('Motivo de la incidencia (aun se podra dar entrada despues):')
+      ?.trim();
     if (!reason) return;
     actionError = '';
     try {
       await store.enterReception({ id, accept: false, reason });
     } catch (error) {
-      actionError = error instanceof Error ? error.message : 'No se pudo rechazar la entrada.';
+      actionError =
+        error instanceof Error ? error.message : 'No se pudo registrar la incidencia.';
     }
   }
+
+  async function abandonReception(id: string) {
+    const reason = window
+      .prompt(
+        'Motivo del ABANDONO definitivo. No se dara entrada; regeneren el informe de recepcion si aplica.',
+      )
+      ?.trim();
+    if (!reason) return;
+    if (
+      !window.confirm(
+        'Confirmar abandono definitivo? El motivo queda en traza. En la UI no se ofrecera dar entrada.',
+      )
+    ) {
+      return;
+    }
+    actionError = '';
+    try {
+      await store.enterReception({ id, accept: false, abandon: true, reason });
+    } catch (error) {
+      actionError =
+        error instanceof Error ? error.message : 'No se pudo abandonar la recepcion.';
+    }
+  }
+
 </script>
 
 <section class="warehouse" data-screen="almacen">
@@ -158,24 +237,44 @@
       <section class="receptions-panel" aria-labelledby="receptions-title">
         <div class="panel-head">
           <div><p class="eyebrow">Bandeja de entrada</p><h2 id="receptions-title">Informes de recepción</h2></div>
-          <div class="head-counts"><Badge>{pendingReceptions.length} pendientes</Badge>{#if problemReceptions.length}<Badge tone="off">{problemReceptions.length} incidencias</Badge>{/if}</div>
+          <div class="head-counts"><Badge>{pendingReceptions.length} pendientes</Badge>{#if problemReceptions.length}<Badge tone="off">{problemReceptions.length} incidencias</Badge>{/if}{#if abandonedReceptions.length}<Badge tone="off">{abandonedReceptions.length} abandonadas</Badge>{/if}</div>
         </div>
         <div class="reception-scroll">
-          {#if pendingReceptions.length === 0 && problemReceptions.length === 0}
+          {#if pendingReceptions.length === 0 && problemReceptions.length === 0 && abandonedReceptions.length === 0}
             <p class="empty-state">No hay recepciones por revisar. Los nuevos informes creados por Económico llegarán a esta bandeja.</p>
           {/if}
           {#each pendingReceptions as reception (reception.id)}
             <article class="reception-item">
               <div class="reception-main"><span class="state-dot pending"></span><div><strong>{reception.number}</strong><p>{reception.supplier || 'Proveedor no informado'} · {reception.lines.length} líneas</p></div></div>
               <div class="reception-meta"><span>{reception.date}</span><strong><Money amount={reception.totalCost} currency={reception.currency} /></strong></div>
-              <div class="reception-actions"><Button on:click={() => resolveProblem(reception.id)} disabled={state.saving}>Dar entrada</Button><Button variant="secondary" on:click={() => rejectReception(reception.id)} disabled={state.saving}>Rechazar</Button></div>
+              <div class="reception-actions">
+                <Button on:click={() => resolveProblem(reception.id)} disabled={state.saving}>Dar entrada</Button>
+                <Button variant="secondary" on:click={() => reportProblem(reception.id)} disabled={state.saving}>Incidencia</Button>
+                <Button variant="secondary" on:click={() => abandonReception(reception.id)} disabled={state.saving}>Abandonar</Button>
+              </div>
             </article>
           {/each}
           {#each problemReceptions as reception (reception.id)}
             <article class="reception-item issue">
               <div class="reception-main"><span class="state-dot issue"></span><div><strong>{reception.number}</strong><p>{reception.metadataState?.problemReason || reception.note || 'Incidencia sin detalle'}</p></div></div>
               <div class="reception-meta"><span>Con incidencia</span><strong>{reception.supplier || '—'}</strong></div>
-              <div class="reception-actions"><Button on:click={() => resolveProblem(reception.id)} disabled={state.saving}>Resolver</Button><Button variant="secondary" on:click={() => rejectReception(reception.id)} disabled={state.saving}>Actualizar rechazo</Button></div>
+              <div class="reception-actions">
+                <Button on:click={() => resolveProblem(reception.id)} disabled={state.saving}>Resolver</Button>
+                <Button variant="secondary" on:click={() => reportProblem(reception.id)} disabled={state.saving}>Actualizar incidencia</Button>
+                <Button variant="secondary" on:click={() => abandonReception(reception.id)} disabled={state.saving}>Abandonar</Button>
+              </div>
+            </article>
+          {/each}
+          {#each abandonedReceptions as reception (reception.id)}
+            <article class="reception-item abandoned">
+              <div class="reception-main">
+                <span class="state-dot abandoned"></span>
+                <div>
+                  <strong>{reception.number}</strong>
+                  <p>Abandonada · {receptionAbandonReason(reception)}</p>
+                </div>
+              </div>
+              <div class="reception-meta"><span>Cerrada</span><strong>Regenerar IR</strong></div>
             </article>
           {/each}
         </div>
@@ -238,9 +337,11 @@
   .insights-column, .operations-column { min-width: 0; }.insights-column { display: flex; flex-direction: column; gap: 0; }.column-title { display: flex; justify-content: space-between; align-items: baseline; margin: 0 2px 8px; color: var(--ap-text-secondary); font-size: .78rem; font-weight: 700; }.column-title small { color: var(--ap-text-muted); font-size: .67rem; font-weight: 500; }
   .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }.metric-grid :global(.card) { margin-bottom: 10px; }.metric-grid strong { display: block; color: var(--ap-text); font-size: 1.45rem; line-height: 1.15; margin: 6px 0 2px; }.metric-grid span { color: var(--ap-text-muted); font-size: .72rem; }
   .hero-value { color: #0a1210; font-size: 1.5rem; font-weight: 800; letter-spacing: -.04em; margin: 7px 0 3px; }.hero-caption { color: rgba(10,18,16,.72); font-size: .76rem; }.hint, .note, .empty-note { margin-top: 10px; color: var(--ap-text-muted); font-size: .74rem; line-height: 1.45; }
-  .health-summary { display: grid; gap: 4px; margin-top: 12px; }.health-row { appearance: none; border: 0; background: transparent; padding: 6px 0; display: grid; grid-template-columns: 9px 1fr auto; align-items: center; gap: 8px; text-align: left; cursor: pointer; color: var(--ap-text-secondary); font: inherit; font-size: .8rem; }.health-row:hover b { color: var(--ap-text); }.health-row span, .stock-state i, .state-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ap-ok); }.health-row.low span, .stock-state.low i, .state-dot.pending { background: #e7aa3d; }.health-row.out span, .stock-state.out i, .state-dot.issue { background: var(--ap-danger); }.health-row em { font-style: normal; font-weight: 750; color: var(--ap-text); }
+  .health-summary { display: grid; gap: 4px; margin-top: 12px; }.health-row { appearance: none; border: 0; background: transparent; padding: 6px 0; display: grid; grid-template-columns: 9px 1fr auto; align-items: center; gap: 8px; text-align: left; cursor: pointer; color: var(--ap-text-secondary); font: inherit; font-size: .8rem; }.health-row:hover b { color: var(--ap-text); }.health-row span, .stock-state i, .state-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ap-ok); }.health-row.low span, .stock-state.low i, .state-dot.pending { background: #e7aa3d; }.health-row.out span, .stock-state.out i, .state-dot.abandoned { background: var(--ap-text-muted, #858c9d); }
+  .state-dot.issue { background: var(--ap-danger); }.health-row em { font-style: normal; font-weight: 750; color: var(--ap-text); }
   .mini-tag { padding: 3px 7px; border-radius: 6px; background: var(--ap-primary-soft); color: var(--ap-primary); font-size: .62rem; font-weight: 700; text-transform: uppercase; }.demand-list { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 9px; }.demand-list li { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 8px; }.rank { color: var(--ap-text-muted); font-size: .7rem; font-weight: 750; }.demand-list strong, .demand-list small { display: block; }.demand-list strong { color: var(--ap-text); font-size: .78rem; }.demand-list small { color: var(--ap-text-muted); font-size: .67rem; margin-top: 2px; }.demand-list > li > b { color: var(--ap-text); font-size: .82rem; }
-  .operations-column { display: grid; grid-template-rows: minmax(255px, 34%) minmax(380px, 1fr); gap: 14px; }.receptions-panel, .stock-panel { background: var(--ap-bg-elevated); border: 1px solid var(--ap-border); border-radius: var(--ap-radius); padding: 16px; min-height: 0; display: flex; flex-direction: column; }.head-counts { gap: 6px; flex-wrap: wrap; justify-content: flex-end; }.reception-scroll, .stock-scroll { overflow: auto; min-height: 0; scrollbar-color: var(--ap-border-strong, var(--ap-border)) transparent; }.reception-scroll { margin-top: 12px; }.reception-item { gap: 12px; justify-content: space-between; padding: 10px 2px; border-top: 1px solid var(--ap-border); }.reception-item.issue { background: color-mix(in srgb, var(--ap-danger) 4%, transparent); margin-inline: -5px; padding-inline: 7px; border-radius: 8px; }.reception-main { align-items: flex-start; gap: 9px; min-width: 0; flex: 1; }.state-dot { margin-top: 5px; flex: 0 0 auto; }.reception-main strong { color: var(--ap-text); font-size: .82rem; }.reception-main p { color: var(--ap-text-secondary); font-size: .72rem; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 27ch; }.reception-meta { display: grid; text-align: right; gap: 3px; font-size: .7rem; color: var(--ap-text-muted); }.reception-meta strong { color: var(--ap-text-secondary); }.reception-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }.reception-actions :global(button) { font-size: .7rem; padding: 7px 9px; }
+  .operations-column { display: grid; grid-template-rows: minmax(255px, 34%) minmax(380px, 1fr); gap: 14px; }.receptions-panel, .stock-panel { background: var(--ap-bg-elevated); border: 1px solid var(--ap-border); border-radius: var(--ap-radius); padding: 16px; min-height: 0; display: flex; flex-direction: column; }.head-counts { gap: 6px; flex-wrap: wrap; justify-content: flex-end; }.reception-scroll, .stock-scroll { overflow: auto; min-height: 0; scrollbar-color: var(--ap-border-strong, var(--ap-border)) transparent; }.reception-scroll { margin-top: 12px; }.reception-item { gap: 12px; justify-content: space-between; padding: 10px 2px; border-top: 1px solid var(--ap-border); }.reception-item.abandoned { opacity: 0.9; }
+  .reception-item.issue { background: color-mix(in srgb, var(--ap-danger) 4%, transparent); margin-inline: -5px; padding-inline: 7px; border-radius: 8px; }.reception-main { align-items: flex-start; gap: 9px; min-width: 0; flex: 1; }.state-dot { margin-top: 5px; flex: 0 0 auto; }.reception-main strong { color: var(--ap-text); font-size: .82rem; }.reception-main p { color: var(--ap-text-secondary); font-size: .72rem; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 27ch; }.reception-meta { display: grid; text-align: right; gap: 3px; font-size: .7rem; color: var(--ap-text-muted); }.reception-meta strong { color: var(--ap-text-secondary); }.reception-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }.reception-actions :global(button) { font-size: .7rem; padding: 7px 9px; }
   .stock-head { margin-bottom: 12px; }.result-count { color: var(--ap-text-muted); font-size: .73rem; }.stock-tools { align-items: flex-start; gap: 9px; padding-bottom: 12px; border-bottom: 1px solid var(--ap-border); }.stock-tools label { flex: 1; }.stock-tools input { width: 100%; box-sizing: border-box; border: 1px solid var(--ap-border); border-radius: 9px; padding: 8px 10px; background: var(--ap-bg); color: var(--ap-text); font: inherit; font-size: .78rem; }.filter-group { gap: 4px; flex-wrap: wrap; justify-content: flex-end; }.filter-group button { border: 1px solid transparent; background: var(--ap-primary-soft); color: var(--ap-text-secondary); border-radius: 7px; padding: 6px 8px; font: inherit; font-size: .68rem; cursor: pointer; }.filter-group button.active { color: var(--ap-primary); border-color: color-mix(in srgb, var(--ap-primary) 35%, var(--ap-border)); background: color-mix(in srgb, var(--ap-primary) 13%, transparent); }.stock-scroll { margin-top: 2px; } table { width: 100%; border-collapse: collapse; font-size: .79rem; } th { position: sticky; top: 0; z-index: 1; text-align: left; padding: 9px 8px; color: var(--ap-text-muted); background: var(--ap-bg-elevated); border-bottom: 1px solid var(--ap-border); font-size: .65rem; letter-spacing: .07em; text-transform: uppercase; } td { padding: 10px 8px; border-bottom: 1px solid var(--ap-border); color: var(--ap-text-secondary); } td strong, td small { display: block; } td strong { color: var(--ap-text); font-size: .8rem; } td small { color: var(--ap-text-muted); font-size: .67rem; margin-top: 2px; }.num { text-align: right; font-variant-numeric: tabular-nums; }.quantity { color: var(--ap-text); font-weight: 750; }.stock-state { display: inline-flex; align-items: center; gap: 5px; color: var(--ap-text-secondary); font-size: .68rem; white-space: nowrap; }.empty-state { color: var(--ap-text-muted); font-size: .82rem; padding: 20px 2px; }.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
   @media (min-width: 1100px) { .warehouse { height: calc(100dvh - 174px); max-height: 860px; }.warehouse-layout { grid-template-columns: minmax(290px, .9fr) minmax(560px, 1.65fr); flex: 1; overflow: hidden; }.insights-column { overflow-y: auto; padding-right: 4px; }.operations-column { min-height: 0; } }
   @media (max-width: 760px) { .reception-item { align-items: flex-start; flex-wrap: wrap; }.reception-meta { text-align: left; }.reception-actions { width: 100%; }.stock-tools { flex-direction: column; }.stock-tools label { width: 100%; }.filter-group { justify-content: flex-start; }.operations-column { grid-template-rows: auto minmax(350px, 1fr); }.reception-scroll { max-height: 340px; } th:nth-child(4), td:nth-child(4) { display: none; } }
