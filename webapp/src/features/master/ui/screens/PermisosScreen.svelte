@@ -144,7 +144,6 @@
     return unsub;
   });
 
-  $: selectedUserName = selectedUser()?.displayName || selectedUser()?.username || '';
   $: selectedCount = tab === 'roles'
     ? defaultScreensForRole(selectedRole).length
     : screensInGroup(SCREEN_GROUPS.flatMap((g) => g.ids), true).filter(userScreenAllowed).length;
@@ -172,9 +171,6 @@
           <span class="stat-val">{defaultCount}</span>
           <span class="stat-lbl">default del rol</span>
         </div>
-        {#if isCustomRole}
-          <span class="pill-warn">personalizado</span>
-        {/if}
       {/if}
     </div>
   </header>
@@ -253,12 +249,7 @@
                   <span class="tile-check" aria-hidden="true"></span>
                   <span class="tile-body">
                     <span class="tile-label">{catalogLabel(sid)}</span>
-                    <span class="tile-id">
-                      {#if userExplicitState(sid) === 'grant'}concedido por usuario
-                      {:else if userExplicitState(sid) === 'revoke'}revocado por usuario
-                      {:else if userExplicitState(sid) === 'mixed'}configuración mixta
-                      {:else}heredado del rol{/if}
-                    </span>
+                    <span class="tile-id">base del rol</span>
                   </span>
                 </button>
               {/each}
@@ -749,6 +740,76 @@
     color: var(--color-text-primary, var(--ap-text));
     font: inherit;
     font-size: 0.9rem;
+  }
+
+  .readonly-badge {
+    cursor: default;
+    opacity: 0.8;
+    pointer-events: none;
+  }
+  .predictive-user {
+    position: relative;
+  }
+  .user-suggestions {
+    position: absolute;
+    z-index: 30;
+    left: 0;
+    right: 0;
+    top: calc(100% + 0.35rem);
+    max-height: 18rem;
+    overflow-y: auto;
+    border: 1px solid var(--color-border, var(--ap-border));
+    border-radius: 14px;
+    background: var(--color-surface, var(--ap-bg-elevated));
+    box-shadow: var(--shadow-float, 0 20px 60px rgba(0, 0, 0, 0.28));
+    padding: 0.3rem;
+  }
+  .user-suggestion {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.12rem;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    padding: 0.6rem 0.7rem;
+    cursor: pointer;
+  }
+  .user-suggestion:hover,
+  .user-suggestion:focus-visible {
+    background: color-mix(in srgb, var(--accent-cyan, #61e6e1) 10%, transparent);
+    outline: none;
+  }
+  .suggestion-name {
+    color: var(--color-text-primary, var(--ap-text));
+    font-size: 0.84rem;
+    font-weight: 650;
+  }
+  .suggestion-meta {
+    color: var(--color-text-muted, var(--ap-text-muted));
+    font-size: 0.7rem;
+  }
+  .suggestion-empty {
+    padding: 0.75rem;
+    color: var(--color-text-muted, var(--ap-text-muted));
+    font-size: 0.8rem;
+  }
+  .user-selected {
+    min-width: 8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.48rem 0.75rem;
+    border: 1px solid var(--color-border, var(--ap-border));
+    border-radius: 12px;
+    background: var(--color-surface, var(--ap-bg-elevated));
+  }
+  .user-selected strong {
+    font-size: 0.86rem;
   }
 
   .empty {
