@@ -1159,7 +1159,7 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 			u.Role = body.Role
 			roleChanged = true
 			// Al cambiar el rol se reasignan los módulos por defecto de ese rol
-			u.Modules = auth.DefaultModulesForRoleInTenant(snap, body.Role)
+			u.Modules = nil
 		}
 		if body.Modules != nil && !roleChanged {
 			if sess.Role != domain.RoleMaster && sess.Role != domain.RoleAdmin {
