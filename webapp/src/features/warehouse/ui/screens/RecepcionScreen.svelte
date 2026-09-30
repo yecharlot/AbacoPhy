@@ -423,7 +423,7 @@
       variant="secondary"
       onclick={toggleProblems}
       disabled={problemReceptions.length > 0 && showProblems}
-      title={problemReceptions.length > 0 ? 'Visible mientras haya incidencias' : ''}
+      /* title no soportado en Button */
     >
       {#if problemReceptions.length > 0}
         Problemas ({problemReceptions.length})

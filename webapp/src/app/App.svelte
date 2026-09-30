@@ -279,7 +279,7 @@
         store={payrollStore}
         masterStore={masterStore}
         warehouseStore={warehouseStore}
-        tenantId={sessionState.session?.user?.tenantId ?? sessionState.session?.tenantId ?? ''}
+        tenantId={sessionState.session?.user?.tenantId ?? ''}
         sessionRole={sessionState.session?.user?.role ?? ''}
       />
     {:else if activeId === 'liquidaciones'}

@@ -646,7 +646,7 @@
               {/if}
               {#if selectedPosition()}
                 <p class="hint-inline"
-                  >Rol asignado: <strong>{roleLabel(selectedPosition().role)}</strong></p
+                  >Rol asignado: <strong>{roleLabel(selectedPosition()?.role ?? '')}</strong></p
                 >
               {/if}
             </div>
