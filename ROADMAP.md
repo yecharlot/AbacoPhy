@@ -1,5 +1,5 @@
 # ÁbacoPhy — ROADMAP y estado del proyecto
-
+ 
 ## Qué es
 ÁbacoPhy es un **sistema contable para negocios** (PyME y TCP) construido sobre la infraestructura **Alset / PrismaTEC**: API REST consumible por apps móviles, PWA responsive offline-first, persistencia por snapshots y CID, roles y tokens.
 
