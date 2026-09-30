@@ -43,48 +43,29 @@ export function screensFromSessionViews(session: Session | null | undefined): st
   return out;
 }
 
-function feScreensSafe(session: Session): string[] {
-  try {
-    return resolveScreensForSession(session).filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
 /**
- * Roles de producto: solo política FE (panel o default).
- * No ampliar con ViewACL del backend.
+ * The backend is the source of truth for the authenticated user's effective
+ * permissions. /auth/login and /auth/me return `views` already resolved as
+ * role permissions plus explicit per-user grants/revokes.
+ *
+ * Frontend-only local UI policy is intentionally kept only as a legacy fallback
+ * for sessions created by older clients/tests that do not contain backend views.
  */
 export function effectiveScreens(session: Session | null | undefined): string[] {
   if (!session) return [];
-  const role = String(session.user?.role || '').trim().toLowerCase();
 
-  const fe = feScreensSafe(session);
+  const backend = screensFromSessionViews(session);
+  if (backend.length > 0) return backend;
+
+  // Legacy fallback only: never overrides backend-provided permissions.
+  const fe = resolveScreensForSession(session).filter(Boolean);
   if (fe.length > 0) return fe;
 
-  // Si fe está vacío, verificar si fue explícitamente configurado como vacío en la política FE
-  try {
-    const config = loadUiAccessConfig(session.user?.tenantId);
-    if (session.user?.id && config.userAccess?.[session.user.id]) {
-      return config.userAccess[session.user.id].screens || [];
-    }
-    if (session.user?.username && config.userAccess?.[session.user.username]) {
-      return config.userAccess[session.user.username].screens || [];
-    }
-    if (Array.isArray(config.roleScreens?.[role])) {
-      return config.roleScreens[role];
-    }
-  } catch {
-    /* fallback */
-  }
-
+  const role = String(session.user?.role || '').trim().toLowerCase();
   if (isKnownProductRole(role)) {
     const d = defaultScreensForRole(role);
     if (d.length) return d;
   }
-
-  const backend = screensFromSessionViews(session);
-  if (backend.length) return backend;
 
   if (role === 'vendedor') return ['pos'];
   if (role === 'master' || role === 'admin') {
