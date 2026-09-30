@@ -16,6 +16,8 @@
   let userQuery = '';
   let draftUserModules: Record<string, boolean> = {};
   let draftRolePermissions: Record<string, boolean> = {};
+  let roleChecked: Record<string, boolean> = {};
+  let userChecked: Record<string, boolean> = {};
   let notice = '';
   let error = '';
   let savedPulse = false;
@@ -48,9 +50,37 @@
     return state.users.find((u) => u.id === selectedUserId) ?? null;
   }
 
+  function syncRoleChecked() {
+    const next: Record<string, boolean> = {};
+    for (const screenId of Object.keys(SCREEN_VIEWS)) {
+      const keys = SCREEN_VIEWS[screenId] ?? [];
+      next[screenId] = keys.length > 0 && keys.every((key) => Object.prototype.hasOwnProperty.call(draftRolePermissions, key)
+        ? draftRolePermissions[key] === true
+        : defaultScreensForRole(selectedRole).includes(screenId));
+    }
+    roleChecked = next;
+  }
+
+  function syncUserChecked() {
+    const user = selectedUser();
+    if (!user) {
+      userChecked = {};
+      return;
+    }
+    const next: Record<string, boolean> = {};
+    for (const screenId of Object.keys(SCREEN_VIEWS)) {
+      const keys = SCREEN_VIEWS[screenId] ?? [];
+      next[screenId] = keys.length > 0 && keys.every((key) => Object.prototype.hasOwnProperty.call(draftUserModules, key)
+        ? draftUserModules[key] === true
+        : roleBaseHasScreen(user.role, screenId));
+    }
+    userChecked = next;
+  }
+
   function loadSelectedRole(role: string) {
     selectedRole = role;
     draftRolePermissions = { ...(state.rolePermissions[role] || {}) };
+    syncRoleChecked();
     roleDraftDirty = false;
     notice = '';
     error = '';
@@ -86,6 +116,7 @@
     selectedUserId = id;
     const user = state.users.find((u) => u.id === id);
     draftUserModules = { ...(user?.modules || {}) };
+    syncUserChecked();
     userDraftDirty = false;
     userQuery = user ? (user.displayName || user.username) + ' · ' + user.username : '';
     notice = '';
@@ -96,6 +127,7 @@
     selectedUserId = '';
     userQuery = '';
     draftUserModules = {};
+    userChecked = {};
     userDraftDirty = false;
     notice = '';
     error = '';
@@ -117,6 +149,7 @@
     const next = { ...draftRolePermissions };
     for (const key of keys) next[key] = checked;
     draftRolePermissions = next;
+    roleChecked = { ...roleChecked, [screenId]: checked };
     roleDraftDirty = true;
     notice = '';
     error = '';
@@ -129,6 +162,7 @@
     const next = { ...draftUserModules };
     for (const key of keys) next[key] = checked;
     draftUserModules = next;
+    userChecked = { ...userChecked, [screenId]: checked };
     userDraftDirty = true;
     notice = '';
     error = '';
@@ -170,10 +204,14 @@
       state = s;
       if (selectedUserId) {
         const remote = s.users.find((u) => u.id === selectedUserId);
-        if (remote && !isSaving && !userDraftDirty) draftUserModules = { ...remote.modules };
+        if (remote && !isSaving && !userDraftDirty) {
+          draftUserModules = { ...remote.modules };
+          syncUserChecked();
+        }
       }
       if (!isSaving && !roleDraftDirty) {
         draftRolePermissions = { ...(s.rolePermissions[selectedRole] || {}) };
+        syncRoleChecked();
       }
     });
     void store.loadAll();
@@ -269,18 +307,18 @@
             <h3 class="group-title">{group.label}</h3>
             <div class="tile-grid">
               {#each ids as sid (sid)}
-                <label class="tile" class:on={roleScreenAllowed(sid)}>
+                <label class="tile" class:on={roleChecked[sid] === true}>
                   <input
                     class="tile-input"
                     type="checkbox"
-                    checked={roleScreenAllowed(sid)}
+                    checked={roleChecked[sid] === true}
                     onchange={(event) => setRoleScreen(sid, (event.currentTarget as HTMLInputElement).checked)}
                     aria-label={'Permitir ' + catalogLabel(sid) + ' para ' + roleLabel(selectedRole)}
                   />
                   <span class="tile-check" aria-hidden="true"></span>
                   <span class="tile-body">
                     <span class="tile-label">{catalogLabel(sid)}</span>
-                    <span class="tile-id">{roleScreenAllowed(sid) ? 'permitida' : 'bloqueada'}</span>
+                    <span class="tile-id">{roleChecked[sid] === true ? 'permitida' : 'bloqueada'}</span>
                   </span>
                 </label>
               {/each}
@@ -348,18 +386,18 @@
               <h3 class="group-title">{group.label}</h3>
               <div class="tile-grid">
                 {#each ids as sid (sid)}
-                  <label class="tile" class:on={userScreenAllowed(sid)}>
+                  <label class="tile" class:on={userChecked[sid] === true}>
                     <input
                       class="tile-input"
                       type="checkbox"
-                      checked={userScreenAllowed(sid)}
+                      checked={userChecked[sid] === true}
                       onchange={(event) => setUserScreen(sid, (event.currentTarget as HTMLInputElement).checked)}
                       aria-label={'Permitir ' + catalogLabel(sid) + ' al usuario seleccionado'}
                     />
                     <span class="tile-check" aria-hidden="true"></span>
                     <span class="tile-body">
                       <span class="tile-label">{catalogLabel(sid)}</span>
-                      <span class="tile-id">{sid}</span>
+                      <span class="tile-id">{userChecked[sid] === true ? 'permitida' : 'bloqueada'}</span>
                     </span>
                   </label>
                 {/each}
