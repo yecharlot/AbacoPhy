@@ -797,3 +797,13 @@ No volver a acoplar la creación de `Reception` con `WarehouseStock` o `AvgCost`
 - Los usuarios nuevos y los usuarios cuyo rol cambia pasan a heredar la política del rol (`Modules=nil`) en lugar de almacenar una copia fija de los permisos.
 - La pantalla de permisos permite editar los checkboxes por rol y guardar la matriz en backend.
 - La pantalla por usuario mantiene las excepciones explícitas y ahora refleja la política efectiva personalizada del rol.
+
+
+## 2026-09-30 — Persistencia y relectura de permisos de rol/usuario
+- Se corrigió el flujo de administración de permisos para evitar estados visuales que parecían guardados pero no coincidían con una lectura posterior del backend.
+- El cliente HTTP usa `cache: 'no-store'` para evitar respuestas GET antiguas en datos administrativos mutables.
+- `PUT /api/v1/role-permissions` continúa persistiendo `Tenant.RolePermissions` mediante `Store.Put`; además, la lectura del endpoint se marca como `Cache-Control: no-store, no-cache, must-revalidate`.
+- El repositorio frontend verifica los permisos del rol mediante un GET posterior al PUT. Si el backend no devuelve exactamente los valores recién guardados, el guardado se considera fallido.
+- El repositorio frontend aplica la misma verificación a excepciones de módulos por usuario mediante un GET posterior de usuarios.
+- La vista `PermisosScreen.svelte` vuelve a cargar el estado desde backend después de guardar un rol y el contador de pantallas activas depende directamente de los mapas reactivos `roleChecked/userChecked`, corrigiendo la cabecera que podía mostrar un conteo obsoleto.
+- No se debe considerar persistido un cambio de permisos solo porque el PUT respondió correctamente: el criterio actual es que una lectura posterior del backend devuelva los valores guardados.
