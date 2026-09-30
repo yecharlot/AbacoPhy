@@ -7,6 +7,8 @@ import type {
   UpdateModulesResponseDto,
   UserResponseDto,
   UsersResponseDto,
+  RolePermissionsResponseDto,
+  UpdateRolePermissionsResponseDto,
 } from '../dto/MasterDto';
 
 export class MasterRemoteSource {
@@ -34,6 +36,14 @@ export class MasterRemoteSource {
 
   getUsers(): Promise<UsersResponseDto> {
     return this.http.get<UsersResponseDto>('/users');
+  }
+
+  getRolePermissions(): Promise<RolePermissionsResponseDto> {
+    return this.http.get<RolePermissionsResponseDto>('/role-permissions');
+  }
+
+  updateRolePermissions(body: Record<string, unknown>): Promise<UpdateRolePermissionsResponseDto> {
+    return this.http.put<UpdateRolePermissionsResponseDto>('/role-permissions', body);
   }
 
   createUser(body: Record<string, unknown>): Promise<UserResponseDto> {
