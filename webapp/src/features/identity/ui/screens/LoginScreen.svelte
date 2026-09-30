@@ -94,21 +94,6 @@
 
       <SocialProof />
 
-      <div class="feature-grid" aria-hidden="true" style="display:none">
-        <div class="feature">
-          <span class="feature-dot"></span>
-          <div><strong>Operación</strong><small>Inventario y procesos conectados</small></div>
-        </div>
-        <div class="feature">
-          <span class="feature-dot green"></span>
-          <div><strong>Finanzas</strong><small>Información contable centralizada</small></div>
-        </div>
-        <div class="feature">
-          <span class="feature-dot purple"></span>
-          <div><strong>Seguridad</strong><small>Acceso según tus permisos</small></div>
-        </div>
-      </div>
-
       <p class="version">ÁbacoPhy · Plataforma de gestión empresarial</p>
     </section>
 
