@@ -74,7 +74,7 @@
     const user = selectedUser();
     if (!user) return false;
     const keys = SCREEN_VIEWS[screenId] ?? [];
-    return keys.some((key) => Object.prototype.hasOwnProperty.call(draftUserModules, key)
+    return keys.every((key) => Object.prototype.hasOwnProperty.call(draftUserModules, key)
       ? draftUserModules[key] === true
       : roleBaseHasScreen(user.role, screenId));
   }
