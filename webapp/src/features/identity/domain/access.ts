@@ -1,7 +1,6 @@
 import type { Session } from './entities/Session';
 import { defaultScreensForRole } from './uiAccessPolicy';
 import { isKnownProductRole, resolveScreensForSession } from './resolveUiAccess';
-import { loadUiAccessConfig } from './uiAccessStorage';
 
 export const SCREEN_VIEWS: Record<string, string[]> = {
   home: ['dashboard', 'reportes'],
