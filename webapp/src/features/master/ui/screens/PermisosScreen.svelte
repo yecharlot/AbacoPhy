@@ -46,6 +46,11 @@
   }
 
   function roleBaseHasScreen(role: string, screenId: string): boolean {
+    const keys = SCREEN_VIEWS[screenId] ?? [];
+    const permissions = state.rolePermissions[role];
+    if (permissions) {
+      return keys.length > 0 && keys.every((key) => permissions[key] === true);
+    }
     return defaultScreensForRole(role).includes(screenId);
   }
 
