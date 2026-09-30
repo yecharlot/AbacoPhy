@@ -33,6 +33,7 @@
   "dependencies": {
     "@lucide/svelte": "^1.47.0",
     "bits-ui": "^2.19.2",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "ogl": "^1.0.11"
   }
 }
