@@ -209,7 +209,7 @@
       role="tab"
       class:active={tab === 'roles'}
       aria-selected={tab === 'roles'}
-      on:click={() => (tab = 'roles')}
+      onclick={() => (tab = 'roles')}
     >
       <span class="seg-dot"></span>
       Por rol
@@ -219,7 +219,7 @@
       role="tab"
       class:active={tab === 'users'}
       aria-selected={tab === 'users'}
-      on:click={() => (tab = 'users')}
+      onclick={() => (tab = 'users')}
     >
       <span class="seg-dot"></span>
       Por usuario
@@ -244,7 +244,7 @@
             class:on={selectedRole === r}
             role="option"
             aria-selected={selectedRole === r}
-            on:click={() => loadSelectedRole(r)}
+            onclick={() => loadSelectedRole(r)}
           >
             {roleLabel(r)}
           </button>
@@ -301,7 +301,7 @@
             type="search"
             placeholder="Buscar por nombre, usuario o rol…"
             value={userQuery}
-            on:input={(e) => {
+            oninput={(e) => {
               userQuery = e.currentTarget.value;
               if (!userQuery.trim()) clearSelectedUser();
             }}
@@ -310,7 +310,7 @@
           {#if !selectedUserId && userQuery.trim()}
             <div class="user-suggestions" role="listbox" aria-label="Usuarios encontrados">
               {#each filteredUsers() as u (u.id)}
-                <button type="button" class="user-suggestion" on:click={() => loadSelectedUser(u.id)}>
+                <button type="button" class="user-suggestion" onclick={() => loadSelectedUser(u.id)}>
                   <span class="suggestion-name">{u.displayName || u.username}</span>
                   <span class="suggestion-meta">{u.username} · {roleLabel(u.role)}</span>
                 </button>
@@ -327,7 +327,7 @@
             <span class="field-lbl">Rol base</span>
             <strong>{roleLabel(selectedUser()?.role || '')}</strong>
           </div>
-          <button type="button" class="ghost-btn danger" on:click={clearSelectedUser}>
+          <button type="button" class="ghost-btn danger" onclick={clearSelectedUser}>
             Cambiar usuario
           </button>
         {/if}
