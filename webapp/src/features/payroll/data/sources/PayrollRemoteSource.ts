@@ -4,7 +4,7 @@ export class PayrollRemoteSource {
   constructor(private readonly http: HttpClient) {}
 
   getEmployees(): Promise<{ employees: unknown[] }> {
-    return this.http.get<{ employees: unknown[] }>('/payroll/employees');
+    return this.http.get<{ employees?: unknown[]; trabajadores?: unknown[] }>('/payroll/employees');
   }
 
   async createEmployee(body: Record<string, unknown>): Promise<unknown> {

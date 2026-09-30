@@ -27,7 +27,11 @@ export class PayrollRepositoryImpl implements PayrollRepository {
   async getEmployees(): Promise<Employee[]> {
     try {
       const res = await this.remote.getEmployees();
-      return (res.employees || []).map((row) =>
+      const rows =
+        (res as { employees?: unknown[]; trabajadores?: unknown[] }).employees ||
+        (res as { trabajadores?: unknown[] }).trabajadores ||
+        [];
+      return rows.map((row) =>
         payrollMapper.toEmployee(row as Parameters<typeof payrollMapper.toEmployee>[0]),
       );
     } catch (err) {

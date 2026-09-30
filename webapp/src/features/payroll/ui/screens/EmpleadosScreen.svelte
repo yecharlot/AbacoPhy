@@ -341,6 +341,11 @@
         });
         formOk = 'Trabajador actualizado';
       } else {
+        const fullName = name.trim();
+        if (!fullName) {
+          formError = 'El nombre del trabajador es obligatorio';
+          return;
+        }
         if (!selectedUsername) {
           formError = 'Seleccione un nombre de usuario disponible';
           return;
@@ -350,41 +355,60 @@
           return;
         }
 
-        // 1) Usuario sistema (contraseña temporal hasheada en backend)
-        await masterStore.addUser({
-          username: selectedUsername,
-          displayName: name.trim(),
-          password: TEMP_PASSWORD,
-          role: pos.role,
-        });
-        // recargar para obtener id
+        // 1) Usuario sistema: crear o reutilizar si ya existe (reintento tras fallo de empleado)
+        let userId: string | undefined;
+        let userWasNew = false;
+        try {
+          await masterStore.addUser({
+            username: selectedUsername,
+            displayName: fullName,
+            password: TEMP_PASSWORD,
+            role: pos.role,
+          });
+          userWasNew = true;
+        } catch (userErr) {
+          const msg = userErr instanceof Error ? userErr.message : String(userErr);
+          const exists =
+            /ya existe|already exists|duplicate|duplicad/i.test(msg) ||
+            /username/i.test(msg);
+          if (!exists) throw userErr;
+          // Continuar: vincularemos el usuario existente
+        }
         await masterStore.loadAll().catch(() => undefined);
-        const created =
+        const linked =
           (masterStore.getState().users ?? []).find(
             (u) => u.username.toLowerCase() === selectedUsername.toLowerCase(),
           ) || null;
+        userId = linked?.id;
+        if (!userId) {
+          formError =
+            'No se pudo resolver el usuario de sistema. Revise Usuarios/Roles o elija otro username.';
+          return;
+        }
 
         const meta = mergeEmployeeMeta(null, {
           positionId: pos.id,
           positionName: pos.name,
           username: selectedUsername,
-          userId: created?.id,
+          userId,
           laborStatus: 'active',
           locationLabel,
         });
 
         await store.addEmployee({
-          name: name.trim(),
+          name: fullName,
           ci: ci.trim() || undefined,
           role: pos.role,
           department: department.trim() || undefined,
           hireDate: hireDate || undefined,
           salary: sal,
-          currency,
+          currency: (currency || 'CUP').trim() || 'CUP',
           unitIds,
           metadata: meta,
         });
-        formOk = `Empleado y usuario «${selectedUsername}» creados · contraseña temporal ${TEMP_PASSWORD}`;
+        formOk = userWasNew
+          ? `Empleado y usuario «${selectedUsername}» creados · contraseña temporal ${TEMP_PASSWORD}`
+          : `Empleado creado y vinculado al usuario existente «${selectedUsername}»`;
       }
       resetForm();
       showForm = false;
