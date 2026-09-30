@@ -1011,6 +1011,7 @@ func (s *Server) handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 	if snap.Tenant.RolePermissions == nil {
 		snap.Tenant.RolePermissions = map[string]map[string]bool{}
 	}
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
 	switch r.Method {
 	case http.MethodGet:
 		result := map[string]map[string]bool{}
