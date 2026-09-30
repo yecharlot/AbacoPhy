@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { BellToggle, TextRotate, WarpBackground } from '../../../../infrastructure/ui/shared';
+  import { BellToggle, BlurText, TextRotate, WarpBackground } from '../../../../infrastructure/ui/shared';
+  import SocialProof from '../../../../infrastructure/ui/shared/SocialProof.svelte';
+  import { onMount } from 'svelte';
   import Brand from '../../../../infrastructure/ui/branding/Brand.svelte';
 
   interface Props {
@@ -11,6 +13,18 @@
   let { loading = false, error = null, onSubmit }: Props = $props();
   let username = $state('');
   let password = $state('');
+  let theme = $state<'dark' | 'light'>('dark');
+
+  onMount(() => {
+    const root = document.documentElement;
+    const readTheme = () => { theme = root.dataset.theme === 'light' ? 'light' : 'dark'; };
+    readTheme();
+    const observer = new MutationObserver(readTheme);
+    observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  });
+
+  const isLight = $derived(theme === 'light');
 
   async function handleSubmit(e?: Event) {
     e?.preventDefault();
@@ -25,16 +39,16 @@
 
 <svelte:head>
   <title>ÁbacoPhy · Iniciar sesión</title>
-  <meta name="theme-color" content="#050812" />
+  <meta name="theme-color" content={isLight ? '#f3f5f9' : '#050812'} />
 </svelte:head>
 
-<div class="login-page">
+<div class="login-page" data-login-theme={theme}>
   <WarpBackground
-    color1="#61E6E1"
-    color2="#B7F56A"
-    color3="#9C82FF"
-    timeSpeed={0.16}
-    colorBalance={-0.08}
+    color1={isLight ? '#27BDB7' : '#43D8D3'}
+    color2={isLight ? '#8CCB3F' : '#A8EA5F'}
+    color3={isLight ? '#8B72E8' : '#8E78F0'}
+    timeSpeed={isLight ? 0.12 : 0.16}
+    colorBalance={isLight ? -0.02 : -0.08}
     warpStrength={1}
     warpFrequency={4.5}
     warpSpeed={1.55}
@@ -43,10 +57,10 @@
     blendSoftness={0.08}
     rotationAmount={500}
     noiseScale={2}
-    grainAmount={0.045}
+    grainAmount={isLight ? 0.025 : 0.045}
     grainScale={2}
-    contrast={1.28}
-    saturation={0.9}
+    contrast={isLight ? 1.08 : 1.28}
+    saturation={isLight ? 0.82 : 0.9}
     zoom={0.92}
   />
 
@@ -58,7 +72,7 @@
 
       <div class="presentation-copy">
         <p class="eyebrow">GESTIÓN · CONTABILIDAD · CONTROL</p>
-        <h1 id="welcome-title">Una visión más clara de tu negocio.</h1>
+        <BlurText text="Una visión más clara de tu negocio." animateBy="words" direction="bottom" delay={70} stepDuration={0.42} class="hero-title" />
         <p class="lead">
           ÁbacoPhy conecta las operaciones diarias con la información financiera que necesitas para trabajar,
           controlar y decidir.
@@ -78,7 +92,9 @@
         </div>
       </div>
 
-      <div class="feature-grid" aria-label="Características de ÁbacoPhy">
+      <SocialProof />
+
+      <div class="feature-grid" aria-hidden="true" style="display:none">
         <div class="feature">
           <span class="feature-dot"></span>
           <div><strong>Operación</strong><small>Inventario y procesos conectados</small></div>
@@ -145,10 +161,10 @@
             <BellToggle
               offLabel="Iniciar sesión"
               onLabel="Entrando…"
-              color="#050812"
-              background="#61E6E1"
-              onColor="#050812"
-              onBackground="#B7F56A"
+              color={isLight ? '#ffffff' : '#071018'}
+              background={isLight ? '#159E99' : '#61E6E1'}
+              onColor="#071018"
+              onBackground={isLight ? '#9AD94C' : '#B7F56A'}
               size="lg"
               radius={16}
               ringAmplitude={17}
@@ -179,6 +195,15 @@
 
 <style>
   .login-page {
+    --login-panel-bg: rgba(5, 8, 18, .57);
+    --login-card-bg: rgba(23, 27, 41, .88);
+    --login-card-border: rgba(255, 255, 255, .13);
+    --login-input-bg: rgba(5, 8, 18, .62);
+    --login-input-border: rgba(255, 255, 255, .10);
+    --login-proof-bg: rgba(255, 255, 255, .035);
+    --login-proof-border: rgba(255, 255, 255, .09);
+    --login-overlay: rgba(5, 8, 18, .38);
+    --login-glow: rgba(97, 230, 225, .13);
     position: relative;
     min-height: 100dvh;
     overflow: hidden;
@@ -189,14 +214,26 @@
     color: var(--color-text-primary);
   }
 
+  .login-page[data-login-theme='light'] {
+    --login-panel-bg: rgba(255, 255, 255, .62);
+    --login-card-bg: rgba(255, 255, 255, .91);
+    --login-card-border: rgba(15, 20, 35, .10);
+    --login-input-bg: rgba(247, 248, 252, .94);
+    --login-input-border: rgba(15, 20, 35, .11);
+    --login-proof-bg: rgba(255, 255, 255, .48);
+    --login-proof-border: rgba(15, 20, 35, .10);
+    --login-overlay: rgba(255, 255, 255, .30);
+    --login-glow: rgba(26, 168, 163, .13);
+  }
+
   .backdrop {
     position: absolute;
     inset: 0;
     z-index: -1;
     background:
-      radial-gradient(circle at 12% 18%, rgba(97, 230, 225, .13), transparent 31%),
-      radial-gradient(circle at 87% 82%, rgba(183, 245, 106, .09), transparent 28%),
-      linear-gradient(110deg, rgba(5, 8, 18, .48), rgba(5, 8, 18, .78));
+      radial-gradient(circle at 12% 18%, var(--login-glow), transparent 31%),
+      radial-gradient(circle at 87% 82%, rgba(183, 245, 106, .10), transparent 28%),
+      linear-gradient(110deg, var(--login-overlay), var(--login-overlay));
     pointer-events: none;
   }
 
@@ -210,9 +247,9 @@
     gap: clamp(28px, 6vw, 84px);
     align-items: center;
     padding: clamp(30px, 5vw, 70px);
-    border: 1px solid rgba(255,255,255,.11);
+    border: 1px solid var(--login-card-border);
     border-radius: var(--radius-xl);
-    background: rgba(5, 8, 18, .48);
+    background: var(--login-panel-bg);
     box-shadow: var(--shadow-float);
     backdrop-filter: blur(18px);
     animation: panel-in 700ms cubic-bezier(.22,1,.36,1) both;
@@ -222,9 +259,9 @@
   .presentation :global(.brand) { width:max-content; }
   .presentation :global(.brand-copy strong) { color:var(--color-text-primary); }
   .presentation :global(.brand-copy small) { color:var(--color-text-muted); }
-  .presentation-copy { margin:auto 0; max-width:650px; }
+  .presentation-copy { margin:auto 0 24px; max-width:650px; }
   .eyebrow,.panel-kicker { margin:0 0 14px; font-size:.7rem; font-weight:800; letter-spacing:.18em; color:var(--accent-cyan); }
-  h1 { margin:0; max-width:620px; color:var(--color-text-primary); font-size:clamp(2.8rem,5.3vw,5rem); line-height:.98; letter-spacing:-.055em; font-weight:750; }
+  .hero-title { max-width:620px; color:var(--color-text-primary); font-size:clamp(2.8rem,5.3vw,5rem); line-height:.98; letter-spacing:-.055em; font-weight:750; }
   .lead { margin:24px 0 0; max-width:560px; color:var(--color-text-secondary); font-size:1.05rem; line-height:1.75; }
   .rotating-line { margin-top:30px; display:flex; align-items:center; gap:9px; color:var(--color-text-muted); font-size:.92rem; }
   .rotating-line :global(.rotate) { color:var(--accent-green); font-weight:750; font-size:1.05rem; }
@@ -235,15 +272,15 @@
   .feature-dot.green { background:var(--accent-green);box-shadow:0 0 14px rgba(183,245,106,.7); }
   .feature-dot.purple { background:var(--accent-purple);box-shadow:0 0 14px rgba(156,130,255,.7); }
   .feature strong,.feature small{display:block}.feature strong{font-size:.78rem}.feature small{margin-top:2px;color:var(--color-text-muted);font-size:.67rem;line-height:1.35}
-  .version { margin:22px 0 0; color:#697186; font-size:.68rem; }
+  .version { margin:18px 0 0; color:var(--color-text-muted); opacity:.72; font-size:.66rem; }
 
   .login-panel { display:flex; justify-content:center; }
   .login-card {
     width:min(390px,100%);
     padding:32px;
-    border:1px solid rgba(255,255,255,.13);
+    border:1px solid var(--login-card-border);
     border-radius:var(--radius-xl);
-    background:rgba(23,27,41,.78);
+    background:var(--login-card-bg);
     box-shadow:0 25px 70px rgba(0,0,0,.32);
     backdrop-filter:blur(24px);
     animation:card-in 800ms 120ms cubic-bezier(.22,1,.36,1) both;
@@ -279,7 +316,7 @@
     .login-layout { grid-template-columns:1fr; width:min(680px,calc(100% - 24px)); min-height:auto; padding:32px 24px; gap:28px; }
     .presentation { min-height:auto; }
     .presentation-copy { margin:38px 0 28px; }
-    h1 { font-size:clamp(2.5rem,10vw,4rem); }
+    .hero-title { font-size:clamp(2.5rem,10vw,4rem); }
     .feature-grid { grid-template-columns:1fr; }
     .feature small { display:inline;margin-left:5px; }
     .version { display:none; }
@@ -291,7 +328,7 @@
     .login-page { padding:12px 0; }
     .login-layout { width:calc(100% - 16px);padding:22px 16px;border-radius:24px;gap:22px; }
     .presentation-copy { margin:30px 0 20px; }
-    h1 { font-size:2.45rem; }
+    .hero-title { font-size:2.45rem; }
     .lead { font-size:.9rem;line-height:1.6; }
     .rotating-line { flex-wrap:wrap; }
     .login-card { padding:24px 18px;border-radius:21px; }
