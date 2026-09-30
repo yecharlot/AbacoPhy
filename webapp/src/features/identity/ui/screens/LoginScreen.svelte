@@ -13,7 +13,7 @@
   let { loading = false, error = null, onSubmit }: Props = $props();
   let username = $state('');
   let password = $state('');
-  let theme = $state<'dark' | 'light'>('dark');
+  let theme = $state<'dark' | 'light'>(typeof document !== 'undefined' && document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
 
   onMount(() => {
     const root = document.documentElement;
