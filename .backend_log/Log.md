@@ -787,3 +787,13 @@ Entrada de almacén = validación física
 
 No volver a acoplar la creación de `Reception` con `WarehouseStock` o `AvgCost`. Esas mutaciones pertenecen a la confirmación física realizada desde Almacén.
 
+
+
+## 2026-09-30 — permisos editables por rol y usuario
+
+- Se agregó persistencia por negocio de permisos editables por rol mediante `Tenant.RolePermissions`.
+- Se agregó `GET/PUT /api/v1/role-permissions`, restringido a master/admin.
+- `CanAccessUser` ahora resuelve primero la excepción explícita del usuario y después la política persistida del rol, con `ViewACL` como fallback.
+- Los usuarios nuevos y los usuarios cuyo rol cambia pasan a heredar la política del rol (`Modules=nil`) en lugar de almacenar una copia fija de los permisos.
+- La pantalla de permisos permite editar los checkboxes por rol y guardar la matriz en backend.
+- La pantalla por usuario mantiene las excepciones explícitas y ahora refleja la política efectiva personalizada del rol.
