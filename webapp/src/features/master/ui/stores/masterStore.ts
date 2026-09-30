@@ -96,9 +96,7 @@ export function createMasterStore(deps: Deps) {
           deps.listUsers
             .execute()
             .catch(() => ({ users: [] as PlatformUser[], roles: [] as string[] })),
-          deps.getRolePermissions
-            .execute()
-            .catch(() => ({})),
+          deps.getRolePermissions.execute(),
         ]);
         set({
           status: 'success',
