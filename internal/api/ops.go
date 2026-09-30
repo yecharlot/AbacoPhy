@@ -1104,13 +1104,15 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 			if snap.Tenant.EnabledModules == nil {
 				snap.Tenant.EnabledModules = domain.DefaultEnabledModules()
 			}
+			// Fusionar: admin puede conceder módulos fuera del rol o revocarlos
 			clean := map[string]bool{}
-			for k, v := range body.Modules {
-				if !auth.Can(u.Role, k) {
-					continue
+			if u.Modules != nil {
+				for k, v := range u.Modules {
+					clean[k] = v
 				}
+			}
+			for k, v := range body.Modules {
 				clean[k] = v
-				// Si se asigna el módulo al usuario, asegurar que el negocio lo tenga activo
 				if v {
 					snap.Tenant.EnabledModules[k] = true
 				}

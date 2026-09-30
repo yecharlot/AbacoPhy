@@ -127,9 +127,20 @@ func CanAccess(snap *domain.StoreSnapshot, role, view string) bool {
 }
 
 func CanAccessUser(snap *domain.StoreSnapshot, role, view string, user *domain.User) bool {
+	if !ModuleEnabled(snap, view) {
+		return false
+	}
+	// Grant / revoke explícito por usuario (admin en vista de módulos)
+	if user != nil && user.Modules != nil {
+		if v, ok := user.Modules[view]; ok {
+			return v
+		}
+	}
 	if !Can(role, view) {
 		return false
 	}
+	return true
+}
 	if !ModuleEnabled(snap, view) {
 		return false
 	}
