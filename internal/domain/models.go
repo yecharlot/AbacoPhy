@@ -37,7 +37,8 @@ type Tenant struct {
 	Email       string            `json:"email,omitempty"`
 	LogoCID     string            `json:"logo_cid,omitempty"`
 	Settings    map[string]string `json:"settings,omitempty"`
-	EnabledModules map[string]bool `json:"enabled_modules,omitempty"`
+	EnabledModules   map[string]bool           `json:"enabled_modules,omitempty"`
+	RolePermissions  map[string]map[string]bool `json:"role_permissions,omitempty"`
 	CreatedAt   time.Time         `json:"created_at"`
 	UpdatedAt   time.Time         `json:"updated_at"`
 	Active      bool              `json:"active"`
