@@ -193,7 +193,7 @@ export function flowSeries(
   if (includeNet) {
     list.push({
       id: 'net',
-      label: 'Neto',
+      label: 'Ganancia neta',
       color: 'var(--accent-cyan)',
       points: ordered.map(([key, label]) => ({
         label,
