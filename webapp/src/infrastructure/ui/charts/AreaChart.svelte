@@ -1,281 +1,296 @@
 <script lang="ts">
-  /**
-   * Áreas superpuestas: puntos elegantes, animación de trazo y pan horizontal.
-   */
-  import {
-    buildMultiLineGeometry,
-    formatAmount,
-    formatCompact,
-    type ChartSeries,
-    type MultiLineGeometry,
-  } from './chartTypes';
+  import { formatAmount, formatCompact, type ChartSeries } from './chartTypes';
 
   export let series: ChartSeries[] = [];
   export let height = 260;
   export let emptyText = 'Sin datos para graficar';
   export let showDots = true;
 
-  /** Ancho lógico por punto (más puntos → más scroll horizontal). */
-  const PX_PER_POINT = 36;
-  const MIN_VIEW_WIDTH = 360;
-  const viewHeight = 150;
-  const pad = 14;
+  const PX_PER_POINT = 46;
+  const MIN_VIEW_WIDTH = 420;
+  const VIEW_HEIGHT = 170;
+  const PAD_X = 18;
+  const PAD_Y = 14;
 
-  let geometry: MultiLineGeometry = { series: [], labels: [] };
-  let viewWidth = MIN_VIEW_WIDTH;
-
-  $: {
-    const n = series.find((s) => s.points.length)?.points.length ?? 0;
-    viewWidth = Math.max(MIN_VIEW_WIDTH, n * PX_PER_POINT);
-    geometry = buildMultiLineGeometry(series, viewWidth, viewHeight, pad);
-  }
-
-  const uid = `area-${Math.random().toString(36).slice(2, 8)}`;
-
+  let visible: Record<string, boolean> = {};
   let hoverIndex: number | null = null;
-  let tipX = 0;
-  let tipY = 0;
   let plotEl: HTMLDivElement | null = null;
   let scrollEl: HTMLDivElement | null = null;
-  let animKey = 0;
+  let tipX = 0;
+  let tipY = 0;
 
-  // Re-trigger line draw animation when series identity changes
-  $: seriesSignature = series.map((s) => `${s.id}:${s.points.length}`).join('|');
-  $: if (seriesSignature) {
-    animKey += 1;
+  $: seriesKey = series.map((s) => s.id).join('|');
+  $: {
+    const next: Record<string, boolean> = {};
+    for (const s of series) next[s.id] = visible[s.id] !== false;
+    visible = next;
+  }
+
+  $: activeSeries = series.filter((s) => visible[s.id] !== false);
+  $: labels = series.find((s) => s.points.length)?.points.map((p) => p.label) ?? [];
+  $: viewWidth = Math.max(MIN_VIEW_WIDTH, Math.max(labels.length, 1) * PX_PER_POINT);
+  $: allValues = activeSeries.flatMap((s) => s.points.map((p) => p.value));
+  $: rawMin = allValues.length ? Math.min(...allValues) : 0;
+  $: rawMax = allValues.length ? Math.max(...allValues) : 1;
+  $: minValue = Math.min(0, rawMin);
+  $: maxValue = Math.max(0, rawMax);
+  $: valueSpan = maxValue - minValue || 1;
+  $: stepX = labels.length > 1 ? (viewWidth - PAD_X * 2) / (labels.length - 1) : 0;
+  $: plotHeight = Math.max(1, height);
+
+  function valueAt(s: ChartSeries, index: number): number {
+    const byLabel = s.points.find((p) => p.label === labels[index]);
+    return byLabel?.value ?? s.points[index]?.value ?? 0;
+  }
+
+  function pointY(value: number): number {
+    return PAD_Y + ((maxValue - value) / valueSpan) * (VIEW_HEIGHT - PAD_Y * 2);
+  }
+
+  function pointX(index: number): number {
+    return labels.length === 1 ? viewWidth / 2 : PAD_X + stepX * index;
+  }
+
+  function smoothPath(points: Array<{ x: number; y: number }>): string {
+    if (!points.length) return '';
+    if (points.length === 1) return 'M' + points[0].x.toFixed(2) + ',' + points[0].y.toFixed(2);
+
+    let d = 'M' + points[0].x.toFixed(2) + ',' + points[0].y.toFixed(2);
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const curr = points[i];
+      const dx = (curr.x - prev.x) / 3;
+      d +=
+        ' C' +
+        (prev.x + dx).toFixed(2) + ',' + prev.y.toFixed(2) +
+        ' ' +
+        (curr.x - dx).toFixed(2) + ',' + curr.y.toFixed(2) +
+        ' ' +
+        curr.x.toFixed(2) + ',' + curr.y.toFixed(2);
+    }
+    return d;
+  }
+
+  function geometryFor(s: ChartSeries) {
+    const dots = labels.map((_, i) => ({
+      x: pointX(i),
+      y: pointY(valueAt(s, i)),
+      value: valueAt(s, i),
+    }));
+    const line = smoothPath(dots);
+    const baseY = pointY(0);
+    const first = dots[0];
+    const last = dots[dots.length - 1];
+    const area = dots.length
+      ? line + ' L' + last.x.toFixed(2) + ',' + baseY.toFixed(2) +
+        ' L' + first.x.toFixed(2) + ',' + baseY.toFixed(2) + ' Z'
+      : '';
+    return { id: s.id, color: s.color, line, area, dots };
+  }
+
+  $: geometries = activeSeries.map(geometryFor);
+  $: zeroY = pointY(0);
+  $: pathLength = Math.max(300, viewWidth * 1.7);
+  $: canScroll = !!scrollEl && scrollEl.scrollWidth > scrollEl.clientWidth + 4;
+
+  function toggleSeries(id: string) {
+    if (visible[id] !== false && activeSeries.length === 1) return;
+    visible = { ...visible, [id]: visible[id] === false };
+    hoverIndex = null;
   }
 
   function nearestIndex(clientX: number): number | null {
-    if (!plotEl || !geometry.labels.length || !scrollEl) return null;
+    if (!plotEl || !labels.length || !scrollEl) return null;
     const rect = plotEl.getBoundingClientRect();
-    if (rect.width <= 0) return null;
-    // plot is stretched to scroll content width
     const contentWidth = plotEl.offsetWidth;
-    const rel = (clientX - rect.left + scrollEl.scrollLeft) / contentWidth;
-    const xView = rel * viewWidth;
-    const first = geometry.series[0];
-    if (!first?.dots.length) return null;
+    if (!contentWidth) return null;
+    const x = ((clientX - rect.left + scrollEl.scrollLeft) / contentWidth) * viewWidth;
     let best = 0;
-    let bestDist = Infinity;
-    for (let i = 0; i < first.dots.length; i++) {
-      const dist = Math.abs(first.dots[i].x - xView);
-      if (dist < bestDist) {
-        bestDist = dist;
+    let distance = Infinity;
+    for (let i = 0; i < labels.length; i++) {
+      const d = Math.abs(pointX(i) - x);
+      if (d < distance) {
+        distance = d;
         best = i;
       }
     }
     return best;
   }
 
-  function onMove(e: MouseEvent) {
-    const idx = nearestIndex(e.clientX);
-    hoverIndex = idx;
-    if (plotEl && idx !== null && scrollEl) {
-      const first = geometry.series[0];
-      const dot = first?.dots[idx];
-      if (dot) {
-        const contentWidth = plotEl.offsetWidth;
-        tipX = (dot.x / viewWidth) * contentWidth - scrollEl.scrollLeft;
-        tipY = (dot.y / viewHeight) * (plotEl.offsetHeight || height);
-      }
-    }
+  function onMove(event: MouseEvent) {
+    const index = nearestIndex(event.clientX);
+    hoverIndex = index;
+    if (index === null || !plotEl || !scrollEl) return;
+    const contentWidth = plotEl.offsetWidth;
+    tipX = (pointX(index) / viewWidth) * contentWidth - scrollEl.scrollLeft;
+    tipY = (pointY(valueAt(activeSeries[0], index)) / VIEW_HEIGHT) * plotEl.offsetHeight;
   }
 
-  function onLeave() {
-    hoverIndex = null;
+  function pan(direction: -1 | 1) {
+    scrollEl?.scrollBy({
+      left: direction * Math.max(140, (scrollEl.clientWidth || 360) * 0.42),
+      behavior: 'smooth'
+    });
   }
 
-  function pan(dir: -1 | 1) {
-    if (!scrollEl) return;
-    scrollEl.scrollBy({ left: dir * Math.max(120, scrollEl.clientWidth * 0.35), behavior: 'smooth' });
+  function formatAxis(value: number): string {
+    return formatCompact(value);
   }
-
-  $: canScroll =
-    scrollEl != null && scrollEl.scrollWidth > scrollEl.clientWidth + 4;
-
-  $: tipRows =
-    hoverIndex === null
-      ? []
-      : series.map((s) => {
-          const pt = s.points[hoverIndex!];
-          return {
-            id: s.id,
-            label: s.label,
-            color: s.color,
-            value: pt?.value ?? 0,
-          };
-        });
-
-  $: tipLabel =
-    hoverIndex !== null && geometry.labels[hoverIndex]
-      ? geometry.labels[hoverIndex]
-      : '';
-
-  // Approximate path length for stroke animation (viewBox units)
-  $: pathLen = Math.max(200, viewWidth * 1.4);
 </script>
 
 <div class="area-block">
-  {#if series.length === 0 || geometry.labels.length === 0}
+  {#if series.length === 0 || labels.length === 0}
     <p class="empty">{emptyText}</p>
   {:else}
     <div class="toolbar">
-      <div class="legend">
+      <div class="legend" aria-label="Series del gráfico">
         {#each series as s (s.id)}
-          <span class="leg">
-            <i style={`background:${s.color}`}></i>
-            {s.label}
-          </span>
+          <button
+            type="button"
+            class:inactive={visible[s.id] === false}
+            class="legend-item"
+            aria-pressed={visible[s.id] !== false}
+            onclick={() => toggleSeries(s.id)}
+          >
+            <span class="legend-mark" style={'--series-color:' + s.color}></span>
+            <span>{s.label}</span>
+          </button>
         {/each}
       </div>
-      <div class="pan" class:visible={canScroll || (series[0]?.points.length ?? 0) > 8}>
-        <button type="button" class="pan-btn" aria-label="Desplazar izquierda" on:click={() => pan(-1)}>
-          ‹
-        </button>
-        <button type="button" class="pan-btn" aria-label="Desplazar derecha" on:click={() => pan(1)}>
-          ›
-        </button>
-      </div>
+
+      {#if canScroll || labels.length > 9}
+        <div class="pan">
+          <button type="button" class="pan-btn" aria-label="Desplazar izquierda" onclick={() => pan(-1)}>‹</button>
+          <button type="button" class="pan-btn" aria-label="Desplazar derecha" onclick={() => pan(1)}>›</button>
+        </div>
+      {/if}
     </div>
 
-    <div class="scroll" bind:this={scrollEl}>
-      <div
-        class="plot"
-        style={`height:${height}px; width: max(100%, ${viewWidth}px)`}
-        bind:this={plotEl}
-        on:mousemove={onMove}
-        on:mouseleave={onLeave}
-        role="img"
-        aria-label="Comparación temporal"
-      >
-        {#key animKey}
+    <div class="chart-shell">
+      <div class="y-axis">
+        <span>{formatAxis(maxValue)}</span>
+        <span>{formatAxis((maxValue + minValue) / 2)}</span>
+        <span>{formatAxis(minValue)}</span>
+      </div>
+
+      <div class="scroll" bind:this={scrollEl}>
+        <div
+          class="plot"
+          bind:this={plotEl}
+          style={'height:' + height + 'px; width:max(100%, ' + viewWidth + 'px)'}
+          onmousemove={onMove}
+          onmouseleave={() => (hoverIndex = null)}
+          role="img"
+          aria-label="Evolución de ingresos, gastos y ganancia neta"
+        >
           <svg
-            viewBox={`0 0 ${viewWidth} ${viewHeight}`}
-            preserveAspectRatio="none"
             class="chart-svg"
+            viewBox={'0 0 ' + viewWidth + ' ' + VIEW_HEIGHT}
+            preserveAspectRatio="none"
+            aria-hidden="true"
           >
             <defs>
-              {#each geometry.series as s (s.id)}
-                <linearGradient id={`${uid}-${s.id}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color={s.color} stop-opacity="0.38" />
-                  <stop offset="100%" stop-color={s.color} stop-opacity="0.02" />
+              {#each activeSeries as s (s.id)}
+                <linearGradient id={'area-' + s.id + '-' + seriesKey} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color={s.color} stop-opacity="0.20" />
+                  <stop offset="100%" stop-color={s.color} stop-opacity="0" />
                 </linearGradient>
-                <filter id={`${uid}-glow-${s.id}`} x="-40%" y="-40%" width="180%" height="180%">
-                  <feGaussianBlur stdDeviation="1.4" result="blur" />
-                  <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
               {/each}
             </defs>
 
-            <!-- Áreas -->
-            {#each geometry.series as s, si (s.id)}
-              <path
-                class="area-path"
-                d={s.area}
-                fill={`url(#${uid}-${s.id})`}
-                style={`animation-delay: ${si * 90}ms`}
-              />
+            <g class="grid">
+              <line x1={PAD_X} x2={viewWidth - PAD_X} y1={PAD_Y} y2={PAD_Y} />
+              <line x1={PAD_X} x2={viewWidth - PAD_X} y1={VIEW_HEIGHT / 2} y2={VIEW_HEIGHT / 2} />
+              <line x1={PAD_X} x2={viewWidth - PAD_X} y1={VIEW_HEIGHT - PAD_Y} y2={VIEW_HEIGHT - PAD_Y} />
+              {#if minValue < 0 && maxValue > 0}
+                <line class="zero" x1={PAD_X} x2={viewWidth - PAD_X} y1={zeroY} y2={zeroY} />
+              {/if}
+            </g>
+
+            {#each geometries as g, index (g.id)}
+              {#if index === 0}
+                <path class="area-path" d={g.area} fill={'url(#area-' + g.id + '-' + seriesKey + ')'} />
+              {/if}
             {/each}
 
-            <!-- Líneas con draw-on -->
-            {#each geometry.series as s, si (s.id)}
+            {#each geometries as g, index (g.id)}
               <path
+                class:net-line={g.id === 'net'}
                 class="line-path"
-                d={s.line}
+                d={g.line}
                 fill="none"
-                stroke={s.color}
-                stroke-width="2.4"
+                stroke={g.color}
+                stroke-width={g.id === 'net' ? 3 : 2.2}
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 vector-effect="non-scaling-stroke"
-                style={`
-                  stroke-dasharray: ${pathLen};
-                  stroke-dashoffset: ${pathLen};
-                  animation-delay: ${120 + si * 110}ms;
-                  --path-len: ${pathLen};
-                `}
+                style={'--delay:' + (index * 110) + 'ms; --path-length:' + pathLength}
               />
             {/each}
 
-            <!-- Puntos -->
+            {#if hoverIndex !== null}
+              <line
+                class="guide"
+                x1={pointX(hoverIndex)}
+                x2={pointX(hoverIndex)}
+                y1="0"
+                y2={VIEW_HEIGHT}
+                vector-effect="non-scaling-stroke"
+              />
+            {/if}
+
             {#if showDots}
-              {#each geometry.series as s, si (s.id)}
-                {#each s.dots as dot, i (`${s.id}-${i}`)}
-                  <g transform={`translate(${dot.x}, ${dot.y})`}>
-                    <g
-                      class="dot-g"
-                      class:active={hoverIndex === i}
-                      style={`animation-delay: ${280 + si * 80 + Math.min(i, 40) * 12}ms`}
-                    >
-                      <circle class="dot-ring" r="6.5" fill={s.color} />
-                      <circle class="dot-core" r="2.75" fill="var(--color-surface, #0b1020)" stroke={s.color} stroke-width="2" />
-                      <circle class="dot-hit" r="11" fill="transparent" />
-                    </g>
+              {#each geometries as g (g.id)}
+                {#each g.dots as dot, index (g.id + '-' + index)}
+                  <g class:active={hoverIndex === index} class="dot" transform={'translate(' + dot.x + ',' + dot.y + ')'}>
+                    <circle r="7" fill={g.color} opacity="0.12" />
+                    <circle r="3.1" fill="var(--color-surface, #101624)" stroke={g.color} stroke-width="1.8" />
                   </g>
                 {/each}
               {/each}
             {/if}
-
-            {#if hoverIndex !== null && geometry.series[0]?.dots[hoverIndex]}
-              {@const gx = geometry.series[0].dots[hoverIndex].x}
-              <line
-                class="guide"
-                x1={gx}
-                x2={gx}
-                y1="0"
-                y2={viewHeight}
-                vector-effect="non-scaling-stroke"
-              />
-            {/if}
           </svg>
-        {/key}
 
-        {#if hoverIndex !== null && tipRows.length}
-          <div
-            class="tooltip"
-            style={`left:${tipX}px; top:${Math.max(10, tipY - 14)}px`}
-            role="tooltip"
-          >
-            <div class="tip-date">{tipLabel}</div>
-            {#each tipRows as row (row.id)}
-              <div class="tip-row">
-                <span class="tip-dot" style={`background:${row.color}`}></span>
-                <span class="tip-name">{row.label}</span>
-                <span class="tip-val">{formatAmount(row.value)}</span>
-              </div>
-            {/each}
-          </div>
-        {/if}
+          {#if hoverIndex !== null && activeSeries.length > 0}
+            <div
+              class="tooltip"
+              style={'left:' + tipX + 'px; top:' + Math.max(10, tipY - 18) + 'px'}
+              role="tooltip"
+            >
+              <div class="tip-date">{labels[hoverIndex]}</div>
+              {#each activeSeries as s (s.id)}
+                <div class="tip-row">
+                  <span class="tip-dot" style={'background:' + s.color}></span>
+                  <span class="tip-name">{s.label}</span>
+                  <strong>{formatAmount(valueAt(s, hoverIndex))}</strong>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
       </div>
     </div>
 
     <div class="axis-scroll">
-      <div class="axis" style={`width: max(100%, ${viewWidth}px)`}>
-        {#each geometry.labels as label, i (label + '-' + i)}
-          <span title={label}>{label}</span>
+      <div class="axis" style={'width:max(100%, ' + viewWidth + 'px)'}>
+        {#each labels as label, index (label + '-' + index)}
+          <span>{label}</span>
         {/each}
       </div>
     </div>
 
     <div class="peaks">
       {#each series as s (s.id)}
-        {@const vals = s.points.map((p) => p.value)}
-        {@const max = vals.length ? Math.max(...vals) : 0}
-        <span style={`color:${s.color}`}>
-          {s.label}: máx {formatCompact(max)}
-        </span>
+        {@const values = s.points.map((p) => p.value)}
+        {@const max = values.length ? Math.max(...values) : 0}
+        <span style={'color:' + s.color}>{s.label}: máx {formatCompact(max)}</span>
       {/each}
     </div>
   {/if}
 </div>
 
 <style>
-  .area-block {
-    width: 100%;
-  }
+  .area-block { width: 100%; }
 
   .toolbar {
     display: flex;
@@ -288,193 +303,218 @@
   .legend {
     display: flex;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 7px;
   }
-  .leg {
+
+  .legend-item {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    font-size: 0.75rem;
+    gap: 7px;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 5px 10px;
+    background: var(--color-surface);
     color: var(--color-text-secondary);
-    font-weight: 500;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 160ms ease, border-color 160ms ease, transform 160ms ease;
   }
-  .leg i {
-    width: 10px;
-    height: 10px;
-    border-radius: 3px;
-    display: inline-block;
+
+  .legend-item:hover {
+    transform: translateY(-1px);
+    border-color: var(--color-text-muted);
+  }
+
+  .legend-item.inactive {
+    opacity: 0.45;
+  }
+
+  .legend-mark {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--series-color);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--series-color) 35%, transparent);
   }
 
   .pan {
-    display: none;
+    display: inline-flex;
     gap: 6px;
   }
-  .pan.visible {
-    display: inline-flex;
-  }
+
   .pan-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 10px;
+    width: 30px;
+    height: 30px;
     border: 1px solid var(--color-border);
+    border-radius: 9px;
     background: var(--color-surface);
     color: var(--color-text-primary);
+    cursor: pointer;
     font-size: 1.1rem;
     line-height: 1;
-    cursor: pointer;
   }
-  .pan-btn:hover {
-    background: var(--color-surface-raised, var(--color-surface));
+
+  .chart-shell {
+    display: flex;
+    min-width: 0;
+  }
+
+  .y-axis {
+    width: 42px;
+    flex: 0 0 42px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 3px 6px 3px 0;
+    color: var(--color-text-muted);
+    font-size: 0.62rem;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
   }
 
   .scroll {
+    min-width: 0;
+    flex: 1;
     overflow-x: auto;
     overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
-    border-radius: 12px;
+    scrollbar-color: color-mix(in srgb, var(--color-text-muted) 35%, transparent) transparent;
   }
-  .scroll::-webkit-scrollbar {
-    height: 6px;
-  }
+
+  .scroll::-webkit-scrollbar { height: 5px; }
   .scroll::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--color-text-muted) 40%, transparent);
+    background: color-mix(in srgb, var(--color-text-muted) 35%, transparent);
     border-radius: 99px;
   }
 
   .plot {
     position: relative;
-    cursor: crosshair;
     min-width: 100%;
-  }
-  .chart-svg {
-    width: 100%;
-    height: 100%;
-    display: block;
+    cursor: crosshair;
   }
 
-  /* Área: fade in */
+  .chart-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  .grid line {
+    stroke: var(--color-border);
+    stroke-opacity: 0.55;
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+    stroke-dasharray: 3 5;
+  }
+
+  .grid .zero {
+    stroke: var(--color-text-muted);
+    stroke-opacity: 0.55;
+    stroke-dasharray: 5 4;
+  }
+
   .area-path {
     opacity: 0;
     animation: area-in 700ms ease forwards;
   }
-  @keyframes area-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
 
-  /* Línea: dibujo progresivo */
   .line-path {
-    animation: draw-line 1.05s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  }
-  @keyframes draw-line {
-    to {
-      stroke-dashoffset: 0;
-    }
+    stroke-dasharray: var(--path-length);
+    stroke-dashoffset: var(--path-length);
+    animation: draw-line 950ms cubic-bezier(0.22, 1, 0.36, 1) var(--delay) forwards;
+    filter: drop-shadow(0 2px 5px color-mix(in srgb, currentColor 16%, transparent));
   }
 
-  /* Puntos */
-  .dot-g {
+  .dot {
     opacity: 0;
-    animation: dot-in 420ms cubic-bezier(0.22, 1.2, 0.36, 1) forwards;
+    transform-origin: center;
+    animation: dot-in 360ms cubic-bezier(0.22, 1.2, 0.36, 1) forwards;
+    transition: opacity 140ms ease;
   }
-  @keyframes dot-in {
-    from {
-      opacity: 0;
-      transform: scale(0.35);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
+
+  .dot.active {
+    opacity: 1;
   }
-  .dot-g.active {
-    transform: scale(1.25);
-  }
-  .dot-ring {
-    opacity: 0.18;
-    transition: opacity 160ms ease, r 160ms ease;
-  }
-  .dot-core {
-    transition: r 160ms ease;
-  }
-  .dot-g.active .dot-ring {
-    opacity: 0.35;
-  }
-  .dot-g.active .dot-ring {
-    opacity: 0.4;
+
+  .dot.active circle:first-child {
+    opacity: 0.28;
   }
 
   .guide {
     stroke: var(--color-text-muted);
-    stroke-opacity: 0.4;
+    stroke-opacity: 0.42;
     stroke-width: 1;
     stroke-dasharray: 3 4;
   }
 
   .tooltip {
     position: absolute;
-    z-index: 6;
+    z-index: 5;
+    min-width: 168px;
     transform: translate(-50%, -100%);
-    min-width: 148px;
     padding: 9px 11px;
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--color-surface, #12182a) 92%, transparent);
-    backdrop-filter: blur(10px);
     border: 1px solid var(--color-border);
-    box-shadow: var(--shadow-soft, 0 14px 40px rgba(0, 0, 0, 0.35));
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+    backdrop-filter: blur(12px);
+    box-shadow: var(--shadow-soft, 0 14px 38px rgba(0,0,0,.28));
     pointer-events: none;
-    font-size: 0.72rem;
+    font-size: 0.71rem;
   }
+
   .tip-date {
-    font-weight: 700;
     margin-bottom: 6px;
     color: var(--color-text-primary);
+    font-weight: 750;
   }
+
   .tip-row {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-top: 3px;
+    margin-top: 4px;
   }
+
   .tip-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
+    width: 7px;
+    height: 7px;
     flex: 0 0 auto;
+    border-radius: 50%;
   }
+
   .tip-name {
     flex: 1;
     color: var(--color-text-secondary);
   }
-  .tip-val {
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
+
+  .tip-row strong {
     color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
   }
 
   .axis-scroll {
+    margin-left: 42px;
     overflow: hidden;
   }
+
   .axis {
     display: flex;
     justify-content: space-between;
     gap: 4px;
     margin-top: 6px;
   }
+
   .axis span {
-    font-size: 0.65rem;
-    color: var(--color-text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 3.2rem;
     flex: 1 1 0;
+    max-width: 4.2rem;
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font-size: 0.62rem;
     text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .peaks {
@@ -482,22 +522,47 @@
     flex-wrap: wrap;
     gap: 12px;
     margin-top: 8px;
-    font-size: 0.72rem;
+    margin-left: 42px;
     color: var(--color-text-muted);
+    font-size: 0.69rem;
   }
+
   .empty {
+    margin: 0;
     color: var(--color-text-muted);
     font-size: 0.85rem;
-    margin: 0;
+  }
+
+  @keyframes area-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes draw-line {
+    to { stroke-dashoffset: 0; }
+  }
+
+  @keyframes dot-in {
+    from { opacity: 0; transform: scale(.45); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @media (max-width: 640px) {
+    .toolbar { align-items: flex-start; }
+    .legend { gap: 5px; }
+    .legend-item { padding: 5px 8px; }
+    .y-axis { width: 36px; flex-basis: 36px; }
+    .axis-scroll, .peaks { margin-left: 36px; }
+    .tooltip { min-width: 150px; }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .area-path,
-    .line-path,
-    .dot-g {
+    .area-path, .line-path, .dot {
       animation: none !important;
       opacity: 1 !important;
       stroke-dashoffset: 0 !important;
     }
+
+    .legend-item { transition: none; }
   }
 </style>
