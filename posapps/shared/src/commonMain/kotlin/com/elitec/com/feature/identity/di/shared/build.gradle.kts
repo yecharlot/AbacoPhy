@@ -1,3 +1,5 @@
+package com.elitec.com.feature.identity.di.shared
+
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
