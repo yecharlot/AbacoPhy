@@ -2,8 +2,15 @@ package com.elitec.com.infraestructure.di
 
 import com.elitec.com.infraestructure.data.database.getDatabaseBuilder
 import com.elitec.com.infraestructure.data.database.getRoomDatabase
+import org.koin.core.module.Module
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
-val platformModule = module {
-    single { getRoomDatabase(getDatabaseBuilder()) }
+actual val platformModule: Module = module {
+    single {
+        getRoomDatabase(getDatabaseBuilder())
+    }
+    single(named("apiBaseUrl")) {
+        "http://127.0.0.1:8080/api/v1"
+    }
 }

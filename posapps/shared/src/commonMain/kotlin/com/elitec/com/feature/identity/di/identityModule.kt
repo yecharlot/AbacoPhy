@@ -10,7 +10,10 @@ import com.elitec.com.feature.identity.domain.caseuse.ObserveSessionCaseUse
 import com.elitec.com.feature.identity.domain.caseuse.RestoreSessionCaseUse
 import com.elitec.com.feature.identity.domain.repository.AuthRepository
 import com.elitec.com.feature.identity.domain.repository.SessionRepository
+import com.elitec.com.feature.identity.ui.viewmodel.LoginViewModel
+import com.elitec.com.feature.identity.ui.viewmodel.SplashViewModel
 import com.elitec.com.infraestructure.data.database.AbacoDataBase
+import org.koin.core.module.dsl.viewModel
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
@@ -32,9 +35,11 @@ val identityModule = module {
     factory { RestoreSessionCaseUse(get(), get()) }
     factory { ObserveSessionCaseUse(get()) }
 
-    // Token provider real para POS / catalog / warehouse
     single<suspend () -> String?>(named("authTokenProvider")) {
         val sessions: SessionRepository = get()
         suspend { sessions.getActiveToken() }
     }
+
+    viewModel { SplashViewModel(get()) }
+    viewModel { LoginViewModel(get()) }
 }

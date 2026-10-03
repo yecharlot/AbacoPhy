@@ -1,6 +1,5 @@
 package com.elitec.com.feature.identity.data.dto
 
-
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -25,4 +24,3 @@ data class ChangePasswordRequestDto(
     @SerialName("new_password") val newPassword: String,
     val username: String? = null,
 )
-

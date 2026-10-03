@@ -1,6 +1,7 @@
 package com.elitec.com.feature.identity.data.repository
 
 import com.elitec.com.feature.identity.data.dataSource.RemoteAuthDataSource
+import com.elitec.com.feature.identity.data.dto.ChangePasswordRequestDto
 import com.elitec.com.feature.identity.data.mappers.AuthMapper
 import com.elitec.com.feature.identity.domain.entities.ChangePasswordInput
 import com.elitec.com.feature.identity.domain.entities.LoginCredentials

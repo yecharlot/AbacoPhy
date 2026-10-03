@@ -2,6 +2,7 @@ package com.elitec.com.feature.pos.data.repository
 
 import com.elitec.com.feature.pos.data.dataSource.LocalSalesDataSource
 import com.elitec.com.feature.pos.data.dataSource.RemoteSalesDataSource
+import com.elitec.com.feature.pos.data.dto.toDomain
 import com.elitec.com.feature.pos.domain.entities.CreateSaleInput
 import com.elitec.com.feature.pos.domain.entities.Sale
 import com.elitec.com.feature.pos.domain.repository.SalesRepository

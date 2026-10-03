@@ -1,5 +1,6 @@
 package com.elitec.com.feature.identity.data.mappers
 
+import com.elitec.com.feature.identity.data.dto.LoginResponseDto
 import com.elitec.com.feature.identity.data.dto.MeResponseDto
 import com.elitec.com.feature.identity.domain.entities.Session
 import com.elitec.com.feature.identity.domain.entities.User

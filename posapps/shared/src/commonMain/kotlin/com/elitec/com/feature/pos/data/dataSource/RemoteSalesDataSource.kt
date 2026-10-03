@@ -3,6 +3,7 @@ package com.elitec.com.feature.pos.data.dataSource
 import com.elitec.com.feature.pos.data.dto.SaleDto
 import com.elitec.com.feature.pos.data.dto.SaleResponseDto
 import com.elitec.com.feature.pos.data.dto.SalesResponseDto
+import com.elitec.com.feature.pos.data.dto.toEntity
 import com.elitec.com.feature.pos.data.mappers.SaleMapper
 import com.elitec.com.feature.pos.domain.entities.CreateSaleInput
 import io.ktor.client.HttpClient
@@ -17,12 +18,11 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 
 /**
- * Fuente remota alineada con web SalesRemoteSource:
+ * Fuente remota alineada con web:
  *   GET  {baseUrl}/pos/sales
  *   POST {baseUrl}/pos/sales
  *
- * [baseUrl] debe incluir el prefijo API (p.ej. https://host/api/v1).
- * [tokenProvider] resuelve el bearer de la sesión activa (identity).
+ * Devuelve [SaleDto] entidad Room (linesJson), lista para cache local.
  */
 class RemoteSalesDataSource(
     private val http: HttpClient,
@@ -49,7 +49,7 @@ class RemoteSalesDataSource(
             error("No se pudo listar ventas (HTTP ${response.status.value})")
         }
         val body = response.body<SalesResponseDto>()
-        return body.sales.orEmpty()
+        return body.sales.orEmpty().map { it.toEntity() }
     }
 
     suspend fun createSale(input: CreateSaleInput): SaleDto {
@@ -63,10 +63,10 @@ class RemoteSalesDataSource(
             error(detail ?: "No se pudo registrar la venta (HTTP ${response.status.value})")
         }
         val body = response.body<SaleResponseDto>()
-        return body.sale ?: error("Respuesta de venta vacía")
+        val network = body.sale ?: error("Respuesta de venta vacía")
+        return network.toEntity()
     }
 
-    /** El API actual no expone GET por id; se resuelve filtrando el listado. */
     suspend fun getById(saleId: String): SaleDto? =
         listSales().firstOrNull { it.id == saleId }
 }
