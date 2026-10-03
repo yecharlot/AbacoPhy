@@ -2,10 +2,7 @@ package com.elitec.com.feature.identity.data.dto
 
 import androidx.room3.Entity
 import androidx.room3.PrimaryKey
-import com.elitec.com.feature.identity.data.dto.UserDto.Companion.toData
-import com.elitec.com.feature.identity.data.dto.UserDto.Companion.toDomain
 import com.elitec.com.feature.identity.domain.entities.Session
-import com.elitec.com.feature.identity.domain.entities.User
 import kotlinx.datetime.LocalDateTime
 import kotlinx.serialization.Serializable
 
