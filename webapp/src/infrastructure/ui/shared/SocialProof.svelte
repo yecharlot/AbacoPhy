@@ -1,10 +1,32 @@
 <script lang="ts">
-import { animate } from 'motion';
-type Item={eyebrow:string;title:string;detail:string;accent:'cyan'|'green'|'purple'};
-type Props={items?:Item[];title?:string;description?:string};
-let {items=[{eyebrow:'01',title:'Operación conectada',detail:'Procesos que comparten información sin perder contexto.',accent:'cyan'},{eyebrow:'02',title:'Control por permisos',detail:'El acceso se adapta a las responsabilidades de cada usuario.',accent:'green'},{eyebrow:'03',title:'Información centralizada',detail:'Una misma plataforma para trabajar y controlar la operación.',accent:'purple'}],title='Un ecosistema pensado para trabajar conectado',description='ÁbacoPhy reúne operación, control y seguridad en una experiencia coherente.'}:Props=$props();
-let container=$state<HTMLElement>(),cells=$state<(HTMLElement|undefined)[]>([]);
-$effect(()=>{if(!container)return;const observer=new IntersectionObserver(([entry])=>{if(!entry.isIntersecting)return;cells.forEach((cell,index)=>cell&&animate(cell,{opacity:[0,1],y:[22,0],filter:['blur(7px)','blur(0px)']},{duration:.55,delay:index*.08,ease:[.22,1,.36,1]}));observer.unobserve(container!)},{threshold:.15});observer.observe(container);return()=>observer.disconnect()});
+
+    import { animate } from 'motion';
+
+    type Item={eyebrow:string;title:string;detail:string;accent:'cyan'|'green'|'purple'};
+    type Props={items?:Item[];title?:string;description?:string};
+    let { items=[{ eyebrow:'01',title:'Operación conectada',detail:'Procesos que comparten información sin perder contexto.',accent:'cyan'},{eyebrow:'02',title:'Control por permisos',detail:'El acceso se adapta a las responsabilidades de cada usuario.',accent:'green'},{eyebrow:'03',title:'Información centralizada',detail:'Una misma plataforma para trabajar y controlar la operación.',accent:'purple'}],title='Un ecosistema pensado para trabajar conectado',description='ÁbacoPhy reúne operación, control y seguridad en una experiencia coherente.'}:Props=$props();
+    let container=$state<HTMLElement>(),cells=$state<(HTMLElement|undefined)[]>([]);
+    $effect(()=>{
+        if(!container)
+            return;
+        const observer=new IntersectionObserver(([entry])=>{
+                if(!entry.isIntersecting)
+                    return;
+                cells.forEach(
+                    (cell,index)=>cell&&animate(
+                        cell,{
+                            opacity:[0,1],y:[22,0],filter:['blur(7px)','blur(0px)']
+                        },
+                        {
+                            duration:.55,delay:index*.08,ease:[.22,1,.36,1]
+                        }
+                    )
+                );
+                observer.unobserve(container!)
+            },{threshold:.15}
+        );
+        observer.observe(container);return()=>observer.disconnect()
+    });
 </script>
 <section bind:this={container} class="proof" aria-labelledby="proof-title"><header class="proof-header"><div><p class="proof-kicker">POR QUÉ ÁBACOPHY</p><h2 id="proof-title">{title}</h2></div><p>{description}</p></header><div class="proof-grid">{#each items as item,index}<article bind:this={cells[index]} class="proof-item {item.accent}"><div class="proof-number">{item.eyebrow}</div><div class="proof-copy"><strong>{item.title}</strong><span>{item.detail}</span></div></article>{/each}</div></section>
 <style>

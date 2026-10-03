@@ -1048,6 +1048,15 @@ func (s *Server) handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 				clean[view] = auth.Can(body.Role, view)
 			}
 		}
+		// Conceder vista en rol también habilita el módulo del negocio (si no, ModuleEnabled bloquea).
+		if snap.Tenant.EnabledModules == nil {
+			snap.Tenant.EnabledModules = domain.DefaultEnabledModules()
+		}
+		for view, allowed := range clean {
+			if allowed {
+				snap.Tenant.EnabledModules[view] = true
+			}
+		}
 		snap.Tenant.RolePermissions[body.Role] = clean
 		snap.Tenant.UpdatedAt = time.Now().UTC()
 		s.audit(snap, sess, "permisos.rol.edicion", "Edición de permisos del rol «"+roleLabelES(body.Role)+"»", body.Role)

@@ -73,6 +73,16 @@ export function createSessionStore(deps: Deps) {
         throw err;
       }
     },
+    async refreshMe(): Promise<void> {
+      try {
+        const session = await deps.getMe.execute();
+        set({ status: 'authenticated', session, error: null });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'No se pudo refrescar la sesión';
+        set({ status: 'error', session: null, error: message });
+        throw err;
+      }
+    },
     async logout(): Promise<void> {
       set({ status: 'loading', error: null });
       await deps.logout.execute();

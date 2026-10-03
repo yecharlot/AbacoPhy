@@ -2,8 +2,11 @@
   import { onMount } from 'svelte';
   import { Button, Card } from '../../../../infrastructure/ui/shared';
   import type { MasterStore, MasterState } from '../stores/masterStore';
-  import { UI_SCREEN_CATALOG, ROLE_DEFAULT_SCREENS, defaultScreensForRole } from '../../../identity/domain/uiAccessPolicy';
-  import { SCREEN_VIEWS } from '../../../identity/domain/access';
+  import { UI_SCREEN_CATALOG, ROLE_DEFAULT_SCREENS } from '../../../identity/domain/uiAccessPolicy';
+  import {
+    SCREEN_VIEWS,
+    modulesFromScreenChecks,
+  } from '../../../identity/domain/access';
   import { roleLabel } from '../../domain/entities/roles';
 
   export let store: MasterStore;
@@ -53,10 +56,10 @@
   function syncRoleChecked() {
     const next: Record<string, boolean> = {};
     for (const screenId of Object.keys(SCREEN_VIEWS)) {
+      if (screenId === 'home') continue;
       const keys = SCREEN_VIEWS[screenId] ?? [];
-      next[screenId] = keys.length > 0 && keys.every((key) => Object.prototype.hasOwnProperty.call(draftRolePermissions, key)
-        ? draftRolePermissions[key] === true
-        : defaultScreensForRole(selectedRole).includes(screenId));
+      next[screenId] =
+        keys.length > 0 && keys.every((key) => draftRolePermissions[key] === true);
     }
     roleChecked = next;
   }
@@ -69,10 +72,16 @@
     }
     const next: Record<string, boolean> = {};
     for (const screenId of Object.keys(SCREEN_VIEWS)) {
+      if (screenId === 'home') continue;
       const keys = SCREEN_VIEWS[screenId] ?? [];
-      next[screenId] = keys.length > 0 && keys.every((key) => Object.prototype.hasOwnProperty.call(draftUserModules, key)
-        ? draftUserModules[key] === true
-        : roleBaseHasScreen(user.role, screenId));
+      // Excepción explícita del usuario; si no hay clave, hereda política de rol del backend
+      next[screenId] =
+        keys.length > 0 &&
+        keys.every((key) =>
+          Object.prototype.hasOwnProperty.call(draftUserModules, key)
+            ? draftUserModules[key] === true
+            : roleBaseHasScreen(user.role, screenId),
+        );
     }
     userChecked = next;
   }
@@ -87,20 +96,13 @@
   }
 
   function roleScreenAllowed(screenId: string): boolean {
-    const keys = SCREEN_VIEWS[screenId] ?? [];
-    if (!keys.length) return false;
-    return keys.every((key) => Object.prototype.hasOwnProperty.call(draftRolePermissions, key)
-      ? draftRolePermissions[key] === true
-      : defaultScreensForRole(selectedRole).includes(screenId));
+    return roleChecked[screenId] === true;
   }
 
   function roleBaseHasScreen(role: string, screenId: string): boolean {
     const keys = SCREEN_VIEWS[screenId] ?? [];
-    const permissions = state.rolePermissions[role];
-    if (permissions) {
-      return keys.length > 0 && keys.every((key) => permissions[key] === true);
-    }
-    return defaultScreensForRole(role).includes(screenId);
+    const permissions = state.rolePermissions[role] || {};
+    return keys.length > 0 && keys.every((key) => permissions[key] === true);
   }
 
   function userScreenAllowed(screenId: string): boolean {
@@ -173,33 +175,63 @@
     error = '';
     if (tab === 'roles') {
       isSaving = true;
-      void store.updateRolePermissions(selectedRole, { ...draftRolePermissions })
+      // Enviar mapa completo de vistas backend según checkboxes de pantallas UI
+      const permissions = modulesFromScreenChecks(roleChecked);
+      void store
+        .updateRolePermissions(selectedRole, permissions)
         .then(async () => {
-          // Volver a leer el backend inmediatamente: la pantalla no debe considerar
-          // guardado un estado que el servidor no pueda devolver después.
           await store.loadAll();
+          const latest = store.getState();
+          state = latest;
+          draftRolePermissions = { ...(latest.rolePermissions[selectedRole] || permissions) };
+          syncRoleChecked();
           roleDraftDirty = false;
-          notice = 'Permisos de «' + roleLabel(selectedRole) + '» guardados en el backend.';
+          notice =
+            'Permisos de «' +
+            roleLabel(selectedRole) +
+            '» guardados en el servidor. Los usuarios de este rol verán el cambio al refrescar sesión.';
           savedPulse = true;
           setTimeout(() => (savedPulse = false), 1500);
+          window.dispatchEvent(new CustomEvent('abacophy-acl-changed'));
         })
-        .catch((e) => { error = e instanceof Error ? e.message : 'No se pudieron guardar los permisos del rol.'; })
-        .finally(() => { isSaving = false; });
+        .catch((e) => {
+          error = e instanceof Error ? e.message : 'No se pudieron guardar los permisos del rol.';
+        })
+        .finally(() => {
+          isSaving = false;
+        });
       return;
     }
-    if (!selectedUserId) { error = 'Seleccione un usuario antes de guardar.'; return; }
+    if (!selectedUserId) {
+      error = 'Seleccione un usuario antes de guardar.';
+      return;
+    }
     isSaving = true;
-    void store.editUser({ id: selectedUserId, modules: { ...draftUserModules } })
-      .then(() => {
+    // Mapa explícito de vistas: true/false según pantallas marcadas (excepción de usuario)
+    const modules = modulesFromScreenChecks(userChecked);
+    void store
+      .editUser({ id: selectedUserId, modules })
+      .then(async () => {
+        await store.loadAll();
+        state = store.getState();
         const user = selectedUser();
+        draftUserModules = { ...(user?.modules || modules) };
+        syncUserChecked();
         userDraftDirty = false;
-        notice = 'Autorizaciones de «' + (user?.displayName || user?.username || 'usuario') + '» guardadas en el backend.';
+        notice =
+          'Autorizaciones de «' +
+          (user?.displayName || user?.username || 'usuario') +
+          '» guardadas en el servidor.';
         savedPulse = true;
         setTimeout(() => (savedPulse = false), 1500);
-        return store.loadAll();
+        window.dispatchEvent(new CustomEvent('abacophy-acl-changed'));
       })
-      .catch((e) => { error = e instanceof Error ? e.message : 'No se pudieron guardar las autorizaciones.'; })
-      .finally(() => { isSaving = false; });
+      .catch((e) => {
+        error = e instanceof Error ? e.message : 'No se pudieron guardar las autorizaciones.';
+      })
+      .finally(() => {
+        isSaving = false;
+      });
   }
 
   onMount(() => {
@@ -228,14 +260,14 @@
       ? roleChecked[screenId] === true
       : userChecked[screenId] === true
     ).length;
-  $: defaultCount = defaultScreensForRole(selectedRole).length;
+  $: defaultCount = Object.values(roleChecked).filter(Boolean).length;
 </script>
 
 <section class="permisos" data-screen="permisos">
   <header class="hero">
     <div class="hero-glow" aria-hidden="true"></div>
     <div class="hero-text">
-      <p class="eyebrow">Control de acceso · cliente</p>
+      <p class="eyebrow">Control de acceso · servidor</p>
       <h1>Permisos de interfaz</h1>
       <p class="lede">
         Consulta la política base de acceso por rol y permite gestionar excepciones explícitas por usuario directamente contra el backend.

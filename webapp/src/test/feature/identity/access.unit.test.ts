@@ -1,129 +1,52 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { saveUiAccessConfig, loadUiAccessConfig } from '../../../features/identity/domain/uiAccessStorage';
-import { resolveScreensForUser, resolveScreensForSession } from '../../../features/identity/domain/resolveUiAccess';
-import { effectiveScreens, canAccessScreen } from '../../../features/identity/domain/access';
+import { describe, it, expect } from 'vitest';
+import {
+  effectiveScreens,
+  canAccessScreen,
+  screensFromSessionViews,
+  modulesFromScreenChecks,
+} from '../../../features/identity/domain/access';
 import type { Session } from '../../../features/identity/domain/entities/Session';
 
-describe('UI Access Frontend Permission System', () => {
-  beforeEach(() => {
-    localStorage.clear();
+function session(partial: Partial<Session> & { role?: string; views?: string[] }): Session {
+  return {
+    token: 'tok',
+    expiresAt: null,
+    user: {
+      id: 'u1',
+      username: 'user1',
+      displayName: 'User 1',
+      role: partial.role || 'vendedor',
+      tenantId: 'demo',
+    },
+    views: partial.views ?? [],
+    modules: {},
+    ...partial,
+  };
+}
+
+describe('effectiveScreens (backend session.views)', () => {
+  it('maps backend views to UI screens requiring all keys', () => {
+    const s = session({
+      role: 'vendedor',
+      views: ['vendedor', 'productos', 'nomencladores'],
+    });
+    expect(screensFromSessionViews(s).sort()).toEqual(['catalog', 'pos'].sort());
+    expect(effectiveScreens(s).sort()).toEqual(['catalog', 'pos'].sort());
+    expect(canAccessScreen(s, 'pos')).toBe(true);
+    expect(canAccessScreen(s, 'catalog')).toBe(true);
+    expect(canAccessScreen(s, 'gastos')).toBe(false);
   });
 
-  it('vendedor defaults to pos only if not customized', () => {
-    const screens = resolveScreensForUser({ role: 'vendedor' });
-    expect(screens).toEqual(['pos']);
+  it('does not use localStorage legacy policy', () => {
+    const s = session({ role: 'vendedor', views: ['vendedor'] });
+    expect(effectiveScreens(s)).toEqual(['pos']);
   });
 
-  it('persists role customizations and overrides defaults as frontend source of truth', () => {
-    // Master configures vendedor to have catalog and pos
-    const config = {
-      version: 1 as const,
-      roleScreens: {
-        vendedor: ['pos', 'catalog'],
-      },
-      userAccess: {},
-    };
-
-    saveUiAccessConfig('', config);
-
-    // Verify loading directly
-    const loaded = loadUiAccessConfig('demo');
-    expect(loaded.roleScreens.vendedor).toEqual(['pos', 'catalog']);
-
-    // Verify resolveScreensForUser for vendedor in tenant demo
-    const screens = resolveScreensForUser({ role: 'vendedor', tenantId: 'demo' });
-    expect(screens).toEqual(['pos', 'catalog']);
-
-    // Verify session
-    const mockSession: Session = {
-      token: 'tok',
-      expiresAt: null,
-      user: {
-        id: 'u1',
-        username: 'vendedor1',
-        displayName: 'Vendedor 1',
-        role: 'vendedor',
-        tenantId: 'demo',
-      },
-      views: ['vendedor'], // backend views
-      modules: {},
-    };
-
-    expect(resolveScreensForSession(mockSession)).toEqual(['pos', 'catalog']);
-    expect(effectiveScreens(mockSession)).toEqual(['pos', 'catalog']);
-    expect(canAccessScreen(mockSession, 'pos')).toBe(true);
-    expect(canAccessScreen(mockSession, 'catalog')).toBe(true);
-    expect(canAccessScreen(mockSession, 'gastos')).toBe(false);
-  });
-
-  it('supports user-specific overrides beyond role package', () => {
-    const config = {
-      version: 1 as const,
-      roleScreens: {
-        vendedor: ['pos'],
-      },
-      userAccess: {
-        u1: {
-          mode: 'extra' as const,
-          screens: ['catalog', 'reportes'],
-        },
-      },
-    };
-
-    saveUiAccessConfig('demo', config);
-
-    const mockSession: Session = {
-      token: 'tok',
-      expiresAt: null,
-      user: {
-        id: 'u1',
-        username: 'vendedor1',
-        displayName: 'Vendedor 1',
-        role: 'vendedor',
-        tenantId: 'demo',
-      },
-      views: ['vendedor'],
-      modules: {},
-    };
-
-    const screens = effectiveScreens(mockSession);
-    expect(screens).toEqual(['pos', 'catalog', 'reportes']);
-    expect(canAccessScreen(mockSession, 'reportes')).toBe(true);
-  });
-
-  it('supports user-specific override in replace mode', () => {
-    const config = {
-      version: 1 as const,
-      roleScreens: {
-        vendedor: ['pos', 'catalog'],
-      },
-      userAccess: {
-        u1: {
-          mode: 'replace' as const,
-          screens: ['dashboard'],
-        },
-      },
-    };
-
-    saveUiAccessConfig('', config);
-
-    const mockSession: Session = {
-      token: 'tok',
-      expiresAt: null,
-      user: {
-        id: 'u1',
-        username: 'vendedor1',
-        displayName: 'Vendedor 1',
-        role: 'vendedor',
-        tenantId: 'demo',
-      },
-      views: ['vendedor'],
-      modules: {},
-    };
-
-    const screens = effectiveScreens(mockSession);
-    expect(screens).toEqual(['dashboard']);
-    expect(canAccessScreen(mockSession, 'pos')).toBe(false);
-    expect(canAccessScreen(mockSession, 'dashboard')).toBe(true);
+  it('modulesFromScreenChecks expands UI screens to backend keys', () => {
+    const mods = modulesFromScreenChecks({ pos: true, catalog: true, gastos: false });
+    expect(mods.vendedor).toBe(true);
+    expect(mods.productos).toBe(true);
+    expect(mods.nomencladores).toBe(true);
+    expect(mods.gastos).toBe(false);
   });
 });
