@@ -7,53 +7,49 @@ import com.elitec.com.feature.identity.data.dto.toEntity
 import com.elitec.com.feature.identity.domain.entities.Session
 import com.elitec.com.feature.identity.domain.entities.SessionControl
 import com.elitec.com.feature.identity.domain.repository.SessionRepository
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.Flow
+import com.elitec.com.infraestructure.logging.AbacoLog
+import com.elitec.com.infraestructure.logging.LogCategory
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 
+/**
+ * Un token en tabla session_active (id = 1).
+ * No se observa Room en paralelo de forma que pise validación:
+ * los cambios de estado se publican explícitamente tras save/clear/bootstrap.
+ */
 class SessionRepositoryImpl(
     private val dao: SessionDao,
     private val json: JsonViewsModules = JsonViewsModules(),
 ) : SessionRepository {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val _sessionState = MutableStateFlow<SessionControl>(SessionControl.Bootstrapping)
+    private val _sessionState = MutableStateFlow<SessionControl>(SessionControl.Reading)
     override val sessionState: StateFlow<SessionControl> = _sessionState.asStateFlow()
 
-    init {
-        scope.launch {
-            dao.observe().collect { entity ->
-                _sessionState.value =
-                    if (entity == null || entity.token.isBlank()) SessionControl.NoSession
-                    else SessionControl.Active(entity.toDomain(json))
-            }
-        }
+    override fun markReading() {
+        _sessionState.value = SessionControl.Reading
+        AbacoLog.step(LogCategory.AUTH, "Session", "Reading")
     }
 
-    override fun observeSessionControl(): Flow<SessionControl> =
-        dao.observe().map { entity ->
-            if (entity == null || entity.token.isBlank()) SessionControl.NoSession
-            else SessionControl.Active(entity.toDomain(json))
-        }
-
     override suspend fun saveSession(session: Session) {
+        dao.clear()
         dao.save(session.toEntity(json))
         _sessionState.value = SessionControl.Active(session)
+        AbacoLog.step(LogCategory.AUTH, "Session", "Active", session.user.username)
     }
 
     override suspend fun clearSession() {
         dao.clear()
         _sessionState.value = SessionControl.NoSession
+        AbacoLog.step(LogCategory.AUTH, "Session", "NoSession")
     }
 
-    override suspend fun getActiveToken(): String? = dao.get()?.token?.takeIf { it.isNotBlank() }
+    override suspend fun getActiveToken(): String? =
+        dao.get()?.token?.takeIf { it.isNotBlank() }
 
-    override suspend fun getActiveSession(): Session? =
-        dao.get()?.takeIf { it.token.isNotBlank() }?.toDomain(json)
+    override suspend fun getStoredSession(): Session? {
+        val entity = dao.get() ?: return null
+        if (entity.token.isBlank()) return null
+        return entity.toDomain(json)
+    }
 }

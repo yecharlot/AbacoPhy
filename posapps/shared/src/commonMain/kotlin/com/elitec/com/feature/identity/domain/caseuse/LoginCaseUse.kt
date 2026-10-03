@@ -10,8 +10,6 @@ class LoginCaseUse(
     private val sessions: SessionRepository,
 ) {
     suspend operator fun invoke(credentials: LoginCredentials): Result<Session> = runCatching {
-        require(credentials.username.isNotBlank()) { "Usuario requerido" }
-        require(credentials.password.isNotBlank()) { "Contraseña requerida" }
         val session = auth.login(credentials)
         sessions.saveSession(session)
         session

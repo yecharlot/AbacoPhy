@@ -22,7 +22,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,28 +33,19 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.elitec.com.feature.identity.ui.viewmodel.LoginEvent
 import com.elitec.com.feature.identity.ui.viewmodel.LoginUiState
 import com.elitec.com.feature.identity.ui.viewmodel.LoginViewModel
 import com.elitec.com.infraestructure.ui.theme.AbacoColors
 import org.koin.compose.viewmodel.koinViewModel
 
+/** Login no navega: al guardar token, SessionControl.Active cambia la UI. */
 @Composable
 fun LoginScreen(
-    onLoginSuccess: () -> Unit,
     viewModel: LoginViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var username by remember { mutableStateOf(viewModel.username) }
     var password by remember { mutableStateOf("") }
-
-    LaunchedEffect(Unit) {
-        viewModel.events.collect { event ->
-            when (event) {
-                is LoginEvent.NavigateHome -> onLoginSuccess()
-            }
-        }
-    }
 
     Box(
         modifier = Modifier
@@ -65,13 +55,9 @@ fun LoginScreen(
         contentAlignment = Alignment.Center,
     ) {
         Card(
-            modifier = Modifier
-                .widthIn(max = 420.dp)
-                .fillMaxWidth(),
+            modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-            ),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
         ) {
             Column(

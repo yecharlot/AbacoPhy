@@ -13,33 +13,23 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.elitec.com.feature.identity.ui.viewmodel.HomeSessionEvent
 import com.elitec.com.feature.identity.ui.viewmodel.HomeSessionViewModel
 import com.elitec.com.feature.identity.ui.viewmodel.LogoutUiState
 import com.elitec.com.infraestructure.ui.theme.AbacoColors
 import org.koin.compose.viewmodel.koinViewModel
 
+/** Home no navega al logout: clearSession → NoSession → Login. */
 @Composable
 fun HomeScreen(
-    onLoggedOut: () -> Unit,
     sessionVm: HomeSessionViewModel = koinViewModel(),
 ) {
     val logoutState by sessionVm.logoutState.collectAsStateWithLifecycle()
-
-    LaunchedEffect(Unit) {
-        sessionVm.events.collect { event ->
-            when (event) {
-                is HomeSessionEvent.NavigateLogin -> onLoggedOut()
-            }
-        }
-    }
 
     Column(
         modifier = Modifier
@@ -72,10 +62,7 @@ fun HomeScreen(
             shape = MaterialTheme.shapes.medium,
         ) {
             if (logoutState is LogoutUiState.Loading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.height(20.dp),
-                    strokeWidth = 2.dp,
-                )
+                CircularProgressIndicator(modifier = Modifier.height(20.dp), strokeWidth = 2.dp)
             } else {
                 Text("Cerrar sesión")
             }
