@@ -23,7 +23,7 @@ sealed class HomeSessionEvent {
 }
 
 class HomeSessionViewModel(
-    private val logout: LogoutCaseUse,
+    private val logoutUseCase: LogoutCaseUse,
 ) : ViewModel() {
 
     private val _logoutState = MutableStateFlow<LogoutUiState>(LogoutUiState.Idle)
@@ -32,15 +32,20 @@ class HomeSessionViewModel(
     private val _events = MutableSharedFlow<HomeSessionEvent>(extraBufferCapacity = 1)
     val events: SharedFlow<HomeSessionEvent> = _events.asSharedFlow()
 
+    private var logoutInFlight = false
+
     fun logout() {
+        if (logoutInFlight) return
+        logoutInFlight = true
         viewModelScope.launch {
             _logoutState.value = LogoutUiState.Loading
             AbacoLog.step(LogCategory.AUTH, "Logout", "start")
-            runCatching { logout() }
+            runCatching { logoutUseCase() }
                 .onSuccess { AbacoLog.step(LogCategory.AUTH, "Logout", "sesión borrada") }
                 .onFailure { e -> AbacoLog.w(LogCategory.AUTH, "Logout aviso: ${e.message}", e) }
             _logoutState.value = LogoutUiState.Idle
             _events.emit(HomeSessionEvent.NavigateLogin)
+            // no reset logoutInFlight: esta pantalla se destruye al navegar
         }
     }
 }
