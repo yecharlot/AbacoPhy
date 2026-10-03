@@ -1,5 +1,6 @@
 import type { HttpClient } from '../../../../infrastructure/data/http';
 import type { ModulesSnapshot } from '../../domain/entities/ModuleMeta';
+import type { RolePermissions } from '../../domain/repositories/MasterRepository';
 import type {
   CreateUserInput,
   PlatformUser,
@@ -92,6 +93,34 @@ export class MasterRepositoryImpl implements MasterRepository {
     }
   }
 
+  async getRolePermissions(): Promise<RolePermissions> {
+    try {
+      const dto = await this.remote.getRolePermissions();
+      return dto.roles || {};
+    } catch (err) {
+      throw new Error(messageOf(err, 'No se pudieron cargar los permisos por rol'));
+    }
+  }
+
+  async updateRolePermissions(role: string, permissions: Record<string, boolean>): Promise<Record<string, boolean>> {
+    try {
+      const dto = await this.remote.updateRolePermissions({ role, permissions });
+      const saved = dto.permissions || permissions;
+      // Confirmar inmediatamente contra el backend, no solo contra la respuesta del PUT.
+      const verified = await this.remote.getRolePermissions();
+      const remote = verified.roles?.[role] || {};
+      const keys = new Set([...Object.keys(saved), ...Object.keys(remote)]);
+      for (const key of keys) {
+        if ((remote[key] === true) !== (saved[key] === true)) {
+          throw new Error('El backend no devolvió los permisos recién guardados del rol.');
+        }
+      }
+      return saved;
+    } catch (err) {
+      throw new Error(messageOf(err, 'No se pudieron guardar los permisos del rol'));
+    }
+  }
+
   async createUser(input: CreateUserInput): Promise<PlatformUser> {
     try {
       const dto = await this.remote.createUser(createUserInputToDto(input));
@@ -106,6 +135,20 @@ export class MasterRepositoryImpl implements MasterRepository {
     try {
       const dto = await this.remote.updateUser(updateUserInputToDto(input));
       if (!dto.user) throw new Error('Respuesta de usuario vacía');
+
+      // Confirmar contra una lectura nueva que las excepciones de módulos
+      // realmente quedaron persistidas y no solo reflejadas en la respuesta del PUT.
+      if (input.modules) {
+        const verified = await this.remote.getUsers();
+        const remote = (verified.users || []).find((u) => u.id === input.id);
+        if (!remote) throw new Error('El usuario actualizado no apareció en la lectura posterior.');
+        for (const [key, value] of Object.entries(input.modules)) {
+          if ((remote.modules?.[key] === true) !== (value === true)) {
+            throw new Error('El backend no devolvió las autorizaciones recién guardadas del usuario.');
+          }
+        }
+      }
+
       return userDtoToEntity(dto.user);
     } catch (err) {
       throw new Error(messageOf(err, 'No se pudo modificar el usuario'));

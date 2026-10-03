@@ -7,3 +7,6 @@ export { ListUsers } from './ListUsers';
 export { CreateUser } from './CreateUser';
 export { UpdateUser } from './UpdateUser';
 export { DeactivateUser } from './DeactivateUser';
+
+export { UpdateRolePermissions } from './UpdateRolePermissions';
+export { GetRolePermissions } from './GetRolePermissions';

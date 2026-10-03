@@ -2,111 +2,41 @@
   import { onMount } from 'svelte';
   import { Button, Card } from '../../../../infrastructure/ui/shared';
   import type { MasterStore, MasterState } from '../stores/masterStore';
+  import { UI_SCREEN_CATALOG, ROLE_DEFAULT_SCREENS } from '../../../identity/domain/uiAccessPolicy';
   import {
-    UI_SCREEN_CATALOG,
-    ROLE_DEFAULT_SCREENS,
-    defaultScreensForRole,
-    type UiAccessConfig,
-  } from '../../../identity/domain/uiAccessPolicy';
-  import {
-    loadUiAccessConfig,
-    saveUiAccessConfig,
-  } from '../../../identity/domain/uiAccessStorage';
+    SCREEN_VIEWS,
+    modulesFromScreenChecks,
+  } from '../../../identity/domain/access';
   import { roleLabel } from '../../domain/entities/roles';
 
   export let store: MasterStore;
   export let tenantId: string = '';
 
   let state: MasterState = store.getState();
-  let config: UiAccessConfig = loadUiAccessConfig(tenantId);
   let tab: 'roles' | 'users' = 'roles';
   let selectedRole = 'vendedor';
   let selectedUserId = '';
+  let userQuery = '';
+  let draftUserModules: Record<string, boolean> = {};
+  let draftRolePermissions: Record<string, boolean> = {};
+  let roleChecked: Record<string, boolean> = {};
+  let userChecked: Record<string, boolean> = {};
   let notice = '';
   let error = '';
   let savedPulse = false;
   let isSaving = false;
-
-  // Solo recargar config si tenantId cambia externamente (no sobreescribir ediciones en curso)
-  let _lastTenantId = tenantId;
-  $: if (tenantId !== _lastTenantId) {
-    _lastTenantId = tenantId;
-    if (!isSaving) {
-      config = loadUiAccessConfig(tenantId);
-    }
-  }
+  let roleDraftDirty = false;
+  let userDraftDirty = false;
 
   const manageRoles = Object.keys(ROLE_DEFAULT_SCREENS).filter((r) => r !== 'master');
-
-  /** Agrupa pantallas para una UI más escaneable. */
   const SCREEN_GROUPS: { id: string; label: string; ids: string[] }[] = [
-    {
-      id: 'panel',
-      label: 'Panel e informes',
-      ids: ['dashboard', 'reportes', 'cuentas', 'ingresos', 'gastos'],
-    },
-    {
-      id: 'ops',
-      label: 'Operaciones',
-      ids: ['almacen', 'recepcion', 'transferencias', 'pos', 'catalog'],
-    },
-    {
-      id: 'cost',
-      label: 'Costos y precios',
-      ids: ['fichas-costo', 'fichas-precio'],
-    },
-    {
-      id: 'hr',
-      label: 'Personal y facturación',
-      ids: ['empleados', 'liquidaciones', 'facturas'],
-    },
-    {
-      id: 'commerce',
-      label: 'Comercio',
-      ids: ['pedidos'],
-    },
-    {
-      id: 'admin',
-      label: 'Administración',
-      ids: ['tenant', 'usuarios', 'permisos', 'traza', 'salvas', 'master'],
-    },
+    { id: 'panel', label: 'Panel e informes', ids: ['dashboard', 'reportes', 'cuentas', 'ingresos', 'gastos'] },
+    { id: 'ops', label: 'Operaciones', ids: ['almacen', 'recepcion', 'transferencias', 'pos', 'catalog'] },
+    { id: 'cost', label: 'Costos y precios', ids: ['fichas-costo', 'fichas-precio'] },
+    { id: 'hr', label: 'Personal y facturación', ids: ['empleados', 'liquidaciones', 'facturas'] },
+    { id: 'commerce', label: 'Comercio', ids: ['pedidos'] },
+    { id: 'admin', label: 'Administración', ids: ['tenant', 'usuarios', 'permisos', 'traza', 'salvas', 'master'] },
   ];
-
-  onMount(() => {
-    const unsub = store.subscribe((s) => {
-      state = s;
-    });
-    void store.loadAll();
-    config = loadUiAccessConfig(tenantId);
-    const onAccess = () => {
-      if (!isSaving) {
-        config = loadUiAccessConfig(tenantId);
-      }
-    };
-    window.addEventListener('abacophy-ui-access-changed', onAccess);
-    return () => {
-      unsub();
-      window.removeEventListener('abacophy-ui-access-changed', onAccess);
-    };
-  });
-
-  $: roleScreenSet = new Set(
-    Array.isArray(config.roleScreens[selectedRole])
-      ? config.roleScreens[selectedRole]
-      : defaultScreensForRole(selectedRole),
-  );
-
-  $: userAccess = (selectedUserId && config.userAccess[selectedUserId]) || null;
-  $: userMode = userAccess?.mode ?? 'replace';
-  $: userScreenSet = new Set(userAccess?.screens ?? []);
-  $: selectedCount =
-    tab === 'roles' ? roleScreenSet.size : userScreenSet.size;
-  $: defaultCount = defaultScreensForRole(selectedRole).length;
-  $: isCustomRole =
-    tab === 'roles' &&
-    Array.isArray(config.roleScreens[selectedRole]) &&
-    JSON.stringify([...(config.roleScreens[selectedRole] || [])].sort()) !==
-      JSON.stringify([...defaultScreensForRole(selectedRole)].sort());
 
   function catalogLabel(id: string): string {
     return UI_SCREEN_CATALOG.find((s) => s.id === id)?.label || id;
@@ -119,128 +49,228 @@
     });
   }
 
-  function toggleRoleScreen(screenId: string) {
-    const current = new Set(
-      Array.isArray(config.roleScreens[selectedRole])
-        ? config.roleScreens[selectedRole]
-        : defaultScreensForRole(selectedRole),
-    );
-    if (current.has(screenId)) current.delete(screenId);
-    else current.add(screenId);
-    config = {
-      ...config,
-      roleScreens: {
-        ...config.roleScreens,
-        [selectedRole]: [...current],
-      },
-    };
+  function selectedUser() {
+    return state.users.find((u) => u.id === selectedUserId) ?? null;
   }
 
-  function resetRoleToDefault() {
-    const next = { ...config.roleScreens };
-    delete next[selectedRole];
-    config = { ...config, roleScreens: next };
+  function syncRoleChecked() {
+    const next: Record<string, boolean> = {};
+    for (const screenId of Object.keys(SCREEN_VIEWS)) {
+      if (screenId === 'home') continue;
+      const keys = SCREEN_VIEWS[screenId] ?? [];
+      next[screenId] =
+        keys.length > 0 && keys.every((key) => draftRolePermissions[key] === true);
+    }
+    roleChecked = next;
   }
 
-  function toggleUserScreen(screenId: string) {
+  function syncUserChecked() {
+    const user = selectedUser();
+    if (!user) {
+      userChecked = {};
+      return;
+    }
+    const next: Record<string, boolean> = {};
+    for (const screenId of Object.keys(SCREEN_VIEWS)) {
+      if (screenId === 'home') continue;
+      const keys = SCREEN_VIEWS[screenId] ?? [];
+      // Excepción explícita del usuario; si no hay clave, hereda política de rol del backend
+      next[screenId] =
+        keys.length > 0 &&
+        keys.every((key) =>
+          Object.prototype.hasOwnProperty.call(draftUserModules, key)
+            ? draftUserModules[key] === true
+            : roleBaseHasScreen(user.role, screenId),
+        );
+    }
+    userChecked = next;
+  }
+
+  function loadSelectedRole(role: string) {
+    selectedRole = role;
+    draftRolePermissions = { ...(state.rolePermissions[role] || {}) };
+    syncRoleChecked();
+    roleDraftDirty = false;
+    notice = '';
+    error = '';
+  }
+
+  function roleScreenAllowed(screenId: string): boolean {
+    return roleChecked[screenId] === true;
+  }
+
+  function roleBaseHasScreen(role: string, screenId: string): boolean {
+    const keys = SCREEN_VIEWS[screenId] ?? [];
+    const permissions = state.rolePermissions[role] || {};
+    return keys.length > 0 && keys.every((key) => permissions[key] === true);
+  }
+
+  function userScreenAllowed(screenId: string): boolean {
+    const user = selectedUser();
+    if (!user) return false;
+    const keys = SCREEN_VIEWS[screenId] ?? [];
+    return keys.every((key) => Object.prototype.hasOwnProperty.call(draftUserModules, key)
+      ? draftUserModules[key] === true
+      : roleBaseHasScreen(user.role, screenId));
+  }
+
+  function loadSelectedUser(id: string) {
+    selectedUserId = id;
+    const user = state.users.find((u) => u.id === id);
+    draftUserModules = { ...(user?.modules || {}) };
+    syncUserChecked();
+    userDraftDirty = false;
+    userQuery = user ? (user.displayName || user.username) + ' · ' + user.username : '';
+    notice = '';
+    error = '';
+  }
+
+  function clearSelectedUser() {
+    selectedUserId = '';
+    userQuery = '';
+    draftUserModules = {};
+    userChecked = {};
+    userDraftDirty = false;
+    notice = '';
+    error = '';
+  }
+
+  function filteredUsers() {
+    const q = userQuery.trim().toLowerCase();
+    return state.users.filter((u) => u.role !== 'master').filter((u) => {
+      if (!q || selectedUserId) return true;
+      return u.username.toLowerCase().includes(q) ||
+        (u.displayName || '').toLowerCase().includes(q) ||
+        roleLabel(u.role).toLowerCase().includes(q);
+    }).slice(0, 8);
+  }
+
+  function setRoleScreen(screenId: string, checked: boolean) {
+    const keys = SCREEN_VIEWS[screenId] ?? [];
+    if (!keys.length) return;
+    const next = { ...draftRolePermissions };
+    for (const key of keys) next[key] = checked;
+    draftRolePermissions = next;
+    roleChecked = { ...roleChecked, [screenId]: checked };
+    roleDraftDirty = true;
+    notice = '';
+    error = '';
+  }
+
+  function setUserScreen(screenId: string, checked: boolean) {
     if (!selectedUserId) return;
-    const prev = config.userAccess[selectedUserId] || {
-      mode: 'replace' as const,
-      screens: [] as string[],
-    };
-    const set = new Set(prev.screens);
-    if (set.has(screenId)) set.delete(screenId);
-    else set.add(screenId);
-    config = {
-      ...config,
-      userAccess: {
-        ...config.userAccess,
-        [selectedUserId]: { mode: prev.mode, screens: [...set] },
-      },
-    };
-  }
-
-  function setUserMode(mode: 'replace' | 'extra') {
-    if (!selectedUserId) return;
-    const prev = config.userAccess[selectedUserId] || { mode, screens: [] as string[] };
-    config = {
-      ...config,
-      userAccess: {
-        ...config.userAccess,
-        [selectedUserId]: { ...prev, mode },
-      },
-    };
-  }
-
-  function clearUserOverride() {
-    if (!selectedUserId) return;
-    const next = { ...config.userAccess };
-    delete next[selectedUserId];
-    config = { ...config, userAccess: next };
+    const keys = SCREEN_VIEWS[screenId] ?? [];
+    if (!keys.length) return;
+    const next = { ...draftUserModules };
+    for (const key of keys) next[key] = checked;
+    draftUserModules = next;
+    userChecked = { ...userChecked, [screenId]: checked };
+    userDraftDirty = true;
+    notice = '';
+    error = '';
   }
 
   function save() {
     notice = '';
     error = '';
-    isSaving = true;
-    try {
-      // Resolver tid: prop > primer usuario con tenantId > vacío (guarda en global+default)
-      const propTid = (tenantId && String(tenantId).trim()) || '';
-      // PlatformUser no trae tenantId; usar tenants del masterStore si hace falta
-      const fromTenants =
-        (state as { tenants?: { id?: string }[] }).tenants?.find((x) => x?.id)?.id ||
-        '';
-      const tid = propTid || fromTenants || '';
-
-      // config ya tiene TODOS los cambios aplicados por toggleRoleScreen /
-      // toggleUserScreen / setUserMode / clearUserOverride / resetRoleToDefault.
-      saveUiAccessConfig(tid, config);
-
-      if (tab === 'roles') {
-        const roleKey = (selectedRole || '').toLowerCase();
-        const saved = Array.isArray(config.roleScreens[roleKey])
-          ? config.roleScreens[roleKey]
-          : defaultScreensForRole(roleKey);
-        const count = saved.length;
-        notice =
-          `Rol «${roleLabel(selectedRole)}»: ${count} pantalla${count !== 1 ? 's' : ''} guardadas. ` +
-          'Esta configuración es ahora la fuente de verdad activa para este rol.';
-      } else {
-        if (selectedUserId) {
-          const ua = config.userAccess?.[selectedUserId];
-          const count = ua?.screens?.length ?? 0;
-          const modeLabel = ua?.mode === 'extra' ? 'acceso especial' : 'reemplazo de rol';
+    if (tab === 'roles') {
+      isSaving = true;
+      // Enviar mapa completo de vistas backend según checkboxes de pantallas UI
+      const permissions = modulesFromScreenChecks(roleChecked);
+      void store
+        .updateRolePermissions(selectedRole, permissions)
+        .then(async () => {
+          await store.loadAll();
+          const latest = store.getState();
+          state = latest;
+          draftRolePermissions = { ...(latest.rolePermissions[selectedRole] || permissions) };
+          syncRoleChecked();
+          roleDraftDirty = false;
           notice =
-            `Excepción de usuario guardada: ${count} pantalla${count !== 1 ? 's' : ''} (${modeLabel}). ` +
-            'Esta configuración es ahora la fuente de verdad activa para este usuario.';
-        } else {
-          notice = 'Permisos guardados correctamente.';
+            'Permisos de «' +
+            roleLabel(selectedRole) +
+            '» guardados en el servidor. Los usuarios de este rol verán el cambio al refrescar sesión.';
+          savedPulse = true;
+          setTimeout(() => (savedPulse = false), 1500);
+          window.dispatchEvent(new CustomEvent('abacophy-acl-changed'));
+        })
+        .catch((e) => {
+          error = e instanceof Error ? e.message : 'No se pudieron guardar los permisos del rol.';
+        })
+        .finally(() => {
+          isSaving = false;
+        });
+      return;
+    }
+    if (!selectedUserId) {
+      error = 'Seleccione un usuario antes de guardar.';
+      return;
+    }
+    isSaving = true;
+    // Mapa explícito de vistas: true/false según pantallas marcadas (excepción de usuario)
+    const modules = modulesFromScreenChecks(userChecked);
+    void store
+      .editUser({ id: selectedUserId, modules })
+      .then(async () => {
+        await store.loadAll();
+        state = store.getState();
+        const user = selectedUser();
+        draftUserModules = { ...(user?.modules || modules) };
+        syncUserChecked();
+        userDraftDirty = false;
+        notice =
+          'Autorizaciones de «' +
+          (user?.displayName || user?.username || 'usuario') +
+          '» guardadas en el servidor.';
+        savedPulse = true;
+        setTimeout(() => (savedPulse = false), 1500);
+        window.dispatchEvent(new CustomEvent('abacophy-acl-changed'));
+      })
+      .catch((e) => {
+        error = e instanceof Error ? e.message : 'No se pudieron guardar las autorizaciones.';
+      })
+      .finally(() => {
+        isSaving = false;
+      });
+  }
+
+  onMount(() => {
+    const unsub = store.subscribe((s) => {
+      state = s;
+      if (selectedUserId) {
+        const remote = s.users.find((u) => u.id === selectedUserId);
+        if (remote && !isSaving && !userDraftDirty) {
+          draftUserModules = { ...remote.modules };
+          syncUserChecked();
         }
       }
+      if (!isSaving && !roleDraftDirty) {
+        draftRolePermissions = { ...(s.rolePermissions[selectedRole] || {}) };
+        syncRoleChecked();
+      }
+    });
+    void store.loadAll();
+    return unsub;
+  });
 
-      savedPulse = true;
-      setTimeout(() => {
-        savedPulse = false;
-      }, 1500);
-    } catch (e) {
-      error = e instanceof Error ? e.message : 'No se pudo guardar';
-    } finally {
-      setTimeout(() => {
-        isSaving = false;
-      }, 100);
-    }
-  }
+  // Depender directamente de los mapas reactivos evita que Svelte pierda la
+  // dependencia indirecta que existía al calcularlo mediante roleScreenAllowed().
+  $: selectedCount = screensInGroup(SCREEN_GROUPS.flatMap((g) => g.ids), true)
+    .filter((screenId) => tab === 'roles'
+      ? roleChecked[screenId] === true
+      : userChecked[screenId] === true
+    ).length;
+  $: defaultCount = Object.values(roleChecked).filter(Boolean).length;
 </script>
 
 <section class="permisos" data-screen="permisos">
   <header class="hero">
     <div class="hero-glow" aria-hidden="true"></div>
     <div class="hero-text">
-      <p class="eyebrow">Control de acceso · cliente</p>
+      <p class="eyebrow">Control de acceso · servidor</p>
       <h1>Permisos de interfaz</h1>
       <p class="lede">
-        Define qué pantallas ve cada rol y excepciones por usuario. No modifica el ViewACL del
-        servidor; solo la UI de este negocio en el cliente.
+        Consulta la política base de acceso por rol y permite gestionar excepciones explícitas por usuario directamente contra el backend.
       </p>
     </div>
     <div class="hero-stats">
@@ -253,9 +283,6 @@
           <span class="stat-val">{defaultCount}</span>
           <span class="stat-lbl">default del rol</span>
         </div>
-        {#if isCustomRole}
-          <span class="pill-warn">personalizado</span>
-        {/if}
       {/if}
     </div>
   </header>
@@ -266,7 +293,7 @@
       role="tab"
       class:active={tab === 'roles'}
       aria-selected={tab === 'roles'}
-      on:click={() => (tab = 'roles')}
+      onclick={() => (tab = 'roles')}
     >
       <span class="seg-dot"></span>
       Por rol
@@ -276,7 +303,7 @@
       role="tab"
       class:active={tab === 'users'}
       aria-selected={tab === 'users'}
-      on:click={() => (tab = 'users')}
+      onclick={() => (tab = 'users')}
     >
       <span class="seg-dot"></span>
       Por usuario
@@ -288,11 +315,9 @@
       <div class="panel-head">
         <div>
           <h2 class="panel-title">Matriz por rol</h2>
-          <p class="panel-sub">Elija un rol y marque las pantallas visibles en el menú.</p>
+          <p class="panel-sub">Seleccione un rol y active o desactive las pantallas que ese rol puede utilizar.</p>
         </div>
-        <button type="button" class="ghost-btn" on:click={resetRoleToDefault}>
-          Restaurar default
-        </button>
+        <span class="ghost-btn">Edición por rol</span>
       </div>
 
       <div class="role-chips" role="listbox" aria-label="Roles">
@@ -303,7 +328,7 @@
             class:on={selectedRole === r}
             role="option"
             aria-selected={selectedRole === r}
-            on:click={() => (selectedRole = r)}
+            onclick={() => loadSelectedRole(r)}
           >
             {roleLabel(r)}
           </button>
@@ -311,12 +336,7 @@
       </div>
 
       <p class="default-hint">
-        Default de producto para <strong>{roleLabel(selectedRole)}</strong>:
-        {#if defaultScreensForRole(selectedRole).length}
-          {defaultScreensForRole(selectedRole).map(catalogLabel).join(' · ')}
-        {:else}
-          ninguna
-        {/if}
+        Permisos efectivos configurados para <strong>{roleLabel(selectedRole)}</strong>. Los cambios afectan a los usuarios de ese rol que no tengan una excepción individual.
       </p>
 
       {#each SCREEN_GROUPS as group (group.id)}
@@ -326,19 +346,20 @@
             <h3 class="group-title">{group.label}</h3>
             <div class="tile-grid">
               {#each ids as sid (sid)}
-                <button
-                  type="button"
-                  class="tile"
-                  class:on={roleScreenSet.has(sid)}
-                  aria-pressed={roleScreenSet.has(sid)}
-                  on:click={() => toggleRoleScreen(sid)}
-                >
+                <label class="tile" class:on={roleChecked[sid] === true}>
+                  <input
+                    class="tile-input"
+                    type="checkbox"
+                    checked={roleChecked[sid] === true}
+                    onchange={(event) => setRoleScreen(sid, (event.currentTarget as HTMLInputElement).checked)}
+                    aria-label={'Permitir ' + catalogLabel(sid) + ' para ' + roleLabel(selectedRole)}
+                  />
                   <span class="tile-check" aria-hidden="true"></span>
                   <span class="tile-body">
                     <span class="tile-label">{catalogLabel(sid)}</span>
-                    <span class="tile-id">{sid}</span>
+                    <span class="tile-id">{roleChecked[sid] === true ? 'permitida' : 'bloqueada'}</span>
                   </span>
-                </button>
+                </label>
               {/each}
             </div>
           </div>
@@ -357,33 +378,41 @@
       </div>
 
       <div class="user-row">
-        <label class="field">
+        <label class="field grow predictive-user">
           <span class="field-lbl">Usuario</span>
-          <select class="sel" bind:value={selectedUserId}>
-            <option value="">— Elija un usuario —</option>
-            {#each state.users.filter((u) => u.role !== 'master') as u (u.id)}
-              <option value={u.id}>
-                {u.displayName || u.username} · {roleLabel(u.role)}
-              </option>
-            {/each}
-          </select>
+          <input
+            class="sel"
+            type="search"
+            placeholder="Buscar por nombre, usuario o rol…"
+            value={userQuery}
+            oninput={(e) => {
+              userQuery = e.currentTarget.value;
+              if (!userQuery.trim()) clearSelectedUser();
+            }}
+            autocomplete="off"
+          />
+          {#if !selectedUserId && userQuery.trim()}
+            <div class="user-suggestions" role="listbox" aria-label="Usuarios encontrados">
+              {#each filteredUsers() as u (u.id)}
+                <button type="button" class="user-suggestion" onclick={() => loadSelectedUser(u.id)}>
+                  <span class="suggestion-name">{u.displayName || u.username}</span>
+                  <span class="suggestion-meta">{u.username} · {roleLabel(u.role)}</span>
+                </button>
+              {/each}
+              {#if filteredUsers().length === 0}
+                <div class="suggestion-empty">No hay usuarios que coincidan.</div>
+              {/if}
+            </div>
+          {/if}
         </label>
 
         {#if selectedUserId}
-          <label class="field grow">
-            <span class="field-lbl">Modo</span>
-            <select
-              class="sel"
-              value={userMode}
-              on:change={(e) =>
-                setUserMode(e.currentTarget.value === 'extra' ? 'extra' : 'replace')}
-            >
-              <option value="replace">Solo estas pantallas (reemplaza el rol)</option>
-              <option value="extra">Estas + las del rol (acceso especial)</option>
-            </select>
-          </label>
-          <button type="button" class="ghost-btn danger" on:click={clearUserOverride}>
-            Quitar excepción
+          <div class="user-selected">
+            <span class="field-lbl">Rol base</span>
+            <strong>{roleLabel(selectedUser()?.role || '')}</strong>
+          </div>
+          <button type="button" class="ghost-btn danger" onclick={clearSelectedUser}>
+            Cambiar usuario
           </button>
         {/if}
       </div>
@@ -396,19 +425,20 @@
               <h3 class="group-title">{group.label}</h3>
               <div class="tile-grid">
                 {#each ids as sid (sid)}
-                  <button
-                    type="button"
-                    class="tile"
-                    class:on={userScreenSet.has(sid)}
-                    aria-pressed={userScreenSet.has(sid)}
-                    on:click={() => toggleUserScreen(sid)}
-                  >
+                  <label class="tile" class:on={userChecked[sid] === true}>
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      checked={userChecked[sid] === true}
+                      onchange={(event) => setUserScreen(sid, (event.currentTarget as HTMLInputElement).checked)}
+                      aria-label={'Permitir ' + catalogLabel(sid) + ' al usuario seleccionado'}
+                    />
                     <span class="tile-check" aria-hidden="true"></span>
                     <span class="tile-body">
                       <span class="tile-label">{catalogLabel(sid)}</span>
-                      <span class="tile-id">{sid}</span>
+                      <span class="tile-id">{userChecked[sid] === true ? 'permitida' : 'bloqueada'}</span>
                     </span>
-                  </button>
+                  </label>
                 {/each}
               </div>
             </div>
@@ -427,10 +457,18 @@
       {#if notice}<p class="ok">{notice}</p>{/if}
       {#if error}<p class="err">{error}</p>{/if}
       {#if !notice && !error}
-        <p class="muted">Los cambios se guardan en este navegador (política UI local).</p>
+        <p class="muted">
+          {#if tab === 'users'}
+            Los cambios se guardan en el backend y se aplican a la sesión del usuario.
+          {:else}
+            Los cambios de rol se guardan en el backend y pasan a formar parte de la autorización efectiva.
+          {/if}
+        </p>
       {/if}
     </div>
-    <Button type="button" on:click={save}>Guardar permisos UI</Button>
+    <Button type="button" disabled={isSaving} on:click={save}>
+      {isSaving ? 'Guardando…' : tab === 'users' ? 'Guardar autorizaciones' : 'Guardar permisos del rol'}
+    </Button>
   </footer>
 </section>
 
@@ -472,7 +510,7 @@
       color-mix(in srgb, var(--accent-cyan, #61e6e1) 35%, transparent) 0%,
       transparent 70%
     );
-    pointer-events: none;
+    pointer-events: auto;
   }
   .hero-text {
     position: relative;
@@ -731,6 +769,20 @@
     background: color-mix(in srgb, var(--accent-cyan, #61e6e1) 12%, transparent);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-cyan, #61e6e1) 20%, transparent);
   }
+  .tile-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: auto;
+    cursor: pointer;
+  }
+
+  .tile:has(.tile-input:focus-visible) {
+    outline: 2px solid color-mix(in srgb, var(--accent-cyan, #61e6e1) 70%, transparent);
+    outline-offset: 2px;
+  }
+
   .tile-check {
     flex-shrink: 0;
     width: 1.05rem;
@@ -811,6 +863,76 @@
     color: var(--color-text-primary, var(--ap-text));
     font: inherit;
     font-size: 0.9rem;
+  }
+
+  .readonly-badge {
+    cursor: default;
+    opacity: 0.8;
+    pointer-events: none;
+  }
+  .predictive-user {
+    position: relative;
+  }
+  .user-suggestions {
+    position: absolute;
+    z-index: 30;
+    left: 0;
+    right: 0;
+    top: calc(100% + 0.35rem);
+    max-height: 18rem;
+    overflow-y: auto;
+    border: 1px solid var(--color-border, var(--ap-border));
+    border-radius: 14px;
+    background: var(--color-surface, var(--ap-bg-elevated));
+    box-shadow: var(--shadow-float, 0 20px 60px rgba(0, 0, 0, 0.28));
+    padding: 0.3rem;
+  }
+  .user-suggestion {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.12rem;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    padding: 0.6rem 0.7rem;
+    cursor: pointer;
+  }
+  .user-suggestion:hover,
+  .user-suggestion:focus-visible {
+    background: color-mix(in srgb, var(--accent-cyan, #61e6e1) 10%, transparent);
+    outline: none;
+  }
+  .suggestion-name {
+    color: var(--color-text-primary, var(--ap-text));
+    font-size: 0.84rem;
+    font-weight: 650;
+  }
+  .suggestion-meta {
+    color: var(--color-text-muted, var(--ap-text-muted));
+    font-size: 0.7rem;
+  }
+  .suggestion-empty {
+    padding: 0.75rem;
+    color: var(--color-text-muted, var(--ap-text-muted));
+    font-size: 0.8rem;
+  }
+  .user-selected {
+    min-width: 8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.48rem 0.75rem;
+    border: 1px solid var(--color-border, var(--ap-border));
+    border-radius: 12px;
+    background: var(--color-surface, var(--ap-bg-elevated));
+  }
+  .user-selected strong {
+    font-size: 0.86rem;
   }
 
   .empty {

@@ -27,6 +27,7 @@ func (s *Server) registerOpsRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/cost-sheets", s.handleCostSheets)
 	mux.HandleFunc("/api/v1/job-positions", s.handleJobPositions)
 	mux.HandleFunc("/api/v1/users", s.handleUsers)
+	mux.HandleFunc("/api/v1/role-permissions", s.handleRolePermissions)
 }
 
 func ensureOpsMaps(snap *domain.StoreSnapshot) {
@@ -992,6 +993,83 @@ func (s *Server) handleJobPositions(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) handleRolePermissions(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if sess.Role != domain.RoleMaster && sess.Role != domain.RoleAdmin {
+		writeJSON(w, 403, map[string]string{"error": "solo master o admin"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	if snap.Tenant.RolePermissions == nil {
+		snap.Tenant.RolePermissions = map[string]map[string]bool{}
+	}
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+	switch r.Method {
+	case http.MethodGet:
+		result := map[string]map[string]bool{}
+		for _, role := range auth.ValidRoles() {
+			permissions := map[string]bool{}
+			for view := range auth.ViewACL {
+				permissions[view] = auth.CanInTenant(snap, role, view)
+			}
+			result[role] = permissions
+		}
+		writeJSON(w, 200, map[string]any{"roles": result})
+	case http.MethodPut:
+		var body struct {
+			Role string `json:"role"`
+			Permissions map[string]bool `json:"permissions"`
+		}
+		if err := readJSON(r, &body); err != nil || body.Role == "" || body.Permissions == nil {
+			writeJSON(w, 400, map[string]string{"error": "rol y permisos requeridos"})
+			return
+		}
+		valid := false
+		for _, role := range auth.ValidRoles() {
+			if role == body.Role { valid = true; break }
+		}
+		if !valid {
+			writeJSON(w, 400, map[string]string{"error": "rol no permitido"})
+			return
+		}
+		clean := map[string]bool{}
+		for view := range auth.ViewACL {
+			if value, ok := body.Permissions[view]; ok {
+				clean[view] = value
+			} else {
+				clean[view] = auth.Can(body.Role, view)
+			}
+		}
+		// Conceder vista en rol también habilita el módulo del negocio (si no, ModuleEnabled bloquea).
+		if snap.Tenant.EnabledModules == nil {
+			snap.Tenant.EnabledModules = domain.DefaultEnabledModules()
+		}
+		for view, allowed := range clean {
+			if allowed {
+				snap.Tenant.EnabledModules[view] = true
+			}
+		}
+		snap.Tenant.RolePermissions[body.Role] = clean
+		snap.Tenant.UpdatedAt = time.Now().UTC()
+		s.audit(snap, sess, "permisos.rol.edicion", "Edición de permisos del rol «"+roleLabelES(body.Role)+"»", body.Role)
+		if err := s.Store.Put(snap); err != nil {
+			writeJSON(w, 500, map[string]string{"error": "no se pudieron persistir los permisos del rol: " + err.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"role": body.Role, "permissions": clean})
+	default:
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+	}
+}
+
 func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 	sess, err := s.sess(r)
 	if err != nil {
@@ -1054,7 +1132,7 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 			ID: uuid.NewString(), TenantID: sess.TenantID,
 			Username: strings.TrimSpace(body.Username), DisplayName: body.DisplayName,
 			Role: body.Role, PasswordHash: hash, Active: true,
-			Modules: auth.DefaultModulesForRole(body.Role),
+			Modules: nil,
 			CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
 		}
 		if u.DisplayName == "" {
@@ -1094,7 +1172,7 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 			u.Role = body.Role
 			roleChanged = true
 			// Al cambiar el rol se reasignan los módulos por defecto de ese rol
-			u.Modules = auth.DefaultModulesForRole(body.Role)
+			u.Modules = nil
 		}
 		if body.Modules != nil && !roleChanged {
 			if sess.Role != domain.RoleMaster && sess.Role != domain.RoleAdmin {
@@ -1130,7 +1208,10 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 		}
 		u.UpdatedAt = time.Now().UTC()
 		s.audit(snap, sess, "usuario.edicion", "Edición de usuario «"+u.Username+"» · rol «"+roleLabelES(u.Role)+"»", u.ID)
-		_ = s.Store.Put(snap)
+		if err := s.Store.Put(snap); err != nil {
+			writeJSON(w, 500, map[string]string{"error": "no se pudieron persistir los cambios del usuario: " + err.Error()})
+			return
+		}
 		writeJSON(w, 200, map[string]any{"user": publicUser(u), "views": auth.ViewsForUser(u.Role, snap, u)})
 	case http.MethodDelete:
 		id := r.URL.Query().Get("id")

@@ -787,3 +787,188 @@ Entrada de almacén = validación física
 
 No volver a acoplar la creación de `Reception` con `WarehouseStock` o `AvgCost`. Esas mutaciones pertenecen a la confirmación física realizada desde Almacén.
 
+
+
+## 2026-09-30 — permisos editables por rol y usuario
+
+- Se agregó persistencia por negocio de permisos editables por rol mediante `Tenant.RolePermissions`.
+- Se agregó `GET/PUT /api/v1/role-permissions`, restringido a master/admin.
+- `CanAccessUser` ahora resuelve primero la excepción explícita del usuario y después la política persistida del rol, con `ViewACL` como fallback.
+- Los usuarios nuevos y los usuarios cuyo rol cambia pasan a heredar la política del rol (`Modules=nil`) en lugar de almacenar una copia fija de los permisos.
+- La pantalla de permisos permite editar los checkboxes por rol y guardar la matriz en backend.
+- La pantalla por usuario mantiene las excepciones explícitas y ahora refleja la política efectiva personalizada del rol.
+
+
+## 2026-09-30 — Persistencia y relectura de permisos de rol/usuario
+- Se corrigió el flujo de administración de permisos para evitar estados visuales que parecían guardados pero no coincidían con una lectura posterior del backend.
+- El cliente HTTP usa `cache: 'no-store'` para evitar respuestas GET antiguas en datos administrativos mutables.
+- `PUT /api/v1/role-permissions` continúa persistiendo `Tenant.RolePermissions` mediante `Store.Put`; además, la lectura del endpoint se marca como `Cache-Control: no-store, no-cache, must-revalidate`.
+- El repositorio frontend verifica los permisos del rol mediante un GET posterior al PUT. Si el backend no devuelve exactamente los valores recién guardados, el guardado se considera fallido.
+- El repositorio frontend aplica la misma verificación a excepciones de módulos por usuario mediante un GET posterior de usuarios.
+- La vista `PermisosScreen.svelte` vuelve a cargar el estado desde backend después de guardar un rol y el contador de pantallas activas depende directamente de los mapas reactivos `roleChecked/userChecked`, corrigiendo la cabecera que podía mostrar un conteo obsoleto.
+- No se debe considerar persistido un cambio de permisos solo porque el PUT respondió correctamente: el criterio actual es que una lectura posterior del backend devuelva los valores guardados.
+
+# Backend Log — Permisos UI por rol y grants de usuario
+
+Registro de cambios en el backend de ÁbacoPhy para **autorización de pantallas UI** persistida en servidor (no localStorage). Alineado con el frontend en la rama `role-authorization-ui-updates` y el parche de fuente de verdad backend.
+
+**Cómo aplicar (parche EnabledModules):** copiar el bloque actualizado de `handleRolePermissions` en `internal/api/ops.go`; ejecutar `gofmt -w internal/api/ops.go` y `go test ./...`.
+
+**API relacionada:**
+- `GET/PUT /api/v1/role-permissions` — matriz por rol del tenant
+- `PUT /api/v1/users` con `modules` — excepciones por usuario
+- `GET /api/v1/auth/login` y `/auth/me` — devuelven `views` ya resueltas
+
+---
+
+## Fase ACL-1 — `Tenant.RolePermissions` + `CanInTenant`
+
+**Fecha:** 2026-09-30 / 2026-10-01  
+**Rama origen:** `feature/admin-module-grants` → merge; ampliación en `role-authorization-ui-updates`  
+**Archivos:**
+- `internal/domain/models.go` — `Tenant.RolePermissions map[string]map[string]bool` (`json:"role_permissions"`)
+- `internal/auth/auth.go` — `CanInTenant`, `CanAccessUser`, `ViewsForUser`
+- `internal/api/ops.go` — `handleRolePermissions`, `handleUsers` (campo `modules`)
+
+### Propósito
+
+Que master/admin puedan **persistir** qué vistas del `ViewACL` tiene cada rol del negocio, y opcionalmente **conceder o revocar** vistas por usuario, sin redeploy ni política solo en el cliente.
+
+### Modelo de decisión (`CanAccessUser`)
+
+1. `ModuleEnabled(snap, view)` — módulo activo en el tenant
+2. Si `user.Modules[view]` está definido → ese `bool` gana (grant fuera del rol o revoke)
+3. Si no → `CanInTenant(snap, role, view)`:
+    - Si existe `Tenant.RolePermissions[role][view]` → ese valor
+    - Si no → `ViewACL` estático en código
+4. `RoleMaster` siempre puede (vía `Can` / `CanInTenant`)
+
+### `PUT /api/v1/role-permissions`
+
+```json
+{ "role": "vendedor", "permissions": { "vendedor": true, "productos": true, "nomencladores": true } }
+```
+
+- Solo **master** o **admin**
+- Solo roles de `ValidRoles()` (no se edita master por esta vía)
+- Claves ausentes en el body se rellenan con el default de `ViewACL` (`auth.Can`)
+- Persistencia: `Store.Put(snap)` → snapshot JSON del tenant
+- Respuesta: `{ "role", "permissions" }`
+- `GET` devuelve mapa efectivo por rol (`CanInTenant` por cada vista del `ViewACL`) con `Cache-Control: no-store`
+
+### `PUT /api/v1/users` + `modules`
+
+```json
+{ "id": "<userId>", "modules": { "productos": true, "nomencladores": true } }
+```
+
+- Solo master/admin
+- Merge sobre `user.Modules` existente
+- Si `v == true`, también `EnabledModules[k] = true`
+- Al **cambiar el rol** del usuario → `user.Modules = nil` (vuelve a heredar solo la política de rol)
+- Usuarios nuevos: `Modules: nil` (heredan rol)
+
+### Login / me
+
+Devuelven:
+
+- `views`: lista de vistas con `CanAccessUser` verdadero
+- `modules`: módulos habilitados del tenant
+- `user_modules`: mapa explícito del usuario (puede ser null)
+
+El frontend debe construir el menú **solo** desde `views` (sin localStorage de permisos).
+
+### Impacto
+
+| Área | Efecto |
+|------|--------|
+| Persistencia | Sí — `role_permissions` y `users[].modules` en snapshot |
+| ViewACL en código | Sigue como default si el rol no tiene política guardada |
+| ACL de endpoints (`gate`) | Usa la misma cadena `CanAccessUser` donde aplica |
+| Módulos Master (feature on/off) | Independiente: `EnabledModules` / `PUT /modules` |
+
+---
+
+## Fase ACL-2 — Al conceder vista en rol, habilitar módulo del tenant
+
+**Fecha:** 2026-10-01  
+**Archivo:** `internal/api/ops.go` → `handleRolePermissions` (rama PUT)  
+**Paquete FE/BE relacionado:** `webapp-acl-backend-source.zip`
+
+### Propósito
+
+Evitar que un permiso de rol en `true` **no aparezca** en `views` porque `ModuleEnabled` devolvía `false`.
+
+### Por qué lo cambiamos
+
+`CanAccessUser` evalúa **primero** `ModuleEnabled`.  
+`PUT /users` con `modules` ya hacía `EnabledModules[k] = true` al conceder.  
+`PUT /role-permissions` **solo** escribía `RolePermissions` y no tocaba `EnabledModules`.
+
+Síntoma: panel guardaba OK, verificación GET OK, pero login del rol seguía sin esa vista en `views`.
+
+### Qué mejora
+
+Tras construir el mapa `clean` de permisos del rol:
+
+```go
+if snap.Tenant.EnabledModules == nil {
+    snap.Tenant.EnabledModules = domain.DefaultEnabledModules()
+}
+for view, allowed := range clean {
+    if allowed {
+        snap.Tenant.EnabledModules[view] = true
+    }
+}
+```
+
+- No apaga módulos al quitar un permiso de rol (otro rol puede seguir usándolos)
+- Solo **enciende** lo necesario para que el grant sea efectivo
+
+### Impacto
+
+| Área | Efecto |
+|------|--------|
+| `RolePermissions` | Sin cambio de forma |
+| `EnabledModules` | Puede ganar claves `true` al guardar roles |
+| `PUT /modules` (Master) | Sigue pudiendo apagar módulos a nivel negocio |
+| FE | Debe refrescar sesión (`/auth/me`) tras guardar para ver menú actualizado |
+
+### Prueba rápida
+
+```bash
+# 1) Conceder nomenclador al rol vendedor
+curl -s -X PUT -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"role":"vendedor","permissions":{"vendedor":true,"productos":true,"nomencladores":true}}' \
+  "http://localhost:8090/api/v1/role-permissions" | jq .
+
+# 2) Comprobar que el módulo quedó habilitado en el tenant
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8090/api/v1/modules" | jq '.modules.productos, .modules.nomencladores'
+
+# 3) Login como vendedor y revisar views
+curl -s -X POST -H "Content-Type: application/json" \
+  -d '{"username":"vendedor1","password":"..."}' \
+  "http://localhost:8090/api/v1/auth/login" | jq '.views'
+```
+
+---
+
+## Separación de conceptos (backend)
+
+| Concepto | Campo / API | Responsable |
+|----------|-------------|-------------|
+| Feature on/off del negocio | `Tenant.EnabledModules` · `GET/PUT /modules` | Master (módulos) |
+| Política UI por rol | `Tenant.RolePermissions` · `GET/PUT /role-permissions` | Master/Admin (permisos UI) |
+| Excepción por usuario | `User.Modules` · `PUT /users` | Master/Admin (permisos UI) |
+| Menú efectivo | `views` en login/me | Calculado, no se edita a mano |
+
+No mezclar la pantalla de **módulos** con la de **permisos UI**: la primera habilita capacidad del negocio; la segunda decide qué pantallas ve cada rol/usuario **dentro** de lo habilitado.
+
+---
+
+## Notas de operación
+
+1. Tras cambiar permisos de rol, las sesiones ya abiertas conservan `views` en memoria hasta **re-login** o `GET /auth/me`.
+2. Usuarios con `modules` antiguos densos pueden no heredar cambios de rol hasta limpiar excepciones (`modules` null al cambiar rol, o reescritura desde el panel).
+3. Claves de vista son las del `ViewACL` (`vendedor`, `productos`, `nomencladores`, …), no los ids de pantalla del FE (`pos`, `catalog`).

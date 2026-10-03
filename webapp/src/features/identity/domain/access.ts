@@ -1,11 +1,12 @@
 import type { Session } from './entities/Session';
-import { defaultScreensForRole } from './uiAccessPolicy';
-import { isKnownProductRole, resolveScreensForSession } from './resolveUiAccess';
-import { loadUiAccessConfig } from './uiAccessStorage';
 
+/**
+ * Mapeo pantalla UI (nav) → claves de vista del backend (ViewACL / RolePermissions / User.Modules).
+ * Una pantalla requiere TODAS sus claves presentes en session.views.
+ */
 export const SCREEN_VIEWS: Record<string, string[]> = {
-  home: ['dashboard', 'reportes'],
-  dashboard: ['dashboard', 'reportes'],
+  home: ['dashboard'],
+  dashboard: ['dashboard'],
   ingresos: ['ingresos'],
   gastos: ['gastos'],
   cuentas: ['cuentas', 'cuentas_t'],
@@ -16,16 +17,16 @@ export const SCREEN_VIEWS: Record<string, string[]> = {
   catalog: ['nomencladores', 'productos'],
   tenant: ['tenant'],
   almacen: ['almacen', 'inventario'],
-  recepcion: ['recepcion', 'almacen'],
-  transferencias: ['almacen', 'unidades'],
+  recepcion: ['recepcion'],
+  transferencias: ['unidades'],
   pos: ['vendedor'],
   'fichas-costo': ['fichas_costo'],
   'fichas-precio': ['fichas_precio'],
-  pedidos: ['pedidos_online', 'tienda'],
+  pedidos: ['pedidos_online'],
   traza: ['traza'],
   salvas: ['salvas'],
   usuarios: ['usuarios'],
-  permisos: ['usuarios', 'master'],
+  permisos: ['usuarios'],
   master: ['master'],
 };
 
@@ -33,63 +34,33 @@ export function viewsOf(session: Session | null | undefined): Set<string> {
   return new Set(session?.views ?? []);
 }
 
+/** Pantallas UI derivadas solo de session.views (backend). */
 export function screensFromSessionViews(session: Session | null | undefined): string[] {
   if (!session?.views?.length) return [];
   const vset = viewsOf(session);
   const out: string[] = [];
   for (const [screen, keys] of Object.entries(SCREEN_VIEWS)) {
-    if (keys.some((k) => vset.has(k))) out.push(screen);
+    if (screen === 'home') continue;
+    if (keys.length > 0 && keys.every((k) => vset.has(k))) out.push(screen);
   }
   return out;
 }
 
-function feScreensSafe(session: Session): string[] {
-  try {
-    return resolveScreensForSession(session).filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
 /**
- * Roles de producto: solo política FE (panel o default).
- * No ampliar con ViewACL del backend.
+ * Fuente de verdad: views del login /auth/me (rol persistido + grants usuario).
+ * Sin fallback a localStorage ni ROLE_DEFAULT_SCREENS.
  */
 export function effectiveScreens(session: Session | null | undefined): string[] {
   if (!session) return [];
-  const role = String(session.user?.role || '').trim().toLowerCase();
-
-  const fe = feScreensSafe(session);
-  if (fe.length > 0) return fe;
-
-  // Si fe está vacío, verificar si fue explícitamente configurado como vacío en la política FE
-  try {
-    const config = loadUiAccessConfig(session.user?.tenantId);
-    if (session.user?.id && config.userAccess?.[session.user.id]) {
-      return config.userAccess[session.user.id].screens || [];
-    }
-    if (session.user?.username && config.userAccess?.[session.user.username]) {
-      return config.userAccess[session.user.username].screens || [];
-    }
-    if (Array.isArray(config.roleScreens?.[role])) {
-      return config.roleScreens[role];
-    }
-  } catch {
-    /* fallback */
-  }
-
-  if (isKnownProductRole(role)) {
-    const d = defaultScreensForRole(role);
-    if (d.length) return d;
-  }
-
   const backend = screensFromSessionViews(session);
-  if (backend.length) return backend;
+  if (backend.length > 0) return backend;
 
-  if (role === 'vendedor') return ['pos'];
-  if (role === 'master' || role === 'admin') {
-    return ['dashboard', 'usuarios', 'permisos', 'master'];
-  }
+  const role = String(session.user?.role || '')
+    .trim()
+    .toLowerCase();
+  // Sesión sin views (token roto / backend antiguo): mínimo operable
+  if (role === 'master') return ['dashboard', 'usuarios', 'permisos', 'master', 'tenant'];
+  if (role === 'admin') return ['dashboard', 'usuarios', 'permisos', 'tenant'];
   return ['dashboard'];
 }
 
@@ -107,11 +78,7 @@ export function canAccessView(
   view: string,
 ): boolean {
   if (!session) return false;
-  const allowed = effectiveScreens(session);
-  for (const [screen, keys] of Object.entries(SCREEN_VIEWS)) {
-    if (keys.includes(view) && allowed.includes(screen)) return true;
-  }
-  return false;
+  return viewsOf(session).has(view);
 }
 
 export function firstAllowedScreen(session: Session | null | undefined): string {
@@ -126,9 +93,39 @@ export function firstAllowedScreen(session: Session | null | undefined): string 
     'recepcion',
     'tenant',
     'usuarios',
+    'permisos',
   ];
   for (const id of order) {
     if (canAccessScreen(session, id)) return id;
   }
   return effectiveScreens(session)[0] || 'dashboard';
+}
+
+/** Todas las claves de vista backend usadas por el panel de permisos UI. */
+export function allBackendViewKeys(): string[] {
+  const s = new Set<string>();
+  for (const keys of Object.values(SCREEN_VIEWS)) {
+    for (const k of keys) s.add(k);
+  }
+  return [...s];
+}
+
+/**
+ * Construye mapa de permisos backend a partir de checkboxes de pantallas UI.
+ * Claves compartidas entre pantallas: true si alguna pantalla que las usa está activa.
+ */
+export function modulesFromScreenChecks(
+  checked: Record<string, boolean>,
+): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  for (const key of allBackendViewKeys()) {
+    out[key] = false;
+  }
+  for (const [screenId, on] of Object.entries(checked)) {
+    if (!on) continue;
+    for (const key of SCREEN_VIEWS[screenId] ?? []) {
+      out[key] = true;
+    }
+  }
+  return out;
 }

@@ -62,6 +62,7 @@ export function createHttpClient(config: HttpClientConfig) {
         headers,
         body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
         signal: options.signal,
+        cache: 'no-store',
       });
     } catch {
       throw new HttpError('network', 'Sin conexión o red no disponible', 0);
@@ -94,6 +95,7 @@ export function createHttpClient(config: HttpClientConfig) {
         method: 'GET',
         headers,
         signal: options?.signal,
+        cache: 'no-store',
       });
     } catch {
       throw new HttpError('network', 'Sin conexión o red no disponible', 0);

@@ -5,10 +5,12 @@ import {
   CreateUser,
   DeactivateUser,
   GetModules,
+  GetRolePermissions,
   ListTenants,
   ListUsers,
   ResetPlatform,
   UpdateModules,
+  UpdateRolePermissions,
   UpdateUser,
 } from '../domain/usecases';
 import { createMasterStore, type MasterStore } from '../ui/stores/masterStore';
@@ -25,7 +27,9 @@ export function createMasterModule(container: AppContainer): MasterModule {
     createTenant: new CreateTenant(repo),
     resetPlatform: new ResetPlatform(repo),
     getModules: new GetModules(repo),
+    getRolePermissions: new GetRolePermissions(repo),
     updateModules: new UpdateModules(repo),
+    updateRolePermissions: new UpdateRolePermissions(repo),
     listUsers: new ListUsers(repo),
     createUser: new CreateUser(repo),
     updateUser: new UpdateUser(repo),

@@ -61,3 +61,12 @@ export type UserResponseDto = {
   user?: UserDto;
   views?: string[] | null;
 };
+
+export type RolePermissionsResponseDto = {
+  roles?: Record<string, Record<string, boolean>> | null;
+};
+
+export type UpdateRolePermissionsResponseDto = {
+  role?: string;
+  permissions?: Record<string, boolean> | null;
+};

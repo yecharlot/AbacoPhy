@@ -129,6 +129,19 @@
 
   const isMaster = $derived(sessionState.session?.user?.role === 'master');
 
+  /** unitIds del empleado en metadata de sesión (si el backend los expone). */
+  const posAssignedUnitIds = $derived.by(() => {
+    const meta = (sessionState.session?.user as { metadata?: string | null } | undefined)?.metadata;
+    if (!meta) return [] as string[];
+    try {
+      const o = JSON.parse(meta) as { unitIds?: unknown };
+      if (Array.isArray(o.unitIds)) return o.unitIds.map(String);
+    } catch {
+      /* ignore */
+    }
+    return [] as string[];
+  });
+
   const canEditTenant = $derived(
     (sessionState.session?.views ?? []).includes('tenant'),
   );
@@ -295,7 +308,17 @@
     {:else if activeId === 'transferencias'}
       <TransferenciasScreen store={warehouseStore} />
     {:else if activeId === 'pos'}
-      <PosScreen store={posStore} />
+      <PosScreen
+        store={posStore}
+        sessionRole={sessionState.session?.user?.role ?? ''}
+        sessionDisplayName={sessionState.session?.user?.displayName ?? ''}
+        sessionUsername={sessionState.session?.user?.username ?? ''}
+        assignedUnitIds={posAssignedUnitIds}
+        canInvoice={['master', 'admin', 'economico'].includes(
+          String(sessionState.session?.user?.role || '').toLowerCase(),
+        )}
+        invoiceStore={invoicingStore}
+      />
     {:else if activeId === 'fichas-costo'}
       <FichasCostoScreen store={costingStore} />
     {:else if activeId === 'fichas-precio'}
