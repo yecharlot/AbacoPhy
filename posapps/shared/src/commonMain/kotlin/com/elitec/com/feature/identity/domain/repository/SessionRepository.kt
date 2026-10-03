@@ -1,11 +1,18 @@
 package com.elitec.com.feature.identity.domain.repository
 
 import com.elitec.com.feature.identity.domain.entities.Session
+import com.elitec.com.feature.identity.domain.entities.SessionControl
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 interface SessionRepository {
-    fun observeASessionState() : Flow<List<Session>>
+    /** Estado reactivo de sesión para la app. */
+    val sessionState: StateFlow<SessionControl>
+
+    fun observeSessionControl(): Flow<SessionControl>
+
     suspend fun saveSession(session: Session)
-    suspend fun clearStoredToken() // Clean a session token of store
-    suspend fun getTokenSession(): String?
+    suspend fun clearSession()
+    suspend fun getActiveToken(): String?
+    suspend fun getActiveSession(): Session?
 }

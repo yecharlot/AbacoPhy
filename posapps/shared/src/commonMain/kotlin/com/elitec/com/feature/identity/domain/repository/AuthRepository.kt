@@ -5,8 +5,8 @@ import com.elitec.com.feature.identity.domain.entities.LoginCredentials
 import com.elitec.com.feature.identity.domain.entities.Session
 
 interface AuthRepository {
-    fun login(credentials: LoginCredentials): Session
-    fun logout()
-    fun changePassword(input: ChangePasswordInput)
-    fun getMe(): Session // Test the token , Restore session from token (GET /auth/me) or fail */
+    suspend fun login(credentials: LoginCredentials): Session
+    suspend fun logout()
+    suspend fun getMe(token: String): Session
+    suspend fun changePassword(input: ChangePasswordInput)
 }

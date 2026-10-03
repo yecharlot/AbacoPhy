@@ -1,80 +1,72 @@
 package com.elitec.com.feature.pos.data.dataSource
 
-import com.elitec.com.feature.identity.domain.repository.SessionRepository
 import com.elitec.com.feature.pos.data.dto.SaleDto
+import com.elitec.com.feature.pos.data.dto.SaleResponseDto
+import com.elitec.com.feature.pos.data.dto.SalesResponseDto
+import com.elitec.com.feature.pos.data.mappers.SaleMapper
+import com.elitec.com.feature.pos.domain.entities.CreateSaleInput
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import io.ktor.http.isSuccess
-import io.ktor.http.parameters
 
+/**
+ * Fuente remota alineada con web SalesRemoteSource:
+ *   GET  {baseUrl}/pos/sales
+ *   POST {baseUrl}/pos/sales
+ *
+ * [baseUrl] debe incluir el prefijo API (p.ej. https://host/api/v1).
+ * [tokenProvider] resuelve el bearer de la sesión activa (identity).
+ */
 class RemoteSalesDataSource(
-    private val _remote: HttpClient,
-    private val _sessionControl: SessionRepository
+    private val http: HttpClient,
+    private val baseUrl: String,
+    private val tokenProvider: suspend () -> String?,
 ) {
-    private val _baseUrl = ""
-    private val _endpoint = "/sale"
+    private val endpoint: String
+        get() = baseUrl.trimEnd('/') + "/pos/sales"
 
     init {
-        require(_baseUrl.isNotEmpty()) { "La URL Base de la API no esta configurada" }
-    }
-
-    suspend fun save(sale: SaleDto, tokenAuth: String, onSaveSuccess: suspend () -> Unit) {
-        val response = _remote.post(_baseUrl+_endpoint) {
-            bearerAuth(
-                tokenAuth
-            )
-        }
-        when(response.status.isSuccess()) {
-            true -> onSaveSuccess()
-            else -> {
-                throw Exception("No se ha guardado la venta correctamente")
-            }
+        require(baseUrl.isNotBlank()) {
+            "La URL base de la API no está configurada (baseUrl vacío)"
         }
     }
 
-    suspend fun getById(saleId: String): SaleDto? {
-        val response = _remote.get(_baseUrl+_endpoint) {
-            bearerAuth(
-                _sessionControl.getTokenSession() ?: throw Exception("La sesión no tiene token activo")
-            )
-        }
+    private suspend fun authToken(): String =
+        tokenProvider() ?: error("No hay sesión activa (token ausente)")
 
-        if(!response.status.isSuccess())
-            throw Exception(
-                "No se pudo obtener la venta solicitada, error en la llamada al servidor con Código: 001"
-            )
-        return response.body()
+    suspend fun listSales(): List<SaleDto> {
+        val response: HttpResponse = http.get(endpoint) {
+            bearerAuth(authToken())
+        }
+        if (!response.status.isSuccess()) {
+            error("No se pudo listar ventas (HTTP ${response.status.value})")
+        }
+        val body = response.body<SalesResponseDto>()
+        return body.sales.orEmpty()
     }
 
-    suspend fun getSaleList(posId: String): List<SaleDto> {
-
-        val response = when (posId.isEmpty()) {
-            true -> _remote.get(_baseUrl+_endpoint) {
-                bearerAuth(
-                    _sessionControl.getTokenSession() ?: throw Exception("La sesión no tiene token activo")
-                )
-            }
-            else -> _remote.get(_baseUrl) {
-                bearerAuth(
-                    _sessionControl.getTokenSession() ?: throw Exception("La sesión no tiene token activo")
-                )
-                parameters {
-                    mapOf("posId" to posId)
-                }
-            }
+    suspend fun createSale(input: CreateSaleInput): SaleDto {
+        val response: HttpResponse = http.post(endpoint) {
+            bearerAuth(authToken())
+            contentType(ContentType.Application.Json)
+            setBody(SaleMapper.createSaleInputToMap(input))
         }
-        when (response.status.isSuccess()) {
-            true -> {
-                return response.body()
-            }
-            else -> {
-                throw Exception(
-                    "No se pudo obtener la lista de ventas solicitada, error en la llamada al servidor con Código: 001"
-                )
-            }
+        if (!response.status.isSuccess()) {
+            val detail = runCatching { response.body<Map<String, String>>()["error"] }.getOrNull()
+            error(detail ?: "No se pudo registrar la venta (HTTP ${response.status.value})")
         }
+        val body = response.body<SaleResponseDto>()
+        return body.sale ?: error("Respuesta de venta vacía")
     }
+
+    /** El API actual no expone GET por id; se resuelve filtrando el listado. */
+    suspend fun getById(saleId: String): SaleDto? =
+        listSales().firstOrNull { it.id == saleId }
 }

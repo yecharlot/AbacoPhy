@@ -1,30 +1,23 @@
 package com.elitec.com.feature.identity.data.dao
 
 import androidx.room3.Dao
-import androidx.room3.Delete
 import androidx.room3.Insert
+import androidx.room3.OnConflictStrategy
 import androidx.room3.Query
-import androidx.room3.Transaction
-import androidx.room3.Upsert
-import com.elitec.com.feature.identity.data.dto.SessionDto
-import com.elitec.com.feature.pos.data.dto.SaleDto
+import com.elitec.com.feature.identity.data.dto.SessionEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SessionDao {
-    @Query("SELECT * FROM SessionDto")
-    fun getAllAsFlow(): Flow<List<SessionDto>>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun save(session: SessionEntity)
 
-    @Upsert
-    suspend fun saveOrModify(sessionDto: SessionDto)
+    @Query("SELECT * FROM session_active WHERE id = 1 LIMIT 1")
+    suspend fun get(): SessionEntity?
 
-    @Delete
-    suspend fun delete(sessionId: String)
+    @Query("SELECT * FROM session_active WHERE id = 1 LIMIT 1")
+    fun observe(): Flow<SessionEntity?>
 
-    @Query("SELECT * FROM SessionSto WHERE token = :token")
-    suspend fun getByToken(token: String): SessionDto?
-
-    @Transaction
-    @Query("DELETE * FROM SessionSto")
-    suspend fun deleteSession()
+    @Query("DELETE FROM session_active")
+    suspend fun clear()
 }

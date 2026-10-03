@@ -1,0 +1,3 @@
+THIS FILE MUST BE DELETED.
+The real AuthDtos.kt was removed. If you still have AuthDtos.kt, delete it.
+Mappings are in SessionEntity.kt and UserDto.kt only.
