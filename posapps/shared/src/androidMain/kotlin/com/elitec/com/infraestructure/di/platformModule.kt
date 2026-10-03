@@ -13,6 +13,6 @@ actual val platformModule: Module = module {
     }
     // Emulador Android → host machine
     single(named("apiBaseUrl")) {
-        "http://10.0.2.2:8080/api/v1"
+        "http://10.0.2.2:8090/api/v1"
     }
 }

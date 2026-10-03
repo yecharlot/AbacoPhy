@@ -70,6 +70,7 @@ kotlin {
             implementation(libs.arrow.fx.coroutines)
             implementation(libs.androidx.room3.runtime)
             implementation(libs.androidx.sqlite.bundled)
+            implementation(libs.logging.napier)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -80,8 +81,6 @@ kotlin {
 
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
-
-    // Room KSP — obligatorio para generar AbacoDataBase_Impl en cada target
     add("kspAndroid", libs.androidx.room3.compiler)
     add("kspJvm", libs.androidx.room3.compiler)
 }

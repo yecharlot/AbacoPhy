@@ -9,9 +9,4 @@ import org.koin.dsl.module
  */
 val infraModule = module {
     single { getHttpClient() }
-
-    /** Override en platformModule si hace falta (emulador / prod). */
-    single(named("apiBaseUrl")) {
-        "http://127.0.0.1:8080/api/v1"
-    }
 }

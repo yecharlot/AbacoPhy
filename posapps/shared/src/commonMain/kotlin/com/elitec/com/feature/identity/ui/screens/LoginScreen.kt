@@ -34,6 +34,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.elitec.com.feature.identity.ui.viewmodel.LoginEvent
 import com.elitec.com.feature.identity.ui.viewmodel.LoginUiState
 import com.elitec.com.feature.identity.ui.viewmodel.LoginViewModel
 import com.elitec.com.infraestructure.ui.theme.AbacoColors
@@ -46,10 +47,14 @@ fun LoginScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var username by remember { mutableStateOf(viewModel.username) }
-    var password by remember { mutableStateOf(viewModel.password) }
+    var password by remember { mutableStateOf("") }
 
-    LaunchedEffect(uiState) {
-        if (uiState is LoginUiState.Success) onLoginSuccess()
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is LoginEvent.NavigateHome -> onLoginSuccess()
+            }
+        }
     }
 
     Box(

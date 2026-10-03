@@ -1,7 +1,10 @@
 package com.elitec.com.feature.identity.ui.screens
 
+import abacopos.shared.generated.resources.Res
+import abacopos.shared.generated.resources.abacus_color_icon
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -29,6 +33,7 @@ import com.elitec.com.feature.identity.ui.viewmodel.SplashDestination
 import com.elitec.com.feature.identity.ui.viewmodel.SplashViewModel
 import com.elitec.com.infraestructure.ui.theme.AbacoColors
 import com.elitec.com.infraestructure.ui.theme.AbacoMotion
+import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -66,24 +71,26 @@ fun SplashScreen(
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.alpha(alpha),
         ) {
+            Image(
+                painter = painterResource(Res.drawable.abacus_color_icon),
+                contentDescription = "Ábaco POS",
+                modifier = Modifier.size(120.dp),
+                contentScale = ContentScale.Fit,
+            )
+            Spacer(Modifier.height(20.dp))
             Text(
-                text = "Ábaco",
-                style = MaterialTheme.typography.displayMedium,
+                text = "Ábaco POS",
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = AbacoColors.Cyan,
             )
-            Text(
-                text = "POS",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f),
-            )
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(28.dp))
             CircularProgressIndicator(
-                modifier = Modifier.size(36.dp),
+                modifier = Modifier.size(32.dp),
                 color = AbacoColors.Cyan,
                 strokeWidth = 3.dp,
             )
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
             Text(
                 text = "Comprobando sesión…",
                 style = MaterialTheme.typography.bodyMedium,

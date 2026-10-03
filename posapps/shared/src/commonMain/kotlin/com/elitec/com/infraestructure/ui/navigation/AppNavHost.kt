@@ -9,10 +9,6 @@ import com.elitec.com.feature.identity.ui.screens.LoginScreen
 import com.elitec.com.feature.identity.ui.screens.SplashScreen
 import com.elitec.com.feature.pos.ui.screens.HomeScreen
 
-/**
- * Navegación de arranque con Navigation 3 (NavDisplay + back stack).
- * Estrategia de escena por defecto (single pane); lista para SceneStrategy adaptativa.
- */
 @Composable
 fun AppNavHost() {
     val backStack = remember {
@@ -44,7 +40,7 @@ fun AppNavHost() {
                 }
                 is AppRoute.Home -> NavEntry(key) {
                     HomeScreen(
-                        onLogout = { replaceWith(AppRoute.Login) },
+                        onLoggedOut = { replaceWith(AppRoute.Login) },
                     )
                 }
                 else -> error("Ruta desconocida: $key")

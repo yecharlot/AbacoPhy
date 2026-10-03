@@ -52,7 +52,6 @@ fun SaleNetworkDto.toEntity(): SaleDto = SaleDto(
 
 fun SaleNetworkDto.toDomain(): Sale = toEntity().toDomain()
 
-/** Entidad Room: lines como JSON string (sin TypeConverter). */
 @Entity(tableName = "pos_sales")
 data class SaleDto(
     @PrimaryKey val id: String = "",

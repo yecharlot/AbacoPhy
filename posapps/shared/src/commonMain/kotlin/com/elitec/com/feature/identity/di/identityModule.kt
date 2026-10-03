@@ -10,6 +10,7 @@ import com.elitec.com.feature.identity.domain.caseuse.ObserveSessionCaseUse
 import com.elitec.com.feature.identity.domain.caseuse.RestoreSessionCaseUse
 import com.elitec.com.feature.identity.domain.repository.AuthRepository
 import com.elitec.com.feature.identity.domain.repository.SessionRepository
+import com.elitec.com.feature.identity.ui.viewmodel.HomeSessionViewModel
 import com.elitec.com.feature.identity.ui.viewmodel.LoginViewModel
 import com.elitec.com.feature.identity.ui.viewmodel.SplashViewModel
 import com.elitec.com.infraestructure.data.database.AbacoDataBase
@@ -42,4 +43,5 @@ val identityModule = module {
 
     viewModel { SplashViewModel(get()) }
     viewModel { LoginViewModel(get()) }
+    viewModel { HomeSessionViewModel(get()) }
 }
