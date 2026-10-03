@@ -23,4 +23,8 @@ class SessionRepositoryImpl(
     override suspend fun clearStoredToken() {
         sessionDao.deleteSession()
     }
+
+    override suspend fun getTokenSession(): String? {
+        TODO("Not yet implemented")
+    }
 }

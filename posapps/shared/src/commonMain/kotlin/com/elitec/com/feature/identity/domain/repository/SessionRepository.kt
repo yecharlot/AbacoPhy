@@ -7,4 +7,5 @@ interface SessionRepository {
     fun observeASessionState() : Flow<List<Session>>
     suspend fun saveSession(session: Session)
     suspend fun clearStoredToken() // Clean a session token of store
+    suspend fun getTokenSession(): String?
 }
