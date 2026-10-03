@@ -10,6 +10,7 @@
   import type { PosState, PosStore } from '../stores/posStore';
   import { salesByDay, salesTotals, topSoldProducts } from '../viewmodels/posCharts';
   import type { CreateSaleLineInput, Sale } from '../../domain/entities/Sale';
+  import type { EmitInvoiceInput } from '../../../invoicing/domain/entities/Invoice';
   import {
     buildUnitStockBoard,
     LOW_STOCK_THRESHOLD,
@@ -25,8 +26,8 @@
   export let canInvoice: boolean = false;
   /** InvoicingStore real: método `emit`. Alias legacy `emitInvoice`. */
   export let invoiceStore: {
-    emit?: (input: unknown) => Promise<void>;
-    emitInvoice?: (input: unknown) => Promise<void>;
+    emit?: (input: EmitInvoiceInput) => Promise<void>;
+    emitInvoice?: (input: EmitInvoiceInput) => Promise<void>;
   } | null = null;
 
   type DraftLine = {
@@ -254,7 +255,7 @@
     return sortedHistory.filter((s) => selectedSaleIds[s.id]);
   }
 
-  async function callEmitInvoice(payload: Record<string, unknown>) {
+  async function callEmitInvoice(payload: EmitInvoiceInput) {
     if (!invoiceStore) throw new Error('Facturación no disponible');
     if (typeof invoiceStore.emit === 'function') {
       await invoiceStore.emit(payload);
