@@ -31,6 +31,17 @@ class AuthenticationRepositoryImpl(
         return enrichSessionWithEmployeeAssignment(AuthMapper.meToSession(dto, token))
     }
 
+    private suspend fun enrichSessionWithEmployeeAssignment(session: Session): Session {
+        val unitIds = remote.resolveEmployeeUnitIds(session.token, session.user.id)
+        AbacoLog.step(
+            LogCategory.AUTH,
+            "EmployeeResolver",
+            "sesión enriquecida",
+            "userId=" + session.user.id + " unitIds=" + unitIds,
+        )
+        return session.copy(user = session.user.withAssignedUnitIds(unitIds))
+    }
+
     override suspend fun changePassword(input: ChangePasswordInput) {
         val token = sessions.getActiveToken() ?: error("No hay sesión activa")
         remote.changePassword(
