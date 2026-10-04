@@ -59,7 +59,7 @@ class RemoteCatalogDataSource(
         if (!response.status.isSuccess()) {
             error(
                 "No se pudieron cargar productos desde /sync " +
-                    "(HTTP ${'$'}{response.status.value})",
+                    "(HTTP \${response.status.value})",
             )
         }
 
@@ -90,7 +90,7 @@ class RemoteCatalogDataSource(
             LogCategory.POS,
             "RemoteCatalogDataSource",
             "productos resueltos desde /sync",
-            "products=${'$'}{products.size} ids=${'$'}{products.map { it.id }}",
+            "products=\${products.size} ids=\${products.map { it.id }}",
         )
 
         return products
