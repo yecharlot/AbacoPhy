@@ -1,5 +1,6 @@
 package com.elitec.com.feature.pos.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -127,8 +128,9 @@ private fun SaleHistoryItem(
     onClick: () -> Unit,
 ) {
     OutlinedCard(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         colors = CardDefaults.outlinedCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
