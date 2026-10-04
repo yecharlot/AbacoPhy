@@ -4,6 +4,8 @@ import com.elitec.com.feature.identity.data.dto.ChangePasswordRequestDto
 import com.elitec.com.feature.identity.data.dto.LoginRequestDto
 import com.elitec.com.feature.identity.data.dto.LoginResponseDto
 import com.elitec.com.feature.identity.data.dto.MeResponseDto
+import com.elitec.com.infraestructure.logging.AbacoLog
+import com.elitec.com.infraestructure.logging.LogCategory
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
@@ -31,9 +33,18 @@ class RemoteAuthDataSource(
             setBody(LoginRequestDto(username = username, password = password))
         }
         if (!response.status.isSuccess()) {
+            AbacoLog.apiResponse("POST", url("/auth/login"), response.status.value, "login failed")
             error("Usuario o contraseña incorrectos")
         }
-        return response.body()
+        val dto = response.body<LoginResponseDto>()
+        AbacoLog.apiResponse(
+            "POST",
+            url("/auth/login"),
+            response.status.value,
+            "userId=${dto.user?.id}, username=${dto.user?.username}, metadata=${dto.user?.metadata}",
+        )
+        AbacoLog.data(LogCategory.AUTH, "login.user.metadata", dto.user?.metadata)
+        return dto
     }
 
     suspend fun me(token: String): MeResponseDto {
@@ -41,9 +52,18 @@ class RemoteAuthDataSource(
             bearerAuth(token)
         }
         if (!response.status.isSuccess()) {
+            AbacoLog.apiResponse("GET", url("/auth/me"), response.status.value, "me failed")
             error("Sesión inválida o expirada")
         }
-        return response.body()
+        val dto = response.body<MeResponseDto>()
+        AbacoLog.apiResponse(
+            "GET",
+            url("/auth/me"),
+            response.status.value,
+            "userId=${dto.user?.id}, username=${dto.user?.username}, metadata=${dto.user?.metadata}",
+        )
+        AbacoLog.data(LogCategory.AUTH, "me.user.metadata", dto.user?.metadata)
+        return dto
     }
 
     suspend fun logout(token: String) {
