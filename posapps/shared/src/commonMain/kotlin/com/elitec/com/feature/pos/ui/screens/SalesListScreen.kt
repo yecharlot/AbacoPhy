@@ -3,6 +3,7 @@ package com.elitec.com.feature.pos.ui.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -393,7 +394,7 @@ private fun SaleLineCard(
 }
 
 @Composable
-private fun LineMetric(
+private fun RowScope.LineMetric(
     label: String,
     value: String,
 ) {
