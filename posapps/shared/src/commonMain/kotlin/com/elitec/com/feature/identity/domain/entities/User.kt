@@ -64,15 +64,27 @@ data class User(
                 MetaJson.parseToJsonElement(it) as? JsonObject
             }
         }.getOrNull()
+
         val merged = buildJsonObject {
             base?.forEach { (key, value) ->
-                if (key != "unitIds" && key != "unit_ids") put(key, value)
+                if (key != "unitIds" && key != "unit_ids") {
+                    put(key, value)
+                }
             }
+
             put("unitIds", buildJsonArray {
-                unitIds.distinct().forEach { add(it) }
+                unitIds.distinct().forEach {
+                    add(JsonPrimitive(it))
+                }
             })
         }
-        return copy(metadata = MetaJson.encodeToString(JsonObject.serializer(), merged))
+
+        return copy(
+            metadata = MetaJson.encodeToString(
+                JsonObject.serializer(),
+                merged,
+            ),
+        )
     }
 
     private companion object {
