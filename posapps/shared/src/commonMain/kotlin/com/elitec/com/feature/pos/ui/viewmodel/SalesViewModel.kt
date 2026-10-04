@@ -19,6 +19,8 @@ import com.elitec.com.feature.pos.ui.uiStates.RegisterSaleUiState
 import com.elitec.com.feature.pos.ui.uiStates.SaleListUiState
 import com.elitec.com.feature.warehouse.domain.entities.SalesUnit
 import com.elitec.com.feature.warehouse.domain.entities.UnitStock
+import com.elitec.com.infraestructure.logging.AbacoLog
+import com.elitec.com.infraestructure.logging.LogCategory
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -92,6 +94,13 @@ class SalesViewModel(
                     }
 
                     is SessionControl.Active -> {
+                        val user = state.session.user
+                        AbacoLog.step(
+                            LogCategory.POS,
+                            "SalesViewModel",
+                            "session Active",
+                            "userId=${user.id} username=${user.username} metadata=${user.metadata} unitIds=${user.assignedUnitIds()}",
+                        )
                         applySession(state.session, refresh = true)
                     }
                 }
@@ -113,9 +122,20 @@ class SalesViewModel(
         val assignedIds = user.assignedUnitIds()
         val assignedId = assignedIds.firstOrNull().orEmpty()
 
+        AbacoLog.step(
+            LogCategory.POS,
+            "SalesViewModel",
+            "resolve assigned POS",
+            "userId=${user.id} assignedUnitIds=$assignedIds selected=$assignedId",
+        )
+
         _sellerKey.value = user.displayName.ifBlank { user.username }
 
         if (assignedId.isBlank()) {
+            AbacoLog.w(
+                LogCategory.POS,
+                "Usuario autenticado sin unitIds; no se puede resolver el punto de venta",
+            )
             _activeUnitId.value = ""
             _assignedUnit.value = AssignedUnitUiState.None
             if (refresh) refreshAll()
@@ -214,6 +234,12 @@ class SalesViewModel(
         }
 
         val unit = units.firstOrNull { it.id == unitId }
+        AbacoLog.step(
+            LogCategory.POS,
+            "SalesViewModel",
+            "match SalesUnit",
+            "requestedUnitId=$unitId availableUnits=${units.map { it.id to it.name }}",
+        )
         _assignedUnit.value = if (unit == null) {
             AssignedUnitUiState.Error(
                 "El punto de venta asignado ($unitId) no existe o no está disponible",
