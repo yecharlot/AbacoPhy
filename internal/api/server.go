@@ -203,6 +203,10 @@ func resolvedUserMetadata(snap *domain.StoreSnapshot, u *domain.User) string {
 	for k, v := range u.Metadata {
 		meta[k] = v
 	}
+	// La asignación de PDV tiene como fuente de verdad a Employee.metadata,
+	// no a User.metadata. Nunca conservamos aquí un unitIds potencialmente
+	// obsoleto del usuario.
+	delete(meta, "unitIds")
 
 	if snap != nil {
 		for _, employee := range snap.Employees {
@@ -788,6 +792,12 @@ func (s *Server) handleEmployees(w http.ResponseWriter, r *http.Request) {
 		}
 		ex.Certificate = body.Certificate
 		ex.CertificateUntil = body.CertificateUntil
+		// La relación usuario → PDV vive en Employee.metadata. Si el cliente
+		// envía metadata, debe reemplazarla para que reasignaciones o
+		// desasignaciones de PDV persistan.
+		if body.Metadata != nil {
+			ex.Metadata = body.Metadata
+		}
 		ex.LicenseType = body.LicenseType
 		ex.LicenseFrom = body.LicenseFrom
 		ex.LicenseTo = body.LicenseTo
