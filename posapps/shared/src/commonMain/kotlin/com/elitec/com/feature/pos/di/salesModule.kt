@@ -45,6 +45,7 @@ val salesModule = module {
             registerSale = get(),
             getSaleById = get(),
             loadPosSnapshot = get(),
+            sessions = get(),
         )
     }
 }
