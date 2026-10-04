@@ -60,6 +60,7 @@ fun SalesListScreen(
 ) {
     val listState by vm.salesUiState.collectAsStateWithLifecycle()
     var selectedSale by remember { mutableStateOf<Sale?>(null) }
+    var showClickTestDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { vm.refreshAll() }
 
@@ -82,6 +83,7 @@ fun SalesListScreen(
                 )
             }
             Row {
+                TextButton(onClick = { showClickTestDialog = true }) { Text("PRUEBA CLICK") }
                 TextButton(onClick = onNewSale) { Text("Menú") }
                 TextButton(onClick = onOpenStock) { Text("Stock") }
                 TextButton(onClick = onLogout) { Text("Salir") }
@@ -119,6 +121,17 @@ fun SalesListScreen(
 
     selectedSale?.let { sale ->
         SaleDetailDialog(sale = sale, onDismiss = { selectedSale = null })
+    }
+
+    if (showClickTestDialog) {
+        AlertDialog(
+            onDismissRequest = { showClickTestDialog = false },
+            confirmButton = {
+                TextButton(onClick = { showClickTestDialog = false }) { Text("Cerrar") }
+            },
+            title = { Text("CLICK FUNCIONA") },
+            text = { Text("El Text recibió correctamente el evento onClick.") },
+        )
     }
 }
 
