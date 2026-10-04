@@ -47,6 +47,38 @@ class RemoteAuthDataSource(
         return dto
     }
 
+
+    suspend fun resolveEmployeeUnitIds(token: String, userId: String): List<String> {
+        val endpoint = url("/sync")
+        val response = http.get(endpoint) { bearerAuth(token) }
+        if (!response.status.isSuccess()) {
+            AbacoLog.apiResponse("GET", endpoint, response.status.value, "employee/POS resolution failed")
+            return emptyList()
+        }
+        val root = response.body<JsonObject>()
+        val snapshot = root["snapshot"] as? JsonObject
+        val employees = snapshot?.get("employees") as? JsonObject
+        AbacoLog.apiResponse("GET", endpoint, response.status.value, "employee/POS resolution response")
+        if (employees == null) {
+            AbacoLog.w(LogCategory.AUTH, "Sync no contiene snapshot.employees")
+            return emptyList()
+        }
+        for ((employeeId, element) in employees) {
+            val employee = element as? JsonObject ?: continue
+            val metadata = employee["metadata"] as? JsonObject ?: continue
+            val employeeUserId = metadata["userId"]?.jsonPrimitive?.contentOrNull
+                ?: metadata["user_id"]?.jsonPrimitive?.contentOrNull
+            if (employeeUserId != userId) continue
+            val unitIds = ((metadata["unitIds"] ?: metadata["unit_ids"]) as? JsonArray)
+                ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank) }
+                .orEmpty()
+            AbacoLog.step(LogCategory.AUTH, "EmployeeResolver", "match empleado -> POS", "employeeId=" + employeeId + " userId=" + userId + " unitIds=" + unitIds)
+            return unitIds
+        }
+        AbacoLog.w(LogCategory.AUTH, "No se encontró Employee asociado al usuario en /sync: userId=" + userId)
+        return emptyList()
+    }
+
     suspend fun me(token: String): MeResponseDto {
         val response = http.get(url("/auth/me")) {
             bearerAuth(token)
