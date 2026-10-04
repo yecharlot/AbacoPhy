@@ -80,7 +80,7 @@ class RemoteWarehouseDataSource(
         if (!response.status.isSuccess()) {
             error(
                 "No se pudieron cargar puntos de venta desde /sync " +
-                    "(HTTP \${response.status.value})",
+                    "(HTTP ${response.status.value})",
             )
         }
 
@@ -120,7 +120,7 @@ class RemoteWarehouseDataSource(
             LogCategory.POS,
             "RemoteWarehouseDataSource",
             "PDV resueltos desde /sync",
-            "units=\${units.size} ids=\${units.map { it.id }}",
+            "units=${units.size} ids=${units.map { it.id }}",
         )
 
         return SalesUnitsResponseDto(
@@ -132,7 +132,7 @@ class RemoteWarehouseDataSource(
     suspend fun getWarehouse(): WarehouseResponseDto {
         val response = http.get(url("/warehouse")) { bearerAuth(token()) }
         if (!response.status.isSuccess()) {
-            error("No se pudo cargar stock de almacén (HTTP \${response.status.value})")
+            error("No se pudo cargar stock de almacén (HTTP ${response.status.value})")
         }
         return response.body()
     }
