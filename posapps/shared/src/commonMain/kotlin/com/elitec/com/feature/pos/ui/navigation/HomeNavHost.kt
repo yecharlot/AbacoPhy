@@ -54,7 +54,6 @@ fun HomeNavHost(
                 }
                 is PosRoute.SalesList -> NavEntry(key) {
                     SalesListScreen(
-                        onOpenSale = { id -> push(PosRoute.SaleDetail(id)) },
                         onNewSale = { replaceRoot(PosRoute.Menu) },
                         onOpenStock = { push(PosRoute.Stock) },
                         onLogout = onLogout,
