@@ -180,11 +180,17 @@ class SalesViewModel(
                     )
                     updateAssignedUnitState(snap.units)
 
-                    // Con un vendedor sin PDV no se deben presentar ventas
-                    // globales como si fueran propias.
-                    if (unitId == null) {
-                        _salesUiState.value = SaleListUiState.Empty
+                    // La venta mostrada debe corresponder al PDV autenticado.
+                    // Usamos el mismo snapshot que ya resolvió el unitId para
+                    // no depender de que observeSales vuelva a emitir.
+                    val visibleSales = if (unitId == null) {
+                        emptyList()
+                    } else {
+                        snap.sales.filter { it.unitId == unitId }
                     }
+                    _salesUiState.value =
+                        if (visibleSales.isEmpty()) SaleListUiState.Empty
+                        else SaleListUiState.WithSales(visibleSales)
                 }
                 .onFailure { e ->
                     _context.value = _context.value.copy(
