@@ -168,19 +168,19 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "usuario o contraseña incorrectos"})
 		return
 	}
+	snap := s.Store.Get(tok.TenantID)
 	writeJSON(w, 200, map[string]any{
 		"token":      tok.Token,
 		"expires_at": tok.ExpiresAt,
-		"user": map[string]any{
-			"id": user.ID, "username": user.Username, "display_name": user.DisplayName,
-			"role": user.Role, "tenant_id": user.TenantID,
-		},
-		"views": viewsForUser(user.Role, s.Store.Get(tok.TenantID), user), "modules": modulesPayload(s.Store.Get(tok.TenantID)), "user_modules": user.Modules,
+		"user":       publicUser(snap, user),
+		"views":      viewsForUser(user.Role, snap, user),
+		"modules":    modulesPayload(snap),
+		"user_modules": user.Modules,
 	})
 }
 
 
-func publicUser(u *domain.User) map[string]any {
+func publicUser(snap *domain.StoreSnapshot, u *domain.User) map[string]any {
 	if u == nil {
 		return nil
 	}
@@ -188,7 +188,46 @@ func publicUser(u *domain.User) map[string]any {
 		"id": u.ID, "username": u.Username, "display_name": u.DisplayName,
 		"role": u.Role, "tenant_id": u.TenantID, "active": u.Active,
 		"modules": u.Modules,
+		// La relación operativo-laboral se guarda en Employee.metadata.
+		// Se proyecta aquí como metadata de sesión para que los clientes
+		// autenticados puedan resolver su PDV sin acceder a /payroll/employees.
+		"metadata": resolvedUserMetadata(snap, u),
 	}
+}
+
+func resolvedUserMetadata(snap *domain.StoreSnapshot, u *domain.User) string {
+	if u == nil {
+		return ""
+	}
+	meta := map[string]any{}
+	for k, v := range u.Metadata {
+		meta[k] = v
+	}
+
+	if snap != nil {
+		for _, employee := range snap.Employees {
+			if employee == nil {
+				continue
+			}
+			userID, ok := employee.Metadata["userId"].(string)
+			if !ok || userID != u.ID {
+				continue
+			}
+			if unitIDs, ok := employee.Metadata["unitIds"]; ok {
+				meta["unitIds"] = unitIDs
+			}
+			break
+		}
+	}
+
+	if len(meta) == 0 {
+		return ""
+	}
+	encoded, err := json.Marshal(meta)
+	if err != nil {
+		return ""
+	}
+	return string(encoded)
 }
 
 func viewsForRole(role string, snap *domain.StoreSnapshot) []string {
@@ -247,7 +286,7 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 		umods = user.Modules
 	}
 	writeJSON(w, 200, map[string]any{
-		"user": publicUser(user), "tenant": snap.Tenant, "rev": snap.Rev, "root_cid": snap.RootCID,
+		"user": publicUser(snap, user), "tenant": snap.Tenant, "rev": snap.Rev, "root_cid": snap.RootCID,
 		"views": viewsForUser(sess.Role, snap, user), "modules": modulesPayload(snap), "user_modules": umods,
 	})
 }
