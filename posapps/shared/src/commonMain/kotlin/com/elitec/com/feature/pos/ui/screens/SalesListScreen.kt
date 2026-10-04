@@ -1,6 +1,5 @@
 package com.elitec.com.feature.pos.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,7 +23,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Dialog
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -127,7 +126,8 @@ private fun SaleHistoryItem(
     onClick: () -> Unit,
 ) {
     OutlinedCard(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick,
         colors = CardDefaults.outlinedCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
@@ -195,88 +195,86 @@ private fun SaleDetailDialog(
     sale: Sale,
     onDismiss: () -> Unit,
 ) {
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(0.94f).heightIn(max = 720.dp),
-            shape = MaterialTheme.shapes.extraLarge,
-            tonalElevation = 6.dp,
-            color = MaterialTheme.colorScheme.surface,
-        ) {
-            Column(Modifier.padding(20.dp)) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            "Detalle de la venta",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            sale.number.ifBlank { sale.id },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Outlined.Close, contentDescription = "Cerrar")
-                    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cerrar")
+            }
+        },
+        title = {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Detalle de la venta",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        sale.number.ifBlank { sale.id },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
                 }
-
-                Spacer(Modifier.height(14.dp))
-
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    item { SaleInfoGrid(sale) }
-
-                    item {
-                        Spacer(Modifier.height(4.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Icon(
-                                Icons.Outlined.Inventory2,
-                                contentDescription = "Productos",
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                            Text(
-                                "Productos vendidos",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
-                    }
-
-                    if (sale.lines.isEmpty()) {
-                        item {
-                            Text(
-                                "No hay líneas de productos disponibles.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    } else {
-                        items(
-                            items = sale.lines,
-                            key = { it.productId + "-" + it.productCode },
-                        ) { line ->
-                            SaleLineCard(line = line, currency = sale.currency)
-                        }
-                    }
-
-                    item {
-                        Spacer(Modifier.height(4.dp))
-                        HorizontalDivider()
-                        Spacer(Modifier.height(10.dp))
-                        SaleTotals(sale)
-                    }
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Outlined.Close, contentDescription = "Cerrar")
                 }
             }
-        }
-    }
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                item {
+                    SaleInfoGrid(sale)
+                }
+
+                item {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(
+                            Icons.Outlined.Inventory2,
+                            contentDescription = "Productos",
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            "Productos vendidos",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+
+                if (sale.lines.isEmpty()) {
+                    item {
+                        Text(
+                            "No hay líneas de productos disponibles.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    items(
+                        items = sale.lines,
+                        key = { it.productId + "-" + it.productCode },
+                    ) { line ->
+                        SaleLineCard(line = line, currency = sale.currency)
+                    }
+                }
+
+                item {
+                    HorizontalDivider()
+                    Spacer(Modifier.height(6.dp))
+                    SaleTotals(sale)
+                }
+            }
+        },
+    )
 }
 
 @Composable
