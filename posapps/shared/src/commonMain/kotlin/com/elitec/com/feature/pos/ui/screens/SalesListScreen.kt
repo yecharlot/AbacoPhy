@@ -128,15 +128,16 @@ private fun SaleHistoryItem(
     onClick: () -> Unit,
 ) {
     OutlinedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.outlinedCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp),
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 16.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Surface(
