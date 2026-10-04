@@ -40,6 +40,7 @@ kotlin {
             implementation(libs.compose.uiTooling)
         }
         commonMain.dependencies {
+            // project tooling dependencies
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
@@ -48,29 +49,42 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+            // di
             implementation(libs.koin.multiplatform.core)
             implementation(libs.koin.multiplatform.test)
             implementation(libs.koin.compose.multiplatform)
             implementation(libs.koin.compose.multiplatform.viewmodel)
             implementation(libs.koin.compose.multiplatform.viewmodel.navigation)
+            // icons
             implementation(libs.compose.material.icons.extended)
+            // navigation
             implementation(libs.jetbrains.navigation3.ui)
+            // datetime
             implementation(libs.kotlinx.datetime.ext)
+            // networking
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.cio)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.client.logs)
+            // ui animations
             implementation(libs.compose.animations)
+            // ui lotties file
             implementation(libs.compottie.core)
             implementation(libs.compottie.dot)
             implementation(libs.compottie.resources)
+            // adaptative ui
             implementation(libs.composive.ui)
+            // validation
             implementation(libs.arrow.core)
             implementation(libs.arrow.fx.coroutines)
+            // db
             implementation(libs.androidx.room3.runtime)
             implementation(libs.androidx.sqlite.bundled)
+            // logging
             implementation(libs.logging.napier)
+            // tooltip
+            implementation(libs.multiplatform.tooltip)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

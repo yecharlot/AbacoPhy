@@ -1,0 +1,181 @@
+package com.elitec.com.infraestructure.ui.navigation
+
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Backpack
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warehouse
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.navigation3.runtime.NavBackStack
+import androidx.navigation3.runtime.NavEntry
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.ui.NavDisplay
+import androidx.savedstate.serialization.SavedStateConfiguration
+import com.elitec.com.feature.identity.domain.entities.Session
+import com.elitec.com.feature.identity.domain.entities.SessionControl
+import com.elitec.com.feature.identity.ui.viewmodel.HomeSessionViewModel
+import com.elitec.com.feature.pos.ui.components.NewSaleForm
+import com.elitec.com.infraestructure.ui.components.NavRail
+import com.elitec.com.infraestructure.ui.screen.MainScreen
+import com.elitec.com.infraestructure.ui.uiModels.NavButton
+import com.gursimar.composive.responsive.core.DeviceConfiguration
+import com.gursimar.composive.responsive.core.rememberDeviceConfiguration
+import com.gursimar.composive.responsive.theme.AppTheme
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.polymorphic
+import org.koin.compose.viewmodel.koinViewModel
+
+private val config = SavedStateConfiguration {
+    serializersModule = SerializersModule {
+        polymorphic(NavKey::class) {
+            subclass(InternalRoute.Home::class, InternalRoute.Home.serializer())
+            subclass(InternalRoute.Stock::class, InternalRoute.Stock.serializer())
+            subclass(InternalRoute.Catalog::class, InternalRoute.Catalog.serializer())
+            subclass(InternalRoute.Config::class, InternalRoute.Config.serializer())
+            subclass(InternalRoute.Statistics::class, InternalRoute.Statistics.serializer())
+        }
+    }
+}
+
+@Composable
+fun HomeNavHost(
+    sessionState: Session,
+    onLogout: () -> Unit
+) {
+    val backStack = rememberNavBackStack(config,InternalRoute.Home)
+
+    fun resetRoot(destination: InternalRoute) {
+        while (backStack.isNotEmpty()) {
+            backStack.removeLastOrNull()
+        }
+        backStack.navigateTo(destination)
+    }
+
+    val deviceConfig = rememberDeviceConfiguration()
+
+    val navigationButtons = listOf(
+        NavButton("Principal", Icons.Default.Dashboard, { backStack.navigateTo(InternalRoute.Home)  }, true, "Página principal",false),
+        NavButton("Catálogo", Icons.Default.Backpack, { backStack.navigateTo(InternalRoute.Catalog) }, true, "Catalogo de productos",false),
+        NavButton("Stock", Icons.Default.Warehouse, { backStack.navigateTo(InternalRoute.Stock) }, true, "Stock de productos en punto de venta",false),
+        NavButton("Estadística", Icons.Default.BarChart, { backStack.navigateTo(InternalRoute.Statistics) }, true, "Estadísticas personales",false),
+        NavButton("Configuración", Icons.Default.Settings, { backStack.navigateTo(InternalRoute.Config) }, true, "Configuración de la aplicación",false)
+    )
+
+    when (deviceConfig) {
+        DeviceConfiguration.MOBILE_PORTRAIT -> { Text("Mobile portrait") }
+        DeviceConfiguration.MOBILE_LANDSCAPE -> { Text("Mobile landscape") }
+        DeviceConfiguration.TABLET_PORTRAIT -> { Text("Tablet portrait") }
+        DeviceConfiguration.TABLET_LANDSCAPE, DeviceConfiguration.DESKTOP -> {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxSize().padding(
+                    AppTheme.dimensions.cardSpacing
+                )
+            ) {
+                NavRail(
+                    navButtonsList = navigationButtons,
+                    onLogout = onLogout,
+                    sessionName = sessionState.user.displayName
+                )
+                Spacer(Modifier.width(10.dp))
+                HomeContent(
+                    modifier = Modifier.fillMaxSize(),
+                    backstack = backStack,
+                    onBack = {
+                        backStack.navigateBack()
+                    }
+                )
+                Spacer(Modifier.width(10.dp))
+                /*NewSaleForm(
+                    modifier = Modifier.weight(1f)
+                )*/
+            }
+        }
+    }
+}
+
+@Composable
+fun HomeContent(
+    onBack: () -> Unit,
+    backstack: NavBackStack<NavKey>,
+    modifier: Modifier = Modifier
+) {
+    NavDisplay(
+        modifier = modifier.fillMaxSize().padding(10.dp),
+        backStack = backstack,
+        onBack  = onBack,
+        transitionSpec = {
+            slideInVertically (
+                initialOffsetY = { it },
+                animationSpec = tween(250)
+            ) + fadeIn() togetherWith slideOutVertically (
+                targetOffsetY = { -it },
+                animationSpec = tween(250)
+            ) + fadeOut()
+        },
+        popTransitionSpec = {
+            slideInHorizontally(
+                initialOffsetX = { -it },
+                animationSpec = tween(250)
+            ) togetherWith slideOutHorizontally(
+                targetOffsetX = { it },
+                animationSpec = tween(250)
+            )
+        },
+        predictivePopTransitionSpec = {
+            slideInHorizontally(
+                initialOffsetX = { -it },
+                animationSpec = tween(250)
+            ) togetherWith slideOutHorizontally(
+                targetOffsetX = { it },
+                animationSpec = tween(250)
+            )
+        },
+        entryProvider = entryProvider {
+            entry<InternalRoute.Home> {
+                MainScreen(
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            entry<InternalRoute.Config> {
+                Text("CONFIG")
+            }
+            entry<InternalRoute.Stock> {
+                Text("STOCK")
+            }
+            entry<InternalRoute.Statistics> {
+                Text("STATISTICS")
+            }
+            entry<InternalRoute.Catalog> {
+                Text("CATALOG")
+            }
+        }
+    )
+}

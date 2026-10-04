@@ -1,23 +1,9 @@
 package com.elitec.com.feature.pos.domain.caseuse
 
-import com.elitec.com.feature.catalog.domain.entities.Product
 import com.elitec.com.feature.catalog.domain.repository.CatalogRepository
-import com.elitec.com.feature.pos.domain.entities.Sale
+import com.elitec.com.feature.pos.domain.entities.PosSnapshot
 import com.elitec.com.feature.pos.domain.repository.SalesRepository
-import com.elitec.com.feature.warehouse.domain.entities.SalesUnit
-import com.elitec.com.feature.warehouse.domain.entities.UnitStock
 import com.elitec.com.feature.warehouse.domain.repository.WarehouseRepository
-
-/**
- * Equivalente a posStore.loadAll() de la web:
- * ventas + productos + unidades/stock en paralelo lógico.
- */
-data class PosSnapshot(
-    val sales: List<Sale>,
-    val products: List<Product>,
-    val units: List<SalesUnit>,
-    val unitStocks: List<UnitStock>,
-)
 
 class LoadPosSnapshotCaseUse(
     private val sales: SalesRepository,

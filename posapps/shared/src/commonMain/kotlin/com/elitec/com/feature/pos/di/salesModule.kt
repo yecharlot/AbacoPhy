@@ -10,6 +10,7 @@ import com.elitec.com.feature.pos.domain.caseuse.LoadPosSnapshotCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.ObserveSalesFlowCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.RegisterSaleCaseUse
 import com.elitec.com.feature.pos.domain.repository.SalesRepository
+import com.elitec.com.feature.pos.ui.viewmodel.PosOrderViewModel
 import com.elitec.com.feature.pos.ui.viewmodel.SalesViewModel
 import com.elitec.com.infraestructure.data.database.AbacoDataBase
 import org.koin.core.module.dsl.viewModel
@@ -34,6 +35,8 @@ val salesModule = module {
     factory { RegisterSaleCaseUse(get()) }
     factory { GetSaleByIdCaseUse(get()) }
     factory { LoadPosSnapshotCaseUse(get(), get(), get()) }
+
+    viewModel { PosOrderViewModel() }
 
     viewModel {
         SalesViewModel(

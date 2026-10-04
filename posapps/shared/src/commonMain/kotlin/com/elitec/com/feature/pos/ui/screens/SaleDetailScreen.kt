@@ -20,7 +20,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.elitec.com.feature.pos.domain.entities.Sale
 import com.elitec.com.feature.pos.ui.viewmodel.SalesViewModel
-import com.elitec.com.infraestructure.ui.theme.AbacoColors
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -35,46 +34,22 @@ fun SaleDetailScreen(
 
     LaunchedEffect(saleId) {
         loading = true
-        error = null
-        vm.loadSaleById(
-            saleId,
-            onSuccess = {
-                sale = it
-                loading = false
-            },
-            onError = {
-                error = it
-                loading = false
-            },
-        )
+        vm.loadSaleById(saleId, { sale = it; loading = false }, { error = it; loading = false })
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         TextButton(onClick = onBack) { Text("← Volver") }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Detalle venta",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = AbacoColors.Cyan,
-        )
+        Text("Detalle", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
         when {
             loading -> CircularProgressIndicator()
             error != null -> Text(error!!, color = MaterialTheme.colorScheme.error)
-            sale == null -> Text("Venta no encontrada: $saleId")
+            sale == null -> Text("No encontrada")
             else -> {
-                val s = sale!!
-                Text("Número: ${s.number}")
-                Text("Total: ${s.total} ${s.currency}")
-                Text("Vendedor: ${s.seller}")
-                Text("PDV: ${s.unitName.ifBlank { s.unitId }}")
-                Text("Líneas: ${s.lines.size}")
-                s.lines.forEach { line ->
-                    Text(
-                        "· ${line.productName} x${line.qty} @ ${line.unitPrice}",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                Text("Nº ${sale!!.number}")
+                Text("Total ${sale!!.total} ${sale!!.currency}")
+                sale!!.lines.forEach {
+                    Text("· ${it.productName} x${it.qty}")
                 }
             }
         }

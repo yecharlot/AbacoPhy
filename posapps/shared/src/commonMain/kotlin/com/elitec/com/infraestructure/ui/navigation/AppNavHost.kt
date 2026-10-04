@@ -6,6 +6,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.elitec.com.feature.identity.domain.entities.SessionControl
 import com.elitec.com.feature.identity.ui.screens.LoginScreen
 import com.elitec.com.feature.identity.ui.screens.SplashScreen
+import com.elitec.com.feature.identity.ui.viewmodel.HomeSessionViewModel
 import com.elitec.com.feature.identity.ui.viewmodel.SessionViewModel
 import com.elitec.com.feature.pos.ui.screens.HomeScreen
 import org.koin.compose.viewmodel.koinViewModel
@@ -22,11 +23,17 @@ import org.koin.compose.viewmodel.koinViewModel
 fun AppNavHost(
     sessionVm: SessionViewModel = koinViewModel(),
 ) {
+    val logoutViewModel: HomeSessionViewModel = koinViewModel()
+
     val session by sessionVm.sessionState.collectAsStateWithLifecycle()
+
 
     when (session) {
         is SessionControl.Reading -> SplashScreen()
         is SessionControl.NoSession -> LoginScreen()
-        is SessionControl.Active -> HomeScreen()
+        is SessionControl.Active -> HomeNavHost(
+            sessionState = (session as SessionControl.Active).session,
+            onLogout = { logoutViewModel.logout() },
+        )
     }
 }

@@ -27,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.elitec.com.feature.pos.ui.uiStates.SaleListUiState
 import com.elitec.com.feature.pos.ui.viewmodel.SalesViewModel
-import com.elitec.com.infraestructure.ui.theme.AbacoColors
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -39,71 +38,37 @@ fun SalesListScreen(
     vm: SalesViewModel = koinViewModel(),
 ) {
     val listState by vm.salesUiState.collectAsStateWithLifecycle()
-
-    LaunchedEffect(Unit) {
-        vm.refreshAll()
-    }
+    LaunchedEffect(Unit) { vm.refreshAll() }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                "Ventas",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = AbacoColors.Cyan,
-            )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Historial ventas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Row {
+                TextButton(onClick = onNewSale) { Text("Menú") }
                 TextButton(onClick = onOpenStock) { Text("Stock") }
                 TextButton(onClick = onLogout) { Text("Salir") }
             }
         }
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = onNewSale, modifier = Modifier.fillMaxWidth()) {
-            Text("Nueva venta")
-        }
         Spacer(Modifier.height(12.dp))
-
         when (val s = listState) {
             is SaleListUiState.Loading -> {
-                Column(
-                    Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator()
-                    Spacer(Modifier.height(8.dp))
-                    Text("Cargando ventas…")
                 }
             }
-            is SaleListUiState.Empty -> {
-                Text("Sin ventas aún", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            is SaleListUiState.Empty -> Text("Sin ventas")
             is SaleListUiState.Error -> {
                 Text(s.message, color = MaterialTheme.colorScheme.error)
                 Button(onClick = { vm.refreshAll() }) { Text("Reintentar") }
             }
             is SaleListUiState.WithSales -> {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                LazyColumn {
                     items(s.sales, key = { it.id }) { sale ->
                         Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable { onOpenSale(sale.id) }
-                                .padding(vertical = 10.dp),
+                            Modifier.fillMaxWidth().clickable { onOpenSale(sale.id) }.padding(vertical = 10.dp),
                         ) {
-                            Text(
-                                sale.number.ifBlank { sale.id.take(8) },
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Text(
-                                "${sale.total} ${sale.currency} · ${sale.seller}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            Text(sale.number.ifBlank { sale.id.take(8) }, fontWeight = FontWeight.SemiBold)
+                            Text("${sale.total} ${sale.currency}", style = MaterialTheme.typography.bodySmall)
                         }
                         HorizontalDivider()
                     }
