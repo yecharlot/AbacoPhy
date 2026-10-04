@@ -3,6 +3,8 @@ package com.elitec.com.feature.pos.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.elitec.com.feature.catalog.domain.entities.Product
+import com.elitec.com.feature.identity.domain.entities.SessionControl
+import com.elitec.com.feature.identity.domain.repository.SessionRepository
 import com.elitec.com.feature.pos.domain.caseuse.GetSaleByIdCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.ListSalesByPOSCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.LoadPosSnapshotCaseUse
@@ -34,6 +36,7 @@ class SalesViewModel(
     private val registerSale: RegisterSaleCaseUse,
     private val getSaleById: GetSaleByIdCaseUse,
     private val loadPosSnapshot: LoadPosSnapshotCaseUse,
+    private val sessions: SessionRepository,
 ) : ViewModel() {
 
     private val _salesUiState = MutableStateFlow<SaleListUiState>(SaleListUiState.Loading)
@@ -48,8 +51,35 @@ class SalesViewModel(
     private val _activeUnitId = MutableStateFlow("")
     val activeUnitId: StateFlow<String> = _activeUnitId.asStateFlow()
 
+    private var assignedUnitIds: List<String> = emptyList()
+
     init {
         observeLocalCache()
+        observeAuthenticatedUnit()
+    }
+
+    /**
+     * El PDV del vendedor no se selecciona manualmente.
+     * La asociación usuario → empleado → unitIds se proyecta en la metadata
+     * de la sesión por /auth/login y /auth/me, y aquí se resuelve como contexto
+     * operativo de la sesión.
+     */
+    private fun observeAuthenticatedUnit() {
+        viewModelScope.launch {
+            sessions.sessionState.collect { state ->
+                val nextIds = when (state) {
+                    is SessionControl.Active -> state.session.user.assignedUnitIds()
+                    else -> emptyList()
+                }
+                assignedUnitIds = nextIds
+
+                val assigned = nextIds.firstOrNull().orEmpty()
+                if (_activeUnitId.value != assigned) {
+                    _activeUnitId.value = assigned
+                    refreshAll()
+                }
+            }
+        }
     }
 
     fun setActiveUnitId(unitId: String) {
