@@ -55,6 +55,24 @@ data class User(
         }.getOrDefault(emptyList())
     }
 
+
+    fun withAssignedUnitIds(unitIds: List<String>): User {
+        val base = runCatching {
+            metadata?.takeIf { it.isNotBlank() }?.let {
+                MetaJson.parseToJsonElement(it) as? JsonObject
+            }
+        }.getOrNull()
+        val merged = buildJsonObject {
+            base?.forEach { (key, value) ->
+                if (key != "unitIds" && key != "unit_ids") put(key, value)
+            }
+            put("unitIds", buildJsonArray {
+                unitIds.distinct().forEach { add(it) }
+            })
+        }
+        return copy(metadata = MetaJson.encodeToString(JsonObject.serializer(), merged))
+    }
+
     private companion object {
         val MetaJson = Json { ignoreUnknownKeys = true; isLenient = true }
     }
