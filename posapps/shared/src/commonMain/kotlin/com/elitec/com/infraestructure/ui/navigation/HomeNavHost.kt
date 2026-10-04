@@ -27,6 +27,13 @@ import androidx.compose.material.icons.filled.Warehouse
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -93,8 +100,10 @@ fun HomeNavHost(
         DeviceConfiguration.MOBILE_LANDSCAPE -> { Text("Mobile landscape") }
         DeviceConfiguration.TABLET_PORTRAIT -> { Text("Tablet portrait") }
         DeviceConfiguration.TABLET_LANDSCAPE, DeviceConfiguration.DESKTOP -> {
+            // Contenido siempre ocupa weight; solo anima opacity (no quitar del layout).
+            var contentReady by remember { mutableStateOf(false) }
             Row(
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize().padding(
                     AppTheme.dimensions.cardSpacing
                 )
@@ -102,20 +111,25 @@ fun HomeNavHost(
                 NavRail(
                     navButtonsList = navigationButtons,
                     onLogout = onLogout,
-                    sessionName = sessionState.user.displayName
+                    sessionName = sessionState.user.displayName,
+                    onEntranceComplete = { contentReady = true },
                 )
-                Spacer(Modifier.width(10.dp))
-                HomeContent(
-                    modifier = Modifier.fillMaxSize(),
-                    backstack = backStack,
-                    onBack = {
-                        backStack.navigateBack()
+                Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = contentReady,
+                        enter = fadeIn(animationSpec = tween(200)),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        HomeContent(
+                            session = sessionState,
+                            modifier = Modifier.fillMaxSize(),
+                            backstack = backStack,
+                            onBack = {
+                                backStack.navigateBack()
+                            }
+                        )
                     }
-                )
-                Spacer(Modifier.width(10.dp))
-                /*NewSaleForm(
-                    modifier = Modifier.weight(1f)
-                )*/
+                }
             }
         }
     }
@@ -123,6 +137,7 @@ fun HomeNavHost(
 
 @Composable
 fun HomeContent(
+    session: Session,
     onBack: () -> Unit,
     backstack: NavBackStack<NavKey>,
     modifier: Modifier = Modifier
@@ -161,6 +176,7 @@ fun HomeContent(
         entryProvider = entryProvider {
             entry<InternalRoute.Home> {
                 MainScreen(
+                    session = session,
                     modifier = Modifier.fillMaxSize()
                 )
             }

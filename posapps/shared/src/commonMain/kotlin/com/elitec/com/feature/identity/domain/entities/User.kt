@@ -1,5 +1,13 @@
 package com.elitec.com.feature.identity.domain.entities
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
+
 data class User(
     val id: String,
     val username: String,
@@ -8,21 +16,27 @@ data class User(
     val tenantId: String,
     val metadata: String? = null,
 ) {
-    /** unitIds del trabajador en metadata (misma convención que web/empleados). */
+    /**
+     * Misma convención que webapp App.svelte:
+     * metadata JSON → { "unitIds": ["..."] }
+     */
     fun assignedUnitIds(): List<String> {
-        val raw = metadata ?: return emptyList()
+        val raw = metadata?.trim().orEmpty()
+        if (raw.isEmpty()) return emptyList()
         return runCatching {
-            // metadata como JSON {"unitIds":["..."]}
-            val marker = "\"unitIds\""
-            val idx = raw.indexOf(marker)
-            if (idx < 0) return emptyList()
-            val start = raw.indexOf('[', idx)
-            val end = raw.indexOf(']', start)
-            if (start < 0 || end < 0) return emptyList()
-            raw.substring(start + 1, end)
-                .split(',')
-                .map { it.trim().trim('"') }
-                .filter { it.isNotBlank() }
+            val element = MetaJson.parseToJsonElement(raw)
+            val obj = element as? JsonObject ?: return emptyList()
+            val arr = obj["unitIds"] as? JsonArray ?: return emptyList()
+            arr.mapNotNull { el ->
+                when (el) {
+                    is JsonPrimitive -> el.contentOrNull?.takeIf { it.isNotBlank() }
+                    else -> null
+                }
+            }
         }.getOrDefault(emptyList())
+    }
+
+    private companion object {
+        val MetaJson = Json { ignoreUnknownKeys = true; isLenient = true }
     }
 }
