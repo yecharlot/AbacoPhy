@@ -51,8 +51,6 @@ class SalesViewModel(
     private val _activeUnitId = MutableStateFlow("")
     val activeUnitId: StateFlow<String> = _activeUnitId.asStateFlow()
 
-    private var assignedUnitIds: List<String> = emptyList()
-
     init {
         observeLocalCache()
         observeAuthenticatedUnit()
@@ -71,8 +69,6 @@ class SalesViewModel(
                     is SessionControl.Active -> state.session.user.assignedUnitIds()
                     else -> emptyList()
                 }
-                assignedUnitIds = nextIds
-
                 val assigned = nextIds.firstOrNull().orEmpty()
                 if (_activeUnitId.value != assigned) {
                     _activeUnitId.value = assigned
