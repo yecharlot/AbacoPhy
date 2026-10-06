@@ -38,7 +38,7 @@ class RemoteSalesDataSource(
         val response = http.post(endpoint) {
             bearerAuth(authToken())
             contentType(ContentType.Application.Json)
-            setBody(SaleMapper.createSaleInputToMap(input))
+            setBody(SaleMapper.createSaleInputToJsonObject(input))
         }
         if (!response.status.isSuccess()) {
             val detail = runCatching { response.body<Map<String, String>>()["error"] }.getOrNull()

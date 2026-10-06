@@ -17,6 +17,10 @@ export class CostingRemoteSource {
     return this.http.post<CostSheetResponseDto>('/cost-sheets', body);
   }
 
+  deleteCostSheet(productId: string): Promise<void> {
+    return this.http.delete<void>(`/cost-sheets?product_id=${encodeURIComponent(productId)}`);
+  }
+
   getPriceSheets(): Promise<PriceSheetsResponseDto> {
     return this.http.get<PriceSheetsResponseDto>('/price-sheets');
   }

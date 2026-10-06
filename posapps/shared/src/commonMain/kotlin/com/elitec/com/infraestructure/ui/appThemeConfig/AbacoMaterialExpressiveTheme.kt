@@ -15,7 +15,7 @@ import com.elitec.com.infraestructure.ui.theme.abacoLightColorScheme
  */
 @Composable
 fun AbacoMaterialExpressiveTheme(
-    isDarkTheme: Boolean = true,
+    isDarkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
     val colorScheme = if (isDarkTheme) abacoDarkColorScheme() else abacoLightColorScheme()

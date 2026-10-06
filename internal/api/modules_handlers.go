@@ -160,9 +160,31 @@ func (s *Server) handlePriceSheets(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		now := time.Now().UTC()
+		// Política: costo de referencia trazable (avg_cost / ficha costo / cost_std / recepción).
+		costRef := body.CostRef
+		if costRef <= 0 {
+			costRef = resolveProductCostRef(snap, prod.ID)
+		}
+		margin := body.MarginPct
+		if margin <= 0 && body.Price <= 0 {
+			margin = 25 // margen comercial por defecto 25 %
+		}
 		price := body.Price
-		if price <= 0 && body.CostRef > 0 {
-			price = body.CostRef * (1 + body.MarginPct/100)
+		if price <= 0 && costRef > 0 {
+			price = costRef * (1 + margin/100)
+		}
+		if price <= 0 {
+			writeJSON(w, 400, map[string]string{
+				"error": "no se pudo calcular precio: indique price o cost_ref con margen, o registre costo de inventario/ficha de costo",
+			})
+			return
+		}
+		// Precio por debajo del costo: se permite solo con nota explícita (auditoría).
+		if costRef > 0 && price < costRef && strings.TrimSpace(body.Notes) == "" {
+			writeJSON(w, 400, map[string]string{
+				"error": "precio por debajo del costo de referencia; agregue notes con el motivo o suba el precio/margen",
+			})
+			return
 		}
 		cur := body.Currency
 		if cur == "" {
@@ -172,15 +194,23 @@ func (s *Server) handlePriceSheets(w http.ResponseWriter, r *http.Request) {
 		ps := &domain.PriceSheet{
 			ID: id, TenantID: snap.Tenant.ID, ProductID: prod.ID,
 			ProductCode: prod.Code, ProductName: prod.Name,
-			CostRef: body.CostRef, MarginPct: body.MarginPct, Price: price,
+			CostRef: costRef, MarginPct: margin, Price: price,
 			Currency: cur, Notes: body.Notes, CreatedBy: sess.UserID,
 			CreatedAt: now, UpdatedAt: now,
 		}
-		snap.PriceSheets[id] = ps
-		if body.Price > 0 || prod.PriceSale == 0 {
-			prod.PriceSale = price
+		// Una ficha vigente por producto: retirar anteriores del mismo product_id.
+		for k, old := range snap.PriceSheets {
+			if old != nil && old.ProductID == prod.ID {
+				delete(snap.PriceSheets, k)
+			}
 		}
-		s.audit(snap, sess, "price_sheet.create", "Ficha de precio "+prod.Code, prod.ID)
+		snap.PriceSheets[id] = ps
+		// Fuente de verdad del canal de venta.
+		prod.PriceSale = price
+		prod.UpdatedAt = now
+		s.audit(snap, sess, "price_sheet.create",
+			"Ficha de precio "+prod.Code+" · ref "+formatFloat(costRef)+" · margen "+formatFloat(margin)+"% · precio "+formatFloat(price),
+			prod.ID)
 		_ = s.Store.Put(snap)
 		writeJSON(w, 200, map[string]any{"ok": true, "sheet": ps})
 	case http.MethodDelete:

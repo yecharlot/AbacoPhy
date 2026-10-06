@@ -19,30 +19,22 @@ data class SaleLineDto(
     val metadata: String? = null,
 )
 
-fun SaleLineDto.toDomain(): SaleLine = SaleLine(
-    productId = productId,
-    productCode = productCode.orEmpty(),
-    productName = productName.orEmpty(),
-    qty = qty ?: 0.0,
-    unitPrice = unitPrice ?: 0.0,
-    discountPct = discountPct ?: 0.0,
-    discountAmt = discountAmt ?: 0.0,
-    lineTotal = lineTotal ?: 0.0,
-    unitCost = unitCost ?: 0.0,
-    costAmount = costAmount ?: 0.0,
-    metadata = metadata,
-)
-
-fun SaleLine.toDto(): SaleLineDto = SaleLineDto(
-    productId = productId,
-    productCode = productCode,
-    productName = productName,
-    qty = qty,
-    unitPrice = unitPrice,
-    discountPct = discountPct,
-    discountAmt = discountAmt,
-    lineTotal = lineTotal,
-    unitCost = unitCost,
-    costAmount = costAmount,
-    metadata = metadata,
-)
+fun SaleLineDto.toDomain(): SaleLine {
+    val q = qty ?: 0.0
+    val up = unitPrice ?: 0.0
+    val lt = lineTotal ?: 0.0
+    val resolved = if (lt > 0.0) lt else q * up
+    return SaleLine(
+        productId = productId,
+        productCode = productCode.orEmpty(),
+        productName = productName.orEmpty(),
+        qty = q,
+        unitPrice = up,
+        discountPct = discountPct ?: 0.0,
+        discountAmt = discountAmt ?: 0.0,
+        lineTotal = resolved,
+        unitCost = unitCost ?: 0.0,
+        costAmount = costAmount ?: 0.0,
+        metadata = metadata,
+    )
+}

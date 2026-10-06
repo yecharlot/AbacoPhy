@@ -12,29 +12,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.elitec.com.infraestructure.ui.theme.AbacoColors
 
-/** Placeholder stock PDV. */
 @Composable
 fun StockScreen(
     onBackToSales: () -> Unit,
     onLogout: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        TextButton(onClick = onBackToSales) { Text("← Ventas") }
+        TextButton(onClick = onBackToSales) { Text("← Atrás") }
+        Text("Stock PDV", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
-        Text(
-            text = "Stock PDV",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = AbacoColors.Cyan,
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = "Agotados / casi agotados / habilitados — próximo paso.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(24.dp))
+        Text("Bloques agotados / bajo / ok — siguiente iteración", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(16.dp))
         TextButton(onClick = onLogout) { Text("Cerrar sesión") }
     }
 }

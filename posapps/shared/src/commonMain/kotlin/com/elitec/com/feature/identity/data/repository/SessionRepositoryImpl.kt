@@ -35,7 +35,12 @@ class SessionRepositoryImpl(
         dao.clear()
         dao.save(session.toEntity(json))
         _sessionState.value = SessionControl.Active(session)
-        AbacoLog.step(LogCategory.AUTH, "Session", "Active", session.user.username)
+        AbacoLog.step(
+            LogCategory.AUTH,
+            "Session",
+            "Active",
+            "userId=${session.user.id} username=${session.user.username} metadata=${session.user.metadata} unitIds=${session.user.assignedUnitIds()}",
+        )
     }
 
     override suspend fun clearSession() {

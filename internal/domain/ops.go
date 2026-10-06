@@ -152,28 +152,53 @@ type POSLine struct {
 	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
-// Ficha de costo (estructura orientada a normas cubanas de costos).
+// CostComponent — línea de receta en una ficha de costo (producto compuesto).
+// Qty es la cantidad o fracción del componente por 1 unidad del producto elaborado.
+type CostComponent struct {
+	ProductID   string  `json:"product_id"`
+	ProductCode string  `json:"product_code,omitempty"`
+	ProductName string  `json:"product_name,omitempty"`
+	Qty         float64 `json:"qty"`
+	// UnitCost usado en el último cálculo (snapshot informativo).
+	UnitCost float64 `json:"unit_cost,omitempty"`
+	LineCost float64 `json:"line_cost,omitempty"`
+	Metadata Metadata `json:"metadata,omitempty"`
+}
+
+// Ficha de costo: receta de elaboración (compuestos) + campos legacy de estructura.
+// Si Components tiene elementos, el costo unitario se calcula por receta
+// (materiales + tiempo×dificultad). Si no, se usa la suma de rubros legacy.
 type CostSheet struct {
-	ID              string    `json:"id"`
-	TenantID        string    `json:"tenant_id"`
-	ProductID       string    `json:"product_id"`
-	ProductCode     string    `json:"product_code,omitempty"`
-	ProductName     string    `json:"product_name,omitempty"`
-	Period          string    `json:"period,omitempty"`
-	MateriaPrima    float64   `json:"materia_prima"`
-	MatAuxiliares   float64   `json:"materiales_auxiliares"`
-	Energia         float64   `json:"energia"`
-	SalarioDirecto  float64   `json:"salario_directo"`
-	OtrosDirectos   float64   `json:"otros_directos"`
-	GastosIndirectos float64  `json:"gastos_indirectos"`
-	CostoUnitario   float64   `json:"costo_unitario"`
-	PrecioSugerido  float64   `json:"precio_sugerido,omitempty"`
-	Currency        string    `json:"currency"`
-	Notes           string    `json:"notes,omitempty"`
-	CreatedBy       string    `json:"created_by"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
-	Metadata   Metadata  `json:"metadata,omitempty"`
+	ID               string          `json:"id"`
+	TenantID         string          `json:"tenant_id"`
+	ProductID        string          `json:"product_id"`
+	ProductCode      string          `json:"product_code,omitempty"`
+	ProductName      string          `json:"product_name,omitempty"`
+	Period           string          `json:"period,omitempty"`
+	// --- Receta (productos compuestos) ---
+	Components       []CostComponent `json:"components,omitempty"`
+	LaborMinutes     float64         `json:"labor_minutes,omitempty"`
+	DifficultyLevel  int             `json:"difficulty_level,omitempty"`  // escala UX (p.ej. 1–5)
+	DifficultyFactor float64         `json:"difficulty_factor,omitempty"` // multiplicador de cálculo
+	LaborBaseRate    float64         `json:"labor_base_rate,omitempty"`   // costo por minuto (o unidad de tiempo)
+	MaterialCost     float64         `json:"material_cost,omitempty"`
+	LaborCost        float64         `json:"labor_cost,omitempty"`
+	// --- Rubros legacy (compatibilidad / costos sin desglose de receta) ---
+	MateriaPrima     float64         `json:"materia_prima"`
+	MatAuxiliares    float64         `json:"materiales_auxiliares"`
+	Energia          float64         `json:"energia"`
+	SalarioDirecto   float64         `json:"salario_directo"`
+	OtrosDirectos    float64         `json:"otros_directos"`
+	GastosIndirectos float64         `json:"gastos_indirectos"`
+	CostoUnitario    float64         `json:"costo_unitario"`
+	PreviousCostoUnitario float64   `json:"previous_costo_unitario,omitempty"`
+	PrecioSugerido   float64         `json:"precio_sugerido,omitempty"`
+	Currency         string          `json:"currency"`
+	Notes            string          `json:"notes,omitempty"`
+	CreatedBy        string          `json:"created_by"`
+	CreatedAt        time.Time       `json:"created_at"`
+	UpdatedAt        time.Time       `json:"updated_at"`
+	Metadata         Metadata        `json:"metadata,omitempty"`
 }
 
 // Contadores de documentos por tenant.

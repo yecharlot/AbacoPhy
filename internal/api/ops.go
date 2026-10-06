@@ -558,6 +558,8 @@ func (s *Server) handleReceptionEnter(w http.ResponseWriter, r *http.Request, se
 		p.CostStd = st.AvgCost
 		p.UpdatedAt = time.Now().UTC()
 		s.mirrorInventoryFromProduct(snap, p, st)
+		// Propagar costo hacia productos compuestos que usan este base/componente.
+		domain.PropagateCostFromProduct(snap, ln.ProductID)
 	}
 	// El reconocimiento contable de inventario ocurre junto con la entrada física.
 	domain.ApplyInventoryIn(snap, rn.TotalCost)
@@ -748,6 +750,13 @@ func (s *Server) handlePOSSales(w http.ResponseWriter, r *http.Request) {
 			if ln.UnitPrice <= 0 {
 				ln.UnitPrice = p.PriceSale
 			}
+			if ln.UnitPrice <= 0 {
+				writeJSON(w, 400, map[string]string{
+					"error": "producto sin precio de venta configurado: " + p.Code +
+						" · cree una ficha de precio o indique unit_price",
+				})
+				return
+			}
 			gross := ln.Qty * ln.UnitPrice
 			if ln.DiscountPct > 0 {
 				ln.DiscountAmt = gross * (ln.DiscountPct / 100)
@@ -840,6 +849,54 @@ func (s *Server) handlePOSSales(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+
+// resolveProductCostRef elige un costo de referencia trazable para fichas de precio:
+// 1) avg_cost almacén  2) avg_cost en alguna unidad  3) ficha de costo unitario
+// 4) product.cost_std  5) último unit_cost de recepción con entrada (si hay líneas)
+func resolveProductCostRef(snap *domain.StoreSnapshot, productID string) float64 {
+	if snap == nil || productID == "" {
+		return 0
+	}
+	if st := snap.WarehouseStock[productID]; st != nil && st.AvgCost > 0 {
+		return st.AvgCost
+	}
+	for i := range snap.UnitStocks {
+		us := snap.UnitStocks[i]
+		if us.ProductID == productID && us.AvgCost > 0 {
+			return us.AvgCost
+		}
+	}
+	if cs := snap.CostSheets[productID]; cs != nil && cs.CostoUnitario > 0 {
+		return cs.CostoUnitario
+	}
+	if p := snap.Products[productID]; p != nil && p.CostStd > 0 {
+		return p.CostStd
+	}
+	var last float64
+	for i := range snap.Receptions {
+		rec := snap.Receptions[i]
+		for _, ln := range rec.Lines {
+			if ln.ProductID == productID && ln.UnitCost > 0 {
+				last = ln.UnitCost
+			}
+		}
+	}
+	return last
+}
+
+// productHasPriceSheet indica si existe al menos una ficha de precio para el producto.
+func productHasPriceSheet(snap *domain.StoreSnapshot, productID string) bool {
+	if snap == nil || snap.PriceSheets == nil {
+		return false
+	}
+	for _, ps := range snap.PriceSheets {
+		if ps != nil && ps.ProductID == productID && ps.Price > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) handleCostSheets(w http.ResponseWriter, r *http.Request) {
 	sess, err := s.sess(r)
 	if err != nil {
@@ -876,19 +933,39 @@ func (s *Server) handleCostSheets(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 404, map[string]string{"error": "producto no encontrado"})
 			return
 		}
-		// Automatizar materia prima desde costo de almacén si no viene
-		if body.MateriaPrima <= 0 {
+		// Validar componentes de receta
+		compIDs := make([]string, 0, len(body.Components))
+		for _, c := range body.Components {
+			if c.ProductID == "" || c.Qty <= 0 {
+				writeJSON(w, 400, map[string]string{"error": "cada componente requiere product_id y qty > 0"})
+				return
+			}
+			if c.ProductID == body.ProductID {
+				writeJSON(w, 400, map[string]string{"error": "un producto no puede ser componente de sí mismo"})
+				return
+			}
+			if snap.Products[c.ProductID] == nil {
+				writeJSON(w, 400, map[string]string{"error": "componente no encontrado: " + c.ProductID})
+				return
+			}
+			compIDs = append(compIDs, c.ProductID)
+		}
+		if len(compIDs) > 0 && domain.CostSheetWouldCycle(snap, body.ProductID, compIDs) {
+			writeJSON(w, 400, map[string]string{"error": "dependencia circular en la receta de costo"})
+			return
+		}
+		// Legacy: automatizar materia prima desde almacén si no hay receta ni MP
+		if len(body.Components) == 0 && body.MateriaPrima <= 0 {
 			if st := snap.WarehouseStock[body.ProductID]; st != nil && st.AvgCost > 0 {
 				body.MateriaPrima = st.AvgCost
 			} else if p.CostStd > 0 {
 				body.MateriaPrima = p.CostStd
 			}
 		}
-		body.CostoUnitario = body.MateriaPrima + body.MatAuxiliares + body.Energia +
-			body.SalarioDirecto + body.OtrosDirectos + body.GastosIndirectos
-		if body.PrecioSugerido <= 0 && body.CostoUnitario > 0 {
-			body.PrecioSugerido = body.CostoUnitario * 1.3 // margen orientativo 30 %
+		if body.DifficultyFactor <= 0 && body.DifficultyLevel > 0 {
+			body.DifficultyFactor = domain.DefaultDifficultyFactor(body.DifficultyLevel)
 		}
+		domain.RecalculateCostSheet(snap, &body)
 		body.ID = uuid.NewString()
 		body.TenantID = sess.TenantID
 		body.ProductCode, body.ProductName = p.Code, p.Name
@@ -900,15 +977,81 @@ func (s *Server) handleCostSheets(w http.ResponseWriter, r *http.Request) {
 		body.UpdatedAt = body.CreatedAt
 		snap.CostSheets[body.ProductID] = &body
 		p.CostStd = body.CostoUnitario
-		if body.PrecioSugerido > 0 {
+		// Precio de lista solo si no hay ficha de precio ni price_sale previo
+		if body.PrecioSugerido > 0 && !productHasPriceSheet(snap, body.ProductID) && p.PriceSale <= 0 {
 			p.PriceSale = body.PrecioSugerido
 		}
 		p.UpdatedAt = time.Now().UTC()
+		// Propagar hacia compuestos que usen este producto como componente
+		propagated := domain.PropagateCostFromProduct(snap, body.ProductID)
 		s.audit(snap, sess, "ficha_costo",
-			fmt.Sprintf("Ficha de costo %s %s · unitario %.2f %s (MP %.2f + ind %.2f)",
-				p.Code, p.Name, body.CostoUnitario, body.Currency, body.MateriaPrima, body.GastosIndirectos), body.ID)
-		_ = s.Store.Put(snap)
-		writeJSON(w, 201, map[string]any{"cost_sheet": body})
+			fmt.Sprintf("Ficha de costo %s %s · unitario %.2f %s · componentes %d · propagó %d",
+				p.Code, p.Name, body.CostoUnitario, body.Currency, len(body.Components), propagated), body.ID)
+		if err := s.Store.Put(snap); err != nil {
+			writeJSON(w, 500, map[string]string{"error": "no se pudo persistir la ficha de costo: " + err.Error()})
+			return
+		}
+		writeJSON(w, 201, map[string]any{"cost_sheet": body, "propagated": propagated})
+
+	case http.MethodDelete:
+		// ?product_id=…  o  ?id=… (id de ficha)
+		productID := strings.TrimSpace(r.URL.Query().Get("product_id"))
+		sheetID := strings.TrimSpace(r.URL.Query().Get("id"))
+		if productID == "" && sheetID != "" {
+			for pid, cs := range snap.CostSheets {
+				if cs != nil && cs.ID == sheetID {
+					productID = pid
+					break
+				}
+			}
+		}
+		if productID == "" {
+			writeJSON(w, 400, map[string]string{"error": "product_id o id requerido"})
+			return
+		}
+		cs := snap.CostSheets[productID]
+		if cs == nil {
+			writeJSON(w, 404, map[string]string{"error": "ficha de costo no encontrada"})
+			return
+		}
+		// Política: no eliminar si este producto es componente de otras recetas.
+		deps := domain.CostSheetDependents(snap, productID)
+		if len(deps) > 0 {
+			names := make([]string, 0, len(deps))
+			for _, d := range deps {
+				if other := snap.CostSheets[d]; other != nil {
+					label := other.ProductCode
+					if other.ProductName != "" {
+						if label != "" {
+							label += " · "
+						}
+						label += other.ProductName
+					}
+					if label == "" {
+						label = d
+					}
+					names = append(names, label)
+				} else {
+					names = append(names, d)
+				}
+			}
+			writeJSON(w, 409, map[string]any{
+				"error": "no se puede eliminar: este producto forma parte de otras fichas de costo. Quite el componente de esas recetas primero.",
+				"dependents": names,
+				"dependent_ids": deps,
+			})
+			return
+		}
+		code, name := cs.ProductCode, cs.ProductName
+		delete(snap.CostSheets, productID)
+		s.audit(snap, sess, "ficha_costo.eliminar",
+			fmt.Sprintf("Eliminó ficha de costo %s %s", code, name), productID)
+		if err := s.Store.Put(snap); err != nil {
+			writeJSON(w, 500, map[string]string{"error": "no se pudo persistir: " + err.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"ok": true, "product_id": productID})
+
 	default:
 		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
 	}
@@ -1092,7 +1235,7 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 			if u == nil {
 				continue
 			}
-			list = append(list, publicUser(u))
+			list = append(list, publicUser(snap, u))
 		}
 		writeJSON(w, 200, map[string]any{"users": list, "roles": auth.ValidRoles()})
 	case http.MethodPost:
@@ -1141,7 +1284,7 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 		snap.Users[u.ID] = u
 		s.audit(snap, sess, "usuario.alta", "Alta de usuario «"+u.Username+"» con rol «"+roleLabelES(u.Role)+"»", u.ID)
 		_ = s.Store.Put(snap)
-		writeJSON(w, 201, map[string]any{"user": publicUser(u)})
+		writeJSON(w, 201, map[string]any{"user": publicUser(snap, u)})
 	case http.MethodPut:
 		var body struct {
 			ID          string          `json:"id"`
@@ -1212,7 +1355,7 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 500, map[string]string{"error": "no se pudieron persistir los cambios del usuario: " + err.Error()})
 			return
 		}
-		writeJSON(w, 200, map[string]any{"user": publicUser(u), "views": auth.ViewsForUser(u.Role, snap, u)})
+		writeJSON(w, 200, map[string]any{"user": publicUser(snap, u), "views": auth.ViewsForUser(u.Role, snap, u)})
 	case http.MethodDelete:
 		id := r.URL.Query().Get("id")
 		u := snap.Users[id]

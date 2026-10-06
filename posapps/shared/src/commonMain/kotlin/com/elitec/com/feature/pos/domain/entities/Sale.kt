@@ -27,3 +27,15 @@ data class Sale(
         require(id.isNotEmpty()) { "El ID de la venta es requerido" }
     }
 }
+
+/** Total de venta: total del API o suma de líneas. */
+fun Sale.effectiveTotal(): Double {
+    if (total > 0.0) return total
+    val fromLines = lines.sumOf { it.effectiveLineTotal() }
+    return if (fromLines > 0.0) fromLines else 0.0
+}
+
+fun Sale.effectiveSubtotal(): Double {
+    if (subtotal > 0.0) return subtotal
+    return lines.sumOf { it.qty * it.unitPrice }
+}

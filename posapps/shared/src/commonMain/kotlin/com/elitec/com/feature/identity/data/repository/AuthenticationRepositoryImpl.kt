@@ -8,6 +8,8 @@ import com.elitec.com.feature.identity.domain.entities.LoginCredentials
 import com.elitec.com.feature.identity.domain.entities.Session
 import com.elitec.com.feature.identity.domain.repository.AuthRepository
 import com.elitec.com.feature.identity.domain.repository.SessionRepository
+import com.elitec.com.infraestructure.logging.AbacoLog
+import com.elitec.com.infraestructure.logging.LogCategory
 
 class AuthenticationRepositoryImpl(
     private val remote: RemoteAuthDataSource,
@@ -16,7 +18,7 @@ class AuthenticationRepositoryImpl(
 
     override suspend fun login(credentials: LoginCredentials): Session {
         val dto = remote.login(credentials.username.trim(), credentials.password)
-        return AuthMapper.loginToSession(dto)
+        return enrichSessionWithEmployeeAssignment(AuthMapper.loginToSession(dto))
     }
 
     override suspend fun logout() {
@@ -26,7 +28,18 @@ class AuthenticationRepositoryImpl(
 
     override suspend fun getMe(token: String): Session {
         val dto = remote.me(token)
-        return AuthMapper.meToSession(dto, token)
+        return enrichSessionWithEmployeeAssignment(AuthMapper.meToSession(dto, token))
+    }
+
+    private suspend fun enrichSessionWithEmployeeAssignment(session: Session): Session {
+        val unitIds = remote.resolveEmployeeUnitIds(session.token, session.user.id)
+        AbacoLog.step(
+            LogCategory.AUTH,
+            "EmployeeResolver",
+            "sesión enriquecida",
+            "userId=" + session.user.id + " unitIds=" + unitIds,
+        )
+        return session.copy(user = session.user.withAssignedUnitIds(unitIds))
     }
 
     override suspend fun changePassword(input: ChangePasswordInput) {

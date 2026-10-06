@@ -3,6 +3,7 @@ package com.elitec.com.feature.pos.data.dto
 import androidx.room3.Entity
 import androidx.room3.PrimaryKey
 import com.elitec.com.feature.pos.domain.entities.Sale
+import com.elitec.com.feature.pos.domain.entities.effectiveLineTotal
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -72,9 +73,15 @@ data class SaleDto(
 )
 
 fun SaleDto.toDomain(): Sale {
-    val lines = runCatching {
+    val domainLines = runCatching {
         saleJson.decodeFromString<List<SaleLineDto>>(linesJson)
-    }.getOrDefault(emptyList())
+    }.getOrDefault(emptyList()).map { it.toDomain() }
+
+    val computedSub = domainLines.sumOf { it.qty * it.unitPrice }
+    val computedTotal = domainLines.sumOf { it.effectiveLineTotal() }
+    val apiTotal = total ?: 0.0
+    val apiSub = subtotal ?: 0.0
+
     return Sale(
         id = id,
         number = number.orEmpty(),
@@ -82,10 +89,10 @@ fun SaleDto.toDomain(): Sale {
         unitId = unitId.orEmpty(),
         unitName = unitName.orEmpty(),
         seller = seller.orEmpty(),
-        lines = lines.map { it.toDomain() },
-        subtotal = subtotal ?: 0.0,
+        lines = domainLines,
+        subtotal = if (apiSub > 0.0) apiSub else computedSub,
         discount = discount ?: 0.0,
-        total = total ?: 0.0,
+        total = if (apiTotal > 0.0) apiTotal else computedTotal,
         costTotal = costTotal ?: 0.0,
         currency = currency.orEmpty(),
         status = status.orEmpty(),
