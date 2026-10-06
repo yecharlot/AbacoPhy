@@ -9,6 +9,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -143,7 +144,7 @@ fun HomeContent(
     modifier: Modifier = Modifier
 ) {
     NavDisplay(
-        modifier = modifier.fillMaxSize().padding(10.dp),
+        modifier = modifier.fillMaxSize(),
         backStack = backstack,
         onBack  = onBack,
         transitionSpec = {

@@ -49,14 +49,14 @@ fun AppLogoBox(
                 Column {
                     Text(
                         text = "AbacoPhy",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onPrimary
+                        style = AppTheme.materialTypography.titleLarge,
+                        color = AppTheme.materialColors.onSurface
                     )
                     Text(
                         text = userName,
-                        style = MaterialTheme.typography.labelSmall,
+                        style = AppTheme.materialTypography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(0.8f)
+                        color = AppTheme.materialColors.onSurface.copy(0.8f)
                     )
                 }
 
@@ -79,14 +79,14 @@ fun AppLogoBox(
                 Column {
                     Text(
                         text = "AbacoPhy",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onPrimary
+                        style = AppTheme.materialTypography.titleLarge,
+                        color = AppTheme.materialColors.onSurface
                     )
                     Text(
                         text = userName,
-                        style = MaterialTheme.typography.labelSmall,
+                        style = AppTheme.materialTypography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(0.8f)
+                        color = AppTheme.materialColors.onSurface.copy(0.8f)
                     )
                 }
             }

@@ -250,13 +250,6 @@
   .lead { margin:24px 0 0; max-width:560px; color:var(--color-text-secondary); font-size:1.05rem; line-height:1.75; }
   .rotating-line { margin-top:30px; display:flex; align-items:center; gap:9px; color:var(--color-text-muted); font-size:.92rem; }
   .rotating-line :global(.rotate) { color:var(--accent-green); font-weight:750; font-size:1.05rem; }
-
-  .feature-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
-  .feature { min-width:0; display:flex; gap:10px; align-items:flex-start; padding:13px; border:1px solid rgba(255,255,255,.08); border-radius:15px; background:rgba(255,255,255,.035); }
-  .feature-dot { width:7px;height:7px;flex:none;margin-top:6px;border-radius:50%;background:var(--accent-cyan);box-shadow:0 0 14px rgba(97,230,225,.8); }
-  .feature-dot.green { background:var(--accent-green);box-shadow:0 0 14px rgba(183,245,106,.7); }
-  .feature-dot.purple { background:var(--accent-purple);box-shadow:0 0 14px rgba(156,130,255,.7); }
-  .feature strong,.feature small{display:block}.feature strong{font-size:.78rem}.feature small{margin-top:2px;color:var(--color-text-muted);font-size:.67rem;line-height:1.35}
   .version { margin:18px 0 0; color:var(--color-text-muted); opacity:.72; font-size:.66rem; }
 
   .login-panel { display:flex; justify-content:center; }

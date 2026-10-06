@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.elitec.com.infraestructure.ui.uiModels.NavButton
 import com.gursimar.composive.responsive.theme.AppTheme
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun NavRail(
@@ -47,7 +48,7 @@ fun NavRail(
 
     LaunchedEffect(Unit) {
         visible = true
-        delay(180)
+        delay(180.milliseconds)
         onEntranceComplete?.invoke()
     }
 

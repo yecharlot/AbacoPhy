@@ -3,6 +3,7 @@ import type { CatalogRepository } from '../../catalog/domain/repositories/Catalo
 import { GetProducts } from '../../catalog/domain/usecases';
 import { CostingRepositoryImpl } from '../data/repositories/CostingRepositoryImpl';
 import {
+  DeleteCostSheet,
   DeletePriceSheet,
   ListCostSheets,
   ListPriceSheets,
@@ -28,6 +29,7 @@ export function createCostingModule(
   const costingStore = createCostingStore({
     listCostSheets: new ListCostSheets(repo),
     saveCostSheet: new SaveCostSheet(repo),
+    deleteCostSheet: new DeleteCostSheet(repo),
     listPriceSheets: new ListPriceSheets(repo),
     savePriceSheet: new SavePriceSheet(repo),
     deletePriceSheet: new DeletePriceSheet(repo),

@@ -10,15 +10,22 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.AirplaneTicket
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AirplaneTicket
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Outbox
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Search
@@ -43,11 +50,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.elitec.com.feature.catalog.domain.entities.Product
+import com.elitec.com.feature.catalog.domain.entities.effectiveUnitPrice
 import com.elitec.com.feature.pos.domain.entities.CreateSaleInput
 import com.elitec.com.feature.pos.domain.entities.CreateSaleLineInput
 import com.elitec.com.feature.pos.ui.uiStates.RegisterSaleUiState
+import com.gursimar.composive.responsive.core.DeviceConfiguration
+import com.gursimar.composive.responsive.core.rememberDeviceConfiguration
 import com.gursimar.composive.responsive.theme.AppTheme
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 data class DraftLineUi(
     val product: Product,
@@ -66,6 +77,15 @@ fun NewSaleForm(
     onClearRegisterState: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val deviceConfiguration = rememberDeviceConfiguration()
+
+    val productoFixedColumns = when (
+        deviceConfiguration == DeviceConfiguration.DESKTOP ||
+                deviceConfiguration ==DeviceConfiguration.TABLET_LANDSCAPE
+    ) {
+        true -> 2
+        else -> 1
+    }
     var search by remember { mutableStateOf("") }
     var lines by remember { mutableStateOf<List<DraftLineUi>>(emptyList()) }
     var note by remember { mutableStateOf("") }
@@ -93,7 +113,7 @@ fun NewSaleForm(
             lines = emptyList()
             note = ""
             formError = null
-            delay(2200)
+            delay(2200.milliseconds)
             onClearRegisterState()
         }
     }
@@ -109,19 +129,24 @@ fun NewSaleForm(
         tonalElevation = 2.dp,
         shadowElevation = 4.dp,
     ) {
-        Column(Modifier.padding(AppTheme.dimensions.cardPadding)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Default.Receipt, null, tint = MaterialTheme.colorScheme.primary)
-                Text("Nueva venta", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.height(12.dp))
-
-            // —— Contexto PDV / vendedor ——
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        Column(
+            modifier = Modifier.padding(AppTheme.dimensions.cardPadding)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row (
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.Receipt, null, tint = MaterialTheme.colorScheme.primary)
+                    Text("Nueva venta", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+
+                }
+                // —— Contexto PDV / vendedor ——
+                Column(Modifier.padding(AppTheme.dimensions.contentPaddingSmall), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     when (assignedUnit) {
                         is AssignedUnitUiState.Loading, AssignedUnitUiState.Idle -> {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -130,12 +155,31 @@ fun NewSaleForm(
                             }
                         }
                         is AssignedUnitUiState.Ready -> {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Icon(Icons.Default.Store, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                                Column {
-                                    Text("Punto de venta", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text(unitName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Store,
+                                        null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = "Punto de venta",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
+
+                                Text(
+                                    text = unitName,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
                         }
                         is AssignedUnitUiState.None -> {
@@ -149,15 +193,31 @@ fun NewSaleForm(
                             Text(assignedUnit.message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         }
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Default.Person, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                        Text(seller, style = MaterialTheme.typography.bodyMedium)
-                    }
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(14.dp))
+            HorizontalDivider(
+                color = AppTheme.materialColors.onSurfaceVariant
+            )
 
+            Spacer(Modifier.height(5.dp))
+            Row(
+                modifier = Modifier.padding(start = AppTheme.dimensions.cardPadding),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Outbox,
+                    contentDescription = null
+                )
+                Text(
+                    "Catálogo de Productos",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(Modifier.height(5.dp))
             // —— Búsqueda ——
             OutlinedTextField(
                 value = search,
@@ -169,12 +229,12 @@ fun NewSaleForm(
                 placeholder = { Text("Buscar producto por nombre o código") },
                 shape = RoundedCornerShape(14.dp),
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(5.dp))
 
-            Text("Catálogo", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            LazyColumn(
+            LazyVerticalStaggeredGrid(
+                columns = StaggeredGridCells.Fixed(productoFixedColumns),
                 modifier = Modifier.weight(0.38f).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalItemSpacing = 5.dp,
             ) {
                 if (filtered.isEmpty()) {
                     item {
@@ -192,7 +252,7 @@ fun NewSaleForm(
                         color = MaterialTheme.colorScheme.surfaceContainer,
                         onClick = {
                             if (saving || stock <= 0 || lines.any { it.product.id == p.id }) return@Surface
-                            val price = p.priceSale ?: p.costStd ?: 0.0
+                            val price = p.effectiveUnitPrice()
                             lines = lines + DraftLineUi(p, "1", if (price > 0) price.toString() else "")
                         },
                     ) {
@@ -203,8 +263,19 @@ fun NewSaleForm(
                         ) {
                             Column(Modifier.weight(1f)) {
                                 Text(p.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, fontWeight = FontWeight.Medium)
+                                val price = p.effectiveUnitPrice()
                                 Text(
-                                    "${p.code} · stock ${stock.toInt()}",
+                                    buildString {
+                                        append(p.code)
+                                        append(" · stock ")
+                                        append(stock.toInt())
+                                        if (price > 0.0) {
+                                            append(" · ")
+                                            append(price)
+                                        } else {
+                                            append(" · sin precio")
+                                        }
+                                    },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -215,9 +286,28 @@ fun NewSaleForm(
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
-            Text("Ticket", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(
+                color = AppTheme.materialColors.onSurfaceVariant
+            )
+            Spacer(Modifier.height(5.dp))
 
+            Row(
+                modifier = Modifier.padding(start = AppTheme.dimensions.cardPadding),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.AirplaneTicket,
+                    contentDescription = null
+                )
+                Text(
+                    "Ticket",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(Modifier.height(3.dp))
             // —— Ticket scroll ——
             LazyColumn(
                 modifier = Modifier.weight(0.32f).fillMaxWidth(),
@@ -326,16 +416,23 @@ fun NewSaleForm(
                             formError = "Cantidad inválida en ${line.product.name}"
                             return@Button
                         }
+                        val price = line.unitPrice.toDoubleOrNull()
+                        if (price == null || price <= 0.0) {
+                            formError =
+                                "Indique precio de venta en «${line.product.name}». " +
+                                "Sin ficha de precio ni price_sale el sistema no puede calcular el importe."
+                            return@Button
+                        }
                         saleLines += CreateSaleLineInput(
                             productId = line.product.id,
                             qty = qty,
-                            unitPrice = line.unitPrice.toDoubleOrNull(),
+                            unitPrice = price,
                         )
                     }
                     onSubmit(CreateSaleInput(unitId = unitId, seller = seller, note = note.ifBlank { null }, lines = saleLines))
                 },
                 enabled = !saving && assignedUnit is AssignedUnitUiState.Ready,
-                modifier = Modifier.fillMaxWidth().height(50.dp),
+                modifier = Modifier.fillMaxWidth().height(35.dp),
                 shape = RoundedCornerShape(14.dp),
             ) {
                 if (saving) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)

@@ -26,10 +26,18 @@
     return unsub;
   });
 
-  function num(value: string): number | undefined {
-    if (value.trim() === '') return undefined;
-    const parsed = parseFloat(value);
+  function num(value: string | number | null | undefined): number | undefined {
+    if (value === null || value === undefined) return undefined;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+    const s = String(value).trim();
+    if (s === '') return undefined;
+    const parsed = parseFloat(s);
     return Number.isNaN(parsed) ? undefined : parsed;
+  }
+
+  function str(value: string | number | null | undefined): string {
+    if (value === null || value === undefined) return '';
+    return String(value).trim();
   }
 
   $: suggested =
@@ -67,7 +75,7 @@
         costRef: num(costRef),
         marginPct: num(marginPct),
         price: num(price),
-        notes: notes.trim() || undefined,
+        notes: str(notes) || undefined,
       });
       productId = '';
       costRef = '';

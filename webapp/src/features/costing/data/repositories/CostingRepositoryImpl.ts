@@ -33,11 +33,29 @@ export class CostingRepositoryImpl implements CostingRepository {
 
   async saveCostSheet(input: SaveCostSheetInput): Promise<CostSheet> {
     try {
-      const dto = await this.remote.saveCostSheet(saveCostSheetInputToDto(input));
-      if (!dto.cost_sheet) throw new Error('Respuesta de ficha de costo vacía');
-      return costSheetDtoToEntity(dto.cost_sheet);
+      const dto = (await this.remote.saveCostSheet(saveCostSheetInputToDto(input))) as Record<
+        string,
+        unknown
+      >;
+      const raw =
+        (dto.cost_sheet as object | undefined) ??
+        (dto.sheet as object | undefined) ??
+        (dto.id || dto.product_id ? dto : undefined);
+      if (!raw || typeof raw !== 'object') {
+        throw new Error('Respuesta de ficha de costo vacía');
+      }
+      return costSheetDtoToEntity(raw as Parameters<typeof costSheetDtoToEntity>[0]);
     } catch (err) {
       throw new Error(messageOf(err, 'No se pudo guardar la ficha de costo'));
+    }
+  }
+
+
+  async deleteCostSheet(productId: string): Promise<void> {
+    try {
+      await this.remote.deleteCostSheet(productId);
+    } catch (err) {
+      throw new Error(messageOf(err, 'No se pudo eliminar la ficha de costo'));
     }
   }
 

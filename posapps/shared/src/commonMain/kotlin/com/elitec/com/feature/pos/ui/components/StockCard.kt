@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -26,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -44,14 +47,14 @@ fun StockCard(
     modifier: Modifier = Modifier,
 ) {
     val accent = when (stockState) {
-        StockStates.OUT -> MaterialTheme.colorScheme.error
-        StockStates.LOW -> MaterialTheme.colorScheme.tertiary
-        StockStates.OK -> MaterialTheme.colorScheme.primary
+        StockStates.OUT -> AppTheme.materialColors.error
+        StockStates.LOW -> AppTheme.materialColors.tertiary
+        StockStates.OK -> AppTheme.materialColors.primary
     }
     val onAccent = when (stockState) {
-        StockStates.OUT -> MaterialTheme.colorScheme.onError
-        StockStates.LOW -> MaterialTheme.colorScheme.onTertiary
-        StockStates.OK -> MaterialTheme.colorScheme.onPrimary
+        StockStates.OUT -> AppTheme.materialColors.onError
+        StockStates.LOW -> AppTheme.materialColors.onTertiary
+        StockStates.OK -> AppTheme.materialColors.onPrimary
     }
     val tintSurface = accent.copy(alpha = 0.12f)
 
@@ -61,10 +64,10 @@ fun StockCard(
         shape = RoundedCornerShape(18.dp),
         modifier = modifier,
     ) {
-        Column(Modifier.padding(AppTheme.dimensions.cardPadding)) {
+        Column(Modifier.padding(AppTheme.dimensions.contentPaddingSmall)) {
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Surface(color = tintSurface, shape = RoundedCornerShape(14.dp)) {
@@ -72,22 +75,10 @@ fun StockCard(
                         imageVector = icon,
                         contentDescription = tittle,
                         tint = accent,
-                        modifier = Modifier.padding(10.dp).size(22.dp),
+                        modifier = Modifier.padding(10.dp).size(18.dp),
                     )
                 }
-                Column(horizontalAlignment = Alignment.End) {
-                    AnimatedContent(
-                        targetState = stockList.size,
-                        transitionSpec = { fadeIn() togetherWith fadeOut() },
-                        label = "stockCount",
-                    ) { n ->
-                        Text(
-                            text = n.toString(),
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = accent,
-                        )
-                    }
+                Column {
                     Text(
                         tittle,
                         style = MaterialTheme.typography.labelLarge,
@@ -99,9 +90,31 @@ fun StockCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+
             }
             Spacer(Modifier.height(10.dp))
-            Box(Modifier.fillMaxWidth().height(148.dp)) {
+            AnimatedContent(
+                targetState = stockList.size,
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                label = "stockCount",
+            ) { n ->
+                Text(
+                    modifier = Modifier.padding(start = AppTheme.dimensions.cardSpacing),
+                    text = n.toString(),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = accent,
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Box(
+                modifier = Modifier.fillMaxWidth()
+                    .height(148.dp)
+                    .background(
+                        AppTheme.materialColors.surfaceContainerLow,
+                        RoundedCornerShape(15.dp)
+                    )
+            ) {
                 when {
                     loading -> CircularProgressIndicator(
                         Modifier.align(Alignment.Center).size(26.dp),
@@ -114,23 +127,43 @@ fun StockCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    else -> LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.padding(AppTheme.dimensions.cardPadding)
+                    ) {
                         items(stockList, key = { row -> row.posId + "|" + row.productId }) { item ->
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                Text(
-                                    item.productName,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.weight(1f),
-                                    maxLines = 1,
+                            Column {
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            item.productName,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            maxLines = 1,
+                                        )
+                                        if (item.unitPrice > 0.0) {
+                                            Text(
+                                                "P. unit. ${item.unitPrice}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        item.qty.toInt().toString(),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = accent,
+                                    )
+                                }
+                                Spacer(
+                                    modifier = Modifier.height(5.dp)
                                 )
-                                Text(
-                                    item.qty.toInt().toString(),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = accent,
+                                HorizontalDivider(
+                                    color = AppTheme.materialColors.onSurfaceVariant
                                 )
                             }
                         }

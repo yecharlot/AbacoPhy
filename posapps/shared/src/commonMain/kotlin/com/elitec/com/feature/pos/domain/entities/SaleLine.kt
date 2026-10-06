@@ -18,3 +18,10 @@ data class SaleLine(
     /** JSON string opaco; ausente si el API no lo envía. */
     val metadata: String? = null,
 )
+
+/** Importe de línea: lineTotal o qty × unitPrice. */
+fun SaleLine.effectiveLineTotal(): Double {
+    if (lineTotal > 0.0) return lineTotal
+    val computed = qty * unitPrice
+    return if (computed > 0.0) computed else 0.0
+}

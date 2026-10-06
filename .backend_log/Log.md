@@ -972,3 +972,237 @@ No mezclar la pantalla de **módulos** con la de **permisos UI**: la primera hab
 1. Tras cambiar permisos de rol, las sesiones ya abiertas conservan `views` en memoria hasta **re-login** o `GET /auth/me`.
 2. Usuarios con `modules` antiguos densos pueden no heredar cambios de rol hasta limpiar excepciones (`modules` null al cambiar rol, o reescritura desde el panel).
 3. Claves de vista son las del `ViewACL` (`vendedor`, `productos`, `nomencladores`, …), no los ids de pantalla del FE (`pos`, `catalog`).
+
+---
+
+## Fase COST-PRICE-1 — Políticas de ficha de costo y ficha de precio
+
+**Fecha:** 2026-10-06  
+**Archivos:** `internal/api/ops.go`, `internal/api/modules_handlers.go`  
+**Motivo:** Desbloquear precio de venta en POS con base calculada (no arbitraria) y separar costo de análisis vs precio de canal.
+
+### Principio
+
+| Concepto | Fuente de verdad |
+|----------|------------------|
+| Costo de inventario / COGS | `avg_cost` (entrada en almacén) |
+| Costo estructurado / análisis | Ficha de costo (`cost_sheets`) |
+| Precio de venta oficial | Ficha de precio (`price_sheets`) → `product.price_sale` |
+| Nomenclador | Sin precio ni costo comercial |
+
+### `resolveProductCostRef(snap, productID)`
+
+Orden de resolución del **costo de referencia** para fichas de precio:
+
+1. `warehouse_stock.avg_cost`
+2. `unit_stocks[].avg_cost` del producto
+3. `cost_sheets[product].costo_unitario`
+4. `product.cost_std`
+5. Último `unit_cost` encontrado en líneas de recepción
+
+### Ficha de precio — `POST /api/v1/price-sheets`
+
+- Si `cost_ref` ≤ 0 → se completa con `resolveProductCostRef`
+- Si `margin_pct` ≤ 0 y no hay `price` → margen por defecto **25 %**
+- Si `price` ≤ 0 → `price = cost_ref × (1 + margin_pct/100)`
+- Si no se puede obtener precio > 0 → **400** con mensaje claro
+- Si `price < cost_ref` sin `notes` → **400** (exige motivo documentado)
+- **Una ficha vigente por producto:** se eliminan fichas anteriores del mismo `product_id`
+- Siempre actualiza `product.price_sale = price` (canal de venta)
+
+### Ficha de costo — `POST /api/v1/cost-sheets`
+
+Sin cambio en el cálculo de componentes ni en auto-MP desde `avg_cost`.
+
+Cambio de política al proyectar a producto:
+
+- Sigue escribiendo `product.cost_std = costo_unitario`
+- **Solo** escribe `product.price_sale = precio_sugerido` si **no** existe ficha de precio y el producto aún no tiene `price_sale`
+- Evita que un recálculo de costo pise el precio oficial de lista
+
+### POS — `POST /api/v1/pos/sales`
+
+Tras aplicar fallback `unit_price ← product.price_sale`:
+
+- Si el precio unitario sigue ≤ 0 → **400**  
+  `producto sin precio de venta configurado: <code> · cree una ficha de precio o indique unit_price`
+
+Impide ventas históricas nuevas a total 0 por falta de configuración comercial.
+
+### Impacto
+
+| Área | Efecto |
+|------|--------|
+| Persistencia | `price_sheets`, `cost_sheets`, `products.price_sale` / `cost_std` en snapshot |
+| Esquema JSON | Sin campos nuevos obligatorios |
+| Frontend | Puede seguir enviando solo `product_id` + `margin_pct`; el server completa `cost_ref` y `price` |
+| POS web/KMP | Requiere ficha de precio (o `unit_price` explícito) para registrar venta |
+| ACL | Sin cambio de gates (`fichas_costo`, `fichas_precio`, `vendedor`) |
+
+### Flujo operativo esperado
+
+```
+Entrada almacén (avg_cost)
+    → Ficha de costo (opcional; MP auto)
+    → Ficha de precio (cost_ref auto + margen → price_sale)
+    → POS vende con price_sale
+```
+
+---
+
+## Fase COST-RECIPE-1 — Ficha de costo como receta (base vs compuesto)
+
+**Fecha:** 2026-10-06  
+**Archivos:** `internal/domain/ops.go`, `internal/domain/cost_recipe.go`, `internal/api/ops.go`  
+**Política FE:** `webapp/.policies/costing/fichas-costo-composicion.md`
+
+### Modelo
+
+- `CostComponent`: product_id, qty, unit_cost/line_cost de último cálculo
+- `CostSheet` ampliado: components, labor_minutes, difficulty_level/factor, labor_base_rate, material_cost, labor_cost
+- Campos legacy (materia_prima, etc.) se mantienen
+
+### Cálculo
+
+```
+material = Σ (qty_i × ProductUnitCost(componente_i))
+labor    = labor_base_rate × labor_minutes × difficulty_factor
+unitario = material + labor + rubros legacy
+```
+
+`ProductUnitCost`: avg_cost almacén → unidad → ficha costo → cost_std.
+
+### Ciclos
+
+`CostSheetWouldCycle` rechaza dependencias circulares al guardar.
+
+### Propagación
+
+`PropagateCostFromProduct` recalcula fichas dependientes (BFS).
+
+Disparado al:
+
+- Guardar ficha de costo del producto
+- Confirmar **entrada de recepción** (cambio de avg_cost de un base)
+
+### POST `/cost-sheets`
+
+Acepta `components[]`, tiempos y dificultad. Respuesta incluye `propagated`.
+
+---
+
+## Fase COST-SHEET-EDIT-DELETE — Edición y borrado de fichas de costo
+
+**Fecha:** 2026-10-06  
+**Archivos:** `internal/api/ops.go`, `internal/domain/cost_recipe.go`
+
+### DELETE `/api/v1/cost-sheets?product_id=` (o `?id=`)
+
+- Elimina la ficha indexada por product_id.
+- **409** si el producto es componente de otras recetas (CostSheetDependents).
+- Mensaje: quitar el componente de esas composiciones antes de eliminar.
+
+### Edición
+
+- POST sigue siendo upsert por product_id (recalcula y propaga).
+
+---
+
+## Fase COST-RECIPE-2 — Dependientes exportados + historial de variación
+
+**Fecha:** 2026-10-06  
+**Archivos:** `internal/domain/cost_recipe.go`, `internal/domain/ops.go`, `internal/api/ops.go`  
+**Relacionado FE:** fichas de costo (dashboard variaciones, edición/borrado, mapper de components)
+
+### 1. `CostSheetDependents` (export)
+
+**Problema:** `handleCostSheets` DELETE compilaba con error  
+`undefined: domain.CostSheetDependents` porque solo existía `sheetsDependingOn` (no exportada).
+
+**Fix:**
+
+```go
+func CostSheetDependents(snap *StoreSnapshot, productID string) []string {
+	return sheetsDependingOn(snap, productID)
+}
+```
+
+Usado en DELETE para bloquear borrado si el producto es componente de otras recetas (**409** + lista `dependents` / `dependent_ids`).
+
+### 2. Historial de costo unitario (`previous_costo_unitario`)
+
+**Campo en `CostSheet`:**
+
+```go
+PreviousCostoUnitario float64 `json:"previous_costo_unitario,omitempty"`
+```
+
+**En `RecalculateCostSheet`:** si el unitario cambia respecto al valor previo (> 0), se guarda el anterior en `PreviousCostoUnitario`.
+
+Permite al frontend:
+
+- Estadísticas: costo en aumento / en baja / impacto neto
+- Bloque «Variaciones últimos 7 días» (junto con `updated_at`)
+
+Sin tablas nuevas ni endpoints adicionales.
+
+### 3. Persistencia explícita en POST `/cost-sheets`
+
+Si `Store.Put` falla tras crear/actualizar ficha → **500** con mensaje  
+`no se pudo persistir la ficha de costo: …`  
+(antes se ignoraba el error de Put y se respondía 201).
+
+### 4. Comportamiento consolidado de la ficha de costo (API)
+
+| Método | Ruta | Efecto |
+|--------|------|--------|
+| GET | `/api/v1/cost-sheets` | Lista fichas (incluye `components`, labor, `previous_costo_unitario`, `updated_at`) |
+| POST | `/api/v1/cost-sheets` | Upsert por `product_id`; receta; anti-ciclos; recalcula; propaga; actualiza `cost_std` |
+| DELETE | `/api/v1/cost-sheets?product_id=` o `?id=` | Borra si no hay dependientes; si hay → 409 |
+
+**Body POST relevante (receta):**
+
+```json
+{
+  "product_id": "…",
+  "components": [{ "product_id": "…", "qty": 0.5 }],
+  "labor_minutes": 30,
+  "difficulty_level": 3,
+  "difficulty_factor": 1.25,
+  "labor_base_rate": 0.5
+}
+```
+
+**Cálculo (dominio):**
+
+```
+material = Σ (qty × ProductUnitCost(componente))
+labor    = labor_base_rate × labor_minutes × difficulty_factor
+unitario = material + labor (+ rubros legacy si vienen)
+```
+
+**Propagación:** al guardar ficha y al confirmar **entrada de recepción** (`PropagateCostFromProduct`).
+
+### 5. Política de producto (recordatorio backend)
+
+| Tipo | Ficha de costo | Costo final |
+|------|----------------|-------------|
+| Base | No (o no aplica como receta de elaboración) | `avg_cost` tras entrada almacén |
+| Compuesto | Sí (receta con componentes) | `costo_unitario` de la ficha |
+
+### Impacto
+
+| Área | Efecto |
+|------|--------|
+| Compilación | DELETE de cost-sheets deja de fallar por símbolo no exportado |
+| JSON snapshot | Campos opcionales nuevos en cost_sheets; sin migración obligatoria |
+| FE | Mapper debe leer/escribir `components[]` y `previous_costo_unitario` |
+| Contabilidad | Sin cambio de ecuación; solo inventario/costos de producto |
+
+### Zips de referencia (sesión)
+
+- `AbacoPhy-cost-recipe-policy.zip` — modelo receta + POST + propagación recepción  
+- `webapp-cost-sheet-edit-delete.zip` / backend en el mismo — DELETE + política dependientes  
+- `AbacoPhy-backend-CostSheetDependents-fix.zip` — export `CostSheetDependents`  
+- `webapp-fichas-costo-dashboard.zip` — `previous_costo_unitario` en dominio/recalc  
+

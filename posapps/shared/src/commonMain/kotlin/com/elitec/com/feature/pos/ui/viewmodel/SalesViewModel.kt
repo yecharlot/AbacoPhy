@@ -3,6 +3,7 @@ package com.elitec.com.feature.pos.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.elitec.com.feature.catalog.domain.entities.Product
+import com.elitec.com.feature.catalog.domain.entities.effectiveUnitPrice
 import com.elitec.com.feature.identity.domain.entities.Session
 import com.elitec.com.feature.identity.domain.entities.SessionControl
 import com.elitec.com.feature.identity.domain.repository.SessionRepository
@@ -272,6 +273,9 @@ class SalesViewModel(
                     posId = it.unitId,
                     productName = productNames[it.productId]?.name ?: it.productId,
                     qty = it.qty,
+                    unitPrice = (productNames[it.productId]?.effectiveUnitPrice() ?: 0.0)
+                        .takeIf { price -> price > 0.0 }
+                        ?: it.avgCost,
                 )
             }
 
