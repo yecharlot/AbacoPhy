@@ -1,5 +1,6 @@
 package com.elitec.com.infraestructure.ui.navigation
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -8,39 +9,28 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backpack
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warehouse
-import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.core.tween
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavBackStack
-import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
@@ -48,15 +38,16 @@ import androidx.navigation3.ui.NavDisplay
 import androidx.savedstate.serialization.SavedStateConfiguration
 import com.elitec.com.feature.catalog.ui.screens.CatalogScreen
 import com.elitec.com.feature.identity.domain.entities.Session
-import com.elitec.com.feature.identity.domain.entities.SessionControl
-import com.elitec.com.feature.identity.ui.viewmodel.HomeSessionViewModel
-import com.elitec.com.feature.pos.ui.components.NewSaleForm
+import com.elitec.com.feature.pos.ui.viewmodel.SalesViewModel
+import com.elitec.com.feature.stats.ui.screen.StatsRoute
+import com.elitec.com.feature.warehouse.ui.screens.PosStockScreen
 import com.elitec.com.infraestructure.ui.components.NavRail
 import com.elitec.com.infraestructure.ui.screen.MainScreen
 import com.elitec.com.infraestructure.ui.uiModels.NavButton
 import com.gursimar.composive.responsive.core.DeviceConfiguration
 import com.gursimar.composive.responsive.core.rememberDeviceConfiguration
 import com.gursimar.composive.responsive.theme.AppTheme
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
 import org.koin.compose.viewmodel.koinViewModel
@@ -117,7 +108,7 @@ fun HomeNavHost(
                     onEntranceComplete = { contentReady = true },
                 )
                 Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-                    androidx.compose.animation.AnimatedVisibility(
+                    this@Row.AnimatedVisibility(
                         visible = contentReady,
                         enter = fadeIn(animationSpec = tween(200)),
                         modifier = Modifier.fillMaxSize(),
@@ -137,6 +128,7 @@ fun HomeNavHost(
     }
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @Composable
 fun HomeContent(
     session: Session,
@@ -144,6 +136,10 @@ fun HomeContent(
     backstack: NavBackStack<NavKey>,
     modifier: Modifier = Modifier
 ) {
+    val salesVm: SalesViewModel = koinViewModel()
+
+    val assignedUnit by salesVm.assignedUnit.collectAsStateWithLifecycle()
+
     NavDisplay(
         modifier = modifier.fillMaxSize(),
         backStack = backstack,
@@ -186,10 +182,15 @@ fun HomeContent(
                 Text("CONFIG")
             }
             entry<InternalRoute.Stock> {
-                Text("STOCK")
+                PosStockScreen(
+                    assignedUnit = assignedUnit,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
             entry<InternalRoute.Statistics> {
-                Text("STATISTICS")
+                StatsRoute(
+                    modifier = Modifier.fillMaxSize()
+                )
             }
             entry<InternalRoute.Catalog> {
                 CatalogScreen(
