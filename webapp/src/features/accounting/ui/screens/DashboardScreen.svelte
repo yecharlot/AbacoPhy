@@ -252,11 +252,12 @@
                   <span class="muted">{item.detail}</span>
                 </div>
                 {#if item.actionScreen && onNavigate}
+                  {@const go = item.actionScreen}
                   <Button
                     type="button"
                     variant="secondary"
                     size="sm"
-                    onclick={() => onNavigate(item.actionScreen)}
+                    onclick={() => onNavigate(go)}
                   >
                     {item.actionLabel || 'Ir'}
                   </Button>
@@ -350,7 +351,7 @@
   {:else}
     <PanelCard title="Resumen">
       <p class="muted">Sin datos de resumen todavía.</p>
-      <Button variant="secondary" on:click={() => store.loadDashboard()}>Cargar</Button>
+      <Button variant="secondary" onclick={() => store.loadDashboard()}>Cargar</Button>
     </PanelCard>
   {/if}
 </div>

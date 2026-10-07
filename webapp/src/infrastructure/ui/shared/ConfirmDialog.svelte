@@ -45,7 +45,7 @@
       localError = '';
       requestAnimationFrame(() => {
         const focusable = panelEl?.querySelector<HTMLElement>(
-          requireReason ? 'textarea, input' : 'button[data-confirm]',
+          requireReason ? 'textarea, input' : '.cd-actions button:last-child',
         );
         focusable?.focus();
       });
@@ -128,7 +128,6 @@
           type="button"
           variant={variant === 'default' ? 'primary' : 'primary'}
           disabled={busy}
-          data-confirm="1"
           onclick={() => void handleConfirm()}
         >
           {busy ? 'Procesando…' : confirmLabel}

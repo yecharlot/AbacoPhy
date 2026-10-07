@@ -33,10 +33,11 @@ export function filterEntriesByType(
     })
     .filter((e) => {
       if (period === 'all') return true;
-      const t = e.date ? Date.parse(e.date) : 0;
-      if (!Number.isFinite(t) || t <= 0) return period === 'all';
-      if (period === 'week') return t >= weekAgo;
-      if (period === 'month') return t >= monthTs;
+      const ts = e.date ? Date.parse(e.date) : 0;
+      // Sin fecha válida: fuera del filtro de periodo (solo "all" los incluye).
+      if (!Number.isFinite(ts) || ts <= 0) return false;
+      if (period === 'week') return ts >= weekAgo;
+      if (period === 'month') return ts >= monthTs;
       return true;
     })
     .sort((a, b) => {
