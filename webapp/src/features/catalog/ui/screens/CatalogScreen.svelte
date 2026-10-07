@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Button, Card, Input } from '../../../../infrastructure/ui/shared';
+  import { Button, Card, Input, notifyErr, notifyOk } from '../../../../infrastructure/ui/shared';
   import type { CatalogStore, CatalogState } from '../stores/catalogStore';
   import type { Product } from '../../domain/entities/Product';
   import { DevSeedPanel } from '../../../../infrastructure/ui/dev';
@@ -13,9 +13,6 @@
   let query = '';
   let formError = '';
   let formOk = '';
-  /** Toast flotante post-respuesta API */
-  let toast: { kind: 'ok' | 'err'; text: string } | null = null;
-  let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
   let prodCode = '';
   let prodName = '';
@@ -34,7 +31,6 @@
     void store.loadAll();
     return () => {
       unsub();
-      if (toastTimer) clearTimeout(toastTimer);
     };
   });
 
@@ -73,11 +69,8 @@
   ].sort((a, b) => a.localeCompare(b, 'es'));
 
   function showToast(kind: 'ok' | 'err', text: string) {
-    toast = { kind, text };
-    if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => {
-      toast = null;
-    }, 4200);
+    if (kind === 'ok') notifyOk(text);
+    else notifyErr(text);
   }
 
   function resetProductForm() {
@@ -177,11 +170,6 @@
 </script>
 
 <section class="catalog" data-screen="catalog">
-  {#if toast}
-    <div class="toast" class:ok={toast.kind === 'ok'} class:err={toast.kind === 'err'} role="status">
-      {toast.text}
-    </div>
-  {/if}
 
   {#if typeof DevSeedPanel !== 'undefined'}
     <DevSeedPanel
@@ -447,39 +435,6 @@
     flex-direction: column;
     gap: 14px;
     position: relative;
-  }
-
-  .toast {
-    position: fixed;
-    top: 1.25rem;
-    right: 1.25rem;
-    z-index: 200;
-    max-width: min(360px, calc(100vw - 2rem));
-    padding: 12px 16px;
-    border-radius: 12px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    box-shadow: var(--shadow-soft, 0 12px 40px rgba(0, 0, 0, 0.35));
-    border: 1px solid var(--color-border);
-    animation: toast-in 220ms ease;
-  }
-  .toast.ok {
-    background: color-mix(in srgb, var(--accent-green, #b7f56a) 18%, var(--color-surface, #12182a));
-    color: var(--accent-green, #b7f56a);
-  }
-  .toast.err {
-    background: color-mix(in srgb, var(--accent-red, #f17b7b) 18%, var(--color-surface, #12182a));
-    color: var(--accent-red, #f17b7b);
-  }
-  @keyframes toast-in {
-    from {
-      opacity: 0;
-      transform: translateY(-8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
   }
 
   .page-head {

@@ -1,5 +1,6 @@
-import type { Product } from '../../../catalog/domain/entities/Product';
-import type { GetProducts } from '../../../catalog/domain/usecases';
+import type { Product, CreateProductInput } from '../../../catalog/domain/entities/Product';
+import type { MeasureUnit } from '../../../catalog/domain/entities/MeasureUnit';
+import type { GetProducts, CreateProduct, GetMeasureUnits } from '../../../catalog/domain/usecases';
 import type { CostSheet, SaveCostSheetInput } from '../../domain/entities/CostSheet';
 import type { PriceSheet, SavePriceSheetInput } from '../../domain/entities/PriceSheet';
 import type {
@@ -18,6 +19,7 @@ export type CostingState = {
   costSheets: CostSheet[];
   priceSheets: PriceSheet[];
   products: Product[];
+  measureUnits: MeasureUnit[];
   error: string | null;
   saving: boolean;
 };
@@ -30,6 +32,8 @@ type Deps = {
   savePriceSheet: SavePriceSheet;
   deletePriceSheet: DeletePriceSheet;
   getProducts: GetProducts;
+  createProduct: CreateProduct;
+  getMeasureUnits: GetMeasureUnits;
 };
 
 export function createCostingStore(deps: Deps) {
@@ -38,6 +42,7 @@ export function createCostingStore(deps: Deps) {
     costSheets: [],
     priceSheets: [],
     products: [],
+    measureUnits: [],
     error: null,
     saving: false,
   };
@@ -59,16 +64,18 @@ export function createCostingStore(deps: Deps) {
   async function loadAll(): Promise<void> {
     set({ status: 'loading', error: null });
     try {
-      const [costSheets, priceSheets, products] = await Promise.all([
+      const [costSheets, priceSheets, products, measureUnits] = await Promise.all([
         deps.listCostSheets.execute(),
         deps.listPriceSheets.execute().catch(() => [] as PriceSheet[]),
         deps.getProducts.execute().catch(() => [] as Product[]),
+        deps.getMeasureUnits.execute().catch(() => [] as MeasureUnit[]),
       ]);
       set({
         status: costSheets.length || priceSheets.length ? 'success' : 'empty',
         costSheets,
         priceSheets,
         products,
+        measureUnits,
         error: null,
       });
     } catch (err) {
@@ -86,6 +93,23 @@ export function createCostingStore(deps: Deps) {
       return state;
     },
     loadAll,
+
+    /** Alta rápida de producto en nomenclador (reutiliza CreateProduct del catálogo). */
+    async createCatalogProduct(input: CreateProductInput): Promise<Product> {
+      set({ saving: true, error: null });
+      try {
+        const product = await deps.createProduct.execute(input);
+        const products = [
+          product,
+          ...state.products.filter((p) => p.id !== product.id),
+        ];
+        set({ saving: false, products, error: null });
+        return product;
+      } catch (err) {
+        set({ saving: false, error: messageOf(err, 'No se pudo crear el producto') });
+        throw err;
+      }
+    },
 
     async saveCostSheet(input: SaveCostSheetInput): Promise<void> {
       set({ saving: true, error: null });

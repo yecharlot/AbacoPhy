@@ -46,3 +46,12 @@ Entrada almacén (avg_cost)
   → Ficha de precio (obligatoria para vender)
   → POS usa price_sale
 ```
+
+
+## UI Fichas de precio (layout analítico)
+
+- Stats: fichas, sin ficha, bajo sugerido, dentro objetivo, revisión, markup medio.
+- Variaciones 7 días: costo → sugerido recalculado; vigente POS no cambia solo.
+- Formulario: markup etiquetado (no margen sobre venta); precio manual opcional.
+- Guardar = publicar en Product.PriceSale (canal POS).
+- Sin alta de productos desde esta vista.

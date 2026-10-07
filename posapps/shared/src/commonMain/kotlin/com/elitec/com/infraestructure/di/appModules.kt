@@ -3,6 +3,7 @@ package com.elitec.com.infraestructure.di
 import com.elitec.com.feature.catalog.di.catalogModule
 import com.elitec.com.feature.identity.di.identityModule
 import com.elitec.com.feature.pos.di.salesModule
+import com.elitec.com.feature.stats.di.statsModule
 import com.elitec.com.feature.warehouse.di.warehouseModule
 import com.elitec.com.infraestructure.logging.initAbacoLogging
 import org.koin.core.context.startKoin
@@ -16,6 +17,7 @@ fun posAppModules(): List<Module> = listOf(
     catalogModule,
     warehouseModule,
     salesModule,
+    statsModule
 )
 
 /**

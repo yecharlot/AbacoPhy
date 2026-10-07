@@ -41,6 +41,8 @@ ksp = "2.3.10"
 napier = "2.7.1"
 # Tooltip
 tooltip = "1.0.0"
+# Charts
+charts = "1.0.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -100,6 +102,8 @@ androidx-room3-compiler = { module = "androidx.room3:room3-compiler", version.re
 logging-napier = { module = "io.github.aakira:napier", version.ref = "napier" }
 # Tooltip
 multiplatform-tooltip = { module = "de.julianegner:multiplatform-tooltip", version.ref = "tooltip" }
+# Charts
+compose-charts = { module = "io.github.ehsannarmani:compose-charts", version.ref = "charts" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

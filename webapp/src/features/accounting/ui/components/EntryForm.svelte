@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, Input } from '../../../../infrastructure/ui/shared';
+  import { Button, Input, PredictivePicker } from '../../../../infrastructure/ui/shared';
   import type { Account } from '../../domain/entities/Account';
 
   export let accounts: Account[] = [];
@@ -19,10 +19,19 @@
   let date = '';
 
   $: filtered = accounts.filter((a) => a.type === accountTypeFilter);
+  $: accountItems = filtered.map((a) => ({
+    id: a.id,
+    label: `${a.code} · ${a.name}`,
+    hint: a.type,
+  }));
 
-  async function handleSubmit() {
+  async function handleSubmit(e?: Event) {
+    e?.preventDefault();
     if (saving) return;
-    const amount = Number(amountStr.replace(',', '.'));
+    if (!accountId) {
+      return;
+    }
+    const amount = Number(String(amountStr).replace(',', '.'));
     await onSubmit({
       accountId,
       amount,
@@ -31,19 +40,22 @@
     });
     amountStr = '';
     description = '';
+    // mantener cuenta seleccionada para altas rápidas en serie
   }
 </script>
 
-<form
-  on:submit|preventDefault={handleSubmit}
->
+<form onsubmit={handleSubmit}>
   <label class="lbl" for="entry-account">Cuenta</label>
-  <select id="entry-account" class="sel" bind:value={accountId} disabled={saving} required>
-    <option value="">— seleccionar —</option>
-    {#each filtered as a (a.id)}
-      <option value={a.id}>{a.code} · {a.name}</option>
-    {/each}
-  </select>
+  <PredictivePicker
+    id="entry-account"
+    items={accountItems}
+    value={accountId}
+    placeholder="Buscar código o nombre de cuenta…"
+    disabled={saving}
+    emptyText="Sin cuentas de este tipo"
+    onSelect={(it) => (accountId = it.id)}
+    onClear={() => (accountId = '')}
+  />
 
   <Input
     id="entry-amount"
@@ -60,14 +72,28 @@
     disabled={saving}
     required
   />
-  <Input id="entry-date" label="Fecha (opcional)" type="text" placeholder="YYYY-MM-DD" bind:value={date} disabled={saving} />
+  <Input
+    id="entry-date"
+    label="Fecha (opcional)"
+    type="text"
+    placeholder="YYYY-MM-DD"
+    bind:value={date}
+    disabled={saving}
+  />
 
   {#if error}
     <p class="err" role="alert">{error}</p>
   {/if}
+  {#if !accountId}
+    <p class="hint">Seleccione una cuenta de la lista predictiva.</p>
+  {/if}
 
-  <Button type="submit" disabled={saving}>
-    {saving ? 'Guardando…' : accountTypeFilter === 'income' ? 'Registrar ingreso' : 'Registrar gasto'}
+  <Button type="submit" disabled={saving || !accountId}>
+    {saving
+      ? 'Guardando…'
+      : accountTypeFilter === 'income'
+        ? 'Registrar ingreso'
+        : 'Registrar gasto'}
   </Button>
 </form>
 
@@ -81,19 +107,13 @@
     color: var(--ap-text-muted);
     margin-bottom: 5px;
   }
-  .sel {
-    width: 100%;
-    padding: 11px 13px;
-    margin-bottom: 0.75rem;
-    background: var(--ap-bg);
-    border: 1px solid var(--ap-border);
-    border-radius: 12px;
-    color: var(--ap-text);
-    font-family: inherit;
-    font-size: 0.92rem;
-  }
   .err {
     color: var(--ap-danger);
     font-size: 0.88rem;
+  }
+  .hint {
+    margin: 0 0 0.5rem;
+    font-size: 0.78rem;
+    color: var(--ap-text-muted);
   }
 </style>

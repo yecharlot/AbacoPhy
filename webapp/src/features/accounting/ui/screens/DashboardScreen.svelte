@@ -8,6 +8,8 @@
     StatCard,
   } from '../../../../infrastructure/ui/charts';
   import type { AccountingState, AccountingStore } from '../stores/accountingStore';
+  import type { WarehouseStore, WarehouseState } from '../../../warehouse/ui/stores/warehouseStore';
+  import type { CostingStore, CostingState } from '../../../costing/ui/stores/costingStore';
   import EquationCard from '../components/EquationCard.svelte';
   import { DevSeedPanel, DevResetPanel } from '../../../../infrastructure/ui/dev';
   import { buildSampleEntriesPayload, seedEntriesViaStore } from '../dev/entriesSeed';
@@ -20,21 +22,75 @@
     topAccounts,
     type ChartScope,
   } from '../viewmodels/dashboardCharts';
+  import { buildReviewToday, type ReviewTodaySummary } from '../viewmodels/reviewToday';
 
   export let store: AccountingStore;
+  /** Opcional: stock + recepciones para «qué revisar hoy». */
+  export let warehouseStore: WarehouseStore | undefined = undefined;
+  /** Opcional: fichas de costo/precio. */
+  export let costingStore: CostingStore | undefined = undefined;
+  /** Navegar a otra pantalla desde una alerta. */
+  export let onNavigate: ((screenId: string) => void) | undefined = undefined;
   /** Solo DEV: reinicio de plataforma (master). */
   export let onDevReset: (() => Promise<string | void>) | undefined = undefined;
 
   let state: AccountingState = store.getState();
   let scope: ChartScope = 'month';
+  let whState: WarehouseState | null = warehouseStore?.getState() ?? null;
+  let costState: CostingState | null = costingStore?.getState() ?? null;
+  let reviewFilter: 'all' | 'stock' | 'price' | 'reception' = 'all';
 
   onMount(() => {
-    const unsub = store.subscribe((s: AccountingState) => {
-      state = s;
-    });
+    const unsubs: Array<() => void> = [];
+    unsubs.push(
+      store.subscribe((s: AccountingState) => {
+        state = s;
+      }),
+    );
+    if (warehouseStore) {
+      unsubs.push(
+        warehouseStore.subscribe((s) => {
+          whState = s;
+        }),
+      );
+      void warehouseStore.loadAll().catch(() => undefined);
+    }
+    if (costingStore) {
+      unsubs.push(
+        costingStore.subscribe((s) => {
+          costState = s;
+        }),
+      );
+      void costingStore.loadAll().catch(() => undefined);
+    }
     void store.loadDashboard();
-    return unsub;
+    return () => unsubs.forEach((u) => u());
   });
+
+  $: unitNameMap = (() => {
+    const m = new Map<string, string>();
+    for (const u of whState?.units ?? []) {
+      m.set(u.id, u.name || u.code || u.id);
+    }
+    return m;
+  })();
+
+  $: review = buildReviewToday({
+    unitStocks: whState?.unitStocks,
+    warehouseRows: whState?.rows,
+    products: costState?.products?.length
+      ? costState.products
+      : whState?.products,
+    receptions: whState?.receptions,
+    priceSheets: costState?.priceSheets,
+    costSheets: costState?.costSheets,
+    unitNames: unitNameMap,
+  }) as ReviewTodaySummary;
+
+  $: reviewVisible =
+    reviewFilter === 'all'
+      ? review.items
+      : review.items.filter((i) => i.category === reviewFilter);
 
   function num(v: unknown): number {
     const x = Number(v);
@@ -96,7 +152,7 @@
   {:else if state.status === 'error' && !state.summary}
     <PanelCard title="Resumen">
       <p class="err">{state.error}</p>
-      <Button variant="secondary" on:click={() => store.loadDashboard()}>Reintentar</Button>
+      <Button variant="secondary" onclick={() => store.loadDashboard()}>Reintentar</Button>
     </PanelCard>
   {:else if summary}
     <section class="hero-grid">
@@ -134,6 +190,85 @@
       </div>
     </section>
 
+    <!-- Qué revisar hoy -->
+    <section class="review-section" aria-label="Qué revisar hoy">
+      <PanelCard
+        title="Qué revisar hoy"
+        subtitle="Stock, precios y recepciones que requieren atención"
+        tag={review.total ? `${review.total} aviso${review.total === 1 ? '' : 's'}` : 'Al día'}
+      >
+        <div class="review-stats">
+          <button
+            type="button"
+            class="rchip"
+            class:active={reviewFilter === 'all'}
+            onclick={() => (reviewFilter = 'all')}
+          >
+            Todos · {review.total}
+          </button>
+          <button
+            type="button"
+            class="rchip critical"
+            class:active={reviewFilter === 'stock'}
+            onclick={() => (reviewFilter = 'stock')}
+            title="Agotados y bajo umbral en PDV"
+          >
+            Stock · {review.stockOut + review.stockLow}
+          </button>
+          <button
+            type="button"
+            class="rchip warn"
+            class:active={reviewFilter === 'price'}
+            onclick={() => (reviewFilter = 'price')}
+            title="Costo cambió o precio bajo el sugerido"
+          >
+            Precios · {review.pricesStale}
+          </button>
+          <button
+            type="button"
+            class="rchip info"
+            class:active={reviewFilter === 'reception'}
+            onclick={() => (reviewFilter = 'reception')}
+            title="Pendientes de entrada o con problemas"
+          >
+            Recepciones · {review.receptionsPending + review.receptionsProblem}
+          </button>
+        </div>
+
+        {#if !warehouseStore && !costingStore}
+          <p class="muted">Conecte almacén y fichas para ver alertas operativas.</p>
+        {:else if reviewVisible.length === 0}
+          <p class="muted review-ok">
+            {reviewFilter === 'all'
+              ? 'Nada pendiente: stock, precios y recepciones en orden.'
+              : 'No hay avisos en este filtro.'}
+          </p>
+        {:else}
+          <ul class="review-list">
+            {#each reviewVisible as item (item.id)}
+              <li class="review-item" class:critical={item.severity === 'critical'} class:warn={item.severity === 'warn'}>
+                <div class="ri-body">
+                  <strong>{item.title}</strong>
+                  <span class="muted">{item.detail}</span>
+                </div>
+                {#if item.actionScreen && onNavigate}
+                  {@const go = item.actionScreen}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onclick={() => onNavigate(go)}
+                  >
+                    {item.actionLabel || 'Ir'}
+                  </Button>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </PanelCard>
+    </section>
+
     <section class="flow-section">
       <PanelCard
         title="Ingresos vs gastos"
@@ -146,7 +281,7 @@
               type="button"
               class="scope-pill"
               class:active={scope === opt.id}
-              on:click={() => (scope = opt.id)}
+              onclick={() => (scope = opt.id)}
             >
               {opt.label}
             </button>
@@ -216,7 +351,7 @@
   {:else}
     <PanelCard title="Resumen">
       <p class="muted">Sin datos de resumen todavía.</p>
-      <Button variant="secondary" on:click={() => store.loadDashboard()}>Cargar</Button>
+      <Button variant="secondary" onclick={() => store.loadDashboard()}>Cargar</Button>
     </PanelCard>
   {/if}
 </div>
@@ -353,5 +488,74 @@
     .chart-grid {
       grid-template-columns: 1.3fr 1fr;
     }
+  }
+
+  .review-section {
+    margin-bottom: 0.25rem;
+  }
+  .review-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-bottom: 0.75rem;
+  }
+  .rchip {
+    border: 1px solid var(--ap-border, var(--color-border));
+    background: transparent;
+    color: var(--ap-text, inherit);
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.78rem;
+    font-weight: 650;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .rchip.active {
+    border-color: var(--accent-cyan, #61e6e1);
+    background: color-mix(in srgb, var(--accent-cyan, #61e6e1) 14%, transparent);
+  }
+  .rchip.critical.active {
+    border-color: color-mix(in srgb, #e85d5d 55%, var(--ap-border));
+  }
+  .rchip.warn.active {
+    border-color: color-mix(in srgb, #e8a35d 55%, var(--ap-border));
+  }
+  .review-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+  .review-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 12px;
+    border: 1px solid var(--ap-border);
+    background: var(--ap-bg-elevated, transparent);
+  }
+  .review-item.critical {
+    border-color: color-mix(in srgb, #e85d5d 35%, var(--ap-border));
+  }
+  .review-item.warn {
+    border-color: color-mix(in srgb, #e8a35d 35%, var(--ap-border));
+  }
+  .ri-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+  .ri-body strong {
+    font-size: 0.88rem;
+  }
+  .review-ok {
+    padding: 0.5rem 0;
   }
 </style>

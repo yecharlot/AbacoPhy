@@ -79,6 +79,7 @@ export function priceSheetDtoToEntity(dto: PriceSheetDto): PriceSheet {
     price: dto.price || 0,
     currency: dto.currency || '',
     notes: dto.notes || '',
+    updatedAt: dto.updated_at || '',
     metadata: normalizeMetadataField(dto),
   };
 }

@@ -56,6 +56,7 @@ export type PriceSheetDto = {
   price?: number;
   currency?: string;
   notes?: string;
+  updated_at?: string;
   metadata?: string | null;
 };
 

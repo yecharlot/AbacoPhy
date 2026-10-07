@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Badge, Button, Card, Money } from '../../../../infrastructure/ui/shared';
+  import { Badge, Button, Card, Money, ConfirmDialog } from '../../../../infrastructure/ui/shared';
   import type { WarehouseState, WarehouseStore } from '../stores/warehouseStore';
   import {
     stockHealth,
@@ -322,42 +322,58 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
     }
   }
 
-  async function reportProblem(id: string) {
-    const reason = window
-      .prompt('Motivo de la incidencia (aun se podra dar entrada despues):')
-      ?.trim();
-    if (!reason) return;
+  let problemTargetId: string | null = null;
+  let problemBusy = false;
+
+  function requestReportProblem(id: string) {
+    problemTargetId = id;
+  }
+
+  async function confirmReportProblem(payload: { reason: string }) {
+    const id = problemTargetId;
+    if (!id) return;
+    problemBusy = true;
     actionError = '';
     try {
-      await store.enterReception({ id, accept: false, reason });
+      await store.enterReception({ id, accept: false, reason: payload.reason });
+      problemTargetId = null;
     } catch (error) {
       actionError =
         error instanceof Error ? error.message : 'No se pudo registrar la incidencia.';
+    } finally {
+      problemBusy = false;
     }
   }
 
-  async function abandonReception(id: string) {
-    const reason = window
-      .prompt(
-        'Motivo del ABANDONO definitivo. No se dara entrada; regeneren el informe de recepcion si aplica.',
-      )
-      ?.trim();
-    if (!reason) return;
-    if (
-      !window.confirm(
-        'Confirmar abandono definitivo? El motivo queda en traza. En la UI no se ofrecera dar entrada.',
-      )
-    ) {
-      return;
-    }
+
+  let abandonTargetId: string | null = null;
+  let abandonBusy = false;
+
+  function requestAbandonReception(id: string) {
+    abandonTargetId = id;
+  }
+
+  async function confirmAbandonReception(payload: { reason: string }) {
+    const id = abandonTargetId;
+    if (!id) return;
+    abandonBusy = true;
     actionError = '';
     try {
-      await store.enterReception({ id, accept: false, abandon: true, reason });
+      await store.enterReception({
+        id,
+        accept: false,
+        abandon: true,
+        reason: payload.reason,
+      });
+      abandonTargetId = null;
     } catch (error) {
       actionError =
-        error instanceof Error ? error.message : 'No se pudo abandonar la recepcion.';
+        error instanceof Error ? error.message : 'No se pudo abandonar la recepción.';
+    } finally {
+      abandonBusy = false;
     }
   }
+
 
 </script>
 
@@ -368,7 +384,7 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
       <h1>Almacén central</h1>
       <p class="sub">Existencias, costo y flujo hacia los puntos de venta.</p>
     </div>
-    <Button variant="secondary" on:click={() => store.loadAll()} disabled={state.status === 'loading'}>
+    <Button variant="secondary" onclick={() => store.loadAll()} disabled={state.status === 'loading'}>
       {state.status === 'loading' ? 'Actualizando…' : 'Actualizar datos'}
     </Button>
   </header>
@@ -455,9 +471,9 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
               <div class="reception-main"><span class="state-dot pending"></span><div><strong>{reception.number}</strong><p>{reception.supplier || 'Proveedor no informado'} · {reception.lines.length} líneas</p></div></div>
               <div class="reception-meta"><span>{reception.date}</span><strong><Money amount={reception.totalCost} currency={reception.currency} /></strong></div>
               <div class="reception-actions">
-                <Button on:click={() => resolveProblem(reception.id)} disabled={state.saving}>Dar entrada</Button>
-                <Button variant="secondary" on:click={() => reportProblem(reception.id)} disabled={state.saving}>Incidencia</Button>
-                <Button variant="secondary" on:click={() => abandonReception(reception.id)} disabled={state.saving}>Abandonar</Button>
+                <Button onclick={() => resolveProblem(reception.id)} disabled={state.saving}>Dar entrada</Button>
+                <Button variant="secondary" onclick={() => requestReportProblem(reception.id)} disabled={state.saving}>Incidencia</Button>
+                <Button variant="secondary" onclick={() => requestAbandonReception(reception.id)} disabled={state.saving}>Abandonar</Button>
               </div>
             </article>
           {/each}
@@ -466,9 +482,9 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
               <div class="reception-main"><span class="state-dot issue"></span><div><strong>{reception.number}</strong><p>{reception.metadataState?.problemReason || reception.note || 'Incidencia sin detalle'}</p></div></div>
               <div class="reception-meta"><span>Con incidencia</span><strong>{reception.supplier || '—'}</strong></div>
               <div class="reception-actions">
-                <Button on:click={() => resolveProblem(reception.id)} disabled={state.saving}>Resolver</Button>
-                <Button variant="secondary" on:click={() => reportProblem(reception.id)} disabled={state.saving}>Actualizar incidencia</Button>
-                <Button variant="secondary" on:click={() => abandonReception(reception.id)} disabled={state.saving}>Abandonar</Button>
+                <Button onclick={() => resolveProblem(reception.id)} disabled={state.saving}>Resolver</Button>
+                <Button variant="secondary" onclick={() => requestReportProblem(reception.id)} disabled={state.saving}>Actualizar incidencia</Button>
+                <Button variant="secondary" onclick={() => requestAbandonReception(reception.id)} disabled={state.saving}>Abandonar</Button>
               </div>
             </article>
           {/each}
@@ -666,7 +682,40 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
 
 </section>
 
+<ConfirmDialog
+  open={!!abandonTargetId}
+  title="Abandonar recepción"
+  message="Abandono definitivo: no se dará entrada. El motivo queda en la traza. Regenere el informe de recepción si aplica."
+  confirmLabel="Abandonar"
+  variant="danger"
+  requireReason={true}
+  reasonLabel="Motivo del abandono"
+  reasonPlaceholder="Ej. mercancía no coincide, pérdida, cancelación del proveedor…"
+  busy={abandonBusy}
+  onConfirm={(p) => void confirmAbandonReception(p)}
+  onCancel={() => {
+    if (!abandonBusy) abandonTargetId = null;
+  }}
+/>
+
+<ConfirmDialog
+    open={!!problemTargetId}
+    title="Registrar incidencia"
+    message="La recepción quedará marcada con problemas. Aún se podrá dar entrada después de resolver la incidencia."
+    confirmLabel="Registrar incidencia"
+    variant="warning"
+    requireReason={true}
+    reasonLabel="Motivo de la incidencia"
+    reasonPlaceholder="Describa el problema encontrado…"
+    busy={problemBusy}
+    onConfirm={(p) => void confirmReportProblem(p)}
+    onCancel={() => {
+      if (!problemBusy) problemTargetId = null;
+    }}
+  />
+
 <style>
+
   .warehouse { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
   .page-head, .panel-head, .card-heading, .reception-item, .reception-main, .head-counts, .stock-tools, .filter-group { display: flex; align-items: center; }
   .page-head, .panel-head, .card-heading { justify-content: space-between; gap: 12px; }

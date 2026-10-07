@@ -10,8 +10,20 @@
   import TrialBalanceTable from '../components/reports/TrialBalanceTable.svelte';
   import IncomeStatementPanel from '../components/reports/IncomeStatementPanel.svelte';
   import JournalTable from '../components/reports/JournalTable.svelte';
+  import {
+    exportIncomeStatementCsv,
+    exportIncomeStatementPdf,
+    exportJournalCsv,
+    exportJournalPdf,
+    exportTrialBalanceCsv,
+    exportTrialBalancePdf,
+  } from '../export/accountingReportsExport';
 
   export let store: AccountingStore;
+  /** Contexto de emisión del informe (negocio + usuario). */
+  export let businessName: string = '';
+  export let generatedBy: string = '';
+  export let generatedByRole: string = '';
 
   type ReportTab = 'balance' | 'resultados' | 'diario';
 
@@ -50,6 +62,38 @@
     fromDate = '';
     toDate = '';
   }
+
+  let exportErr = '';
+
+  function exportCtx() {
+    return {
+      businessName: businessName || undefined,
+      generatedBy: generatedBy || undefined,
+      generatedByRole: generatedByRole || undefined,
+    };
+  }
+
+  function exportCsv() {
+    exportErr = '';
+    try {
+      if (tab === 'balance') exportTrialBalanceCsv(trial);
+      else if (tab === 'resultados') exportIncomeStatementCsv(statement);
+      else exportJournalCsv(journal);
+    } catch (e) {
+      exportErr = e instanceof Error ? e.message : 'No se pudo exportar';
+    }
+  }
+
+  async function exportPdf() {
+    exportErr = '';
+    try {
+      if (tab === 'balance') await exportTrialBalancePdf(trial, exportCtx());
+      else if (tab === 'resultados') await exportIncomeStatementPdf(statement, exportCtx());
+      else await exportJournalPdf(journal, exportCtx());
+    } catch (e) {
+      exportErr = e instanceof Error ? e.message : 'No se pudo exportar';
+    }
+  }
 </script>
 
 <div class="reportes" data-screen="reportes">
@@ -61,15 +105,27 @@
         los asientos.
       </p>
     </div>
-    <Button
-      variant="secondary"
-      size="sm"
-      on:click={() => store.loadDashboard()}
-      disabled={state.status === 'loading'}
-    >
-      Actualizar
-    </Button>
+    <div class="head-actions">
+      <Button type="button" variant="secondary" size="sm" onclick={exportCsv} disabled={loading}>
+        CSV
+      </Button>
+      <Button type="button" variant="secondary" size="sm" onclick={exportPdf} disabled={loading}>
+        PDF
+      </Button>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        onclick={() => store.loadDashboard()}
+        disabled={state.status === 'loading'}
+      >
+        Actualizar
+      </Button>
+    </div>
   </header>
+  {#if exportErr}
+    <p class="err" role="alert">{exportErr}</p>
+  {/if}
 
   <div class="tabs" role="tablist" aria-label="Tipo de reporte">
     <button
@@ -78,7 +134,7 @@
       class="tab"
       class:active={tab === 'balance'}
       aria-selected={tab === 'balance'}
-      on:click={() => setTab('balance')}
+      onclick={() => setTab('balance')}
     >
       Balance de comprobación
     </button>
@@ -88,7 +144,7 @@
       class="tab"
       class:active={tab === 'resultados'}
       aria-selected={tab === 'resultados'}
-      on:click={() => setTab('resultados')}
+      onclick={() => setTab('resultados')}
     >
       Estado de resultados
     </button>
@@ -98,7 +154,7 @@
       class="tab"
       class:active={tab === 'diario'}
       aria-selected={tab === 'diario'}
-      on:click={() => setTab('diario')}
+      onclick={() => setTab('diario')}
     >
       Libro diario
     </button>
@@ -111,7 +167,7 @@
   {:else if hasError}
     <Card>
       <p class="err" role="alert">{state.error ?? 'Error al cargar'}</p>
-      <Button variant="secondary" on:click={() => store.loadDashboard()}>Reintentar</Button>
+      <Button variant="secondary" onclick={() => store.loadDashboard()}>Reintentar</Button>
     </Card>
   {:else}
     {#if tab === 'resultados'}
@@ -125,7 +181,7 @@
           <input type="date" bind:value={toDate} />
         </label>
         {#if fromDate || toDate}
-          <Button variant="ghost" size="sm" on:click={clearPeriod}>Quitar filtro</Button>
+          <Button variant="ghost" size="sm" onclick={clearPeriod}>Quitar filtro</Button>
         {/if}
         <p class="period-hint">
           Sin fechas: saldos del plan de cuentas. Con fechas: se recalcula desde asientos del
@@ -149,6 +205,12 @@
     display: flex;
     flex-direction: column;
     gap: 0.85rem;
+  }
+  .head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
   }
   .page-head {
     display: flex;

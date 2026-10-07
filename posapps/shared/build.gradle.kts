@@ -85,6 +85,8 @@ kotlin {
             implementation(libs.logging.napier)
             // tooltip
             implementation(libs.multiplatform.tooltip)
+            // charts
+            implementation(libs.compose.charts)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
