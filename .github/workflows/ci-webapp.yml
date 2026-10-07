@@ -6,9 +6,13 @@ on:
   push:
     branches:
       - "**"
+    paths:
+      - "webapp/**"
   pull_request:
     branches:
       - "**"
+    paths:
+      - "webapp/**"
 
 concurrency:
   group: ci-webapp-${{ github.workflow }}-${{ github.ref }}

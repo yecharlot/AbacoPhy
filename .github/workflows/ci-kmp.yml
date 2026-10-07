@@ -12,9 +12,13 @@ on:
   push:
     branches:
       - "**"
+    paths:
+      - "posapps/**"
   pull_request:
     branches:
       - "**"
+    paths:
+      - "posapps/**"
 
 concurrency:
   group: ci-kmp-${{ github.workflow }}-${{ github.ref }}
