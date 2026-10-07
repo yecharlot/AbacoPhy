@@ -46,6 +46,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import androidx.savedstate.serialization.SavedStateConfiguration
+import com.elitec.com.feature.catalog.ui.screens.CatalogScreen
 import com.elitec.com.feature.identity.domain.entities.Session
 import com.elitec.com.feature.identity.domain.entities.SessionControl
 import com.elitec.com.feature.identity.ui.viewmodel.HomeSessionViewModel
@@ -191,7 +192,9 @@ fun HomeContent(
                 Text("STATISTICS")
             }
             entry<InternalRoute.Catalog> {
-                Text("CATALOG")
+                CatalogScreen(
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     )
