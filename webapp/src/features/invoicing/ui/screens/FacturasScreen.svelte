@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Button, Card, Money } from '../../../../infrastructure/ui/shared';
+  import { Button, Card, Money, PredictivePicker } from '../../../../infrastructure/ui/shared';
   import type { InvoicingStore, InvoicingState } from '../stores/invoicingStore';
   import type { Invoice } from '../../domain/entities/Invoice';
   import type { Employee } from '../../../payroll/domain/entities/Employee';
@@ -101,6 +101,47 @@
 
   $: selectedUnit = units.find((u) => u.id === unitId);
   $: selectedOp = employees.find((e) => e.id === operatorId);
+
+  $: unitItems = units.map((u) => ({
+    id: u.id,
+    label: u.code ? `${u.code} · ${u.name}` : u.name,
+    hint: u.address || undefined,
+  }));
+  $: operatorItems = operators.map((e) => ({
+    id: e.id,
+    label: e.name,
+    hint: e.role || undefined,
+  }));
+  $: productItems = (() => {
+    const prods = warehouseStore?.getState()?.products ?? [];
+    return prods.map((pr) => ({
+      id: pr.id,
+      label: `${pr.code || '—'} · ${pr.name}`,
+      hint: pr.unit || 'ud',
+      unit: pr.unit || 'ud',
+      code: pr.code || '',
+      name: pr.name,
+      price: pr.priceSale ?? 0,
+    }));
+  })();
+
+  function applyProductToLine(index: number, productId: string) {
+    const pr = (warehouseStore?.getState()?.products ?? []).find((x) => x.id === productId);
+    if (!pr) return;
+    const next = [...lines];
+    next[index] = {
+      ...next[index],
+      code: pr.code || next[index].code,
+      description: pr.name || next[index].description,
+      unit: pr.unit || next[index].unit || 'ud',
+      unitPrice:
+        pr.priceSale && pr.priceSale > 0
+          ? String(pr.priceSale)
+          : next[index].unitPrice,
+    };
+    lines = next;
+  }
+
 
   function composeDescription(l: DraftLine): string {
     const parts: string[] = [];
@@ -234,10 +275,10 @@
       </p>
     </div>
     <div class="head-actions">
-      <Button variant="secondary" on:click={() => store.load()} disabled={state.status === 'loading'}>
+      <Button variant="secondary" onclick={() => store.load()} disabled={state.status === 'loading'}>
         Actualizar
       </Button>
-      <Button on:click={() => (showForm = !showForm)}>
+      <Button onclick={() => (showForm = !showForm)}>
         {showForm ? 'Cancelar' : '+ Nueva factura'}
       </Button>
     </div>
@@ -249,7 +290,7 @@
   {#if showForm}
     <Card>
       <h2>Nueva factura</h2>
-      <form class="form" on:submit={handleSubmit}>
+      <form class="form" onsubmit={handleSubmit}>
         <div class="form-grid">
           <label class="field field-span">
             <span class="lbl">Negocio emisor</span>
@@ -258,23 +299,29 @@
           {#if units.length > 0}
             <label class="field">
               <span class="lbl">Punto / unidad de venta</span>
-              <select bind:value={unitId} disabled={state.saving}>
-                <option value="">— Central / sin punto —</option>
-                {#each units as u (u.id)}
-                  <option value={u.id}>{u.code ? `${u.code} · ` : ''}{u.name}</option>
-                {/each}
-              </select>
+              <PredictivePicker
+                items={unitItems}
+                value={unitId}
+                placeholder="Buscar punto de venta…"
+                disabled={state.saving}
+                emptyText="Sin puntos de venta"
+                onSelect={(it) => (unitId = it.id)}
+                onClear={() => (unitId = '')}
+              />
             </label>
           {/if}
           {#if operators.length > 0}
-            <label class="field">
+                        <label class="field">
               <span class="lbl">Operador (trabajador)</span>
-              <select bind:value={operatorId} disabled={state.saving}>
-                <option value="">— Sin especificar —</option>
-                {#each operators as e (e.id)}
-                  <option value={e.id}>{e.name}{e.role ? ` · ${e.role}` : ''}</option>
-                {/each}
-              </select>
+              <PredictivePicker
+                items={operatorItems}
+                value={operatorId}
+                placeholder="Buscar trabajador…"
+                disabled={state.saving}
+                emptyText="Sin operadores"
+                onSelect={(it) => (operatorId = it.id)}
+                onClear={() => (operatorId = '')}
+              />
             </label>
           {:else if payrollStore}
             <p class="hint field-span">
@@ -302,18 +349,39 @@
 
         <div class="lines-head">
           <h3>Líneas</h3>
-          <Button type="button" variant="secondary" on:click={addLine}>+ Línea</Button>
+          <Button type="button" variant="secondary" onclick={addLine}>+ Línea</Button>
         </div>
         {#each lines as line, i (i)}
           <div class="line-row">
-            <label class="field code">
-              <span class="lbl">Código</span>
-              <input bind:value={line.code} placeholder="SKU" disabled={state.saving} />
-            </label>
-            <label class="field grow">
-              <span class="lbl">Descripción</span>
-              <input bind:value={line.description} placeholder="Concepto" disabled={state.saving} />
-            </label>
+            {#if warehouseStore && productItems.length > 0}
+              <div class="field grow product-pick">
+                <span class="lbl">Producto / concepto</span>
+                <PredictivePicker
+                  items={productItems.map((p) => ({
+                    id: p.id,
+                    label: p.label,
+                    hint: p.price > 0 ? `${p.hint} · ${p.price}` : p.hint,
+                  }))}
+                  value=""
+                  placeholder="Buscar producto del nomenclador…"
+                  disabled={state.saving}
+                  emptyText="Sin productos"
+                  onSelect={(it) => applyProductToLine(i, it.id)}
+                />
+                {#if line.code || line.description}
+                  <p class="line-picked muted">{line.code} · {line.description} · {line.unit}</p>
+                {/if}
+              </div>
+            {:else}
+              <label class="field code">
+                <span class="lbl">Código</span>
+                <input bind:value={line.code} placeholder="SKU" disabled={state.saving} />
+              </label>
+              <label class="field grow">
+                <span class="lbl">Descripción</span>
+                <input bind:value={line.description} placeholder="Concepto" disabled={state.saving} />
+              </label>
+            {/if}
             <label class="field unit">
               <span class="lbl">UM</span>
               <input bind:value={line.unit} disabled={state.saving} />
@@ -326,7 +394,7 @@
               <span class="lbl">Precio</span>
               <input type="number" min="0" step="any" bind:value={line.unitPrice} disabled={state.saving} />
             </label>
-            <button type="button" class="remove" on:click={() => removeLine(i)} disabled={lines.length <= 1}>×</button>
+            <button type="button" class="remove" onclick={() => removeLine(i)} disabled={lines.length <= 1}>×</button>
           </div>
         {/each}
 
@@ -375,7 +443,7 @@
                     type="button"
                     class="link"
                     disabled={pdfBusyId === inv.id}
-                    on:click={() => handlePdf(inv)}
+                    onclick={() => handlePdf(inv)}
                   >
                     {pdfBusyId === inv.id ? 'PDF…' : 'PDF + QR'}
                   </button>
@@ -427,4 +495,12 @@
   .banner { margin: 0; padding: 10px 12px; border-radius: 12px; font-size: 0.85rem; }
   .banner.err { background: color-mix(in srgb, var(--accent-red) 12%, transparent); color: var(--accent-red); }
   .banner.ok { background: color-mix(in srgb, var(--accent-green) 12%, transparent); color: var(--accent-green); }
+
+  .line-picked {
+    margin: 0.25rem 0 0;
+    font-size: 0.75rem;
+  }
+  .product-pick {
+    min-width: 0;
+  }
 </style>

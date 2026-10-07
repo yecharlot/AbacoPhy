@@ -1,6 +1,6 @@
 import type { AppContainer } from '../../../infrastructure/di';
 import type { CatalogRepository } from '../../catalog/domain/repositories/CatalogRepository';
-import { GetProducts } from '../../catalog/domain/usecases';
+import { CreateProduct, GetMeasureUnits, GetProducts } from '../../catalog/domain/usecases';
 import { CostingRepositoryImpl } from '../data/repositories/CostingRepositoryImpl';
 import {
   DeleteCostSheet,
@@ -34,6 +34,8 @@ export function createCostingModule(
     savePriceSheet: new SavePriceSheet(repo),
     deletePriceSheet: new DeletePriceSheet(repo),
     getProducts: new GetProducts(deps.catalog),
+    createProduct: new CreateProduct(deps.catalog),
+    getMeasureUnits: new GetMeasureUnits(deps.catalog),
   });
 
   return { costingStore };

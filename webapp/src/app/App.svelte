@@ -284,7 +284,12 @@
     {:else if activeId === 'cuentas'}
       <CuentasScreen store={accountingStore} />
     {:else if activeId === 'reportes'}
-      <ReportesScreen store={accountingStore} />
+      <ReportesScreen
+        store={accountingStore}
+        businessName={sessionState.session?.tenantName ?? ''}
+        generatedBy={sessionState.session?.user?.displayName || sessionState.session?.user?.username || ''}
+        generatedByRole={sessionState.session?.user?.role ?? ''}
+      />
     {:else if activeId === 'facturas'}
       <FacturasScreen store={invoicingStore} />
     {:else if activeId === 'empleados'}

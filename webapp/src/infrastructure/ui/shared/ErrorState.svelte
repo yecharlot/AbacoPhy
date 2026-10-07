@@ -1,26 +1,29 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
+  import Button from './Button.svelte';
 
   interface Props {
     title?: string;
     message?: string;
     retry?: () => void;
+    retryLabel?: string;
   }
 
   let {
     title = 'No pudimos cargar esta sección',
     message = 'Comprueba la conexión y vuelve a intentarlo.',
-    retry
+    retry,
+    retryLabel = 'Reintentar',
   }: Props = $props();
 </script>
 
-<section class="error-state" aria-live="assertive">
+<section class="error-state" aria-live="assertive" role="alert">
   <div class="icon"><Icon name="help" size={22} /></div>
-  <div>
+  <div class="body">
     <h2>{title}</h2>
     <p>{message}</p>
     {#if retry}
-      <button type="button" onclick={retry}>Reintentar</button>
+      <Button type="button" variant="secondary" size="sm" onclick={retry}>{retryLabel}</Button>
     {/if}
   </div>
 </section>
@@ -31,19 +34,25 @@
     align-items: flex-start;
     gap: 1rem;
     padding: 1.1rem;
-    border: 1px solid color-mix(in srgb, var(--accent-red) 28%, var(--border-subtle));
-    border-radius: var(--radius-md);
-    background: color-mix(in srgb, var(--accent-red) 5%, var(--surface-1));
+    border: 1px solid color-mix(in srgb, var(--accent-red, #e85d5d) 28%, var(--color-border, var(--ap-border)));
+    border-radius: var(--radius-md, 14px);
+    background: color-mix(in srgb, var(--accent-red, #e85d5d) 5%, var(--color-surface, var(--ap-bg-elevated)));
   }
-  .icon { color: var(--accent-red); }
-  h2 { margin: 0; font-size: .95rem; }
-  p { margin: .35rem 0 .75rem; color: var(--text-muted); }
-  button {
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    padding: .5rem .75rem;
-    background: var(--surface-2);
-    color: var(--text-primary);
-    cursor: pointer;
+  .icon {
+    color: var(--accent-red, #e85d5d);
+    flex-shrink: 0;
+  }
+  .body {
+    min-width: 0;
+  }
+  h2 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+  p {
+    margin: 0.35rem 0 0.75rem;
+    color: var(--color-text-muted, var(--ap-text-muted));
+    font-size: 0.88rem;
   }
 </style>

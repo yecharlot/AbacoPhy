@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Button, Card, Money } from '../../../../infrastructure/ui/shared';
+  import { Button, Card, Money, notifyErr, notifyOk } from '../../../../infrastructure/ui/shared';
   import {
     BarChart,
     PanelCard,
@@ -64,13 +64,103 @@
     return r === 'vendedor' || r === 'operador';
   };
 
+  /** Contenedor del formulario de venta para foco de teclado. */
+  let formEl: HTMLFormElement | null = null;
+
+  function focusProductSearch(lineIndex = 0) {
+    // Dejar que el DOM pinte el formulario
+    requestAnimationFrame(() => {
+      const root = formEl;
+      if (!root) return;
+      const inputs = root.querySelectorAll<HTMLInputElement>('input[type="search"]');
+      const el = inputs[lineIndex] ?? inputs[inputs.length - 1];
+      el?.focus();
+      el?.select?.();
+    });
+  }
+
+  function openFormAndFocus() {
+    openForm();
+    focusProductSearch(0);
+  }
+
+  function isEditableTarget(t: EventTarget | null): boolean {
+    if (!(t instanceof HTMLElement)) return false;
+    const tag = t.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    return t.isContentEditable;
+  }
+
+  function onPosKeydown(e: KeyboardEvent) {
+    // No interferir con atajos del sistema / browser
+    if (e.altKey || e.metaKey) return;
+
+    const key = e.key;
+
+    // Esc: cierra picker → form
+    if (key === 'Escape') {
+      if (pickerOpenIndex !== null) {
+        e.preventDefault();
+        pickerOpenIndex = null;
+        return;
+      }
+      if (showForm && !state.saving) {
+        e.preventDefault();
+        closeForm();
+      }
+      return;
+    }
+
+    // F2 — nueva venta
+    if (key === 'F2') {
+      e.preventDefault();
+      if (!showForm) openFormAndFocus();
+      else focusProductSearch(0);
+      return;
+    }
+
+    // F3 — añadir línea (solo con formulario abierto)
+    if (key === 'F3') {
+      if (!showForm || state.saving) return;
+      e.preventDefault();
+      addLine();
+      focusProductSearch(Math.max(0, lines.length - 1));
+      return;
+    }
+
+    // F4 o Ctrl+Enter — cobrar
+    if (key === 'F4' || (key === 'Enter' && e.ctrlKey)) {
+      if (!showForm || state.saving) return;
+      e.preventDefault();
+      formEl?.requestSubmit?.();
+      return;
+    }
+
+    // / — foco búsqueda producto (si no está ya en un campo de texto libre tipo note)
+    if (key === '/' && showForm && !e.ctrlKey) {
+      if (isEditableTarget(e.target) && (e.target as HTMLInputElement).type !== 'search') {
+        // permitir escribir / en notas
+        const ty = (e.target as HTMLInputElement).type;
+        if (ty === 'text' || ty === 'textarea') return;
+      }
+      e.preventDefault();
+      const idx = lines.findIndex((l) => !l.productId);
+      focusProductSearch(idx >= 0 ? idx : lines.length - 1);
+      return;
+    }
+  }
+
   onMount(() => {
     const unsub = store.subscribe((s: PosState) => {
       state = s;
       applyDefaultUnitAndSeller();
     });
     void store.loadAll().then(() => applyDefaultUnitAndSeller());
-    return unsub;
+    window.addEventListener('keydown', onPosKeydown);
+    return () => {
+      unsub();
+      window.removeEventListener('keydown', onPosKeydown);
+    };
   });
 
   function applyDefaultUnitAndSeller() {
@@ -138,6 +228,38 @@
     return acc + gross - discount;
   }, 0);
 
+  function lineStockIssue(line: (typeof lines)[number]): string | null {
+    if (!line.productId) return null;
+    const qty = parseFloat(line.qty) || 0;
+    const available = stockOf(line.productId);
+    if (available !== null && available <= 0) return 'Sin stock';
+    if (available !== null && qty > available) return `Solo ${available} disp.`;
+    return null;
+  }
+
+  function linePrice(line: (typeof lines)[number]): number {
+    const u = parseFloat(line.unitPrice);
+    if (Number.isFinite(u) && u > 0) return u;
+    return line.productId ? priceOf(line.productId) : 0;
+  }
+
+  function lineTotal(line: (typeof lines)[number]): number {
+    const qty = parseFloat(line.qty) || 0;
+    const price = linePrice(line);
+    const disc = (parseFloat(line.discountPct) || 0) / 100;
+    return qty * price * (1 - disc);
+  }
+
+  $: checkoutBlocked = lines.some((l) => {
+    if (!l.productId) return false;
+    if (lineStockIssue(l)) return true;
+    if (linePrice(l) <= 0) return true;
+    const q = parseFloat(l.qty);
+    return !Number.isFinite(q) || q <= 0;
+  });
+
+  $: hasSaleLines = lines.some((l) => l.productId);
+
   $: sellableProducts = (() => {
     if (!unitId) return [] as typeof products;
     const ids = new Set(
@@ -190,16 +312,24 @@
   function selectProduct(index: number, productId: string) {
     const p = products.find((x) => x.id === productId);
     if (!p) return;
+    const stock = stockOf(productId);
+    if (stock !== null && stock <= 0) {
+      formError = `«${p.name}» sin stock en este PDV`;
+      return;
+    }
     const next = [...lines];
     const price = priceOf(productId);
     next[index] = {
       ...next[index],
       productId: p.id,
       productQuery: `${p.code || '—'} · ${p.name}`,
-      unitPrice: next[index].unitPrice || (price > 0 ? String(price) : ''),
+      // Precio siempre desde catálogo/ficha de precio (visible y editable)
+      unitPrice: price > 0 ? String(price) : next[index].unitPrice || '',
+      qty: next[index].qty || '1',
     };
     lines = next;
     pickerOpenIndex = null;
+    formError = '';
   }
 
   function clearProduct(index: number) {
@@ -237,6 +367,8 @@
     formOk = '';
     showForm = true;
   }
+
+  // openFormAndFocus defined above in onMount block area — keep single path
 
   function closeForm() {
     showForm = false;
@@ -331,16 +463,25 @@
         return;
       }
       const available = stockOf(line.productId);
+      if (available !== null && available <= 0) {
+        formError = `Sin stock: ${productLabel(line.productId)}. Transfiera desde almacén.`;
+        return;
+      }
       if (available !== null && qty > available) {
-        formError = `Stock insuficiente para ${productLabel(line.productId)} (disp. ${available})`;
+        formError = `Stock insuficiente para ${productLabel(line.productId)} (pide ${qty}, disp. ${available})`;
         return;
       }
       const unitPrice = parseFloat(line.unitPrice);
+      const price = Number.isFinite(unitPrice) && unitPrice > 0 ? unitPrice : priceOf(line.productId);
+      if (!price || price <= 0) {
+        formError = `Sin precio de venta: ${productLabel(line.productId)}. Defínalo en Fichas de precio.`;
+        return;
+      }
       const discountPct = parseFloat(line.discountPct);
       payload.push({
         productId: line.productId,
         qty,
-        unitPrice: Number.isFinite(unitPrice) && unitPrice > 0 ? unitPrice : undefined,
+        unitPrice: price,
         discountPct: Number.isFinite(discountPct) && discountPct > 0 ? discountPct : undefined,
       });
     }
@@ -360,11 +501,24 @@
       formOk = num
         ? `Venta ${num} registrada · total ${estimated.toFixed(2)}`
         : 'Venta registrada correctamente';
+      try {
+        notifyOk(formOk);
+      } catch {
+        /* toast opcional */
+      }
       resetForm();
-      showForm = false;
+      // Mantener formulario abierto para cobro rápido de la siguiente venta
+      showForm = true;
+      lines = [{ productId: '', productQuery: '', qty: '1', unitPrice: '', discountPct: '' }];
+      focusProductSearch(0);
     } catch (err) {
       formError =
         err instanceof Error ? err.message : state.error || 'No se pudo registrar la venta';
+      try {
+        notifyErr(formError);
+      } catch {
+        /* toast opcional */
+      }
     }
   }
 </script>
@@ -507,7 +661,10 @@
       </div>
     </div>
     <div class="action-btns">
-      <Button type="button" onclick={openForm} disabled={!unitId || state.saving}>Nueva venta</Button>
+      <Button type="button" onclick={openFormAndFocus} disabled={!unitId || state.saving}>Nueva venta <span class="kbd-inline"><kbd>F2</kbd></span></Button>
+      <span class="kbd-hints-bar muted" aria-hidden="true">
+        <kbd>F2</kbd> nueva · <kbd>F3</kbd> línea · <kbd>F4</kbd>/<kbd>Ctrl+↵</kbd> cobrar · <kbd>Esc</kbd> cerrar
+      </span>
       {#if canInvoice && selectedSalesList().length > 0}
         <Button
           type="button"
@@ -526,7 +683,13 @@
       {#if showForm}
         <Card>
           <div class="card-head">
-            <h2>Nueva venta</h2>
+            <div>
+              <h2>Nueva venta</h2>
+                          <p class="kbd-hints" title="Atajos de teclado">
+              <kbd>F2</kbd> venta · <kbd>F3</kbd> línea · <kbd>F4</kbd> cobrar · <kbd>Esc</kbd> cerrar · <kbd>/</kbd> buscar
+            </p>
+
+            </div>
             <Button type="button" variant="ghost" size="sm" onclick={closeForm}>Cerrar</Button>
           </div>
           {#if !unitId}
@@ -534,7 +697,7 @@
           {:else if sellableProducts.length === 0}
             <p class="muted">No hay productos con stock en este PDV. Transfiera desde Almacén.</p>
           {:else}
-            <form class="form" onsubmit={handleSubmit}>
+            <form class="form" bind:this={formEl} onsubmit={handleSubmit}>
               <div class="form-grid">
                 <label class="field">
                   <span>Fecha</span>
@@ -595,8 +758,15 @@
                           {#each matches as p (p.id)}
                             <li role="option">
                               <button type="button" class="picker-option" onclick={() => selectProduct(i, p.id)}>
-                                <span><strong>{p.code || '—'}</strong> · {p.name}</span>
-                                <span class="po-stock">{stockOf(p.id) ?? 0}</span>
+                                <span class="po-main"
+                                  ><strong>{p.code || '—'}</strong> · {p.name}</span
+                                >
+                                <span class="po-meta">
+                                  <span class="po-price"
+                                    ><Money amount={p.priceSale ?? 0} currency={saleCurrency} /></span
+                                  >
+                                  <span class="po-stock" title="Stock en PDV">{stockOf(p.id) ?? 0} ud</span>
+                                </span>
                               </button>
                             </li>
                           {/each}
@@ -628,13 +798,25 @@
               {#if formError}
                 <p class="banner err" role="alert">{formError}</p>
               {/if}
-              <div class="form-actions">
-                <Button type="submit" disabled={state.saving}>
-                  {state.saving ? 'Registrando…' : 'Confirmar venta'}
-                </Button>
-                <Button type="button" variant="secondary" onclick={closeForm} disabled={state.saving}
-                  >Cancelar</Button
-                >
+              <div class="checkout-bar">
+                <div class="checkout-total">
+                  <span class="ct-label">Total a cobrar</span>
+                  <p class="ct-value"><Money amount={estimated} currency={saleCurrency} /></p>
+                  {#if checkoutBlocked && hasSaleLines}
+                    <span class="stock-warn">Revise stock o precio en las líneas</span>
+                  {/if}
+                </div>
+                <div class="form-actions">
+                  <Button
+                    type="submit"
+                    disabled={state.saving || !hasSaleLines || checkoutBlocked || !unitId}
+                  >
+                    {state.saving ? 'Cobrando…' : 'Cobrar venta'}
+                  </Button>
+                  <Button type="button" variant="ghost" onclick={closeForm} disabled={state.saving}
+                    >Cerrar</Button
+                  >
+                </div>
               </div>
             </form>
           {/if}
@@ -1290,5 +1472,102 @@
   .banner.ok {
     background: color-mix(in srgb, var(--accent-green, #b7f56a) 12%, transparent);
     color: var(--accent-green, var(--ap-ok));
+  }
+
+  .po-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.1rem;
+    flex-shrink: 0;
+  }
+  .po-price {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--accent-cyan, #61e6e1);
+  }
+  .po-main {
+    min-width: 0;
+    text-align: left;
+  }
+  .picker-option {
+    align-items: flex-start;
+  }
+  .line-total-field {
+    min-width: 5.5rem;
+  }
+  .line-total {
+    margin: 0;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.95rem;
+  }
+  .stock-warn {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #e85d5d;
+  }
+  .stock-ok {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--ap-text-muted);
+  }
+  .checkout-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    padding: 0.85rem 1rem;
+    border-radius: 14px;
+    border: 1px solid var(--ap-border);
+    background: color-mix(in srgb, var(--accent-cyan, #61e6e1) 8%, var(--ap-bg-elevated, transparent));
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+  }
+  .ct-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ap-text-muted);
+  }
+  .ct-value {
+    margin: 0.1rem 0 0;
+    font-size: 1.35rem;
+    font-weight: 800;
+  }
+  .checkout-total {
+    min-width: 0;
+  }
+
+  .kbd-hints {
+    margin: 0.25rem 0 0;
+    font-size: 0.72rem;
+    color: var(--ap-text-muted, #888);
+  }
+  .kbd-hints-bar {
+    font-size: 0.72rem;
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+  }
+  .kbd-inline {
+    margin-left: 0.35rem;
+    opacity: 0.85;
+  }
+  kbd {
+    display: inline-block;
+    padding: 0.1rem 0.35rem;
+    border-radius: 5px;
+    border: 1px solid var(--ap-border, #444);
+    background: color-mix(in srgb, var(--ap-bg-elevated, #1a1a22) 80%, transparent);
+    font-size: 0.68rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-weight: 650;
   }
 </style>

@@ -107,7 +107,17 @@ export function createAccountingStore(deps: Deps) {
       set({ saving: true, error: null });
       try {
         await deps.createIncome.execute(entry);
-        set({ saving: false });
+        const [accounts, entries] = await Promise.all([
+          deps.listAccounts.execute().catch(() => state.accounts),
+          deps.listEntries.execute({ limit: 5000 }).catch(() => state.entries),
+        ]);
+        set({
+          saving: false,
+          accounts,
+          entries,
+          status: entries.length || accounts.length ? 'success' : 'empty',
+          error: null,
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error al registrar ingreso';
         set({ saving: false, error: message });
@@ -118,7 +128,17 @@ export function createAccountingStore(deps: Deps) {
       set({ saving: true, error: null });
       try {
         await deps.createExpense.execute(entry);
-        set({ saving: false });
+        const [accounts, entries] = await Promise.all([
+          deps.listAccounts.execute().catch(() => state.accounts),
+          deps.listEntries.execute({ limit: 5000 }).catch(() => state.entries),
+        ]);
+        set({
+          saving: false,
+          accounts,
+          entries,
+          status: entries.length || accounts.length ? 'success' : 'empty',
+          error: null,
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error al registrar gasto';
         set({ saving: false, error: message });

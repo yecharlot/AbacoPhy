@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Button, Card, Input, Money } from '../../../../infrastructure/ui/shared';
+  import { Button, Card, Input, Money, ConfirmDialog } from '../../../../infrastructure/ui/shared';
   import { DonutChart } from '../../../../infrastructure/ui/charts';
   import type { CostingState, CostingStore } from '../stores/costingStore';
   import {
@@ -179,24 +179,31 @@
     }
   }
 
-  async function handleDeleteSheet(sheet: (typeof state.costSheets)[number]) {
-    const label = `${sheet.productCode || ''} ${sheet.productName || sheet.productId}`.trim();
-    if (
-      !confirm(
-        `¿Eliminar la ficha de «${label}»?\n\nNo se podrá si este producto es componente de otras recetas.`,
-      )
-    ) {
-      return;
-    }
+  let pendingDeleteSheet: (typeof state.costSheets)[number] | null = null;
+  let deleteBusy = false;
+
+  function requestDeleteSheet(sheet: (typeof state.costSheets)[number]) {
+    pendingDeleteSheet = sheet;
+  }
+
+  async function confirmDeleteSheet() {
+    const sheet = pendingDeleteSheet;
+    if (!sheet) return;
+    deleteBusy = true;
     formError = '';
     try {
       await store.removeCostSheet(sheet.productId);
       if (editingProductId === sheet.productId) resetForm();
+      pendingDeleteSheet = null;
     } catch (err) {
       formError = err instanceof Error ? err.message : 'No se pudo eliminar la ficha';
+      pendingDeleteSheet = null;
+    } finally {
+      deleteBusy = false;
     }
   }
 
+  
   async function handleSubmit(e: Event) {
     e.preventDefault();
     formError = '';
@@ -706,7 +713,7 @@
                     variant="danger"
                     size="sm"
                     disabled={state.saving}
-                    onclick={() => handleDeleteSheet(sheet)}>Eliminar</Button
+                    onclick={() => requestDeleteSheet(sheet)}>Eliminar</Button
                   >
                 </div>
               </article>
@@ -718,7 +725,23 @@
   </div>
 </section>
 
+<ConfirmDialog
+  open={!!pendingDeleteSheet}
+  title="Eliminar ficha de costo"
+  message={pendingDeleteSheet
+    ? `Se eliminará la ficha de «${`${pendingDeleteSheet.productCode || ''} ${pendingDeleteSheet.productName || pendingDeleteSheet.productId}`.trim()}». No se podrá si este producto es componente de otras recetas.`
+    : ''}
+  confirmLabel="Eliminar ficha"
+  variant="danger"
+  busy={deleteBusy}
+  onConfirm={() => void confirmDeleteSheet()}
+  onCancel={() => {
+    if (!deleteBusy) pendingDeleteSheet = null;
+  }}
+/>
+
 <style>
+
   .cost-page {
     display: flex;
     flex-direction: column;
