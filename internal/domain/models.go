@@ -246,6 +246,7 @@ type StoreSnapshot struct {
 	Entries    []Entry                   `json:"entries"`
 	Inventory  map[string]*InventoryItem `json:"inventory"`
 	InvMoves   []InventoryMove           `json:"inv_moves"`
+	StockLedger []StockMovement            `json:"stock_ledger,omitempty"`
 	Employees  map[string]*Employee      `json:"employees"`
 	Payslips   []Payslip                 `json:"payslips"`
 	Invoices   []Invoice                 `json:"invoices"`

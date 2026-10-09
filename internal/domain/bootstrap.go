@@ -108,6 +108,7 @@ func BootstrapTenant(name, slug, currency string) *StoreSnapshot {
 		Entries:   []Entry{},
 		Inventory: map[string]*InventoryItem{},
 		InvMoves:  []InventoryMove{},
+		StockLedger: []StockMovement{},
 		Employees: map[string]*Employee{},
 		Payslips:  []Payslip{},
 		Invoices:  []Invoice{},

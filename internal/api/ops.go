@@ -668,6 +668,13 @@ func (s *Server) handleReceptionEnter(w http.ResponseWriter, r *http.Request, se
 		p.UpdatedAt = time.Now().UTC()
 		s.mirrorInventoryFromProduct(snap, p, st)
 		domain.PropagateCostFromProduct(snap, ln.ProductID)
+		domain.AppendStockMove(snap, domain.StockMovement{
+			ID: uuid.NewString(), TenantID: sess.TenantID, ProductID: ln.ProductID,
+			Location: domain.LocWarehouse, Kind: domain.MoveReceptionIn,
+			Qty: qtyRecv, QtySigned: qtyRecv, UnitCost: ln.UnitCost, AmountBase: lineAmount,
+			RefType: "reception", RefID: rn.ID, Note: "Entrada IR " + rn.Number,
+			CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
+		})
 
 		enteredCost += lineAmount
 		enteredLines++
@@ -678,14 +685,12 @@ func (s *Server) handleReceptionEnter(w http.ResponseWriter, r *http.Request, se
 		return
 	}
 
-	// Contabilidad de inventario solo por lo efectivamente recibido.
-	domain.ApplyInventoryIn(snap, enteredCost)
-	snap.Entries = append(snap.Entries, domain.Entry{
-		ID: uuid.NewString(), TenantID: sess.TenantID, Date: rn.Date, Type: "inventory",
-		Amount: enteredCost, Currency: rn.Currency,
-		Description: fmt.Sprintf("Entrada almacén IR %s · %s · validado por almacenero", rn.Number, rn.Supplier),
-		CreatedBy:   sess.UserID, CreatedAt: time.Now().UTC(),
-	})
+	// Contabilidad: misma fuente de asientos (libro único) — Debe Inventario | Haber Caja.
+	if ent := domain.ApplyInventoryIn(snap, enteredCost,
+		fmt.Sprintf("Entrada almacén IR %s · %s · validado por almacenero", rn.Number, rn.Supplier),
+		sess.UserID); ent != nil {
+		domain.AppendPostedEntry(snap, ent, sess.TenantID, rn.Date)
+	}
 
 	rn.Status = "entrado"
 	rn.EnteredBy = sess.UserID
@@ -779,9 +784,25 @@ func (s *Server) handleTransfers(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Espejo inventario legacy por cada producto tocado.
+		transferID := uuid.NewString()
+		body.ID = transferID
+		// Espejo inventario legacy + Kardex (salida almacén / entrada PDV).
 		seen := map[string]struct{}{}
 		for _, ln := range applied {
+			domain.AppendStockMove(snap, domain.StockMovement{
+				ID: uuid.NewString(), TenantID: sess.TenantID, ProductID: ln.ProductID,
+				Location: domain.LocWarehouse, Kind: domain.MoveTransferOut,
+				Qty: ln.Qty, QtySigned: -ln.Qty, UnitCost: ln.UnitCost, AmountBase: ln.Amount,
+				RefType: "transfer", RefID: transferID, Note: "TR → " + unit.Code,
+				CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
+			})
+			domain.AppendStockMove(snap, domain.StockMovement{
+				ID: uuid.NewString(), TenantID: sess.TenantID, ProductID: ln.ProductID,
+				Location: domain.LocUnit, UnitID: body.UnitID, Kind: domain.MoveTransferIn,
+				Qty: ln.Qty, QtySigned: ln.Qty, UnitCost: ln.UnitCost, AmountBase: ln.Amount,
+				RefType: "transfer", RefID: transferID, Note: "TR desde almacén",
+				CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
+			})
 			if _, ok := seen[ln.ProductID]; ok {
 				continue
 			}
@@ -793,7 +814,6 @@ func (s *Server) handleTransfers(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		body.ID = uuid.NewString()
 		body.TenantID = sess.TenantID
 		body.Number = nextCode("TR", &snap.DocCounters.TransferSeq)
 		if body.Date == "" {
@@ -901,6 +921,13 @@ func (s *Server) handlePOSSales(w http.ResponseWriter, r *http.Request) {
 				unitCost = us.AvgCost
 				us.Qty -= ln.Qty
 				us.AmountBase = us.Qty * us.AvgCost
+				domain.AppendStockMove(snap, domain.StockMovement{
+					ID: uuid.NewString(), TenantID: sess.TenantID, ProductID: ln.ProductID,
+					Location: domain.LocUnit, UnitID: body.UnitID, Kind: domain.MoveSaleOut,
+					Qty: ln.Qty, QtySigned: -ln.Qty, UnitCost: unitCost, AmountBase: unitCost * ln.Qty,
+					RefType: "sale", RefID: body.ID, Note: "Venta " + body.Number,
+					CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
+				})
 			} else {
 				st := snap.WarehouseStock[ln.ProductID]
 				if st == nil || st.Qty < ln.Qty {
@@ -911,6 +938,13 @@ func (s *Server) handlePOSSales(w http.ResponseWriter, r *http.Request) {
 				st.Qty -= ln.Qty
 				st.AmountBase = st.Qty * st.AvgCost
 				s.mirrorInventoryFromProduct(snap, p, st)
+				domain.AppendStockMove(snap, domain.StockMovement{
+					ID: uuid.NewString(), TenantID: sess.TenantID, ProductID: ln.ProductID,
+					Location: domain.LocWarehouse, Kind: domain.MoveSaleOut,
+					Qty: ln.Qty, QtySigned: -ln.Qty, UnitCost: unitCost, AmountBase: unitCost * ln.Qty,
+					RefType: "sale", RefID: body.ID, Note: "Venta " + body.Number,
+					CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
+				})
 			}
 			ln.UnitCost = unitCost
 			ln.CostAmount = unitCost * ln.Qty
@@ -925,43 +959,13 @@ func (s *Server) handlePOSSales(w http.ResponseWriter, r *http.Request) {
 		// Contabilidad: ingreso + COGS
 		// Fase 2: persistir el asiento de ingreso (ApplyIncome ya actualiza saldos Caja/4000).
 		if ent := domain.ApplyIncome(snap, body.Total, "Venta vendedor "+body.Number+" · rebaja "+formatFloat(disc), sess.UserID); ent != nil {
-			ent.ID = uuid.NewString()
-			ent.TenantID = sess.TenantID
-			if body.Date != "" {
-				ent.Date = body.Date
-			} else {
-				ent.Date = time.Now().Format("2006-01-02")
-			}
-			ent.CreatedAt = time.Now().UTC()
-			snap.Entries = append(snap.Entries, *ent)
+			domain.AppendPostedEntry(snap, ent, sess.TenantID, body.Date)
 		}
 		if costT > 0 {
-			// Saldos: Inventario 1300 ↓, Costo de ventas 5000 ↑ (sin ApplyDoubleEntry para no duplicar).
-			domain.ApplyInventoryOut(snap, costT)
-			// Fase 3: asiento de gasto en libro, alineado a cuenta 5000 y contrapartida inventario.
-			cogsAcc := domain.FindAccountByCode(snap.Accounts, "5000")
-			invAcc := domain.FindAccountByCode(snap.Accounts, "1300")
-			cogsEntry := domain.Entry{
-				ID:          uuid.NewString(),
-				TenantID:    sess.TenantID,
-				Date:        body.Date,
-				Type:        "expense",
-				Amount:      costT,
-				Currency:    body.Currency,
-				Description: "Costo venta " + body.Number,
-				CreatedBy:   sess.UserID,
-				CreatedAt:   time.Now().UTC(),
+			// COGS: Debe 5000 | Haber 1300 — un solo Apply (saldos + asiento).
+			if cogsEnt := domain.ApplyInventoryOut(snap, costT, "Costo venta "+body.Number, sess.UserID); cogsEnt != nil {
+				domain.AppendPostedEntry(snap, cogsEnt, sess.TenantID, body.Date)
 			}
-			if body.Date == "" {
-				cogsEntry.Date = time.Now().Format("2006-01-02")
-			}
-			if cogsAcc != nil {
-				cogsEntry.AccountID = cogsAcc.ID
-			}
-			if invAcc != nil {
-				cogsEntry.Counterpart = invAcc.ID
-			}
-			snap.Entries = append(snap.Entries, cogsEntry)
 		}
 		snap.POSSales = append(snap.POSSales, body)
 		s.audit(snap, sess, "venta.vendedor",

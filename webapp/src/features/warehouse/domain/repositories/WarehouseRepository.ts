@@ -6,6 +6,7 @@ import type {
   Reception,
 } from '../entities/Reception';
 import type { CreateTransferInput, Transfer } from '../entities/Transfer';
+import type { AdjustStockInput, KardexSnapshot, StockDiscrepancy } from '../entities/Kardex';
 
 /**
  * Contrato de dominio. Otras features (pos) dependen de esta interfaz,
@@ -21,4 +22,12 @@ export interface WarehouseRepository {
   enterReception(input: EnterReceptionInput): Promise<Reception>;
   getTransfers(): Promise<Transfer[]>;
   createTransfer(input: CreateTransferInput): Promise<Transfer>;
+  getKardex(params: {
+    productId?: string;
+    location?: string;
+    unitId?: string;
+  }): Promise<KardexSnapshot>;
+  adjustStock(input: AdjustStockInput): Promise<{ storedQty: number; ledgerQty: number }>;
+  reconcileStock(): Promise<StockDiscrepancy[]>;
 }
+

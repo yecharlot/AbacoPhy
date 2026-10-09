@@ -11,6 +11,10 @@
     getReceptionVisualStatus,
     type Reception,
   } from '../../domain/entities/Reception';
+  import {
+    movementKindLabel,
+    type StockMovement,
+  } from '../../domain/entities/Kardex';
 
   export let store: WarehouseStore;
 
@@ -70,6 +74,27 @@
   let entryNote = '';
   let entryModalError = '';
   let entryBusy = false;
+
+  /** Modal Kardex (P4). */
+  let kardexModalOpen = false;
+  let kardexProductId = '';
+  let kardexProductName = '';
+  let kardexProductCode = '';
+  let kardexMoves: StockMovement[] = [];
+  let kardexStored = 0;
+  let kardexLedger = 0;
+  let kardexLoading = false;
+  let kardexError = '';
+
+  /** Modal ajuste formal (P4). */
+  let adjustModalOpen = false;
+  let adjustProductId = '';
+  let adjustProductName = '';
+  let adjustProductCode = '';
+  let adjustDelta = '';
+  let adjustNote = '';
+  let adjustError = '';
+  let adjustBusy = false;
 
   function openTransferModal(row: { productId: string; name: string; code: string; qty: number }) {
     if (row.qty <= 0) {
@@ -408,6 +433,79 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
   }
 
 
+
+  async function openKardexModal(row: { productId: string; name: string; code: string }) {
+    kardexProductId = row.productId;
+    kardexProductName = row.name;
+    kardexProductCode = row.code || '';
+    kardexMoves = [];
+    kardexStored = 0;
+    kardexLedger = 0;
+    kardexError = '';
+    kardexLoading = true;
+    kardexModalOpen = true;
+    try {
+      const snap = await store.getKardex({
+        productId: row.productId,
+        location: 'warehouse',
+      });
+      kardexMoves = snap.movements || [];
+      kardexStored = snap.storedQty;
+      kardexLedger = snap.ledgerQty;
+    } catch (e) {
+      kardexError = e instanceof Error ? e.message : 'No se pudo cargar el Kardex';
+    } finally {
+      kardexLoading = false;
+    }
+  }
+
+  function closeKardexModal() {
+    kardexModalOpen = false;
+  }
+
+  function openAdjustModal(row: { productId: string; name: string; code: string }) {
+    adjustProductId = row.productId;
+    adjustProductName = row.name;
+    adjustProductCode = row.code || '';
+    adjustDelta = '';
+    adjustNote = '';
+    adjustError = '';
+    adjustBusy = false;
+    adjustModalOpen = true;
+  }
+
+  function closeAdjustModal() {
+    if (adjustBusy) return;
+    adjustModalOpen = false;
+  }
+
+  async function confirmAdjust() {
+    adjustError = '';
+    const delta = Number(String(adjustDelta).replace(',', '.'));
+    if (!Number.isFinite(delta) || delta === 0) {
+      adjustError = 'Indique una cantidad distinta de cero (positiva o negativa)';
+      return;
+    }
+    if (!adjustNote.trim()) {
+      adjustError = 'Indique el motivo del ajuste (obligatorio)';
+      return;
+    }
+    adjustBusy = true;
+    try {
+      await store.adjustStock({
+        productId: adjustProductId,
+        location: 'warehouse',
+        deltaQty: delta,
+        note: adjustNote.trim(),
+      });
+      adjustModalOpen = false;
+    } catch (e) {
+      adjustError = e instanceof Error ? e.message : 'No se pudo ajustar';
+    } finally {
+      adjustBusy = false;
+    }
+  }
+
   let problemTargetId: string | null = null;
   let problemBusy = false;
 
@@ -592,6 +690,11 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
         <div class="panel-head stock-head">
           <div><p class="eyebrow">Inventario físico</p><h2 id="stock-title">Stock del almacén</h2></div>
           <span class="result-count">{filteredRows.length} de {state.rows.length}</span>
+          {#if (state.discrepancies?.length ?? 0) > 0}
+            <span class="disc-banner" title="Stock persistido no coincide con el libro Kardex"
+              >{state.discrepancies.length} descuadre{state.discrepancies.length === 1 ? '' : 's'} Kardex</span
+            >
+          {/if}
         </div>
         {#if transferNotice}
           <p class="banner ok" role="status">{transferNotice}</p>
@@ -643,13 +746,29 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
                   <td class="num"><Money amount={row.avgCost} currency={row.currency} /></td>
                   <td class="num"><Money amount={row.amountBase} currency={row.currency} /></td>
                   <td class="actions-col">
-                    <button
-                      type="button"
-                      class="xfer-btn"
-                      title="Transferir este producto del almacén a un punto de venta declarado en el negocio"
-                      disabled={state.saving || row.qty <= 0}
-                      onclick={() => openTransferModal(row)}
-                    >Transferir</button>
+                    <div class="row-actions">
+                      <button
+                        type="button"
+                        class="xfer-btn"
+                        title="Ver movimientos Kardex de este producto en almacén"
+                        disabled={state.saving}
+                        onclick={() => void openKardexModal(row)}
+                      >Kardex</button>
+                      <button
+                        type="button"
+                        class="xfer-btn"
+                        title="Ajuste formal de existencias (motivo obligatorio)"
+                        disabled={state.saving}
+                        onclick={() => openAdjustModal(row)}
+                      >Ajustar</button>
+                      <button
+                        type="button"
+                        class="xfer-btn"
+                        title="Transferir este producto del almacén a un punto de venta declarado en el negocio"
+                        disabled={state.saving || row.qty <= 0}
+                        onclick={() => openTransferModal(row)}
+                      >Transferir</button>
+                    </div>
                   </td>
                 </tr>
               {/each}
@@ -661,7 +780,112 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
     </div>
   </div>
 
-  {#if transferModalOpen}
+  
+  {#if kardexModalOpen}
+    <div class="modal-backdrop" role="presentation" onclick={closeKardexModal}>
+      <div
+        class="modal modal-wide"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="kardex-title"
+        onclick={(e) => e.stopPropagation()}
+      >
+        <h3 id="kardex-title">Kardex · almacén</h3>
+        <p class="modal-sub">
+          <strong>{kardexProductName}</strong>
+          {#if kardexProductCode}<span class="muted"> · {kardexProductCode}</span>{/if}
+        </p>
+        <p class="modal-hint">
+          Existencia: {kardexStored} · Reconstruida: {kardexLedger}
+          {#if Math.abs(kardexStored - kardexLedger) > 0.0001}
+            <span class="warn-inline"> · descuadre { (kardexStored - kardexLedger).toFixed(4) }</span>
+          {/if}
+        </p>
+        {#if kardexLoading}
+          <p class="muted">Cargando movimientos…</p>
+        {:else if kardexError}
+          <p class="banner error" role="alert">{kardexError}</p>
+        {:else if kardexMoves.length === 0}
+          <p class="muted">Sin movimientos registrados aún para este producto.</p>
+        {:else}
+          <div class="kardex-scroll">
+            <table class="multi-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Tipo</th>
+                  <th class="num">Cant.</th>
+                  <th class="num">Saldo</th>
+                  <th>Nota</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each kardexMoves as m (m.id)}
+                  <tr>
+                    <td>{m.createdAt ? m.createdAt.slice(0, 19).replace('T', ' ') : '—'}</td>
+                    <td>{movementKindLabel(m.kind)}</td>
+                    <td class="num">{m.qtySigned > 0 ? '+' : ''}{m.qtySigned}</td>
+                    <td class="num">{m.balanceAfter}</td>
+                    <td>{m.note || m.refType || '—'}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
+        <div class="modal-actions">
+          <Button type="button" variant="secondary" onclick={closeKardexModal}>Cerrar</Button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  {#if adjustModalOpen}
+    <div class="modal-backdrop" role="presentation" onclick={closeAdjustModal}>
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="adjust-title"
+        onclick={(e) => e.stopPropagation()}
+      >
+        <h3 id="adjust-title">Ajuste de existencias</h3>
+        <p class="modal-sub">
+          <strong>{adjustProductName}</strong>
+          {#if adjustProductCode}<span class="muted"> · {adjustProductCode}</span>{/if}
+        </p>
+        <p class="modal-hint">
+          Cantidad positiva suma al almacén; negativa resta. El motivo es obligatorio y queda en auditoría.
+        </p>
+        <label class="field">
+          <span>Cantidad (±)</span>
+          <input type="number" step="any" bind:value={adjustDelta} disabled={adjustBusy} />
+        </label>
+        <label class="field">
+          <span>Motivo</span>
+          <input
+            type="text"
+            bind:value={adjustNote}
+            disabled={adjustBusy}
+            placeholder="Ej. merma, inventario físico, corrección…"
+          />
+        </label>
+        {#if adjustError}
+          <p class="banner error" role="alert">{adjustError}</p>
+        {/if}
+        <div class="modal-actions">
+          <Button type="button" onclick={() => void confirmAdjust()} disabled={adjustBusy || state.saving}>
+            {adjustBusy ? 'Aplicando…' : 'Confirmar ajuste'}
+          </Button>
+          <Button type="button" variant="secondary" onclick={closeAdjustModal} disabled={adjustBusy}>
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+{#if transferModalOpen}
     <div class="modal-backdrop" role="presentation" onclick={closeTransferModal}>
       <div
         class="modal"
@@ -877,11 +1101,11 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
   .health-summary { display: grid; gap: 4px; margin-top: 12px; }.health-row { appearance: none; border: 0; background: transparent; padding: 6px 0; display: grid; grid-template-columns: 9px 1fr auto; align-items: center; gap: 8px; text-align: left; cursor: pointer; color: var(--ap-text-secondary); font: inherit; font-size: .8rem; }.health-row:hover b { color: var(--ap-text); }.health-row span, .stock-state i, .state-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ap-ok); }.health-row.low span, .stock-state.low i, .state-dot.pending { background: #e7aa3d; }.health-row.out span, .stock-state.out i, .state-dot.abandoned { background: var(--ap-text-muted, #858c9d); }
   .state-dot.issue { background: var(--ap-danger); }.health-row em { font-style: normal; font-weight: 750; color: var(--ap-text); }
   .mini-tag { padding: 3px 7px; border-radius: 6px; background: var(--ap-primary-soft); color: var(--ap-primary); font-size: .62rem; font-weight: 700; text-transform: uppercase; }.demand-list { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 9px; }.demand-list li { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 8px; }.rank { color: var(--ap-text-muted); font-size: .7rem; font-weight: 750; }.demand-list strong, .demand-list small { display: block; }.demand-list strong { color: var(--ap-text); font-size: .78rem; }.demand-list small { color: var(--ap-text-muted); font-size: .67rem; margin-top: 2px; }.demand-list > li > b { color: var(--ap-text); font-size: .82rem; }
-  .operations-column { display: grid; grid-template-rows: minmax(255px, 34%) minmax(380px, 1fr); gap: 14px; }.receptions-panel, .stock-panel { background: var(--ap-bg-elevated); border: 1px solid var(--ap-border); border-radius: var(--ap-radius); padding: 16px; min-height: 0; display: flex; flex-direction: column; }.head-counts { gap: 6px; flex-wrap: wrap; justify-content: flex-end; }.reception-scroll, .stock-scroll { overflow: auto; min-height: 0; scrollbar-color: var(--ap-border-strong, var(--ap-border)) transparent; }.reception-scroll { margin-top: 12px; }.reception-item { gap: 12px; justify-content: space-between; padding: 10px 2px; border-top: 1px solid var(--ap-border); }.reception-item.abandoned { opacity: 0.9; }
+  .operations-column { display: grid; grid-template-rows: minmax(255px, 34%) minmax(380px, 1fr); gap: 14px; }.receptions-panel, .stock-panel { background: var(--ap-bg-elevated); border: 1px solid var(--ap-border); border-radius: var(--ap-radius); padding: 16px; min-height: 0; display: flex; flex-direction: column; }.head-counts { gap: 6px; flex-wrap: wrap; justify-content: flex-end; }.reception-scroll, .stock-scroll { overflow: auto; min-height: 0; scrollbar-color: var(--ap-border-strong, var(--ap-border)) transparent; }.reception-scroll { max-height: var(--scroll-panel-md); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; padding-right: 2px; }.reception-item { gap: 12px; justify-content: space-between; padding: 10px 2px; border-top: 1px solid var(--ap-border); }.reception-item.abandoned { opacity: 0.9; }
   .reception-item.issue { background: color-mix(in srgb, var(--ap-danger) 4%, transparent); margin-inline: -5px; padding-inline: 7px; border-radius: 8px; }.reception-main { align-items: flex-start; gap: 9px; min-width: 0; flex: 1; }.state-dot { margin-top: 5px; flex: 0 0 auto; }.reception-main strong { color: var(--ap-text); font-size: .82rem; }.reception-main p { color: var(--ap-text-secondary); font-size: .72rem; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 27ch; }.reception-meta { display: grid; text-align: right; gap: 3px; font-size: .7rem; color: var(--ap-text-muted); }.reception-meta strong { color: var(--ap-text-secondary); }.reception-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }.reception-actions :global(button) { font-size: .7rem; padding: 7px 9px; }
-  .stock-head { margin-bottom: 12px; }.result-count { color: var(--ap-text-muted); font-size: .73rem; }.stock-tools { align-items: flex-start; gap: 9px; padding-bottom: 12px; border-bottom: 1px solid var(--ap-border); }.stock-tools label { flex: 1; }.stock-tools input { width: 100%; box-sizing: border-box; border: 1px solid var(--ap-border); border-radius: 9px; padding: 8px 10px; background: var(--ap-bg); color: var(--ap-text); font: inherit; font-size: .78rem; }.filter-group { gap: 4px; flex-wrap: wrap; justify-content: flex-end; }.filter-group button { border: 1px solid transparent; background: var(--ap-primary-soft); color: var(--ap-text-secondary); border-radius: 7px; padding: 6px 8px; font: inherit; font-size: .68rem; cursor: pointer; }.filter-group button.active { color: var(--ap-primary); border-color: color-mix(in srgb, var(--ap-primary) 35%, var(--ap-border)); background: color-mix(in srgb, var(--ap-primary) 13%, transparent); }.stock-scroll { margin-top: 2px; } table { width: 100%; border-collapse: collapse; font-size: .79rem; } th { position: sticky; top: 0; z-index: 1; text-align: left; padding: 9px 8px; color: var(--ap-text-muted); background: var(--ap-bg-elevated); border-bottom: 1px solid var(--ap-border); font-size: .65rem; letter-spacing: .07em; text-transform: uppercase; } td { padding: 10px 8px; border-bottom: 1px solid var(--ap-border); color: var(--ap-text-secondary); } td strong, td small { display: block; } td strong { color: var(--ap-text); font-size: .8rem; } td small { color: var(--ap-text-muted); font-size: .67rem; margin-top: 2px; }.num { text-align: right; font-variant-numeric: tabular-nums; }.quantity { color: var(--ap-text); font-weight: 750; }.stock-state { display: inline-flex; align-items: center; gap: 5px; color: var(--ap-text-secondary); font-size: .68rem; white-space: nowrap; }.empty-state { color: var(--ap-text-muted); font-size: .82rem; padding: 20px 2px; }.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-  @media (min-width: 1100px) { .warehouse { height: calc(100dvh - 174px); max-height: 860px; }.warehouse-layout { grid-template-columns: minmax(290px, .9fr) minmax(560px, 1.65fr); flex: 1; overflow: hidden; }.insights-column { overflow-y: auto; padding-right: 4px; }.operations-column { min-height: 0; } }
-  @media (max-width: 760px) { .reception-item { align-items: flex-start; flex-wrap: wrap; }.reception-meta { text-align: left; }.reception-actions { width: 100%; }.stock-tools { flex-direction: column; }.stock-tools label { width: 100%; }.filter-group { justify-content: flex-start; }.operations-column { grid-template-rows: auto minmax(350px, 1fr); }.reception-scroll { max-height: 340px; } th:nth-child(4), td:nth-child(4) { display: none; } }
+  .stock-head { margin-bottom: 12px; }.result-count { color: var(--ap-text-muted); font-size: .73rem; }.stock-tools { align-items: flex-start; gap: 9px; padding-bottom: 12px; border-bottom: 1px solid var(--ap-border); }.stock-tools label { flex: 1; }.stock-tools input { width: 100%; box-sizing: border-box; border: 1px solid var(--ap-border); border-radius: 9px; padding: 8px 10px; background: var(--ap-bg); color: var(--ap-text); font: inherit; font-size: .78rem; }.filter-group { gap: 4px; flex-wrap: wrap; justify-content: flex-end; }.filter-group button { border: 1px solid transparent; background: var(--ap-primary-soft); color: var(--ap-text-secondary); border-radius: 7px; padding: 6px 8px; font: inherit; font-size: .68rem; cursor: pointer; }.filter-group button.active { color: var(--ap-primary); border-color: color-mix(in srgb, var(--ap-primary) 35%, var(--ap-border)); background: color-mix(in srgb, var(--ap-primary) 13%, transparent); }.stock-scroll { margin-top: 2px; max-height: var(--scroll-panel-lg); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; } table { width: 100%; border-collapse: collapse; font-size: .79rem; } th { position: sticky; top: 0; z-index: 1; text-align: left; padding: 9px 8px; color: var(--ap-text-muted); background: var(--ap-bg-elevated); border-bottom: 1px solid var(--ap-border); font-size: .65rem; letter-spacing: .07em; text-transform: uppercase; } td { padding: 10px 8px; border-bottom: 1px solid var(--ap-border); color: var(--ap-text-secondary); } td strong, td small { display: block; } td strong { color: var(--ap-text); font-size: .8rem; } td small { color: var(--ap-text-muted); font-size: .67rem; margin-top: 2px; }.num { text-align: right; font-variant-numeric: tabular-nums; }.quantity { color: var(--ap-text); font-weight: 750; }.stock-state { display: inline-flex; align-items: center; gap: 5px; color: var(--ap-text-secondary); font-size: .68rem; white-space: nowrap; }.empty-state { color: var(--ap-text-muted); font-size: .82rem; padding: 20px 2px; }.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  @media (min-width: 1100px) { .warehouse { height: calc(100dvh - 160px); max-height: min(900px, calc(100dvh - 140px)); }.warehouse-layout { grid-template-columns: minmax(290px, .9fr) minmax(560px, 1.65fr); flex: 1; overflow: hidden; }.insights-column { overflow-y: auto; padding-right: 4px; }.operations-column { min-height: 0; } }
+  @media (max-width: 760px) { .warehouse { gap: var(--block-gap); padding: 0; } .reception-item { align-items: flex-start; flex-wrap: wrap; }.reception-meta { text-align: left; }.reception-actions { width: 100%; }.stock-tools { flex-direction: column; }.stock-tools label { width: 100%; }.filter-group { justify-content: flex-start; }.operations-column { grid-template-rows: auto minmax(350px, 1fr); }.reception-scroll { max-height: var(--scroll-panel-md); } th:nth-child(4), td:nth-child(4) { display: none; } }
 
   .pre-xfer-bar {
     display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
@@ -972,4 +1196,22 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
   @media (max-width: 520px) {
     .entry-line-grid { grid-template-columns: 1fr; }
   }
+
+  .row-actions { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+  .disc-banner {
+    margin-left: 8px;
+    font-size: 0.7rem;
+    font-weight: 650;
+    color: #c45c26;
+    background: color-mix(in srgb, #c45c26 12%, transparent);
+    border: 1px solid color-mix(in srgb, #c45c26 35%, var(--ap-border));
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+  .kardex-scroll {
+    max-height: min(42vh, 340px);
+    overflow: auto;
+    margin-bottom: 0.75rem;
+  }
+  .warn-inline { color: #c45c26; font-weight: 650; }
 </style>

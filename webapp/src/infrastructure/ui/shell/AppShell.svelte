@@ -565,27 +565,29 @@
 
   .content {
     flex: 1;
+    min-width: 0;
     padding: var(--page-padding, 1.25rem);
-    width: min(100%, 1500px);
+    padding-bottom: var(--page-padding-bottom, var(--page-padding, 1.25rem));
+    width: min(100%, var(--content-max, 1500px));
     margin-inline: auto;
     transition: padding-top 280ms ease;
   }
 
   @media (min-width: 900px) {
     .content {
-      padding-top: 14px;
+      padding-top: max(12px, calc(var(--page-padding, 20px) * 0.55));
     }
   }
 
   @media (min-width: 600px) and (max-width: 899px) {
     .content {
-      padding-top: 12px;
+      padding-top: 10px;
     }
   }
 
-  /* Colapsado: deja hueco bajo el botón de 3 barras para no tapar el contenido */
+  /* Colapsado: hueco bajo el botón de 3 barras */
   .shell.chrome-collapsed .content {
-    padding-top: 56px;
+    padding-top: 52px;
   }
 
   .view-viewport {

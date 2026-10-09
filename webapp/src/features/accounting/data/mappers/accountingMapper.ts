@@ -48,6 +48,10 @@ function entrySides(dto: EntryDto): { debit: string; credit: string } {
   if (t === 'expense') {
     return { debit: resultLabel, credit: counterLabel };
   }
+  if (t === 'inventory') {
+    // Debe Inventario (account_id) | Haber Caja (counterpart)
+    return { debit: resultLabel, credit: counterLabel };
+  }
   return { debit: resultLabel, credit: counterLabel };
 }
 

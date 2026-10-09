@@ -8,6 +8,7 @@ import type {
   Reception,
 } from '../../domain/entities/Reception';
 import type { CreateTransferInput, Transfer } from '../../domain/entities/Transfer';
+import type { AdjustStockInput, KardexSnapshot, StockDiscrepancy } from '../../domain/entities/Kardex';
 import type {
   CreateReception,
   CreateSalesUnit,
@@ -17,6 +18,9 @@ import type {
   GetWarehouseStock,
   ListReceptions,
   ListTransfers,
+  GetKardex,
+  AdjustStock,
+  ReconcileStock,
 } from '../../domain/usecases';
 
 export type WarehouseStatus = 'idle' | 'loading' | 'success' | 'error' | 'empty';
@@ -29,6 +33,7 @@ export type WarehouseState = {
   units: SalesUnit[];
   receptions: Reception[];
   transfers: Transfer[];
+  discrepancies: StockDiscrepancy[];
   error: string | null;
   saving: boolean;
 };
@@ -47,6 +52,9 @@ type Deps = {
   enterReception: EnterReception;
   listTransfers: ListTransfers;
   createTransfer: CreateTransfer;
+  getKardex: GetKardex;
+  adjustStock: AdjustStock;
+  reconcileStock: ReconcileStock;
 };
 
 export function createWarehouseStore(deps: Deps) {
@@ -58,6 +66,7 @@ export function createWarehouseStore(deps: Deps) {
     units: [],
     receptions: [],
     transfers: [],
+    discrepancies: [],
     error: null,
     saving: false,
   };
@@ -95,6 +104,12 @@ export function createWarehouseStore(deps: Deps) {
           deps.listReceptions.execute().catch(() => [] as Reception[]),
           deps.listTransfers.execute().catch(() => [] as Transfer[]),
         ]);
+        let discrepancies: StockDiscrepancy[] = [];
+        try {
+          discrepancies = await deps.reconcileStock.execute();
+        } catch {
+          discrepancies = [];
+        }
         set({
           status: stock.rows.length || unitsSnapshot.units.length ? 'success' : 'empty',
           rows: stock.rows,
@@ -103,6 +118,7 @@ export function createWarehouseStore(deps: Deps) {
           units: unitsSnapshot.units,
           receptions,
           transfers,
+          discrepancies,
           error: null,
         });
       } catch (err) {
@@ -160,7 +176,29 @@ export function createWarehouseStore(deps: Deps) {
         throw err;
       }
     },
+
+    async getKardex(params: {
+      productId?: string;
+      location?: string;
+      unitId?: string;
+    }): Promise<KardexSnapshot> {
+      return deps.getKardex.execute(params);
+    },
+    async adjustStock(input: AdjustStockInput): Promise<void> {
+      set({ saving: true, error: null });
+      try {
+        await deps.adjustStock.execute(input);
+        set({ saving: false });
+        await this.loadAll();
+        deps.appDataBus?.emit('stock.changed');
+        deps.appDataBus?.emit('ops.changed');
+      } catch (err) {
+        set({ saving: false, error: messageOf(err, 'Error al ajustar stock') });
+        throw err;
+      }
+    },
   };
 }
+
 
 export type WarehouseStore = ReturnType<typeof createWarehouseStore>;

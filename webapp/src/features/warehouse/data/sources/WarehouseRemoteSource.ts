@@ -44,4 +44,25 @@ export class WarehouseRemoteSource {
   createTransfer(body: Record<string, unknown>): Promise<TransferResponseDto> {
     return this.http.post<TransferResponseDto>('/transfers', body);
   }
+  getKardex(params: {
+    productId?: string;
+    location?: string;
+    unitId?: string;
+  }): Promise<Record<string, unknown>> {
+    const q = new URLSearchParams();
+    if (params.productId) q.set('product_id', params.productId);
+    if (params.location) q.set('location', params.location);
+    if (params.unitId) q.set('unit_id', params.unitId);
+    const qs = q.toString();
+    return this.http.get<Record<string, unknown>>(`/kardex${qs ? `?${qs}` : ''}`);
+  }
+
+  adjustStock(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return this.http.post<Record<string, unknown>>('/inventory/adjust', body);
+  }
+
+  reconcileStock(): Promise<Record<string, unknown>> {
+    return this.http.get<Record<string, unknown>>('/inventory/reconcile');
+  }
+
 }

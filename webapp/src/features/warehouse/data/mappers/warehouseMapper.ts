@@ -3,6 +3,7 @@ import type { SalesUnit, CreateSalesUnitInput } from '../../domain/entities/Sale
 import type { Reception, ReceptionLine, CreateReceptionInput } from '../../domain/entities/Reception';
 import { RECEPTION_ABANDON_MARKER } from '../../domain/entities/Reception';
 import type { Transfer, TransferLine, CreateTransferInput } from '../../domain/entities/Transfer';
+import type { KardexSnapshot, StockDiscrepancy, StockMovement } from '../../domain/entities/Kardex';
 import type {
   ReceptionDto,
   ReceptionLineDto,
@@ -243,4 +244,50 @@ export function createTransferInputToDto(input: CreateTransferInput): Record<str
   if (input.date) body.date = input.date;
   if (input.note) body.note = input.note;
   return body;
+}
+
+
+export function stockMovementDtoToEntity(dto: Record<string, unknown>): StockMovement {
+  return {
+    id: String(dto.id ?? ''),
+    productId: String(dto.product_id ?? ''),
+    location: String(dto.location ?? 'warehouse'),
+    unitId: dto.unit_id ? String(dto.unit_id) : undefined,
+    kind: String(dto.kind ?? ''),
+    qty: Number(dto.qty ?? 0),
+    qtySigned: Number(dto.qty_signed ?? 0),
+    unitCost: Number(dto.unit_cost ?? 0),
+    amountBase: Number(dto.amount_base ?? 0),
+    balanceAfter: Number(dto.balance_after ?? 0),
+    refType: dto.ref_type ? String(dto.ref_type) : undefined,
+    refId: dto.ref_id ? String(dto.ref_id) : undefined,
+    note: dto.note ? String(dto.note) : undefined,
+    createdBy: dto.created_by ? String(dto.created_by) : undefined,
+    createdAt: dto.created_at ? String(dto.created_at) : undefined,
+  };
+}
+
+export function kardexResponseToEntity(dto: Record<string, unknown>): KardexSnapshot {
+  const moves = (dto.movements as Record<string, unknown>[] | undefined) || [];
+  return {
+    movements: moves.map(stockMovementDtoToEntity),
+    storedQty: Number(dto.stored_qty ?? 0),
+    ledgerQty: Number(dto.ledger_qty ?? 0),
+    productId: String(dto.product_id ?? ''),
+    location: String(dto.location ?? 'warehouse'),
+    unitId: dto.unit_id ? String(dto.unit_id) : undefined,
+  };
+}
+
+export function discrepancyDtoToEntity(dto: Record<string, unknown>): StockDiscrepancy {
+  return {
+    productId: String(dto.product_id ?? ''),
+    productCode: String(dto.product_code ?? ''),
+    productName: String(dto.product_name ?? ''),
+    location: String(dto.location ?? ''),
+    unitId: dto.unit_id ? String(dto.unit_id) : undefined,
+    storedQty: Number(dto.stored_qty ?? 0),
+    ledgerQty: Number(dto.ledger_qty ?? 0),
+    delta: Number(dto.delta ?? 0),
+  };
 }

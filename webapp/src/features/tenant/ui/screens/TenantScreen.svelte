@@ -700,7 +700,7 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
-    max-height: min(52vh, 480px);
+    max-height: var(--scroll-panel-md);
   }
   .unit-scroll {
     overflow-y: auto;

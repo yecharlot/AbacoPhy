@@ -220,13 +220,14 @@
   .workspace {
     display: grid;
     grid-template-columns: 1fr;
-    gap: var(--dashboard-gap, 12px);
+    gap: var(--block-gap, var(--dashboard-gap, 12px));
     min-height: 0;
   }
   @media (min-width: 960px) {
     .workspace {
       grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
       height: min(68vh, 820px);
+      gap: var(--block-gap, 12px);
     }
     .workspace:has(.col-list.full) {
       grid-template-columns: 1fr;
@@ -245,6 +246,21 @@
       flex: 1;
       overflow-y: auto;
       min-height: 0;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+    }
+  }
+  .list-scroll {
+    max-height: var(--scroll-panel-lg);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  @media (min-width: 960px) {
+    .list-scroll {
+      max-height: none; /* el flex del workspace limita */
     }
   }
   .list-toolbar {

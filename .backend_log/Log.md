@@ -1333,3 +1333,118 @@ La transferencia **no** genera asiento (el producto sigue en inventario del nego
 go test ./internal/domain/ -run Transfer -count=1
 ```
 
+
+
+---
+
+## Bloque P4 — Inventario → Kardex → Existencias
+
+**Fecha:** 2026-10-09  
+**Rama:** `role-authorization-ui-updates`  
+**Prioridad plan:** 4 (Kardex)
+
+### Objetivo
+
+Libro de movimientos de stock **reconstruible** (Kardex), ajustes formales auditables y detección de descuadres entre cantidad persistida y suma del ledger.
+
+### Modelo
+
+`domain.StockMovement` en `snap.StockLedger`:
+
+| Campo | Uso |
+|-------|-----|
+| location | `warehouse` \| `unit` |
+| unit_id | PDV si location=unit |
+| kind | reception_in, transfer_out/in, sale_out, adjust_in/out |
+| qty / qty_signed | magnitud y signo (+entrada / −salida) |
+| balance_after | existencia del cubo tras el movimiento |
+| ref_type / ref_id | reception, transfer, sale, adjust |
+
+### Origen de movimientos (automático)
+
+| Evento | Kardex |
+|--------|--------|
+| Entrada recepción confirmada | `reception_in` en almacén |
+| Transferencia almacén→PDV | `transfer_out` + `transfer_in` |
+| Venta POS | `sale_out` (unidad o almacén) |
+| POST ajuste | `adjust_in` / `adjust_out` |
+
+### API
+
+```http
+GET  /api/v1/kardex?product_id=&location=&unit_id=
+POST /api/v1/inventory/adjust   { product_id, location, unit_id?, delta_qty, unit_cost?, note }
+GET  /api/v1/inventory/reconcile
+```
+
+### Archivos
+
+| Archivo | Motivo |
+|---------|--------|
+| `internal/domain/kardex.go` | Ledger, rebuild, reconcile, ajuste |
+| `internal/domain/kardex_test.go` | Rebuild/descuadre/ajuste |
+| `internal/domain/models.go` | `StockLedger` en snapshot |
+| `internal/domain/bootstrap.go` | Init ledger vacío |
+| `internal/api/ops.go` | Append en recepción, transferencia, venta |
+| `internal/api/extra.go` | Rutas y handlers kardex/adjust/reconcile |
+| `.backend_log/Log.md` | Este bloque |
+
+### Nota legado
+
+Datos previos sin ledger pueden mostrar descuadre hasta el primer movimiento (seed de balance) o un ajuste formal. `AppendStockMove` ancla el primer asiento al stock persistido.
+
+
+
+---
+
+## Bloque P5 — Contabilidad / libro único / Debe=Haber
+
+**Fecha:** 2026-10-09  
+**Rama:** `role-authorization-ui-updates`  
+**Prioridad plan:** 5 (Contabilidad)
+
+### Objetivo
+
+Una sola fuente de asientos (`snap.Entries`) para venta, recepción, COGS, gasto e inventario legacy. Cada asiento con cuenta + contrapartida (partida doble). Reportes de mayor, balance general e integridad.
+
+### Cambios de dominio
+
+| Función | Partida doble |
+|---------|----------------|
+| `ApplyIncome` | Debe Caja 1000 \| Haber Ingresos 4000 |
+| `ApplyExpense` | Debe Gasto \| Haber Caja |
+| `ApplyInventoryIn` | Debe Inventario 1300 \| Haber Caja 1000 |
+| `ApplyInventoryOut` (COGS) | Debe Costo ventas 5000 \| Haber Inventario 1300 |
+| `AppendPostedEntry` | ID/fecha/tenant + append al libro |
+| `LedgerIntegrity` | ecuación + asientos sin contrapartida |
+| `BalanceSheet` | activo / pasivo / patrimonio |
+
+`ApplyDoubleEntry` ahora trata `type=inventory` igual que gasto respecto a la contrapartida.
+
+### API
+
+```http
+GET /api/v1/ledger?account_id=        → mayor (debe/haber/saldo)
+GET /api/v1/reports/balance-sheet
+GET /api/v1/ledger/integrity
+GET /api/v1/reports/trial-balance    (ya existía)
+GET/POST /api/v1/entries             (libro único)
+```
+
+### Integraciones
+
+- Recepción confirmada → `ApplyInventoryIn` + `AppendPostedEntry`
+- Venta POS → `ApplyIncome` + `ApplyInventoryOut` + `AppendPostedEntry`
+- Inventario legacy in/out → mismos writers (sin asiento duplicado)
+
+### Archivos
+
+| Archivo | Motivo |
+|---------|--------|
+| `internal/domain/ledger.go` | Writers unificados, integrity, balance sheet |
+| `internal/domain/ledger_integrity_test.go` | Venta+recepción+gasto misma fuente |
+| `internal/api/ops.go` | Recepción y POS usan AppendPostedEntry |
+| `internal/api/server.go` | Inventario legacy sin doble asiento |
+| `internal/api/extra.go` | Mayor, balance, integrity; salida inv sin duplicar |
+| `.backend_log/Log.md` | Este bloque |
+

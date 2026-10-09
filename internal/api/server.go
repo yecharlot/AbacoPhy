@@ -631,7 +631,7 @@ func (s *Server) handleInventory(w http.ResponseWriter, r *http.Request) {
 			}
 			existing.UpdatedAt = time.Now().UTC()
 			itemOut = existing
-			domain.ApplyInventoryIn(snap, body.AmountBase)
+			if invEnt := domain.ApplyInventoryIn(snap, body.AmountBase, "Entrada inventario "+body.Name, sess.UserID); invEnt != nil { domain.AppendPostedEntry(snap, invEnt, sess.TenantID, time.Now().Format("2006-01-02")) }
 			mv := domain.InventoryMove{
 				ID: uuid.NewString(), TenantID: sess.TenantID, ItemID: existing.ID,
 				Kind: "in", Qty: body.Qty, Cost: body.Cost, AmountBase: body.AmountBase,
@@ -647,7 +647,7 @@ func (s *Server) handleInventory(w http.ResponseWriter, r *http.Request) {
 			body.UpdatedAt = time.Now().UTC()
 			snap.Inventory[body.ID] = &body
 			itemOut = &body
-			domain.ApplyInventoryIn(snap, body.AmountBase)
+			if invEnt := domain.ApplyInventoryIn(snap, body.AmountBase, "Entrada inventario "+body.Name, sess.UserID); invEnt != nil { domain.AppendPostedEntry(snap, invEnt, sess.TenantID, time.Now().Format("2006-01-02")) }
 			mv := domain.InventoryMove{
 				ID: uuid.NewString(), TenantID: sess.TenantID, ItemID: body.ID,
 				Kind: "in", Qty: body.Qty, Cost: body.Cost, AmountBase: body.AmountBase,
@@ -656,22 +656,7 @@ func (s *Server) handleInventory(w http.ResponseWriter, r *http.Request) {
 			snap.InvMoves = append(snap.InvMoves, mv)
 			s.audit(snap, sess, "inventory.in", body.Name+" "+body.Currency, body.ID)
 		}
-		invAcc := domain.FindAccountByCode(snap.Accounts, "1300")
-		cash := domain.FindAccountByCode(snap.Accounts, "1000")
-		entry := domain.Entry{
-			ID: uuid.NewString(), TenantID: sess.TenantID, Date: time.Now().Format("2006-01-02"),
-			Type: "inventory", Amount: body.AmountBase, Currency: snap.Tenant.Currency,
-			OrigAmount: body.Amount, OrigCurrency: body.Currency,
-			Description: "Entrada inventario " + body.Name, Ref: itemOut.ID,
-			CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
-		}
-		if invAcc != nil {
-			entry.AccountID = invAcc.ID
-		}
-		if cash != nil {
-			entry.Counterpart = cash.ID
-		}
-		snap.Entries = append(snap.Entries, entry)
+		// Asiento ya registrado vía ApplyInventoryIn + AppendPostedEntry (libro único).
 		_ = s.Store.Put(snap)
 		writeJSON(w, 201, map[string]any{"item": itemOut, "ecuacion": domain.EquationSnapshot(snap), "rev": snap.Rev, "weighted_avg": existing != nil})
 	case http.MethodDelete:
@@ -686,7 +671,7 @@ func (s *Server) handleInventory(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if item.Qty > 0 && item.AmountBase > 0 {
-			domain.ApplyInventoryOut(snap, item.AmountBase)
+			if cogsEnt := domain.ApplyInventoryOut(snap, item.AmountBase, "Salida inventario", sess.UserID); cogsEnt != nil { domain.AppendPostedEntry(snap, cogsEnt, sess.TenantID, time.Now().Format("2006-01-02")) }
 		}
 		item.Active = false
 		item.Qty = 0

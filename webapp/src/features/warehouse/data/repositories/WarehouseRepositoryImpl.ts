@@ -7,10 +7,13 @@ import type {
 } from '../../domain/entities/SalesUnit';
 import type { CreateReceptionInput, EnterReceptionInput, Reception } from '../../domain/entities/Reception';
 import type { CreateTransferInput, Transfer } from '../../domain/entities/Transfer';
+import type { AdjustStockInput, KardexSnapshot, StockDiscrepancy } from '../../domain/entities/Kardex';
 import type { WarehouseRepository } from '../../domain/repositories/WarehouseRepository';
 import {
   createReceptionInputToDto,
   enterReceptionInputToDto,
+  kardexResponseToEntity,
+  discrepancyDtoToEntity,
   createSalesUnitInputToDto,
   createTransferInputToDto,
   receptionDtoToEntity,
@@ -115,4 +118,46 @@ export class WarehouseRepositoryImpl implements WarehouseRepository {
       throw new Error(messageOf(err, 'No se pudo confirmar la transferencia'));
     }
   }
+  async getKardex(params: {
+    productId?: string;
+    location?: string;
+    unitId?: string;
+  }): Promise<KardexSnapshot> {
+    try {
+      const dto = await this.remote.getKardex(params);
+      return kardexResponseToEntity(dto);
+    } catch (err) {
+      throw new Error(messageOf(err, 'No se pudo cargar el Kardex'));
+    }
+  }
+
+  async adjustStock(input: AdjustStockInput): Promise<{ storedQty: number; ledgerQty: number }> {
+    try {
+      const dto = await this.remote.adjustStock({
+        product_id: input.productId,
+        location: input.location,
+        unit_id: input.unitId,
+        delta_qty: input.deltaQty,
+        unit_cost: input.unitCost,
+        note: input.note,
+      });
+      return {
+        storedQty: Number(dto.stored_qty ?? 0),
+        ledgerQty: Number(dto.ledger_qty ?? 0),
+      };
+    } catch (err) {
+      throw new Error(messageOf(err, 'No se pudo aplicar el ajuste de stock'));
+    }
+  }
+
+  async reconcileStock(): Promise<StockDiscrepancy[]> {
+    try {
+      const dto = await this.remote.reconcileStock();
+      const list = (dto.discrepancies as Record<string, unknown>[] | undefined) || [];
+      return list.map(discrepancyDtoToEntity);
+    } catch (err) {
+      throw new Error(messageOf(err, 'No se pudo reconciliar el inventario'));
+    }
+  }
+
 }

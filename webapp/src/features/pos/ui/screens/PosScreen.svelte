@@ -1066,7 +1066,7 @@
     border: 1px solid var(--color-border, var(--ap-border));
     background: var(--color-surface, var(--ap-bg-elevated, #171b29));
     padding: 0.65rem 0.75rem;
-    max-height: 200px;
+    max-height: var(--scroll-panel-sm);
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -1313,8 +1313,10 @@
     left: 0;
     right: 0;
     z-index: 20;
-    max-height: 200px;
+    max-height: var(--scroll-panel-sm);
     overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
     border-radius: 12px;
     border: 1px solid var(--color-border);
     background: var(--color-surface, #171b29);
@@ -1370,8 +1372,11 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
-    max-height: min(62vh, 640px);
+    max-height: var(--scroll-panel-xl);
     overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
   }
   .sale-item {
     border: 1px solid var(--color-border, var(--ap-border));

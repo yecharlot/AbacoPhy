@@ -6,10 +6,12 @@
     buildTrialBalance,
     buildIncomeStatement,
     buildJournal,
+    buildBalanceSheet,
   } from '../../domain/reports';
   import TrialBalanceTable from '../components/reports/TrialBalanceTable.svelte';
   import IncomeStatementPanel from '../components/reports/IncomeStatementPanel.svelte';
   import JournalTable from '../components/reports/JournalTable.svelte';
+  import BalanceSheetPanel from '../components/reports/BalanceSheetPanel.svelte';
   import {
     exportIncomeStatementCsv,
     exportIncomeStatementPdf,
@@ -25,7 +27,7 @@
   export let generatedBy: string = '';
   export let generatedByRole: string = '';
 
-  type ReportTab = 'balance' | 'resultados' | 'diario';
+  type ReportTab = 'balance' | 'balance-general' | 'resultados' | 'diario';
 
   let state: AccountingState = store.getState();
   let tab: ReportTab = 'balance';
@@ -42,6 +44,15 @@
   });
 
   $: trial = buildTrialBalance(state.accounts ?? []);
+  $: sheet = buildBalanceSheet(state.accounts ?? []);
+  $: equationOk =
+    Math.abs(
+      (state.summary?.assets ?? sheet.totalAssets) -
+        ((state.summary?.liabilities ?? sheet.totalLiabilities) +
+          (state.summary?.equity ?? sheet.totalEquity) +
+          (state.summary?.netProfit ?? sheet.netIncome)),
+    ) < 0.05;
+
   $: statement = buildIncomeStatement({
     accounts: state.accounts ?? [],
     summary: state.summary,
@@ -127,6 +138,15 @@
     <p class="err" role="alert">{exportErr}</p>
   {/if}
 
+  {#if state.summary || (state.accounts?.length ?? 0) > 0}
+    <div class="integrity-bar" class:ok={equationOk} class:warn={!equationOk}>
+      <span>{equationOk ? 'Ecuación cuadra' : 'Revisar ecuación ampliada'}</span>
+      <span class="muted-inline"
+        >Libro diario: {(state.entries ?? []).length} asientos · misma fuente que ventas, recepciones y gastos</span
+      >
+    </div>
+  {/if}
+
   <div class="tabs" role="tablist" aria-label="Tipo de reporte">
     <button
       type="button"
@@ -137,6 +157,16 @@
       onclick={() => setTab('balance')}
     >
       Balance de comprobación
+    </button>
+    <button
+      type="button"
+      role="tab"
+      class="tab"
+      class:active={tab === 'balance-general'}
+      aria-selected={tab === 'balance-general'}
+      onclick={() => setTab('balance-general')}
+    >
+      Balance general
     </button>
     <button
       type="button"
@@ -192,6 +222,8 @@
 
     {#if tab === 'balance'}
       <TrialBalanceTable {trial} />
+    {:else if tab === 'balance-general'}
+      <BalanceSheetPanel {sheet} />
     {:else if tab === 'resultados'}
       <IncomeStatementPanel {statement} />
     {:else}
@@ -204,7 +236,17 @@
   .reportes {
     display: flex;
     flex-direction: column;
-    gap: 0.85rem;
+    gap: var(--block-gap, 12px);
+    min-width: 0;
+  }
+  .reportes :global(table) {
+    min-width: 0;
+  }
+  .reportes .tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
   }
   .head-actions {
     display: flex;
@@ -309,5 +351,31 @@
   }
   .err {
     color: var(--ap-danger, #f17b7b);
+  }
+
+  .integrity-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    align-items: center;
+    font-size: 0.78rem;
+    font-weight: 650;
+    padding: 0.45rem 0.75rem;
+    border-radius: 10px;
+    border: 1px solid var(--ap-border, #2a3142);
+  }
+  .integrity-bar.ok {
+    color: #2f9e6e;
+    background: color-mix(in srgb, #2f9e6e 10%, transparent);
+    border-color: color-mix(in srgb, #2f9e6e 35%, var(--ap-border, #2a3142));
+  }
+  .integrity-bar.warn {
+    color: #c45c26;
+    background: color-mix(in srgb, #c45c26 10%, transparent);
+    border-color: color-mix(in srgb, #c45c26 35%, var(--ap-border, #2a3142));
+  }
+  .muted-inline {
+    font-weight: 500;
+    color: var(--ap-text-muted, #7a8499);
   }
 </style>

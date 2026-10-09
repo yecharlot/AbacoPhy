@@ -958,6 +958,7 @@
     width: min(440px, 100%);
     max-height: min(92vh, 720px);
     overflow: auto;
+    overscroll-behavior: contain;
     padding: 1.1rem 1.15rem 1.2rem;
     border-radius: 16px;
     border: 1px solid var(--color-border, var(--ap-border));

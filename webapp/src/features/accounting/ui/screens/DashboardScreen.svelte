@@ -527,8 +527,10 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
-    max-height: 320px;
+    max-height: var(--scroll-panel-md);
     overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
   }
   .review-item {
     display: flex;

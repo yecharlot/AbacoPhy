@@ -610,6 +610,9 @@
 
   .table-wrap {
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    margin-inline: 0;
   }
   table {
     width: 100%;

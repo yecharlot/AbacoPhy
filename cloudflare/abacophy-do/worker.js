@@ -9,7 +9,7 @@
  */
 export class AbacoPhyStore {
   constructor(state, env) {
-    this.state = state;
+    this.state = state;s
     this.env = env;
   }
 

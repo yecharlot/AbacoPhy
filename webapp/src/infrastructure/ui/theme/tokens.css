@@ -41,8 +41,19 @@
   --space-8: 32px;
 
   --page-padding: 24px;
+  --page-padding-bottom: 28px;
   --dashboard-gap: 12px;
+  --block-gap: 12px;
+  --panel-pad: 14px;
   --sidebar-w: 260px;
+
+  /* Alturas de paneles con scroll independiente (listas que crecen) */
+  --scroll-panel-sm: min(36vh, 280px);
+  --scroll-panel-md: min(48vh, 420px);
+  --scroll-panel-lg: min(58vh, 560px);
+  --scroll-panel-xl: min(68vh, 720px);
+  --scroll-modal: min(42vh, 360px);
+  --content-max: 1500px;
 
   --shadow-soft: 0 12px 40px rgba(0, 0, 0, 0.18);
   --shadow-float: 0 20px 60px rgba(0, 0, 0, 0.28);
@@ -98,13 +109,35 @@
 }
 
 @media (max-width: 1279px) {
-  :root { --page-padding: 20px; }
+  :root {
+    --page-padding: 20px;
+    --page-padding-bottom: 24px;
+  }
 }
 @media (max-width: 899px) {
-  :root { --page-padding: 16px; --dashboard-gap: 10px; }
+  :root {
+    --page-padding: 14px;
+    --page-padding-bottom: 20px;
+    --dashboard-gap: 10px;
+    --block-gap: 10px;
+    --panel-pad: 12px;
+    --scroll-panel-sm: min(32vh, 240px);
+    --scroll-panel-md: min(42vh, 360px);
+    --scroll-panel-lg: min(52vh, 480px);
+    --scroll-panel-xl: min(62vh, 600px);
+  }
 }
 @media (max-width: 599px) {
-  :root { --page-padding: 12px; }
+  :root {
+    --page-padding: 10px;
+    --page-padding-bottom: 72px; /* hueco FAB tema / bottom chrome */
+    --dashboard-gap: 8px;
+    --block-gap: 8px;
+    --panel-pad: 10px;
+    --scroll-panel-sm: min(30vh, 220px);
+    --scroll-panel-md: min(40vh, 320px);
+    --scroll-panel-lg: min(50vh, 420px);
+  }
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -124,14 +157,23 @@ html, body {
 @media (min-width: 1280px) {
   body {
     background: #03050c;
-    padding: 12px;
+    padding: 10px;
   }
   #app {
-    min-height: calc(100dvh - 24px);
+    min-height: calc(100dvh - 20px);
     border-radius: var(--radius-xl);
     overflow: hidden;
     background: var(--color-bg);
     box-shadow: var(--shadow-float);
+  }
+}
+@media (max-width: 1279px) {
+  body {
+    padding: 0;
+  }
+  #app {
+    border-radius: 0;
+    min-height: 100dvh;
   }
 }
 
