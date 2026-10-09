@@ -1206,3 +1206,130 @@ unitario = material + labor (+ rubros legacy si vienen)
 - `AbacoPhy-backend-CostSheetDependents-fix.zip` — export `CostSheetDependents`  
 - `webapp-fichas-costo-dashboard.zip` — `previous_costo_unitario` en dominio/recalc  
 
+
+
+---
+
+## Bloque P1 — Compras → Recepción → Almacén (núcleo fuerte)
+
+**Fecha:** 2026-10-09  
+**Rama:** `role-authorization-ui-updates`  
+**Prioridad plan:** 1 (Recepción/Almacén)
+
+### Objetivo
+
+Cerrar el contrato de dominio: el **Informe de Recepción** es documental; la **entrada física** en almacén es el único momento que mueve stock, costo promedio ponderado (CPP) y reconocimiento de inventario. Soportar **diferencias por línea**, **problemas** y **abandono definitivo** con trazabilidad en `metadata` + `audit_log`.
+
+### Política reforzada
+
+| Acción | Quién | Stock / CPP | Contabilidad inventario | Status |
+|--------|-------|-------------|-------------------------|--------|
+| POST `/api/v1/receptions` | Económico (+ admin/master) | No | No | `pendiente_entrada` |
+| POST `/receptions/enter` `accept=true` | Almacenero (+ admin/master) | Sí (solo `qty_received`) | Sí (`ApplyInventoryIn` + entry) | `entrado` |
+| POST enter `accept=false` | Almacenero | No | No | `problemas_entrada` |
+| POST enter `abandon=true` (o reason con `[ABANDONADO]`) | Almacenero | No | No | `anulado` |
+
+### Archivos modificados
+
+| Archivo | Motivo |
+|---------|--------|
+| `internal/domain/ops.go` | Ampliar `ReceptionLine` con `qty_received`, `qty_damaged`, `qty_rejected`, `line_status` para resultados físicos sin romper el qty declarado. |
+| `internal/api/ops.go` (`handleReceptionEnter`) | Abandono explícito; ajustes por línea en confirmación; CPP/stock solo con cantidad recibida; costo de entrada = Σ(recibido×unit_cost); audit `recepcion.abandonada` / entrada con totales. |
+| `webapp/.../warehouseMapper.ts` | DTO enter: `abandon`, `lines[]`; mapear campos de línea recibidos. |
+| `webapp/.../EnterReception.ts` | Enviar `abandon: true` al backend (además del marcador en reason). |
+| `webapp/.../Reception.ts` / `WarehouseDto.ts` | Tipos alineados con la respuesta del servidor. |
+
+### Contrato POST `/api/v1/receptions/enter`
+
+```json
+{
+  "id": "<uuid|number IR>",
+  "accept": true,
+  "note": "opcional",
+  "abandon": false,
+  "reason": "obligatorio si accept=false o abandon",
+  "lines": [
+    {
+      "product_id": "...",
+      "qty_received": 10,
+      "qty_damaged": 1,
+      "qty_rejected": 0
+    }
+  ]
+}
+```
+
+- Si `lines` se omite: se asume `qty_received = qty` declarada en el IR.
+- Si todas las líneas quedan con `qty_received = 0`: error 400 (usar problema o abandono).
+
+### Trazabilidad
+
+- Metadata IR: `int.reception_status`, actor, timestamp, `int.reception_entered_cost`, motivo problema/abandono.
+- Metadata línea: `int.qty_declared|received|damaged|rejected`.
+- Audit: `recepcion.creada`, `recepcion.problema_entrada`, `recepcion.abandonada`, `recepcion.entrada_almacen`.
+
+### Qué no se hizo en este bloque
+
+- UI de captura de diferencias por línea en Almacén (API lista; UI puede seguir confirmación total).
+- Kardex formal de movimientos (prioridad 4).
+- Tests Go automatizados del flujo (siguiente iteración / CI).
+
+### Compatibilidad
+
+- Clientes que solo envían `{ id, accept: true }` siguen funcionando (entrada 100 % de lo declarado).
+- Abandono FE con marcador `[ABANDONADO]` en reason sigue reconocido; preferible `abandon: true`.
+
+
+
+---
+
+## Bloque P2 — Almacén → Punto de Venta (transferencias)
+
+**Fecha:** 2026-10-09  
+**Rama:** `role-authorization-ui-updates`  
+**Prioridad plan:** 2 (Transferencias)
+
+### Objetivo
+
+Evitar **fallos parciales** en `POST /api/v1/transfers`: validar stock y productos **antes** de descontar almacén / incrementar PDV; mensajes de error accionables; pruebas unitarias de transferencia fallida.
+
+### Problema previo
+
+El handler validaba y mutaba en el mismo bucle. Si la línea N fallaba tras haber descontado la 1…N−1, el snapshot quedaba inconsistente hasta un Put fallido o respuesta 400 **con mutaciones ya aplicadas en memoria** (y en el peor caso persistidas si el Put ocurría después de un camino incompleto).
+
+### Solución
+
+1. **Fase validación** (`domain.ValidateTransferStock`): unidad activa, producto activo, qty > 0, stock almacén ≥ demanda **agregada** por `product_id`.
+2. **Fase aplicación** (`domain.ApplyWarehouseToUnitTransfer`): solo si la validación pasó; descuenta origen, alta/actualiza destino, enriquece líneas (código, CPP, importe).
+3. **Handler** `handleTransfers`: usa dominio; espejo inventario; audit; un solo `Store.Put`.
+4. Respuesta de error incluye `code` (`stock_insufficient`, `product_invalid`, `unit_invalid`, `qty_invalid`, …).
+
+### Archivos modificados
+
+| Archivo | Motivo |
+|---------|--------|
+| `internal/domain/transfer.go` | Lógica pura de validación + aplicación de transferencia almacén→PDV. |
+| `internal/domain/transfer_test.go` | Casos: OK, stock insuficiente, agregado mismo SKU, producto inactivo, unidad inválida, fallo sin mutar. |
+| `internal/api/ops.go` (`handleTransfers`) | Dos fases; errores con `code`; metadata de transferencia; audit detallado. |
+| `.backend_log/Log.md` | Este bloque. |
+
+### Contrato (sin cambio breaking)
+
+```http
+POST /api/v1/transfers
+{ "unit_id": "...", "lines": [ { "product_id": "...", "qty": 2 } ], "note": "opcional" }
+```
+
+- **201** `{ "transfer": { ... status: "confirmado", lines enriquecidas } }`
+- **400** `{ "error": "stock insuficiente de …", "code": "stock_insufficient" }`
+
+### Contabilidad
+
+La transferencia **no** genera asiento (el producto sigue en inventario del negocio). Sin cambio de ecuación.
+
+### Pruebas
+
+```bash
+go test ./internal/domain/ -run Transfer -count=1
+```
+

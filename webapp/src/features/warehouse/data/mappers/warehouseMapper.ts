@@ -82,10 +82,14 @@ function receptionLineDtoToEntity(dto: ReceptionLineDto): ReceptionLine {
     productId: dto.product_id,
     productCode: dto.product_code || '',
     productName: dto.product_name || '',
-    unit: (dto as { unit?: string }).unit || '',
+    unit: dto.unit || '',
     qty: dto.qty || 0,
     unitCost: dto.unit_cost || 0,
     amount: dto.amount || 0,
+    qtyReceived: dto.qty_received,
+    qtyDamaged: dto.qty_damaged,
+    qtyRejected: dto.qty_rejected,
+    lineStatus: dto.line_status,
   };
 }
 
@@ -177,12 +181,31 @@ export function createReceptionInputToDto(input: CreateReceptionInput): Record<s
 export function enterReceptionInputToDto(input: {
   id: string;
   accept: boolean;
+  abandon?: boolean;
   note?: string;
   reason?: string;
+  lines?: Array<{
+    productId: string;
+    qtyReceived?: number;
+    qtyDamaged?: number;
+    qtyRejected?: number;
+  }>;
 }): Record<string, unknown> {
   const body: Record<string, unknown> = { id: input.id, accept: input.accept };
+  if (input.abandon) {
+    body.abandon = true;
+    body.accept = false;
+  }
   if (input.note) body.note = input.note;
   if (input.reason) body.reason = input.reason;
+  if (input.lines?.length) {
+    body.lines = input.lines.map((l) => ({
+      product_id: l.productId,
+      qty_received: l.qtyReceived ?? 0,
+      qty_damaged: l.qtyDamaged ?? 0,
+      qty_rejected: l.qtyRejected ?? 0,
+    }));
+  }
   return body;
 }
 

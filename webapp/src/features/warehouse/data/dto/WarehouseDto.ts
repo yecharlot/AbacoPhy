@@ -46,9 +46,14 @@ export type ReceptionLineDto = {
   product_id: string;
   product_code?: string;
   product_name?: string;
+  unit?: string;
   qty?: number;
   unit_cost?: number;
   amount?: number;
+  qty_received?: number;
+  qty_damaged?: number;
+  qty_rejected?: number;
+  line_status?: string;
 };
 
 export type ReceptionDto = {

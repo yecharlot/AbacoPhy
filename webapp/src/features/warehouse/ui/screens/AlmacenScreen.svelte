@@ -7,7 +7,10 @@
     transferDemand,
     warehouseInsight,
   } from '../viewmodels/warehouseInsights';
-  import { getReceptionVisualStatus } from '../../domain/entities/Reception';
+  import {
+    getReceptionVisualStatus,
+    type Reception,
+  } from '../../domain/entities/Reception';
 
   export let store: WarehouseStore;
 
@@ -47,6 +50,26 @@
   let multiModalOpen = false;
   let multiError = '';
   let transferNotice = '';
+
+  /** Modal entrada física (P1): cantidades recibidas / dañadas / rechazadas. */
+  type EntryLineDraft = {
+    productId: string;
+    productCode: string;
+    productName: string;
+    unit: string;
+    qtyDeclared: number;
+    unitCost: number;
+    qtyReceived: string;
+    qtyDamaged: string;
+    qtyRejected: string;
+  };
+  let entryModalOpen = false;
+  let entryReceptionId = '';
+  let entryReceptionNumber = '';
+  let entryLines: EntryLineDraft[] = [];
+  let entryNote = '';
+  let entryModalError = '';
+  let entryBusy = false;
 
   function openTransferModal(row: { productId: string; name: string; code: string; qty: number }) {
     if (row.qty <= 0) {
@@ -313,14 +336,77 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
     return health === 'available' ? 'Habilitado' : health === 'low' ? 'Casi agotado' : 'Agotado';
   }
 
-  async function resolveProblem(id: string) {
+  function openEntryModal(reception: Reception) {
+    entryReceptionId = reception.id;
+    entryReceptionNumber = reception.number || reception.id;
+    entryLines = (reception.lines || []).map((ln) => ({
+      productId: ln.productId,
+      productCode: ln.productCode || '',
+      productName: ln.productName || '',
+      unit: ln.unit || '',
+      qtyDeclared: ln.qty,
+      unitCost: ln.unitCost,
+      qtyReceived: String(ln.qty),
+      qtyDamaged: '0',
+      qtyRejected: '0',
+    }));
+    entryNote = '';
+    entryModalError = '';
+    entryBusy = false;
+    entryModalOpen = true;
+  }
+
+  function closeEntryModal() {
+    if (entryBusy) return;
+    entryModalOpen = false;
+    entryModalError = '';
+  }
+
+  function numField(v: string): number {
+    const n = Number(String(v).replace(',', '.'));
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  async function confirmEntryReception() {
+    entryModalError = '';
+    const lines: Array<{ productId: string; qtyReceived: number; qtyDamaged: number; qtyRejected: number }> = [];
+    for (const row of entryLines) {
+      const qtyReceived = numField(row.qtyReceived);
+      const qtyDamaged = numField(row.qtyDamaged);
+      const qtyRejected = numField(row.qtyRejected);
+      if ([qtyReceived, qtyDamaged, qtyRejected].some((n) => !Number.isFinite(n) || n < 0)) {
+        entryModalError = `Cantidades inválidas en ${row.productCode || row.productName || row.productId}`;
+        return;
+      }
+      lines.push({
+        productId: row.productId,
+        qtyReceived,
+        qtyDamaged,
+        qtyRejected,
+      });
+    }
+    if (!lines.some((l) => l.qtyReceived > 0)) {
+      entryModalError = 'Al menos una línea debe tener cantidad recibida > 0';
+      return;
+    }
+    entryBusy = true;
     actionError = '';
     try {
-      await store.enterReception({ id, accept: true, note: 'Problema revisado y entrada resuelta en almacén.' });
+      await store.enterReception({
+        id: entryReceptionId,
+        accept: true,
+        note: entryNote.trim() || undefined,
+        lines,
+      });
+      entryModalOpen = false;
     } catch (error) {
-      actionError = error instanceof Error ? error.message : 'No se pudo resolver la entrada.';
+      entryModalError =
+        error instanceof Error ? error.message : 'No se pudo confirmar la entrada.';
+    } finally {
+      entryBusy = false;
     }
   }
+
 
   let problemTargetId: string | null = null;
   let problemBusy = false;
@@ -471,7 +557,7 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
               <div class="reception-main"><span class="state-dot pending"></span><div><strong>{reception.number}</strong><p>{reception.supplier || 'Proveedor no informado'} · {reception.lines.length} líneas</p></div></div>
               <div class="reception-meta"><span>{reception.date}</span><strong><Money amount={reception.totalCost} currency={reception.currency} /></strong></div>
               <div class="reception-actions">
-                <Button onclick={() => resolveProblem(reception.id)} disabled={state.saving}>Dar entrada</Button>
+                <Button onclick={() => openEntryModal(reception)} disabled={state.saving}>Dar entrada</Button>
                 <Button variant="secondary" onclick={() => requestReportProblem(reception.id)} disabled={state.saving}>Incidencia</Button>
                 <Button variant="secondary" onclick={() => requestAbandonReception(reception.id)} disabled={state.saving}>Abandonar</Button>
               </div>
@@ -482,7 +568,7 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
               <div class="reception-main"><span class="state-dot issue"></span><div><strong>{reception.number}</strong><p>{reception.metadataState?.problemReason || reception.note || 'Incidencia sin detalle'}</p></div></div>
               <div class="reception-meta"><span>Con incidencia</span><strong>{reception.supplier || '—'}</strong></div>
               <div class="reception-actions">
-                <Button onclick={() => resolveProblem(reception.id)} disabled={state.saving}>Resolver</Button>
+                <Button onclick={() => openEntryModal(reception)} disabled={state.saving}>Resolver</Button>
                 <Button variant="secondary" onclick={() => requestReportProblem(reception.id)} disabled={state.saving}>Actualizar incidencia</Button>
                 <Button variant="secondary" onclick={() => requestAbandonReception(reception.id)} disabled={state.saving}>Abandonar</Button>
               </div>
@@ -682,6 +768,67 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
 
 </section>
 
+
+  {#if entryModalOpen}
+    <div class="modal-backdrop" role="presentation" onclick={closeEntryModal}>
+      <div
+        class="modal modal-wide"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="entry-title"
+        onclick={(e) => e.stopPropagation()}
+      >
+        <h3 id="entry-title">Confirmar entrada física</h3>
+        <p class="modal-sub">Informe <strong>{entryReceptionNumber}</strong></p>
+        <p class="modal-hint">
+          Indique lo realmente recibido. Solo la cantidad recibida actualiza stock y costo promedio.
+          Dañado y rechazado no ingresan al almacén.
+        </p>
+        <div class="entry-lines">
+          {#each entryLines as row, i (row.productId + '-' + i)}
+            <div class="entry-line">
+              <div class="entry-line-head">
+                <strong>{row.productName || row.productId}</strong>
+                <span class="muted"
+                  >{row.productCode}{#if row.unit} · {row.unit}{/if} · declarado {row.qtyDeclared}</span
+                >
+              </div>
+              <div class="entry-line-grid">
+                <label class="field">
+                  <span>Recibido</span>
+                  <input type="number" min="0" step="any" bind:value={row.qtyReceived} disabled={entryBusy} />
+                </label>
+                <label class="field">
+                  <span>Dañado</span>
+                  <input type="number" min="0" step="any" bind:value={row.qtyDamaged} disabled={entryBusy} />
+                </label>
+                <label class="field">
+                  <span>Rechazado</span>
+                  <input type="number" min="0" step="any" bind:value={row.qtyRejected} disabled={entryBusy} />
+                </label>
+              </div>
+            </div>
+          {/each}
+        </div>
+        <label class="field">
+          <span>Nota (opcional)</span>
+          <input type="text" bind:value={entryNote} disabled={entryBusy} placeholder="Observaciones de la entrada" />
+        </label>
+        {#if entryModalError}
+          <p class="banner error" role="alert">{entryModalError}</p>
+        {/if}
+        <div class="modal-actions">
+          <Button type="button" onclick={() => void confirmEntryReception()} disabled={entryBusy || state.saving}>
+            {entryBusy ? 'Confirmando…' : 'Confirmar entrada'}
+          </Button>
+          <Button type="button" variant="secondary" onclick={closeEntryModal} disabled={entryBusy}>
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
 <ConfirmDialog
   open={!!abandonTargetId}
   title="Abandonar recepción"
@@ -793,4 +940,36 @@ $: normalizedQuery = query.trim().toLocaleLowerCase();
   .linkish { background: none; border: none; color: var(--accent-cyan, #61e6e1); cursor: pointer; font-size: .75rem; padding: 0; }
   .muted { color: var(--ap-text-muted); }
 
+
+  .entry-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: min(40vh, 320px);
+    overflow-y: auto;
+    margin: 0 0 0.75rem;
+    padding-right: 2px;
+  }
+  .entry-line {
+    border: 1px solid var(--ap-border);
+    border-radius: 10px;
+    padding: 8px 10px;
+    background: var(--ap-bg, transparent);
+  }
+  .entry-line-head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 6px;
+    font-size: 0.88rem;
+  }
+  .entry-line-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .entry-line-grid .field { margin-bottom: 0; }
+  @media (max-width: 520px) {
+    .entry-line-grid { grid-template-columns: 1fr; }
+  }
 </style>

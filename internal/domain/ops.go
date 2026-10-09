@@ -55,7 +55,7 @@ type UnitStock struct {
 // Informe de recepción (módulo desacoplable "recepcion").
 // Flujo: económico registra compra documental → aviso a almacén;
 // almacenero valida físicamente y da entrada o reporta problema.
-// Status: pendiente_entrada | entrado | problemas_entrada | anulado.
+// Status: pendiente_entrada | entrado | problemas_entrada | anulado (abandono definitivo).
 // Estado visual canónico: Metadata int.reception_status.
 type ReceptionNote struct {
 	ID           string          `json:"id"`
@@ -84,10 +84,18 @@ type ReceptionLine struct {
 	ProductCode string  `json:"product_code,omitempty"`
 	ProductName string  `json:"product_name,omitempty"`
 	Unit        string  `json:"unit,omitempty"` // unidad de medida
-	Qty         float64 `json:"qty"`
-	UnitCost    float64 `json:"unit_cost"`
-	Amount      float64 `json:"amount"` // importe línea = qty * unit_cost
-	Metadata   Metadata  `json:"metadata,omitempty"`
+	// Qty / UnitCost / Amount: lo declarado en el Informe de Recepción (documento).
+	Qty      float64 `json:"qty"`
+	UnitCost float64 `json:"unit_cost"`
+	Amount   float64 `json:"amount"` // importe línea declarado = qty * unit_cost
+	// Resultados de la entrada física (solo se rellenan al confirmar en almacén).
+	// QtyReceived es lo que realmente ingresa a stock y alimenta el CPP.
+	QtyReceived float64 `json:"qty_received,omitempty"`
+	QtyDamaged  float64 `json:"qty_damaged,omitempty"`
+	QtyRejected float64 `json:"qty_rejected,omitempty"`
+	// LineStatus: ok | partial | damaged | rejected (tras entrada).
+	LineStatus string   `json:"line_status,omitempty"`
+	Metadata   Metadata `json:"metadata,omitempty"`
 }
 
 // Transferencia almacén → unidad de venta.
