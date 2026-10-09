@@ -6,6 +6,7 @@ import com.elitec.com.feature.identity.data.dto.LoginResponseDto
 import com.elitec.com.feature.identity.data.dto.MeResponseDto
 import com.elitec.com.infraestructure.logging.AbacoLog
 import com.elitec.com.infraestructure.logging.LogCategory
+import com.elitec.com.infraestructure.network.ApiConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
@@ -24,13 +25,9 @@ import kotlinx.serialization.json.jsonPrimitive
 /** Alineado con web AuthRemoteSource: /auth/login, /auth/me, /auth/logout, /auth/password */
 class RemoteAuthDataSource(
     private val http: HttpClient,
-    private val baseUrl: String,
+    private val apiConfig: ApiConfig,
 ) {
-    private fun url(path: String) = baseUrl.trimEnd('/') + path
-
-    init {
-        require(baseUrl.isNotBlank()) { "apiBaseUrl vacío" }
-    }
+    private fun url(path: String) = apiConfig.requireBaseUrl().trimEnd('/') + path
 
     suspend fun login(username: String, password: String): LoginResponseDto {
         val response = http.post(url("/auth/login")) {

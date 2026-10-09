@@ -18,7 +18,7 @@ val catalogModule = module {
     single {
         RemoteCatalogDataSource(
             http = get(),
-            baseUrl = get(named("apiBaseUrl")),
+            apiConfig = get(),
             tokenProvider = get(named("authTokenProvider")),
         )
     }

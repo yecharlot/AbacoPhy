@@ -23,7 +23,7 @@ val salesModule = module {
     single {
         RemoteSalesDataSource(
             http = get(),
-            baseUrl = get(named("apiBaseUrl")),
+            apiConfig = get(),
             tokenProvider = get(named("authTokenProvider")),
         )
     }

@@ -22,7 +22,7 @@ val warehouseModule = module {
     single {
         RemoteWarehouseDataSource(
             http = get(),
-            baseUrl = get(named("apiBaseUrl")),
+            apiConfig = get(),
             tokenProvider = get(named("authTokenProvider")),
         )
     }

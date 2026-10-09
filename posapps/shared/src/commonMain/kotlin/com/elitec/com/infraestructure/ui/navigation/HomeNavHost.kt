@@ -1,5 +1,7 @@
 package com.elitec.com.infraestructure.ui.navigation
 
+import com.elitec.com.feature.settings.ui.screens.SettingsScreen
+
 import abacopos.shared.generated.resources.Res
 import abacopos.shared.generated.resources.abacus_color_icon
 import androidx.compose.animation.AnimatedContent
@@ -93,7 +95,7 @@ private val config = SavedStateConfiguration {
             subclass(InternalRoute.Home::class, InternalRoute.Home.serializer())
             subclass(InternalRoute.Stock::class, InternalRoute.Stock.serializer())
             subclass(InternalRoute.Catalog::class, InternalRoute.Catalog.serializer())
-            //subclass(InternalRoute.Config::class, InternalRoute.Config.serializer())
+            subclass(InternalRoute.Config::class, InternalRoute.Config.serializer())
             subclass(InternalRoute.Statistics::class, InternalRoute.Statistics.serializer())
         }
     }
@@ -123,6 +125,7 @@ private val destinations = listOf(
     NavDestinationUi(InternalRoute.Catalog, "Catálogo", "Catálogo", Icons.Default.Backpack, "Catálogo de productos"),
     NavDestinationUi(InternalRoute.Stock, "Stock", "Stock", Icons.Default.Warehouse, "Stock de productos en punto de venta"),
     NavDestinationUi(InternalRoute.Statistics, "Estadística", "Estadística", Icons.Default.BarChart, "Estadísticas personales"),
+    NavDestinationUi(InternalRoute.Config, "Ajustes", "Ajustes", Icons.Default.Settings, "Tema y servidor"),
 )
 
 /**
@@ -378,6 +381,10 @@ fun HomeContent(
                 CatalogScreen(
                     modifier = Modifier.fillMaxSize()
                 )
+            }
+
+            entry<InternalRoute.Config> {
+                SettingsScreen()
             }
         }
     )
