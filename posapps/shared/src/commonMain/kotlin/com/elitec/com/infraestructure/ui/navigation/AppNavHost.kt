@@ -1,7 +1,9 @@
 package com.elitec.com.infraestructure.ui.navigation
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.elitec.com.feature.identity.domain.entities.SessionControl
 import com.elitec.com.feature.identity.ui.screens.LoginScreen
@@ -21,6 +23,7 @@ import org.koin.compose.viewmodel.koinViewModel
  */
 @Composable
 fun AppNavHost(
+    modifier: Modifier = Modifier,
     sessionVm: SessionViewModel = koinViewModel(),
 ) {
     val logoutViewModel: HomeSessionViewModel = koinViewModel()
@@ -28,12 +31,16 @@ fun AppNavHost(
     val session by sessionVm.sessionState.collectAsStateWithLifecycle()
 
 
-    when (session) {
-        is SessionControl.Reading -> SplashScreen()
-        is SessionControl.NoSession -> LoginScreen()
-        is SessionControl.Active -> HomeNavHost(
-            sessionState = (session as SessionControl.Active).session,
-            onLogout = { logoutViewModel.logout() },
-        )
+    Box(
+        modifier = modifier
+    ) {
+        when (session) {
+            is SessionControl.Reading -> SplashScreen()
+            is SessionControl.NoSession -> LoginScreen()
+            is SessionControl.Active -> HomeNavHost(
+                sessionState = (session as SessionControl.Active).session,
+                onLogout = { logoutViewModel.logout() },
+            )
+        }
     }
 }

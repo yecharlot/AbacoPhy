@@ -1,12 +1,21 @@
 package com.elitec.com.infraestructure.ui.screen
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -16,9 +25,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.RemoveShoppingCart
@@ -28,6 +40,8 @@ import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Store
+import androidx.compose.material.icons.rounded.Inventory2
+import androidx.compose.material.icons.rounded.PointOfSale
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -35,18 +49,24 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.elitec.com.feature.identity.domain.entities.Session
@@ -57,20 +77,29 @@ import com.elitec.com.feature.pos.domain.entities.effectiveTotal
 import com.elitec.com.feature.pos.domain.entities.effectiveSubtotal
 import com.elitec.com.feature.pos.ui.components.NewSaleForm
 import com.elitec.com.feature.pos.ui.components.StockCard
+import com.elitec.com.feature.pos.ui.models.LocalStock
 import com.elitec.com.feature.pos.ui.uiStates.SaleListUiState
 import com.elitec.com.feature.pos.ui.uiStates.StockStates
 import com.elitec.com.feature.pos.ui.viewmodel.SalesViewModel
+import com.gursimar.composive.responsive.core.DeviceConfiguration
+import com.gursimar.composive.responsive.core.rememberDeviceConfiguration
 import com.gursimar.composive.responsive.theme.AppTheme
 import kotlinx.coroutines.delay
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.time.Duration.Companion.milliseconds
 
+/*
 @Composable
 fun MainScreen(
     session: Session,
     modifier: Modifier = Modifier,
     salesVm: SalesViewModel = koinViewModel(),
 ) {
+
+    val deviceConfiguration = rememberDeviceConfiguration()
+
+    val scrollState = rememberScrollState()
+
     val context by salesVm.context.collectAsStateWithLifecycle()
     val salesState by salesVm.salesUiState.collectAsStateWithLifecycle()
     val registerState by salesVm.registerState.collectAsStateWithLifecycle()
@@ -94,13 +123,16 @@ fun MainScreen(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(
-            modifier = Modifier.weight(1.15f).fillMaxHeight(),
+            modifier = Modifier.weight(1.15f).fillMaxHeight().verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
                 "Stock del PDV",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = deviceConfiguration.name
             )
             if (context.error != null) {
                 Text(
@@ -109,34 +141,103 @@ fun MainScreen(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StockCard(
-                    icon = Icons.Default.RemoveShoppingCart,
-                    tittle = "Agotados",
-                    subTittle = "Requieren atención",
-                    stockList = outStock,
-                    stockState = StockStates.OUT,
-                    loading = context.loading,
-                    modifier = Modifier.weight(1f),
-                )
-                StockCard(
-                    icon = Icons.Default.Warning,
-                    tittle = "Casi agotados",
-                    subTittle = "Prevención",
-                    stockList = lowStock,
-                    stockState = StockStates.LOW,
-                    loading = context.loading,
-                    modifier = Modifier.weight(1f),
-                )
-                StockCard(
-                    icon = Icons.Default.CheckCircle,
-                    tittle = "Habilitados",
-                    subTittle = "Disponibles",
-                    stockList = okStock,
-                    stockState = StockStates.OK,
-                    loading = context.loading,
-                    modifier = Modifier.weight(1f),
-                )
+            when (deviceConfiguration) {
+                DeviceConfiguration.MOBILE_PORTRAIT, DeviceConfiguration.TABLET_PORTRAIT -> {
+                    Column (Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        StockCard(
+                            icon = Icons.Default.RemoveShoppingCart,
+                            tittle = "Agotados",
+                            subTittle = "Requieren atención",
+                            stockList = outStock,
+                            stockState = StockStates.OUT,
+                            loading = context.loading,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        StockCard(
+                            icon = Icons.Default.Warning,
+                            tittle = "Casi agotados",
+                            subTittle = "Prevención",
+                            stockList = lowStock,
+                            stockState = StockStates.LOW,
+                            loading = context.loading,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        StockCard(
+                            icon = Icons.Default.CheckCircle,
+                            tittle = "Habilitados",
+                            subTittle = "Disponibles",
+                            stockList = okStock,
+                            stockState = StockStates.OK,
+                            loading = context.loading,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+                DeviceConfiguration.MOBILE_LANDSCAPE -> {
+                    Column (Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row (Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            StockCard(
+                                icon = Icons.Default.RemoveShoppingCart,
+                                tittle = "Agotados",
+                                subTittle = "Requieren atención",
+                                stockList = outStock,
+                                stockState = StockStates.OUT,
+                                loading = context.loading,
+                                modifier = Modifier.weight(1f),
+                            )
+                            StockCard(
+                                icon = Icons.Default.Warning,
+                                tittle = "Casi agotados",
+                                subTittle = "Prevención",
+                                stockList = lowStock,
+                                stockState = StockStates.LOW,
+                                loading = context.loading,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        StockCard(
+                            icon = Icons.Default.CheckCircle,
+                            tittle = "Habilitados",
+                            subTittle = "Disponibles",
+                            stockList = okStock,
+                            stockState = StockStates.OK,
+                            loading = context.loading,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+                DeviceConfiguration.TABLET_LANDSCAPE,DeviceConfiguration.DESKTOP -> {
+                    Row (Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        StockCard(
+                            icon = Icons.Default.RemoveShoppingCart,
+                            tittle = "Agotados",
+                            subTittle = "Requieren atención",
+                            stockList = outStock,
+                            stockState = StockStates.OUT,
+                            loading = context.loading,
+                            modifier = Modifier.weight(1f),
+                        )
+                        StockCard(
+                            icon = Icons.Default.Warning,
+                            tittle = "Casi agotados",
+                            subTittle = "Prevención",
+                            stockList = lowStock,
+                            stockState = StockStates.LOW,
+                            loading = context.loading,
+                            modifier = Modifier.weight(1f),
+                        )
+                        StockCard(
+                            icon = Icons.Default.CheckCircle,
+                            tittle = "Habilitados",
+                            subTittle = "Disponibles",
+                            stockList = okStock,
+                            stockState = StockStates.OK,
+                            loading = context.loading,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+
+                }
             }
 
             Text("Mis ventas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -209,7 +310,268 @@ fun MainScreen(
     selectedSale?.let { sale ->
         SaleDetailDialog(sale = sale, onDismiss = { selectedSale = null })
     }
+}*/
+
+private enum class HomeMode { SINGLE, SPLIT, SPLIT_COMPACT }
+
+@Composable
+fun MainScreen(
+    session: Session,
+    modifier: Modifier = Modifier,
+    salesVm: SalesViewModel = koinViewModel(),
+) {
+    val context by salesVm.context.collectAsStateWithLifecycle()
+    val salesState by salesVm.salesUiState.collectAsStateWithLifecycle()
+    val registerState by salesVm.registerState.collectAsStateWithLifecycle()
+    val assignedUnit by salesVm.assignedUnit.collectAsStateWithLifecycle()
+    val sellerKey by salesVm.sellerKey.collectAsStateWithLifecycle()
+
+    var selectedSale by remember { mutableStateOf<Sale?>(null) }
+    var singleTab by rememberSaveable { mutableIntStateOf(0) } // 0 = inventario, 1 = vender
+
+    LaunchedEffect(session.user.id, session.user.metadata) {
+        salesVm.bindSession(session)
+    }
+
+    val boards = remember(context.unitStocks, context.products, assignedUnit) {
+        salesVm.stockBoards()
+    }
+    val (outStock, lowStock, okStock) = boards
+    val sellerLabel = session.user.displayName.ifBlank { session.user.username }.ifBlank { sellerKey }
+
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        val mode = when {
+            maxWidth < 720.dp -> HomeMode.SINGLE
+            maxHeight < 480.dp -> HomeMode.SPLIT_COMPACT
+            else -> HomeMode.SPLIT
+        }
+
+        val inventory: @Composable (Modifier) -> Unit = { m ->
+            InventoryPane(
+                out = outStock,
+                low = lowStock,
+                ok = okStock,
+                loading = context.loading,
+                error = context.error,
+                compact = mode == HomeMode.SPLIT_COMPACT,
+                salesState = salesState,
+                onSaleClick = { selectedSale = it },
+                modifier = m,
+            )
+        }
+
+        val sale: @Composable (Modifier) -> Unit = { m ->
+            NewSaleForm(
+                assignedUnit = assignedUnit,
+                seller = sellerLabel,
+                products = context.products,
+                stockOf = salesVm::stockOf,
+                registerState = registerState,
+                onSubmit = salesVm::createSale,
+                onClearRegisterState = salesVm::clearRegisterState,
+                modifier = m,
+            )
+        }
+
+        when (mode) {
+            HomeMode.SINGLE -> Column(Modifier.fillMaxSize()) {
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    SegmentedButton(
+                        selected = singleTab == 0,
+                        onClick = { singleTab = 0 },
+                        shape = SegmentedButtonDefaults.itemShape(0, 2),
+                        icon = { Icon(Icons.Rounded.Inventory2, null, Modifier.size(SegmentedButtonDefaults.IconSize)) },
+                        label = { Text("Inventario") },
+                    )
+                    SegmentedButton(
+                        selected = singleTab == 1,
+                        onClick = { singleTab = 1 },
+                        shape = SegmentedButtonDefaults.itemShape(1, 2),
+                        icon = { Icon(Icons.Rounded.PointOfSale, null, Modifier.size(SegmentedButtonDefaults.IconSize)) },
+                        label = { Text("Nueva venta") },
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                AnimatedContent(
+                    targetState = singleTab,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    transitionSpec = {
+                        val dir = if (targetState > initialState) 1 else -1
+                        (slideInHorizontally { it * dir / 5 } + fadeIn()) togetherWith
+                                (slideOutHorizontally { -it * dir / 5 } + fadeOut())
+                    },
+                    label = "homeTab",
+                ) { tab ->
+                    if (tab == 0) inventory(Modifier.fillMaxSize()) else sale(Modifier.fillMaxSize())
+                }
+            }
+
+            HomeMode.SPLIT, HomeMode.SPLIT_COMPACT -> {
+                // El formulario manda: ancho proporcional con tope. El inventario toma el resto.
+                val formWidth = if (mode == HomeMode.SPLIT_COMPACT) maxWidth * 0.54f
+                else (maxWidth * 0.52f).coerceIn(360.dp, 780.dp)
+
+                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    inventory(Modifier.weight(1f).fillMaxHeight())
+                    sale(Modifier.width(formWidth).fillMaxHeight())
+                }
+            }
+        }
+    }
+
+    selectedSale?.let { s ->
+        SaleDetailDialog(sale = s, onDismiss = { selectedSale = null })
+    }
 }
+
+
+@Composable
+private fun InventoryPane(
+    out: List<LocalStock>,
+    low: List<LocalStock>,
+    ok: List<LocalStock>,
+    loading: Boolean,
+    error: String?,
+    compact: Boolean,
+    salesState: SaleListUiState,
+    onSaleClick: (Sale) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = 12.dp),
+    ) {
+        item {
+            Text("Stock del PDV", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        }
+        if (error != null) {
+            item {
+                Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        item {
+            StockSummary(out = out, low = low, ok = ok, loading = loading, compact = compact)
+        }
+        item {
+            Text("Mis ventas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        }
+
+        when (salesState) {
+            is SaleListUiState.Loading -> item {
+                SalesPlaceholder {
+                    CircularProgressIndicator()
+                    Spacer(Modifier.height(8.dp))
+                    Text("Cargando tus ventas…", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            is SaleListUiState.Empty -> item {
+                SalesPlaceholder {
+                    Icon(
+                        Icons.Outlined.ReceiptLong,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(36.dp),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Aún no tienes ventas registradas",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            is SaleListUiState.Error -> item {
+                Text(salesState.message, color = MaterialTheme.colorScheme.error)
+            }
+
+            is SaleListUiState.WithSales -> itemsIndexed(
+                salesState.sales,
+                key = { _, sale -> sale.id },
+            ) { index, sale ->
+                SaleListItem(sale = sale, index = index, onClick = { onSaleClick(sale) })
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun StockSummary(
+    out: List<LocalStock>,
+    low: List<LocalStock>,
+    ok: List<LocalStock>,
+    loading: Boolean,
+    compact: Boolean,
+) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val gap = 10.dp
+        val minCard = 230.dp // ninguna tarjeta baja de este ancho
+
+        val cols = if (compact) 1
+        else ((maxWidth + gap) / (minCard + gap)).toInt().coerceIn(1, 3)
+
+        val listHeight = if (compact) 96.dp else Dp.Unspecified
+
+        val cards: List<@Composable (Modifier) -> Unit> = listOf(
+            { m ->
+                StockCard(
+                    icon = Icons.Default.RemoveShoppingCart,
+                    tittle = "Agotados", subTittle = "Requieren atención",
+                    stockList = out, stockState = StockStates.OUT,
+                    modifier = m, loading = loading,
+                    listHeight = listHeight, compact = compact,
+                )
+            },
+            { m ->
+                StockCard(
+                    icon = Icons.Default.Warning,
+                    tittle = "Casi agotados", subTittle = "Prevención",
+                    stockList = low, stockState = StockStates.LOW,
+                    modifier = m, loading = loading,
+                    listHeight = listHeight, compact = compact,
+                )
+            },
+            { m ->
+                StockCard(
+                    icon = Icons.Default.CheckCircle,
+                    tittle = "Habilitados", subTittle = "Disponibles",
+                    stockList = ok, stockState = StockStates.OK,
+                    modifier = m, loading = loading,
+                    listHeight = listHeight, compact = compact,
+                )
+            },
+        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+            cards.chunked(cols).forEach { rowCards ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                    // Una tarjeta suelta en su fila ocupa todo el ancho (y usa el layout "ancho").
+                    rowCards.forEach { card -> card(Modifier.weight(1f)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SalesPlaceholder(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        tonalElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            Modifier.fillMaxWidth().height(140.dp).padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            content = content,
+        )
+    }
+}
+
 
 @Composable
 private fun SaleListItem(
