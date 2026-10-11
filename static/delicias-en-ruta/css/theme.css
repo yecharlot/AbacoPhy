@@ -1,0 +1,224 @@
+/* Delicias en Ruta — paleta extraída del logo */
+:root {
+  --dr-orange: #e85d04;
+  --dr-orange-deep: #c44900;
+  --dr-gold: #ffb703;
+  --dr-sun: #ffd166;
+  --dr-blue: #1b4965;
+  --dr-blue-mid: #5fa8d3;
+  --dr-blue-deep: #0d2137;
+  --dr-green: #2d6a4f;
+  --dr-green-soft: #40916c;
+  --dr-cream: #faf6ef;
+  --dr-foam: #fff8f0;
+  --dr-text: #1a1a1a;
+  --dr-muted: #5c6b73;
+  --dr-border: rgba(27, 73, 101, 0.15);
+  --dr-sidebar-w: 260px;
+  --dr-radius: 14px;
+  --dr-font: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; font-family: var(--dr-font); color: var(--dr-text); }
+body {
+  background:
+    radial-gradient(ellipse 90% 60% at 10% 0%, rgba(255, 183, 3, 0.25), transparent 50%),
+    radial-gradient(ellipse 70% 50% at 90% 10%, rgba(95, 168, 211, 0.2), transparent 45%),
+    linear-gradient(165deg, var(--dr-cream) 0%, #e8f1f8 40%, #d4e8f0 100%);
+  min-height: 100vh;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: var(--dr-sidebar-w) 1fr;
+  min-height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+  background: linear-gradient(180deg, var(--dr-blue-deep) 0%, var(--dr-blue) 55%, #163a52 100%);
+  color: #eef6fb;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  box-shadow: 4px 0 24px rgba(13, 33, 55, 0.25);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: auto;
+}
+.brand {
+  padding: 20px 16px 12px;
+  text-align: center;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.brand img {
+  width: 120px;
+  height: auto;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.35));
+}
+.brand h1 {
+  margin: 10px 0 2px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--dr-gold);
+}
+.brand p {
+  margin: 0;
+  font-size: 0.7rem;
+  opacity: 0.75;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.nav {
+  padding: 12px 10px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+.nav-group {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.55;
+  padding: 12px 12px 4px;
+}
+.nav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.15s, transform 0.1s;
+}
+.nav button:hover { background: rgba(255,255,255,0.08); }
+.nav button.active {
+  background: linear-gradient(90deg, var(--dr-orange), var(--dr-gold));
+  color: #1a1208;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(232, 93, 4, 0.35);
+}
+.nav .icon { width: 1.25rem; text-align: center; opacity: 0.9; }
+
+.sidebar-foot {
+  padding: 12px 16px 18px;
+  font-size: 0.7rem;
+  opacity: 0.6;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+/* Main */
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: rgba(255, 248, 240, 0.75);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--dr-border);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.topbar h2 { margin: 0; font-size: 1.25rem; color: var(--dr-blue); }
+.topbar .badge {
+  font-size: 0.75rem;
+  background: var(--dr-green);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.content {
+  padding: 20px 24px 40px;
+  flex: 1;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid var(--dr-border);
+  border-radius: var(--dr-radius);
+  padding: 18px;
+  box-shadow: 0 8px 28px rgba(27, 73, 101, 0.08);
+  margin-bottom: 16px;
+}
+.card h3 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  color: var(--dr-blue);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+}
+.kpi {
+  background: linear-gradient(145deg, #fff, var(--dr-foam));
+  border: 1px solid var(--dr-border);
+  border-radius: 12px;
+  padding: 14px;
+}
+.kpi .label { font-size: 0.75rem; color: var(--dr-muted); }
+.kpi .value { font-size: 1.4rem; font-weight: 800; color: var(--dr-orange-deep); margin-top: 4px; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 0;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--dr-orange), var(--dr-gold));
+  color: #1a1208;
+}
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--dr-border);
+  color: var(--dr-blue);
+}
+input, select, textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--dr-border);
+  background: #fff;
+  font: inherit;
+  margin-bottom: 8px;
+}
+label { font-size: 0.8rem; color: var(--dr-muted); display: block; margin-bottom: 4px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--dr-border); }
+th { color: var(--dr-blue); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.muted { color: var(--dr-muted); font-size: 0.85rem; }
+.cid {
+  font-family: ui-monospace, monospace;
+  font-size: 0.7rem;
+  color: var(--dr-blue-mid);
+  word-break: break-all;
+}
+
+@media (max-width: 800px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { height: auto; position: relative; }
+  .nav { flex-direction: row; flex-wrap: wrap; }
+  .nav button { width: auto; }
+}
