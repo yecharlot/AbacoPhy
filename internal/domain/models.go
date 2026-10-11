@@ -39,6 +39,8 @@ type Tenant struct {
 	Settings    map[string]string `json:"settings,omitempty"`
 	EnabledModules   map[string]bool           `json:"enabled_modules,omitempty"`
 	RolePermissions  map[string]map[string]bool `json:"role_permissions,omitempty"`
+	// PermsEpoch se incrementa al cambiar grants de rol o módulos del negocio.
+	PermsEpoch       int64                      `json:"perms_epoch,omitempty"`
 	CreatedAt   time.Time         `json:"created_at"`
 	UpdatedAt   time.Time         `json:"updated_at"`
 	Active      bool              `json:"active"`
@@ -54,8 +56,10 @@ type User struct {
 	PasswordHash string    `json:"password_hash,omitempty"`
 	PinHash      string    `json:"pin_hash,omitempty"`
 	// Modules: permisos explícitos por módulo. Si es nil, se usan los del rol.
-	// Si está definido, solo los true permiten acceso (aunque el rol los tenga).
+	// true concede (incluso fuera del rol); false revoca aunque el rol lo tenga.
 	Modules      map[string]bool `json:"modules,omitempty"`
+	// PermsEpoch se incrementa al cambiar rol o módulos del usuario.
+	PermsEpoch   int64           `json:"perms_epoch,omitempty"`
 	Active       bool      `json:"active"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
@@ -221,21 +225,23 @@ type AuditEntry struct {
 	TenantID  string    `json:"tenant_id"`
 	UserID    string    `json:"user_id"`
 	Username  string    `json:"username,omitempty"`
+	Role      string    `json:"role,omitempty"`
 	Action    string    `json:"action"`
 	Detail    string    `json:"detail"`
 	Ref       string    `json:"ref,omitempty"`
 	CID       string    `json:"cid,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
-	Metadata   Metadata  `json:"metadata,omitempty"`
+	Metadata  Metadata  `json:"metadata,omitempty"`
 }
 
 type BackupMeta struct {
-	CID       string    `json:"cid"`
-	Label     string    `json:"label,omitempty"`
-	Rev       int64     `json:"rev"`
-	UserID    string    `json:"user_id"`
-	Username  string    `json:"username,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	CID        string    `json:"cid"`
+	ContentSHA string    `json:"content_sha,omitempty"` // sha256 hex del snapshot (integridad)
+	Label      string    `json:"label,omitempty"`
+	Rev        int64     `json:"rev"`
+	UserID     string    `json:"user_id"`
+	Username   string    `json:"username,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
 	Metadata   Metadata  `json:"metadata,omitempty"`
 }
 
@@ -267,10 +273,13 @@ type StoreSnapshot struct {
 	MeasureUnits   map[string]*MeasureUnit    `json:"measure_units,omitempty"`
 	PriceSheets     map[string]*PriceSheet     `json:"price_sheets,omitempty"`
 	OnlineOrders    []OnlineOrder              `json:"online_orders,omitempty"`
-	Rev        int64                     `json:"rev"`
-	RootCID    string                    `json:"root_cid,omitempty"`
-	UpdatedAt  time.Time                 `json:"updated_at"`
-	Metadata   Metadata  `json:"metadata,omitempty"`
+	// Idempotency: client_op_id → id de entidad servidor (sync push offline).
+	// Evita duplicar asientos/ventas/facturas al reintentar.
+	Idempotency map[string]string         `json:"idempotency,omitempty"`
+	Rev         int64                     `json:"rev"`
+	RootCID     string                    `json:"root_cid,omitempty"`
+	UpdatedAt   time.Time                 `json:"updated_at"`
+	Metadata    Metadata                  `json:"metadata,omitempty"`
 }
 
 type JobPosition struct {
@@ -289,5 +298,8 @@ type TokenSession struct {
 	TenantID  string    `json:"tenant_id"`
 	Role      string    `json:"role"`
 	ExpiresAt time.Time `json:"expires_at"`
+	// PermsEpoch: snapshot de permisos al emitir el token. Si el tenant/usuario
+	// incrementa su epoch, la sesión se invalida (403/401 en el siguiente request).
+	PermsEpoch int64     `json:"perms_epoch,omitempty"`
 	Metadata   Metadata  `json:"metadata,omitempty"`
 }

@@ -40,6 +40,8 @@ export type ModulesResponseDto = {
 export type UpdateModulesResponseDto = {
   ok?: boolean;
   modules?: Record<string, boolean> | null;
+  sessions_revoked?: number;
+  perms_epoch?: number;
 };
 
 export type UserDto = {
@@ -60,6 +62,8 @@ export type UsersResponseDto = {
 export type UserResponseDto = {
   user?: UserDto;
   views?: string[] | null;
+  sessions_revoked?: number;
+  perms_epoch?: number;
 };
 
 export type RolePermissionsResponseDto = {
@@ -69,4 +73,6 @@ export type RolePermissionsResponseDto = {
 export type UpdateRolePermissionsResponseDto = {
   role?: string;
   permissions?: Record<string, boolean> | null;
+  sessions_revoked?: number;
+  perms_epoch?: number;
 };

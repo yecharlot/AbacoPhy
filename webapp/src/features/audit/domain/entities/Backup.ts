@@ -1,6 +1,6 @@
-/** Salva CID del snapshot del negocio. */
 export type BackupMeta = {
   cid: string;
+  contentSha: string;
   label: string;
   rev: number;
   userId: string;

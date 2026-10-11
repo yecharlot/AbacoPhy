@@ -8,6 +8,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -75,7 +76,7 @@ func (s *Server) handleCurrencies(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "monedas"); err != nil && r.Method != http.MethodGet {
+	if err := s.gateOp(sess, "monedas", r.Method); err != nil && r.Method != http.MethodGet {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -127,7 +128,7 @@ func (s *Server) handleAccountT(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "cuentas_t"); err != nil {
+	if err := s.gateOp(sess, "cuentas_t", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -159,7 +160,7 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "traza"); err != nil {
+	if err := s.gateOp(sess, "traza", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -197,7 +198,7 @@ func (s *Server) handleBackups(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "salvas"); err != nil {
+	if err := s.gateOp(sess, "salvas", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -248,7 +249,7 @@ func (s *Server) handleBackupRestore(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "salvas"); err != nil {
+	if err := s.gateOp(sess, "salvas", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -293,7 +294,7 @@ func (s *Server) handleInventoryOut(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "inventario"); err != nil {
+	if err := s.gateOp(sess, "inventario", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -363,7 +364,7 @@ func (s *Server) handleFinancial(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "reportes"); err != nil {
+	if err := s.gateOp(sess, "reportes", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -557,7 +558,7 @@ func (s *Server) handleReportPDF(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "reportes"); err != nil {
+	if err := s.gateOp(sess, "reportes", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -585,9 +586,17 @@ func (s *Server) handleReportPDF(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
 	sess, err := s.sess(r)
 	if err != nil {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if err := s.gateOp(sess, "salvas", r.Method); err != nil {
+		writeGateError(w, err)
 		return
 	}
 	snap := s.Store.Get(sess.TenantID)
@@ -595,6 +604,14 @@ func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
 		return
 	}
+
+	// Evitar panics que cierran la conexión (Firefox: "No se ha conseguido recuperar")
+	defer func() {
+		if rec := recover(); rec != nil {
+			writeJSON(w, 500, map[string]string{"error": "panic en export: " + toString(rec)})
+		}
+	}()
+
 	raw, err := json.MarshalIndent(snap, "", "  ")
 	if err != nil {
 		writeJSON(w, 500, map[string]string{"error": "no se pudo serializar"})
@@ -604,18 +621,67 @@ func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 	zw := zip.NewWriter(&buf)
 	f, err := zw.Create("abacophy-salva.json")
 	if err != nil {
-		writeJSON(w, 500, map[string]string{"error": "zip"})
+		writeJSON(w, 500, map[string]string{"error": "zip create"})
 		return
 	}
-	_, _ = f.Write(raw)
-	meta, _ := zw.Create("meta.txt")
-	_, _ = meta.Write([]byte("ÁbacoPhy salva\nNegocio: " + snap.Tenant.Name + "\nCID: " + snap.RootCID + "\nRev: " + strconv.FormatInt(int64(snap.Rev), 10) + "\n"))
-	_ = zw.Close()
-	s.audit(snap, sess, "salva.exportacion_zip", "Exportación de salva a ZIP · negocio "+snap.Tenant.Name+" · rev "+strconv.FormatInt(snap.Rev, 10)+" · CID "+snap.RootCID, snap.RootCID)
-	_ = s.Store.Put(snap)
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", "attachment; filename=abacophy-salva.zip")
-	w.Write(buf.Bytes())
+	if _, err := f.Write(raw); err != nil {
+		writeJSON(w, 500, map[string]string{"error": "zip write"})
+		return
+	}
+	if meta, err := zw.Create("meta.txt"); err == nil {
+		_, _ = meta.Write([]byte("AbacoPhy salva\nNegocio: " + snap.Tenant.Name +
+			"\nCID: " + snap.RootCID +
+			"\nRev: " + strconv.FormatInt(snap.Rev, 10) + "\n"))
+	}
+	if err := zw.Close(); err != nil {
+		writeJSON(w, 500, map[string]string{"error": "zip close"})
+		return
+	}
+	out := buf.Bytes()
+
+	// Auditoría best-effort (no debe tumbar el export)
+	func() {
+		defer func() { _ = recover() }()
+		s.audit(snap, sess, "salva.exportacion_zip",
+			"Exportacion ZIP · "+snap.Tenant.Name+" · rev "+strconv.FormatInt(snap.Rev, 10),
+			snap.RootCID)
+		_ = s.Store.Put(snap)
+	}()
+
+	as := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("as")))
+	// Por defecto JSON+base64 (SPA/CORS). Solo ?as=zip entrega binario.
+	if as == "zip" || as == "binary" {
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Disposition", `attachment; filename="abacophy-salva.zip"`)
+		w.Header().Set("Content-Length", strconv.Itoa(len(out)))
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(out)
+		return
+	}
+
+	writeJSON(w, 200, map[string]any{
+		"ok":           true,
+		"filename":     "abacophy-salva.zip",
+		"content_type": "application/zip",
+		"size":         len(out),
+		"rev":          snap.Rev,
+		"root_cid":     snap.RootCID,
+		"data_base64":  base64.StdEncoding.EncodeToString(out),
+	})
+}
+
+func toString(v any) string {
+	if v == nil {
+		return "nil"
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	if e, ok := v.(error); ok {
+		return e.Error()
+	}
+	return fmt.Sprintf("%v", v)
 }
 
 func (s *Server) handleBackupImport(w http.ResponseWriter, r *http.Request) {
@@ -726,7 +792,7 @@ func (s *Server) handleAccountsTAll(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "cuentas_t"); err != nil {
+	if err := s.gateOp(sess, "cuentas_t", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -833,7 +899,7 @@ func (s *Server) handlePayrollPDF(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "nomina"); err != nil {
+	if err := s.gateOp(sess, "nomina", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -1012,7 +1078,7 @@ func (s *Server) handleTrialBalance(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := s.gate(sess, "reportes"); err != nil {
+	if err := s.gateOp(sess, "reportes", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
 		return
 	}
@@ -1097,7 +1163,7 @@ func (s *Server) handleKardex(w http.ResponseWriter, r *http.Request) {
 	role := sess.Role
 	if role != domain.RoleAlmacenero && role != domain.RoleContador && role != domain.RoleAdmin &&
 		role != domain.RoleMaster && role != domain.RoleEconomico {
-		if err := s.gate(sess, "almacen"); err != nil {
+		if err := s.gateOp(sess, "almacen", r.Method); err != nil {
 			writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 			return
 		}
@@ -1148,7 +1214,7 @@ func (s *Server) handleInventoryAdjust(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 403, map[string]string{"error": "solo almacenero o administración pueden ajustar stock"})
 		return
 	}
-	if err := s.gate(sess, "almacen"); err != nil && sess.Role != domain.RoleAdmin && sess.Role != domain.RoleMaster {
+	if err := s.gateOp(sess, "almacen", r.Method); err != nil && sess.Role != domain.RoleAdmin && sess.Role != domain.RoleMaster {
 		writeJSON(w, 403, map[string]string{"error": "módulo almacén no disponible"})
 		return
 	}

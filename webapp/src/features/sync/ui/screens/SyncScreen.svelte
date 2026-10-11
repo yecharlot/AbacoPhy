@@ -19,8 +19,9 @@
 <Card>
   <h2 style="margin-top:0">Sincronización</h2>
   <p class="muted">
-    Cola offline local. Al recuperar red, empuja operaciones pendientes a
-    <code>POST /sync/push</code>.
+    Cola offline local. Al recuperar red, empuja con
+    <code>client_rev</code> e idempotencia (<code>client_op_id</code>).
+    Si hay conflicto (409), haga pull y reintente; use forzar solo si conoce el riesgo.
   </p>
 
   <div class="stats">
@@ -48,18 +49,25 @@
   <div class="actions">
     <Button
       disabled={!state.online || state.status === 'syncing'}
-      on:click={() => store.push()}
+      onclick={() => store.push(false)}
     >
       {state.status === 'syncing' ? 'Sincronizando…' : 'Empujar cola'}
     </Button>
     <Button
       variant="secondary"
       disabled={!state.online || state.status === 'syncing'}
-      on:click={() => store.pull()}
+      onclick={() => store.pull(false)}
     >
-      Descargar snapshot
+      Descargar / comprobar (pull)
     </Button>
-    <Button variant="secondary" on:click={() => store.refresh()}>Actualizar lista</Button>
+    <Button
+      variant="ghost"
+      disabled={!state.online || state.status === 'syncing'}
+      onclick={() => store.push(true)}
+    >
+      Forzar push
+    </Button>
+    <Button variant="secondary" onclick={() => store.refresh()}>Actualizar lista</Button>
   </div>
 </Card>
 

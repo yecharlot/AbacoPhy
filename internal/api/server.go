@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -128,13 +129,45 @@ func (s *Server) sess(r *http.Request) (*domain.TokenSession, error) {
 	return auth.SessionFromRequest(s.Store, r.Header.Get("Authorization"))
 }
 
-// gate: rol + módulos del negocio + módulos del usuario.
+// gate: lectura — rol + módulos del negocio + grants del usuario.
 func (s *Server) gate(sess *domain.TokenSession, view string) error {
 	if sess == nil {
 		return auth.ErrUnauthorized
 	}
 	snap := s.Store.Get(sess.TenantID)
 	return auth.RequireAccess(snap, sess, view)
+}
+
+// gateWrite: mutación (POST/PUT/PATCH/DELETE) — permisos reales de escritura.
+// RoleReadonly y usuarios sin grant del módulo reciben 403.
+func (s *Server) gateWrite(sess *domain.TokenSession, view string) error {
+	if sess == nil {
+		return auth.ErrUnauthorized
+	}
+	snap := s.Store.Get(sess.TenantID)
+	return auth.RequireMutate(snap, sess, view)
+}
+
+// writeGateError responde 401/403 con mensaje accionable.
+func writeGateError(w http.ResponseWriter, err error) {
+	if err == auth.ErrUnauthorized {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado", "code": "unauthorized"})
+		return
+	}
+	writeJSON(w, 403, map[string]string{
+		"error": "sin permiso para esta operación",
+		"code":  "forbidden",
+	})
+}
+
+// gateOp: GET/HEAD → gate (lectura); resto de métodos → gateWrite (mutación).
+func (s *Server) gateOp(sess *domain.TokenSession, view, method string) error {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return s.gate(sess, view)
+	default:
+		return s.gateWrite(sess, view)
+	}
 }
 
 func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
@@ -169,6 +202,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := s.Store.Get(tok.TenantID)
+	if snap != nil {
+		s.audit(snap, tok, "auth.login", "Inicio de sesión «"+user.Username+"» · rol "+user.Role, user.ID)
+		_ = s.Store.Put(snap)
+	}
 	writeJSON(w, 200, map[string]any{
 		"token":      tok.Token,
 		"expires_at": tok.ExpiresAt,
@@ -255,6 +292,11 @@ func modulesPayload(snap *domain.StoreSnapshot) map[string]bool {
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	sess, err := s.sess(r)
 	if err == nil {
+		snap := s.Store.Get(sess.TenantID)
+		if snap != nil {
+			s.audit(snap, sess, "auth.logout", "Cierre de sesión", sess.UserID)
+			_ = s.Store.Put(snap)
+		}
 		s.Store.RevokeToken(sess.Token)
 	}
 	writeJSON(w, 200, map[string]bool{"ok": true})
@@ -301,7 +343,7 @@ func (s *Server) handleTenant(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := s.gate(sess, "tenant"); err != nil {
+	if err := s.gateOp(sess, "tenant", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
 		return
 	}
@@ -372,8 +414,8 @@ func (s *Server) handleAccounts(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case http.MethodGet:
-		if err := s.gate(sess, "cuentas"); err != nil {
-			if err2 := s.gate(sess, "reportes"); err2 != nil {
+		if err := s.gateOp(sess, "cuentas", r.Method); err != nil {
+			if err2 := s.gateOp(sess, "reportes", r.Method); err2 != nil {
 				writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 				return
 			}
@@ -386,7 +428,7 @@ func (s *Server) handleAccounts(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, 200, map[string]any{"accounts": list, "rev": snap.Rev, "ecuacion": domain.EquationSnapshot(snap)})
 	case http.MethodPost:
-		if err := s.gate(sess, "cuentas"); err != nil {
+		if err := s.gateOp(sess, "cuentas", r.Method); err != nil {
 			writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 			return
 		}
@@ -408,7 +450,7 @@ func (s *Server) handleAccounts(w http.ResponseWriter, r *http.Request) {
 		_ = s.Store.Put(snap)
 		writeJSON(w, 201, body)
 	case http.MethodPut, http.MethodPatch:
-		if err := s.gate(sess, "cuentas"); err != nil {
+		if err := s.gateOp(sess, "cuentas", r.Method); err != nil {
 			writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 			return
 		}
@@ -442,7 +484,7 @@ func (s *Server) handleAccounts(w http.ResponseWriter, r *http.Request) {
 		_ = s.Store.Put(snap)
 		writeJSON(w, 200, acc)
 	case http.MethodDelete:
-		if err := s.gate(sess, "cuentas"); err != nil {
+		if err := s.gateOp(sess, "cuentas", r.Method); err != nil {
 			writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 			return
 		}
@@ -559,7 +601,7 @@ func (s *Server) handleInventory(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "inventario"); err != nil {
+	if err := s.gateOp(sess, "inventario", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -692,7 +734,7 @@ func (s *Server) handleEmployees(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "nomina"); err != nil {
+	if err := s.gateOp(sess, "nomina", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -820,7 +862,7 @@ func (s *Server) handlePayslips(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "nomina"); err != nil {
+	if err := s.gateOp(sess, "nomina", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -915,7 +957,7 @@ func (s *Server) handleInvoices(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := s.gate(sess, "facturas"); err != nil {
+	if err := s.gateOp(sess, "facturas", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
 		return
 	}
@@ -982,8 +1024,12 @@ func (s *Server) handleSync(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := s.gate(sess, "sync"); err != nil {
+	if err := s.gateOp(sess, "sync", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
 		return
 	}
 	snap := s.Store.Get(sess.TenantID)
@@ -991,9 +1037,27 @@ func (s *Server) handleSync(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 404, map[string]string{"error": "not found"})
 		return
 	}
-	// Pull completo del tenant (cliente offline aplica delta por rev)
+	q := r.URL.Query()
+	// Pull: si since_rev == server.Rev → uptodate (sin snapshot completo)
+	if sr := q.Get("since_rev"); sr != "" {
+		var since int64
+		fmt.Sscanf(sr, "%d", &since)
+		if since == snap.Rev {
+			writeJSON(w, 200, map[string]any{
+				"uptodate":    true,
+				"rev":         snap.Rev,
+				"root_cid":    snap.RootCID,
+				"server_time": time.Now().UTC(),
+			})
+			return
+		}
+	}
 	writeJSON(w, 200, map[string]any{
-		"rev": snap.Rev, "root_cid": snap.RootCID, "snapshot": snap, "server_time": time.Now().UTC(),
+		"uptodate":    false,
+		"rev":         snap.Rev,
+		"root_cid":    snap.RootCID,
+		"snapshot":    snap,
+		"server_time": time.Now().UTC(),
 	})
 }
 
@@ -1007,15 +1071,18 @@ func (s *Server) handleSyncPush(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := s.gate(sess, "sync"); err != nil {
+	if err := s.gateOp(sess, "sync", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
 		return
 	}
 	var body struct {
-		Entries   []domain.Entry         `json:"entries"`
-		Invoices  []domain.Invoice       `json:"invoices"`
-		Inventory []domain.InventoryItem `json:"inventory"`
-		ClientRev int64                  `json:"client_rev"`
+		Entries     []domain.Entry         `json:"entries"`
+		Invoices    []domain.Invoice       `json:"invoices"`
+		Inventory   []domain.InventoryItem `json:"inventory"`
+		POSSales    []domain.POSSale       `json:"pos_sales"`
+		ClientRev   int64                  `json:"client_rev"`
+		BatchOpID   string                 `json:"client_op_id"`
+		Force       bool                   `json:"force"`
 	}
 	if err := readJSON(r, &body); err != nil {
 		writeJSON(w, 400, map[string]string{"error": "bad json"})
@@ -1026,32 +1093,157 @@ func (s *Server) handleSyncPush(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 404, map[string]string{"error": "not found"})
 		return
 	}
-	for _, e := range body.Entries {
-		e.ID = uuid.NewString()
-		e.TenantID = sess.TenantID
-		e.CreatedBy = sess.UserID
-		e.CreatedAt = time.Now().UTC()
-		snap.Entries = append(snap.Entries, e)
+	if err := domain.CheckSyncBase(snap.Rev, body.ClientRev, body.Force, snap.RootCID); err != nil {
+		if ce, ok := err.(*domain.SyncConflictError); ok {
+			writeJSON(w, 409, map[string]any{
+				"error":      ce.Error(),
+				"code":       "sync_conflict",
+				"server_rev": ce.ServerRev,
+				"root_cid":   ce.RootCID,
+			})
+			return
+		}
+		writeJSON(w, 409, map[string]string{"error": err.Error(), "code": "sync_conflict"})
+		return
 	}
+	// Idempotencia de lote completo
+	if body.BatchOpID != "" {
+		if sid, ok := domain.LookupIdempotent(snap, "batch:"+body.BatchOpID); ok {
+			writeJSON(w, 200, map[string]any{
+				"ok": true, "idempotent": true, "batch_id": sid,
+				"rev": snap.Rev, "root_cid": snap.RootCID,
+				"applied": map[string]int{"entries": 0, "invoices": 0, "inventory": 0, "pos_sales": 0},
+				"skipped": map[string]int{"batch": 1},
+			})
+			return
+		}
+	}
+
+	now := time.Now().UTC()
+	applied := map[string]int{"entries": 0, "invoices": 0, "inventory": 0, "pos_sales": 0}
+	skipped := map[string]int{"entries": 0, "invoices": 0, "inventory": 0, "pos_sales": 0}
+
+	for _, e := range body.Entries {
+		opID := domain.ClientOpIDFromMeta(e.Metadata)
+		if opID == "" && e.ID != "" {
+			opID = "entry:" + e.ID
+		}
+		if opID != "" {
+			if _, ok := domain.LookupIdempotent(snap, opID); ok {
+				skipped["entries"]++
+				continue
+			}
+		}
+		if e.ID == "" {
+			e.ID = uuid.NewString()
+		}
+		domain.StampEntryServer(&e, sess.TenantID, sess.UserID, now)
+		// Aplicar partida doble si hay cuentas; si no, solo append
+		if e.AccountID != "" || e.Type != "" {
+			domain.ApplyDoubleEntry(snap, &e)
+		}
+		snap.Entries = append(snap.Entries, e)
+		if opID != "" {
+			domain.RememberIdempotent(snap, opID, e.ID)
+		}
+		applied["entries"]++
+	}
+
 	for _, inv := range body.Invoices {
-		inv.ID = uuid.NewString()
+		opID := domain.ClientOpIDFromMeta(inv.Metadata)
+		if opID == "" && inv.ID != "" {
+			opID = "invoice:" + inv.ID
+		}
+		if opID != "" {
+			if _, ok := domain.LookupIdempotent(snap, opID); ok {
+				skipped["invoices"]++
+				continue
+			}
+		}
+		if inv.ID == "" {
+			inv.ID = uuid.NewString()
+		}
 		inv.TenantID = sess.TenantID
 		inv.CreatedBy = sess.UserID
-		inv.CreatedAt = time.Now().UTC()
+		inv.CreatedAt = now
 		snap.Invoices = append(snap.Invoices, inv)
+		if opID != "" {
+			domain.RememberIdempotent(snap, opID, inv.ID)
+		}
+		applied["invoices"]++
+	}
+
+	if snap.Inventory == nil {
+		snap.Inventory = map[string]*domain.InventoryItem{}
 	}
 	for _, it := range body.Inventory {
+		opID := domain.ClientOpIDFromMeta(it.Metadata)
+		if opID == "" && it.ID != "" {
+			opID = "inv:" + it.ID
+		}
+		if opID != "" {
+			if sid, ok := domain.LookupIdempotent(snap, opID); ok {
+				// actualización idempotente: reaplicar estado del item
+				_ = sid
+				skipped["inventory"]++
+				continue
+			}
+		}
 		if it.ID == "" {
 			it.ID = uuid.NewString()
 		}
 		it.TenantID = sess.TenantID
-		it.UpdatedAt = time.Now().UTC()
+		it.UpdatedAt = now
 		cp := it
 		snap.Inventory[it.ID] = &cp
+		if opID != "" {
+			domain.RememberIdempotent(snap, opID, it.ID)
+		}
+		applied["inventory"]++
 	}
+
+	for _, sale := range body.POSSales {
+		opID := domain.ClientOpIDFromMeta(sale.Metadata)
+		if opID == "" && sale.ID != "" {
+			opID = "pos:" + sale.ID
+		}
+		if opID != "" {
+			if _, ok := domain.LookupIdempotent(snap, opID); ok {
+				skipped["pos_sales"]++
+				continue
+			}
+		}
+		if sale.ID == "" {
+			sale.ID = uuid.NewString()
+		}
+		sale.TenantID = sess.TenantID
+		if sale.CreatedAt.IsZero() {
+			sale.CreatedAt = now
+		}
+		snap.POSSales = append(snap.POSSales, sale)
+		if opID != "" {
+			domain.RememberIdempotent(snap, opID, sale.ID)
+		}
+		applied["pos_sales"]++
+	}
+
+	if body.BatchOpID != "" {
+		domain.RememberIdempotent(snap, "batch:"+body.BatchOpID, body.BatchOpID)
+	}
+
+	s.audit(snap, sess, "sync.push",
+		fmt.Sprintf("Push offline · entries=%d inv=%d invoices=%d pos=%d skipped_e=%d force=%v",
+			applied["entries"], applied["inventory"], applied["invoices"], applied["pos_sales"],
+			skipped["entries"], body.Force),
+		body.BatchOpID)
 	_ = s.Store.Put(snap)
-	writeJSON(w, 200, map[string]any{"ok": true, "rev": snap.Rev, "root_cid": snap.RootCID})
+	writeJSON(w, 200, map[string]any{
+		"ok": true, "idempotent": false,
+		"rev": snap.Rev, "root_cid": snap.RootCID,
+		"applied": applied, "skipped": skipped,
+	})
 }
+
 
 func (s *Server) handleMasterTenants(w http.ResponseWriter, r *http.Request) {
 	sess, err := s.sess(r)
@@ -1059,7 +1251,7 @@ func (s *Server) handleMasterTenants(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := s.gate(sess, "master"); err != nil {
+	if err := s.gateOp(sess, "master", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
 		return
 	}
@@ -1074,8 +1266,8 @@ func (s *Server) handleReportsSummary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Inicio del panel: basta dashboard (vendedor/almacenero también ven números)
-	if err := s.gate(sess, "dashboard"); err != nil {
-		if err2 := s.gate(sess, "reportes"); err2 != nil {
+	if err := s.gateOp(sess, "dashboard", r.Method); err != nil {
+		if err2 := s.gateOp(sess, "reportes", r.Method); err2 != nil {
 			writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 			return
 		}
@@ -1160,7 +1352,7 @@ func (s *Server) handleMasterCreateTenant(w http.ResponseWriter, r *http.Request
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := s.gate(sess, "master"); err != nil {
+	if err := s.gateOp(sess, "master", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
 		return
 	}
@@ -1225,7 +1417,7 @@ func (s *Server) handleInvoicePDF(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "facturas"); err != nil {
+	if err := s.gateOp(sess, "facturas", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}

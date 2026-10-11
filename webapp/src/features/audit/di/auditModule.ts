@@ -3,6 +3,7 @@ import { AuditRepositoryImpl } from '../data/repositories/AuditRepositoryImpl';
 import {
   CreateBackup,
   ExportBackup,
+  ImportBackup,
   ListAuditTrail,
   ListBackups,
   ListSystemErrors,
@@ -23,6 +24,7 @@ export function createAuditModule(container: AppContainer): AuditModule {
     createBackup: new CreateBackup(repo),
     restoreBackup: new RestoreBackup(repo),
     exportBackup: new ExportBackup(repo),
+    importBackup: new ImportBackup(repo),
     listSystemErrors: new ListSystemErrors(repo),
   });
 

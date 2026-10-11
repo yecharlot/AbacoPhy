@@ -4,6 +4,7 @@ export type AuditEntryDto = {
   id: string;
   user_id?: string;
   username?: string;
+  role?: string;
   action?: string;
   detail?: string;
   ref?: string;
@@ -11,10 +12,27 @@ export type AuditEntryDto = {
   created_at?: string;
 };
 
+export type AuditQueryParams = {
+  action?: string;
+  user_id?: string;
+  username?: string;
+  ref?: string;
+  q?: string;
+  since?: string;
+  until?: string;
+  limit?: number;
+  offset?: number;
+};
+
 export type AuditResponseDto = {
   audit?: AuditEntryDto[] | null;
   count?: number;
+  total?: number;
+  limit?: number;
+  offset?: number;
   root_cid?: string;
+  actions?: string[] | null;
+  filters?: Record<string, string> | null;
 };
 
 export type BackupMetaDto = {
@@ -34,4 +52,12 @@ export type BackupsResponseDto = {
 
 export type ErrorsResponseDto = {
   errors?: AuditEntryDto[] | null;
+};
+
+export type RestoreBackupResponseDto = {
+  ok?: boolean;
+  rev?: number;
+  root_cid?: string;
+  content_sha?: string;
+  integrity?: string;
 };

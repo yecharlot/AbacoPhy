@@ -1448,3 +1448,106 @@ GET/POST /api/v1/entries             (libro único)
 | `internal/api/extra.go` | Mayor, balance, integrity; salida inv sin duplicar |
 | `.backend_log/Log.md` | Este bloque |
 
+
+
+---
+
+## Bloque P6 — Roles / permisos reales (gate por operación + invalidación de sesión)
+
+**Fecha:** 2026-10-09  
+**Rama:** `role-authorization-ui-updates`  
+**Prioridad plan:** 6
+
+### Objetivo
+
+1. **Gate por operación (403):** GET = lectura (`RequireAccess`); POST/PUT/PATCH/DELETE = escritura (`RequireMutate`).
+2. **Grants por rol/usuario:** `RolePermissions` del tenant + `user.Modules` (true concede, false revoca).
+3. **Invalidar token/sesión** cuando cambian permisos de rol, módulos del usuario, baja de usuario o módulos del negocio.
+4. **Permisos reales de mutación:** `RoleReadonly` nunca escribe; el resto requiere acceso efectivo al módulo.
+
+### Cambios
+
+| Pieza | Detalle |
+|-------|---------|
+| `TokenSession.PermsEpoch` | Epoch al emitir login |
+| `Tenant.PermsEpoch` / `User.PermsEpoch` | Se incrementan al cambiar grants |
+| `SessionFromRequest` | Valida usuario activo, rol estable y epoch ≥ efectivo; si no → revoca token (401) |
+| `gate` / `gateWrite` / `gateOp` | Lectura vs mutación |
+| `RevokeUserTokens` / `RevokeRoleTokens` / `RevokeTenantTokens` | Store |
+| PUT `/role-permissions` | Bump tenant epoch + revoca sesiones del rol |
+| PUT usuario / baja | Bump user epoch + revoca sesiones del usuario |
+| PUT `/modules` (master) | Bump tenant + revoca sesiones del tenant |
+
+### Archivos
+
+- `internal/auth/auth.go`, `internal/auth/perms_test.go`
+- `internal/domain/models.go`
+- `internal/store/store.go`
+- `internal/api/server.go`, `ops.go`, `extra.go`, `modules_handlers.go`
+- `.backend_log/Log.md`
+
+
+
+---
+
+## Bloque P7 — Auditoría / traza consultable
+
+**Fecha:** 2026-10-09  
+**Prioridad plan:** 7
+
+### Objetivo
+
+Consulta filtrable en `GET /api/v1/audit` (no solo append opaco); eventos auth; log ampliado.
+
+### API query
+
+`action`, `user_id`, `username`, `ref`, `q`, `since`, `until`, `limit`, `offset`
+
+Respuesta: `audit`, `count`, `total`, `actions[]`, `filters`, `root_cid`
+
+### Dominio
+
+`FilterAuditLog`, `AppendAudit`, tope 2000, `AuditEntry.Role`, `auth.login`/`auth.logout`
+
+### Frontend
+
+Query tipada + TrazaScreen filtros servidor
+
+
+
+---
+
+## Bloque P8 — Backup íntegro + Sync push/pull + conflictos + idempotencia
+
+**Fecha:** 2026-10-09  
+**Prioridad plan:** 8
+
+### Backup / restore
+
+- `BackupMeta.ContentSHA` (sha256 canónico sin RootCID).
+- `Store.Put`: CID estable (hash sin RootCID, re-serializa con CID).
+- Restore/import: `ValidateSnapshotStructure` + verificación `content_sha` vs blob.
+- Respuesta restore: `integrity: ok`, `content_sha`.
+
+### Sync
+
+**GET /api/v1/sync?since_rev=N**
+- Si N == server.Rev → `{uptodate:true, rev, root_cid}` sin snapshot.
+- Si no → pull completo.
+
+**POST /api/v1/sync/push**
+- `client_rev` + `force` → 409 `sync_conflict` si base desactualizada.
+- `client_op_id` de lote e ítems (`metadata.client_op_id`) → no duplica (idempotencia).
+- Acepta entries, invoices, inventory, pos_sales.
+- Respuesta: `applied` / `skipped` counts, `rev`, `root_cid`.
+
+### Dominio
+
+`internal/domain/sync.go`: ContentSHA256, ValidateSnapshotStructure, CheckSyncBase, Remember/LookupIdempotent.
+
+### Archivos
+
+- `internal/domain/sync.go`, `sync_test.go`, `models.go`
+- `internal/store/store.go`
+- `internal/api/server.go`, `extra.go`
+- `.backend_log/Log.md`

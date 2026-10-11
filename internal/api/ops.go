@@ -72,7 +72,7 @@ func (s *Server) handleProducts(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "productos"); err != nil {
+	if err := s.gateOp(sess, "productos", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -201,7 +201,7 @@ func (s *Server) handleSalesUnits(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "unidades"); err != nil {
+	if err := s.gateOp(sess, "unidades", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -285,7 +285,7 @@ func (s *Server) handleWarehouse(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "almacen"); err != nil {
+	if err := s.gateOp(sess, "almacen", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -350,8 +350,8 @@ func (s *Server) handleReceptions(w http.ResponseWriter, r *http.Request) {
 		canRead := sess.Role == domain.RoleEconomico || sess.Role == domain.RoleAlmacenero ||
 			sess.Role == domain.RoleAdmin || sess.Role == domain.RoleMaster || sess.Role == domain.RoleContador
 		if !canRead {
-			if err := s.gate(sess, "recepcion"); err != nil {
-				if err2 := s.gate(sess, "almacen"); err2 != nil {
+			if err := s.gateOp(sess, "recepcion", r.Method); err != nil {
+				if err2 := s.gateOp(sess, "almacen", r.Method); err2 != nil {
 					writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 					return
 				}
@@ -382,7 +382,7 @@ func (s *Server) handleReceptions(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 403, map[string]string{"error": "solo el económico puede registrar informes de recepción"})
 			return
 		}
-		if err := s.gate(sess, "recepcion"); err != nil {
+		if err := s.gateOp(sess, "recepcion", r.Method); err != nil {
 			writeJSON(w, 403, map[string]string{"error": "módulo recepción no disponible"})
 			return
 		}
@@ -485,7 +485,7 @@ func (s *Server) handleReceptionEnter(w http.ResponseWriter, r *http.Request, se
 		writeJSON(w, 403, map[string]string{"error": "solo el almacenero puede dar entrada física"})
 		return
 	}
-	if err := s.gate(sess, "almacen"); err != nil {
+	if err := s.gateOp(sess, "almacen", r.Method); err != nil {
 		if sess.Role != domain.RoleAdmin && sess.Role != domain.RoleMaster {
 			writeJSON(w, 403, map[string]string{"error": "módulo almacén no disponible"})
 			return
@@ -727,7 +727,7 @@ func (s *Server) handleTransfers(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "almacen"); err != nil {
+	if err := s.gateOp(sess, "almacen", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -847,7 +847,7 @@ func (s *Server) handlePOSSales(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "vendedor"); err != nil {
+	if err := s.gateOp(sess, "vendedor", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -1032,7 +1032,7 @@ func (s *Server) handleCostSheets(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "fichas_costo"); err != nil {
+	if err := s.gateOp(sess, "fichas_costo", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -1193,7 +1193,7 @@ func (s *Server) handleJobPositions(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "cargos"); err != nil {
+	if err := s.gateOp(sess, "cargos", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -1331,12 +1331,18 @@ func (s *Server) handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 		}
 		snap.Tenant.RolePermissions[body.Role] = clean
 		snap.Tenant.UpdatedAt = time.Now().UTC()
+		auth.BumpTenantPermsEpoch(snap)
 		s.audit(snap, sess, "permisos.rol.edicion", "Edición de permisos del rol «"+roleLabelES(body.Role)+"»", body.Role)
 		if err := s.Store.Put(snap); err != nil {
 			writeJSON(w, 500, map[string]string{"error": "no se pudieron persistir los permisos del rol: " + err.Error()})
 			return
 		}
-		writeJSON(w, 200, map[string]any{"role": body.Role, "permissions": clean})
+		// Invalidar sesiones del rol: deben re-login con grants nuevos.
+		revoked := s.Store.RevokeRoleTokens(sess.TenantID, body.Role)
+		writeJSON(w, 200, map[string]any{
+			"role": body.Role, "permissions": clean,
+			"sessions_revoked": revoked, "perms_epoch": snap.Tenant.PermsEpoch,
+		})
 	default:
 		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
 	}
@@ -1348,7 +1354,7 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "usuarios"); err != nil {
+	if err := s.gateOp(sess, "usuarios", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -1478,13 +1484,23 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 		if body.Active != nil {
 			u.Active = *body.Active
 		}
+		// Cualquier cambio de rol, módulos o estado invalida sesiones del usuario.
+		if roleChanged || body.Modules != nil || body.Active != nil || body.Password != "" {
+			auth.BumpUserPermsEpoch(u)
+		}
 		u.UpdatedAt = time.Now().UTC()
 		s.audit(snap, sess, "usuario.edicion", "Edición de usuario «"+u.Username+"» · rol «"+roleLabelES(u.Role)+"»", u.ID)
 		if err := s.Store.Put(snap); err != nil {
 			writeJSON(w, 500, map[string]string{"error": "no se pudieron persistir los cambios del usuario: " + err.Error()})
 			return
 		}
-		writeJSON(w, 200, map[string]any{"user": publicUser(snap, u), "views": auth.ViewsForUser(u.Role, snap, u)})
+		revoked := s.Store.RevokeUserTokens(u.ID)
+		writeJSON(w, 200, map[string]any{
+			"user": publicUser(snap, u),
+			"views": auth.ViewsForUser(u.Role, snap, u),
+			"sessions_revoked": revoked,
+			"perms_epoch": u.PermsEpoch,
+		})
 	case http.MethodDelete:
 		id := r.URL.Query().Get("id")
 		u := snap.Users[id]
@@ -1497,10 +1513,12 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		u.Active = false
+		auth.BumpUserPermsEpoch(u)
 		u.UpdatedAt = time.Now().UTC()
 		s.audit(snap, sess, "usuario.baja", "Baja usuario "+u.Username, id)
 		_ = s.Store.Put(snap)
-		writeJSON(w, 200, map[string]any{"ok": true})
+		revoked := s.Store.RevokeUserTokens(u.ID)
+		writeJSON(w, 200, map[string]any{"ok": true, "sessions_revoked": revoked})
 	default:
 		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
 	}

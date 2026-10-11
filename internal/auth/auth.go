@@ -199,12 +199,14 @@ func Login(st *store.Store, username, password string) (*domain.TokenSession, *d
 	if user.TenantID != tenantID {
 		user.TenantID = tenantID
 	}
+	epoch := EffectivePermsEpoch(snap, user)
 	tok := &domain.TokenSession{
-		Token:     NewToken(),
-		UserID:    user.ID,
-		TenantID:  tenantID,
-		Role:      user.Role,
-		ExpiresAt: time.Now().UTC().Add(30 * 24 * time.Hour), // 30 días · sesión durable
+		Token:      NewToken(),
+		UserID:     user.ID,
+		TenantID:   tenantID,
+		Role:       user.Role,
+		ExpiresAt:  time.Now().UTC().Add(30 * 24 * time.Hour), // 30 días · sesión durable
+		PermsEpoch: epoch,
 	}
 	st.SaveToken(tok)
 	return tok, user, nil
@@ -219,7 +221,60 @@ func SessionFromRequest(st *store.Store, authHeader string) (*domain.TokenSessio
 	if sess == nil {
 		return nil, ErrUnauthorized
 	}
+	// Revalidar usuario activo, rol y epoch de permisos (grants actualizados invalidan sesión).
+	snap := st.Get(sess.TenantID)
+	if snap == nil {
+		st.RevokeToken(token)
+		return nil, ErrUnauthorized
+	}
+	user := snap.Users[sess.UserID]
+	if user == nil || !user.Active {
+		st.RevokeToken(token)
+		return nil, ErrUnauthorized
+	}
+	if user.Role != sess.Role {
+		st.RevokeToken(token)
+		return nil, ErrUnauthorized
+	}
+	if sess.PermsEpoch < EffectivePermsEpoch(snap, user) {
+		st.RevokeToken(token)
+		return nil, ErrUnauthorized
+	}
 	return sess, nil
+}
+
+// EffectivePermsEpoch: máximo entre epoch del tenant y del usuario.
+func EffectivePermsEpoch(snap *domain.StoreSnapshot, user *domain.User) int64 {
+	var e int64
+	if snap != nil {
+		e = snap.Tenant.PermsEpoch
+	}
+	if user != nil && user.PermsEpoch > e {
+		e = user.PermsEpoch
+	}
+	return e
+}
+
+// BumpTenantPermsEpoch incrementa el epoch del tenant (cambio de grants de rol / módulos negocio).
+func BumpTenantPermsEpoch(snap *domain.StoreSnapshot) {
+	if snap == nil {
+		return
+	}
+	snap.Tenant.PermsEpoch++
+	if snap.Tenant.PermsEpoch <= 0 {
+		snap.Tenant.PermsEpoch = 1
+	}
+}
+
+// BumpUserPermsEpoch incrementa el epoch del usuario (cambio de rol o modules).
+func BumpUserPermsEpoch(user *domain.User) {
+	if user == nil {
+		return
+	}
+	user.PermsEpoch++
+	if user.PermsEpoch <= 0 {
+		user.PermsEpoch = 1
+	}
 }
 
 func RequireView(sess *domain.TokenSession, view string) error {
@@ -241,6 +296,46 @@ func RequireAccess(snap *domain.StoreSnapshot, sess *domain.TokenSession, view s
 		user = snap.Users[sess.UserID]
 	}
 	if !CanAccessUser(snap, sess.Role, view, user) {
+		return ErrForbidden
+	}
+	return nil
+}
+
+// CanMutate: permiso real de escritura sobre un módulo.
+// - RoleReadonly nunca muta.
+// - Master siempre (si el módulo está habilitado en tenant, salvo master bypass ModuleEnabled).
+// - Resto: debe CanAccessUser; un grant explícito false en user.Modules bloquea.
+func CanMutate(snap *domain.StoreSnapshot, role, view string, user *domain.User) bool {
+	if role == domain.RoleReadonly {
+		return false
+	}
+	if role == domain.RoleMaster {
+		return true
+	}
+	return CanAccessUser(snap, role, view, user)
+}
+
+func CanMutateUser(snap *domain.StoreSnapshot, sess *domain.TokenSession, view string) bool {
+	if sess == nil {
+		return false
+	}
+	var user *domain.User
+	if snap != nil && sess.UserID != "" {
+		user = snap.Users[sess.UserID]
+	}
+	return CanMutate(snap, sess.Role, view, user)
+}
+
+// RequireMutate: 403 si puede ver pero no mutar (p. ej. readonly) o sin grant.
+func RequireMutate(snap *domain.StoreSnapshot, sess *domain.TokenSession, view string) error {
+	if sess == nil {
+		return ErrUnauthorized
+	}
+	var user *domain.User
+	if snap != nil && sess.UserID != "" {
+		user = snap.Users[sess.UserID]
+	}
+	if !CanMutate(snap, sess.Role, view, user) {
 		return ErrForbidden
 	}
 	return nil

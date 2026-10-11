@@ -40,6 +40,10 @@ export function createAppContainer(options: CreateContainerOptions = {}): AppCon
   const http = createHttpClient({
     baseUrl: apiBaseUrl,
     getToken,
+    onUnauthorized: () => {
+      setToken(null);
+      appDataBus.emit('session.expired');
+    },
   });
 
   return { storage, http, getToken, setToken, appDataBus };

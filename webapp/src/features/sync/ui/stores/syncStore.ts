@@ -72,50 +72,79 @@ export function createSyncStore(deps: Deps) {
       await refreshQueue();
       set({ message: 'Guardado en cola offline', error: null });
     },
-    async push(): Promise<void> {
+    async push(force = false): Promise<void> {
       if (!state.online) {
         set({ error: 'Sin conexión: no se puede empujar la cola' });
         return;
       }
       set({ status: 'syncing', error: null, message: null });
       try {
-        const result = await deps.pushQueue.execute();
+        const result = await deps.pushQueue.execute({ force });
         await refreshQueue();
+        if (result.conflict) {
+          set({
+            status: 'error',
+            error:
+              result.message ||
+              'Conflicto: el servidor tiene una revisión más nueva. Descargue snapshot y reintente.',
+            lastRev: result.serverRev ?? result.rev ?? state.lastRev,
+            message: null,
+          });
+          return;
+        }
+        const applied = result.applied
+          ? Object.entries(result.applied)
+              .map(([k, v]) => `${k}:${v}`)
+              .join(' ')
+          : `aceptados ${result.accepted}`;
+        const msg = result.idempotent
+          ? 'Push idempotente (lote ya aplicado). Cola limpia.'
+          : `Push OK · rev ${result.rev} · ${applied}`;
         set({
           status: 'ok',
           lastRev: result.rev,
-          message:
-            result.accepted > 0
-              ? `Sincronizado: ${result.accepted} operación(es)`
-              : 'Cola vacía',
+          message: msg,
+          error: null,
         });
       } catch (err) {
         set({
           status: 'error',
-          error: err instanceof Error ? err.message : 'Error al sincronizar',
+          error: err instanceof Error ? err.message : 'Error al empujar',
         });
       }
     },
-    async pull(): Promise<void> {
+
+    async pull(full = false): Promise<void> {
       if (!state.online) {
         set({ error: 'Sin conexión: no se puede descargar snapshot' });
         return;
       }
       set({ status: 'syncing', error: null, message: null });
       try {
-        const snap = await deps.pullSnapshot.execute();
+        const snap = await deps.pullSnapshot.execute({ full });
+        if (snap.uptodate) {
+          set({
+            status: 'ok',
+            lastRev: snap.rev,
+            message: `Ya está al día (rev ${snap.rev}).`,
+            error: null,
+          });
+          return;
+        }
         set({
           status: 'ok',
           lastRev: snap.rev,
-          message: `Snapshot rev ${snap.rev}`,
+          message: `Snapshot descargado · rev ${snap.rev}`,
+          error: null,
         });
       } catch (err) {
         set({
           status: 'error',
-          error: err instanceof Error ? err.message : 'Error al obtener snapshot',
+          error: err instanceof Error ? err.message : 'Error al descargar',
         });
       }
     },
+
     async refresh(): Promise<void> {
       await refreshQueue();
     },

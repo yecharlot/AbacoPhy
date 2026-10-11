@@ -102,7 +102,10 @@ export class MasterRepositoryImpl implements MasterRepository {
     }
   }
 
-  async updateRolePermissions(role: string, permissions: Record<string, boolean>): Promise<Record<string, boolean>> {
+  async updateRolePermissions(role: string, permissions: Record<string, boolean>): Promise<{
+    permissions: Record<string, boolean>;
+    sessionsRevoked: number;
+  }> {
     try {
       const dto = await this.remote.updateRolePermissions({ role, permissions });
       const saved = dto.permissions || permissions;
@@ -115,7 +118,10 @@ export class MasterRepositoryImpl implements MasterRepository {
           throw new Error('El backend no devolvió los permisos recién guardados del rol.');
         }
       }
-      return saved;
+      return {
+        permissions: saved,
+        sessionsRevoked: Number(dto.sessions_revoked ?? 0),
+      };
     } catch (err) {
       throw new Error(messageOf(err, 'No se pudieron guardar los permisos del rol'));
     }

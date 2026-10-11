@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/yecharlot/AbacoPhy/internal/auth"
 	"github.com/yecharlot/AbacoPhy/internal/domain"
 )
 
@@ -15,8 +16,8 @@ func (s *Server) handleMeasureUnits(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := s.gate(sess, "measure_units"); err != nil {
-		if err2 := s.gate(sess, "nomencladores"); err2 != nil {
+	if err := s.gateOp(sess, "measure_units", r.Method); err != nil {
+		if err2 := s.gateOp(sess, "nomencladores", r.Method); err2 != nil {
 			writeJSON(w, 403, map[string]string{"error": "forbidden"})
 			return
 		}
@@ -122,7 +123,7 @@ func (s *Server) handlePriceSheets(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := s.gate(sess, "fichas_precio"); err != nil {
+	if err := s.gateOp(sess, "fichas_precio", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
 		return
 	}
@@ -275,9 +276,14 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 			}
 			snap.Tenant.EnabledModules[k] = v
 		}
+		auth.BumpTenantPermsEpoch(snap)
 		s.audit(snap, sess, "modules.update", "Actualizó módulos habilitados del negocio", "")
 		_ = s.Store.Put(snap)
-		writeJSON(w, 200, map[string]any{"ok": true, "modules": snap.Tenant.EnabledModules})
+		revoked := s.Store.RevokeTenantTokens(sess.TenantID)
+		writeJSON(w, 200, map[string]any{
+			"ok": true, "modules": snap.Tenant.EnabledModules,
+			"sessions_revoked": revoked, "perms_epoch": snap.Tenant.PermsEpoch,
+		})
 	default:
 		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
 	}
@@ -289,7 +295,7 @@ func (s *Server) handleOnlineOrders(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := s.gate(sess, "pedidos_online"); err != nil {
+	if err := s.gateOp(sess, "pedidos_online", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
 		return
 	}

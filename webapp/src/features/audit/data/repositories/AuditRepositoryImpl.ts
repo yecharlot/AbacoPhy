@@ -1,5 +1,5 @@
 import type { HttpClient } from '../../../../infrastructure/data/http';
-import type { AuditEvent, AuditTrail } from '../../domain/entities/AuditEvent';
+import type { AuditEvent, AuditListQuery, AuditTrail } from '../../domain/entities/AuditEvent';
 import type { BackupMeta, BackupsSnapshot } from '../../domain/entities/Backup';
 import type { AuditRepository } from '../../domain/repositories/AuditRepository';
 import { auditEntryDtoToEntity, backupMetaDtoToEntity } from '../mappers/auditMapper';
@@ -17,12 +17,30 @@ export class AuditRepositoryImpl implements AuditRepository {
     this.remote = new AuditRemoteSource(http);
   }
 
-  async getTrail(): Promise<AuditTrail> {
+  async getTrail(query?: AuditListQuery): Promise<AuditTrail> {
     try {
-      const dto = await this.remote.getAudit();
+      const dto = await this.remote.getAudit(
+        query
+          ? {
+              action: query.action,
+              user_id: query.userId,
+              username: query.username,
+              ref: query.ref,
+              q: query.q,
+              since: query.since,
+              until: query.until,
+              limit: query.limit,
+              offset: query.offset,
+            }
+          : undefined,
+      );
       return {
         events: (dto.audit || []).map(auditEntryDtoToEntity),
         rootCid: dto.root_cid || '',
+        total: dto.total ?? (dto.audit || []).length,
+        limit: dto.limit ?? 0,
+        offset: dto.offset ?? 0,
+        actions: dto.actions || [],
       };
     } catch (err) {
       throw new Error(messageOf(err, 'No se pudo cargar la traza'));
