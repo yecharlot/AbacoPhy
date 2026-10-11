@@ -18,12 +18,20 @@ data class InitialSetupUiState(
     val successMessage: String? = null,
 )
 
+/**
+ * Primera configuración (o reconfiguración forzada).
+ * **Solo persiste la URL si /info o /health responden correctamente.**
+ */
 class InitialSetupViewModel(
     private val settings: AppSettingsRepository,
     private val apiConfig: ApiConfig,
     private val probe: ProbeApiConnection,
 ) : ViewModel() {
-    private val _state = MutableStateFlow(InitialSetupUiState())
+    private val _state = MutableStateFlow(
+        InitialSetupUiState(
+            urlInput = apiConfig.baseUrl.ifBlank { settings.getBaseUrl().orEmpty() },
+        ),
+    )
     val state: StateFlow<InitialSetupUiState> = _state.asStateFlow()
 
     fun onUrlChange(value: String) {
@@ -37,17 +45,28 @@ class InitialSetupViewModel(
             val result = probe.execute(raw)
             result.fold(
                 onSuccess = { normalized ->
+                    // Solo aquí se guarda: health/info OK
                     settings.setBaseUrl(normalized)
                     apiConfig.update(normalized)
                     _state.update {
-                        it.copy(testing = false, successMessage = "Conexión correcta", urlInput = normalized)
+                        it.copy(
+                            testing = false,
+                            successMessage = "Conexión correcta · $normalized",
+                            urlInput = normalized,
+                        )
                     }
                     onConfigured()
                 },
                 onFailure = { e ->
                     _state.update {
-                        it.copy(testing = false, error = e.message ?: "Conexión fallida")
+                        it.copy(
+                            testing = false,
+                            error = e.message
+                                ?: "No se pudo validar el servidor. La URL no se guardó.",
+                            successMessage = null,
+                        )
                     }
+                    // No persistir URL fallida
                 },
             )
         }

@@ -8,8 +8,14 @@ class AndroidAppSettingsRepository(
 ) : AppSettingsRepository {
     private val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    override fun getBaseUrl(): String? =
-        prefs.getString(KEY_BASE_URL, null)?.let { ApiConfig.normalizeBaseUrl(it) }?.takeIf { it.isNotBlank() }
+    override fun getBaseUrl(): String? {
+        val raw = prefs.getString(KEY_BASE_URL, null) ?: return null
+        val normalized = ApiConfig.normalizeBaseUrl(raw).takeIf { it.isNotBlank() } ?: return null
+        if (normalized != raw.trim().trimEnd('/')) {
+            prefs.edit().putString(KEY_BASE_URL, normalized).apply()
+        }
+        return normalized
+    }
 
     override fun setBaseUrl(url: String) {
         prefs.edit().putString(KEY_BASE_URL, ApiConfig.normalizeBaseUrl(url)).apply()

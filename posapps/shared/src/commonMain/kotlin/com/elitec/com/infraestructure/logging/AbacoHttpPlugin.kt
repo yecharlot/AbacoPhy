@@ -7,6 +7,7 @@ import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.http.content.OutgoingContent
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logging
+import com.elitec.com.infraestructure.network.ServerConnectivityBridge
 import kotlin.time.TimeSource
 
 /**
@@ -60,6 +61,11 @@ fun io.ktor.client.HttpClient.installAbacoSendInterceptor() {
                 throwable = t,
                 elapsedMs = mark.elapsedNow().inWholeMilliseconds,
             )
+            // No re-entrar por fallos del propio health/info
+            val path = url.lowercase()
+            if ("/health" !in path && "/info" !in path) {
+                ServerConnectivityBridge.onTransportFailure(url, t)
+            }
             throw t
         }
     }

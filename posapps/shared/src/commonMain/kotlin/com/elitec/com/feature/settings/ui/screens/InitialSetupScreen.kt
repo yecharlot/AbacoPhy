@@ -38,7 +38,7 @@ fun InitialSetupScreen(
     ) {
         Text("Conexión al servidor", style = MaterialTheme.typography.headlineSmall)
         Text(
-            "Indique la URL base de la API de ÁbacoPhy (incluye /api/v1).",
+            "Indique la URL base de la API (ej. http://127.0.0.1:8090 o …/api/v1). Se probará /info y /health antes de guardar; si falla, la URL no se guarda.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp, bottom = 20.dp),

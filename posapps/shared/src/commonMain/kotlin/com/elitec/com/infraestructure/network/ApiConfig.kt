@@ -1,8 +1,11 @@
 package com.elitec.com.infraestructure.network
 
 /**
- * URL base activa en runtime. Mutable sin recrear HttpClient ni Koin.
- * Ejemplo: `http://192.168.1.10:8090/api/v1`
+ * URL base del API REST. Siempre termina en `/api/v1`.
+ *
+ * Entrada → salida:
+ * - `http://127.0.0.1:8090` → `http://127.0.0.1:8090/api/v1`
+ * - `http://127.0.0.1:8090/api/v1/` → `http://127.0.0.1:8090/api/v1`
  */
 class ApiConfig {
     @Volatile
@@ -14,9 +17,13 @@ class ApiConfig {
     fun hasBaseUrl(): Boolean = _baseUrl.isNotBlank()
 
     fun requireBaseUrl(): String {
-        val u = _baseUrl
+        var u = _baseUrl
         require(u.isNotBlank()) { "URL del servidor no configurada" }
-        return u
+        val fixed = ensureApiV1(u)
+        if (fixed != u) {
+            _baseUrl = fixed
+        }
+        return _baseUrl
     }
 
     fun update(url: String) {
@@ -28,12 +35,30 @@ class ApiConfig {
     }
 
     companion object {
-        fun normalizeBaseUrl(raw: String): String {
+        fun normalizeBaseUrl(raw: String): String = ensureApiV1(raw)
+
+        fun ensureApiV1(raw: String): String {
             var u = raw.trim()
-            while (u.endsWith('/')) {
-                u = u.dropLast(1)
+            if (u.isEmpty()) return ""
+            while (u.endsWith('/')) u = u.dropLast(1)
+            val q = u.indexOf('?')
+            if (q >= 0) u = u.substring(0, q)
+            val h = u.indexOf('#')
+            if (h >= 0) u = u.substring(0, h)
+            val lower = u.lowercase()
+            return when {
+                lower.endsWith("/api/v1") -> u
+                lower.endsWith("/api") -> "$u/v1"
+                Regex("""/api/v\d+$""").containsMatchIn(lower) -> u
+                else -> "$u/api/v1"
             }
-            return u
+        }
+
+        /** true si la URL parece host:puerto sin path de API (causa típica del HTML PWA). */
+        fun looksMissingApiPrefix(raw: String): Boolean {
+            val u = raw.trim().trimEnd('/').lowercase()
+            if (u.isEmpty()) return true
+            return !u.contains("/api/")
         }
     }
 }

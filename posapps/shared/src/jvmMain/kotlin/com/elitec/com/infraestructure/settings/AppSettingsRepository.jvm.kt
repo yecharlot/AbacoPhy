@@ -8,7 +8,12 @@ class JvmAppSettingsRepository : AppSettingsRepository {
 
     override fun getBaseUrl(): String? {
         val raw = prefs.get(KEY_BASE_URL, null) ?: return null
-        return ApiConfig.normalizeBaseUrl(raw).takeIf { it.isNotBlank() }
+        val normalized = ApiConfig.normalizeBaseUrl(raw).takeIf { it.isNotBlank() } ?: return null
+        if (normalized != raw.trim().trimEnd('/')) {
+            prefs.put(KEY_BASE_URL, normalized)
+            prefs.flush()
+        }
+        return normalized
     }
 
     override fun setBaseUrl(url: String) {

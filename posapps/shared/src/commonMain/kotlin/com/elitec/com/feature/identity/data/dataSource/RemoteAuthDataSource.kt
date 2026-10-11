@@ -7,6 +7,7 @@ import com.elitec.com.feature.identity.data.dto.MeResponseDto
 import com.elitec.com.infraestructure.logging.AbacoLog
 import com.elitec.com.infraestructure.logging.LogCategory
 import com.elitec.com.infraestructure.network.ApiConfig
+import com.elitec.com.infraestructure.network.ServerConnectivityBridge
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
@@ -27,7 +28,14 @@ class RemoteAuthDataSource(
     private val http: HttpClient,
     private val apiConfig: ApiConfig,
 ) {
-    private fun url(path: String) = apiConfig.requireBaseUrl().trimEnd('/') + path
+    private fun url(path: String): String {
+        val base = ApiConfig.ensureApiV1(apiConfig.requireBaseUrl())
+        if (apiConfig.baseUrl != base) {
+            apiConfig.update(base)
+        }
+        val p = if (path.startsWith("/")) path else "/$path"
+        return base.trimEnd('/') + p
+    }
 
     suspend fun login(username: String, password: String): LoginResponseDto {
         val response = http.post(url("/auth/login")) {
@@ -37,6 +45,19 @@ class RemoteAuthDataSource(
         if (!response.status.isSuccess()) {
             AbacoLog.apiResponse("POST", url("/auth/login"), response.status.value, "login failed")
             error("Usuario o contraseña incorrectos")
+        }
+        val contentType = response.headers["Content-Type"].orEmpty()
+        if (!contentType.contains("json", ignoreCase = true)) {
+            val used = url("/auth/login")
+            val reason =
+                "El servidor devolvió $contentType (HTML/PWA) en lugar de JSON. " +
+                    "La URL base debe incluir /api/v1. Actual: ${apiConfig.baseUrl}"
+            AbacoLog.e(LogCategory.AUTH, reason)
+            ServerConnectivityBridge.onApiMisconfiguration(used, reason)
+            error(
+                "$reason. Use «Cambiar URL» o Configuración para corregirla " +
+                    "(ej. http://127.0.0.1:8090/api/v1).",
+            )
         }
         val dto = response.body<LoginResponseDto>()
         AbacoLog.apiResponse(

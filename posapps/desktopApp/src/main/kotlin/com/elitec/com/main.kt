@@ -1,10 +1,18 @@
 package com.elitec.com
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Surface
+import androidx.compose.material.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -13,7 +21,9 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.elitec.com.infraestructure.di.initKoin
+import com.elitec.com.infraestructure.ui.appThemeConfig.AbacoMaterialExpressiveTheme
 import com.elitec.com.infraestructure.ui.util.getAppLogoPainter
+import javafx.scene.paint.Material
 
 fun main() {
     initKoin()
@@ -32,7 +42,10 @@ fun main() {
             onCloseRequest = ::exitApplication,
             title = "ÁbacoPOS",
         ) {
-            App()
+            AbacoMaterialExpressiveTheme {
+                App()
+            }
         }
     }
 }
+
