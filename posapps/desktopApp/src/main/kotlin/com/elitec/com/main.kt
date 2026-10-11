@@ -23,7 +23,6 @@ import androidx.compose.ui.window.rememberWindowState
 import com.elitec.com.infraestructure.di.initKoin
 import com.elitec.com.infraestructure.ui.appThemeConfig.AbacoMaterialExpressiveTheme
 import com.elitec.com.infraestructure.ui.util.getAppLogoPainter
-import javafx.scene.paint.Material
 
 fun main() {
     initKoin()
