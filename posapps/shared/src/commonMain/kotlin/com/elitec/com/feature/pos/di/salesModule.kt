@@ -9,6 +9,7 @@ import com.elitec.com.feature.pos.domain.caseuse.ListSalesCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.LoadPosSnapshotCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.ObserveSalesFlowCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.RegisterSaleCaseUse
+import com.elitec.com.feature.pos.domain.caseuse.SyncSaleOutboxOneShot
 import com.elitec.com.feature.pos.domain.repository.SalesRepository
 import com.elitec.com.feature.pos.ui.viewmodel.PosOrderViewModel
 import com.elitec.com.feature.pos.ui.viewmodel.SalesViewModel
@@ -32,7 +33,21 @@ val salesModule = module {
     factory { ListSalesCaseUse(get()) }
     factory { ListSalesByPOSCaseUse(get()) }
     factory { ObserveSalesFlowCaseUse(get()) }
-    factory { RegisterSaleCaseUse(get()) }
+    factory {
+        SyncSaleOutboxOneShot(
+            repository = get(),
+            markInFlight = get(),
+            markConfirmed = get(),
+            markRejected = get(),
+            markFailedRetry = get(),
+        )
+    }
+    factory {
+        RegisterSaleCaseUse(
+            enqueue = get(),
+            syncOneShot = get(),
+        )
+    }
     factory { GetSaleByIdCaseUse(get()) }
     factory { LoadPosSnapshotCaseUse(get(), get(), get()) }
 

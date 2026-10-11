@@ -2,6 +2,7 @@ package com.elitec.com.infraestructure.di
 
 import com.elitec.com.feature.catalog.di.catalogModule
 import com.elitec.com.feature.identity.di.identityModule
+import com.elitec.com.feature.outbox.di.outboxModule
 import com.elitec.com.feature.pos.di.salesModule
 import com.elitec.com.feature.settings.di.settingsModule
 import com.elitec.com.feature.stats.di.statsModule
@@ -19,6 +20,7 @@ fun posAppModules(): List<Module> = listOf(
     catalogModule,
     warehouseModule,
     salesModule,
+    outboxModule,
     statsModule,
 )
 
