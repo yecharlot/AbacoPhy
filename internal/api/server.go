@@ -92,7 +92,17 @@ func (s *Server) Handler() http.Handler {
 		w.Header().Set("Content-Type", "image/svg+xml")
 		http.ServeFile(w, r, filepath.Join(s.StaticDir, "favicon.svg"))
 	})
-	mux.HandleFunc("/", s.servePWA)
+	mux.Handle("/delicias-en-ruta/", http.StripPrefix("/delicias-en-ruta/", http.FileServer(http.Dir(filepath.Join(s.StaticDir, "delicias-en-ruta")))))
+	// Home opcional: DELICIAS_HOME=1 sirve la UI Delicias en /
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if os.Getenv("DELICIAS_HOME") == "1" || os.Getenv("DELICIAS_HOME") == "true" {
+			if r.URL.Path == "/" || r.URL.Path == "" {
+				http.Redirect(w, r, "/delicias-en-ruta/", http.StatusFound)
+				return
+			}
+		}
+		s.servePWA(w, r)
+	})
 
 	s.registerOpsRoutes(mux)
 	return withCORS(mux)

@@ -1,17 +1,25 @@
-/** Domain entities — Delicias en Ruta / AbacoPhy modules */
 export function createEmptyState() {
   return {
-    tenant: {
-      name: 'Delicias en Ruta Pp',
-      slogan: 'Gastronomía · Calidad · Sostenibilidad',
-      activity: 'Servicios gastronómicos, cafetería y servicio móvil de comidas',
-    },
+    mode: 'local', // local | online
+    online: false,
+    tenant: { name: 'Delicias en Ruta', slogan: 'Gastronomía · Calidad · Sostenibilidad' },
     kpis: { ingresos: 0, gastos: 0, pedidos: 0, stock: 0 },
     ingresos: [],
     gastos: [],
     productos: [],
     pedidos: [],
     empleados: [],
-    meta: { lastCid: null, updatedAt: null },
+    accounts: [],
+    entries: [],
+    inventory: [],
+    invoices: [],
+    payslips: [],
+    receptions: [],
+    warehouse: [],
+    costSheets: [],
+    onlineOrders: [],
+    users: [],
+    salesUnits: [],
+    meta: {},
   };
 }

@@ -222,3 +222,12 @@ th { color: var(--dr-blue); font-size: 0.75rem; text-transform: uppercase; lette
   .nav { flex-direction: row; flex-wrap: wrap; }
   .nav button { width: auto; }
 }
+
+.form-card .form-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.form-card input { padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.2); color: inherit; }
+.btn, .btn-ghost { cursor: pointer; border-radius: 8px; padding: 8px 14px; font-weight: 600; }
+.btn { background: #f4a261; border: 0; color: #1b1b1b; }
+.btn-ghost { background: transparent; border: 1px solid rgba(255,255,255,.2); color: inherit; font-size: 12px; }
+.table-wrap { overflow: auto; }
+.table-wrap table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table-wrap th, .table-wrap td { text-align: left; padding: 8px 6px; border-bottom: 1px solid rgba(255,255,255,.08); }

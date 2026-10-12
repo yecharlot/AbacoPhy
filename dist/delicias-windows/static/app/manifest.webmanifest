@@ -1,0 +1,12 @@
+{
+  "name": "ÁbacoPhy",
+  "short_name": "ÁbacoPhy",
+  "description": "Sistema Contable para Negocios",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F7F4EC",
+  "theme_color": "#F4B400",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
