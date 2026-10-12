@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.elitec.com.feature.identity.domain.entities.SessionControl
 import com.elitec.com.feature.identity.domain.repository.SessionRepository
 import com.elitec.com.feature.pos.data.sync.OutboxSyncWorker
+import com.elitec.com.feature.pos.data.sync.PosRealtimeSync
 import com.elitec.com.infraestructure.network.ServerEventStream
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -17,6 +18,7 @@ class OutboxSyncViewModel(
     private val worker: OutboxSyncWorker,
     private val eventStream: ServerEventStream,
     private val sessions: SessionRepository,
+    private val realtimeSync: PosRealtimeSync,
 ) : ViewModel() {
 
     val uiStatus: StateFlow<OutboxSyncWorker.UiStatus> = worker.uiStatus
@@ -27,8 +29,14 @@ class OutboxSyncViewModel(
         viewModelScope.launch {
             sessions.sessionState.collect { state ->
                 when (state) {
-                    is SessionControl.Active -> eventStream.start()
-                    else -> eventStream.stop()
+                    is SessionControl.Active -> {
+                        eventStream.start()
+                        realtimeSync.start()
+                    }
+                    else -> {
+                        realtimeSync.stop()
+                        eventStream.stop()
+                    }
                 }
             }
         }
@@ -39,6 +47,7 @@ class OutboxSyncViewModel(
     fun dismissSyncFinished() = worker.dismissSyncFinished()
 
     override fun onCleared() {
+        realtimeSync.stop()
         eventStream.stop()
         super.onCleared()
     }

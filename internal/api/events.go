@@ -9,14 +9,12 @@ import (
 
 // handleEvents — Server-Sent Events (text/event-stream).
 //
-// Uso POS offline-first:
-//   - El cliente mantiene una conexión larga; al restablecerse tras un corte
-//     sabe que el backend está vivo sin polling de negocio.
-//   - Keepalive periódico mantiene proxies abiertos.
-//   - event:connected al abrir; event:ping en keepalive.
-//   - Futuro: sale.confirmed, stock.updated, notify.* (mismo canal).
+// Canal largo por tenant:
+//   - connected / ping (keepalive)
+//   - stock.transfer — transferencia almacén → PDV (desde web admin)
+//   - inventory.updated — alias genérico de cambio de inventario
 //
-// Auth: Bearer igual que el resto de /api/v1.
+// El cliente POS filtra por unitId y refresca stock + caché local.
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeJSON(w, 405, map[string]string{"error": "método no permitido"})
@@ -62,6 +60,14 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		"ts":       time.Now().UTC().Format(time.RFC3339),
 	})
 
+	hub := s.Hub
+	if hub == nil {
+		hub = NewEventHub()
+		s.Hub = hub
+	}
+	ch := hub.Subscribe(sess.TenantID)
+	defer hub.Unsubscribe(sess.TenantID, ch)
+
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
@@ -70,10 +76,14 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
-			// comentario SSE = keepalive (no es evento de app)
 			fmt.Fprintf(w, ": keepalive %s\n\n", time.Now().UTC().Format(time.RFC3339))
 			flusher.Flush()
 			writeSSE("ping", map[string]any{"ts": time.Now().UTC().Format(time.RFC3339)})
+		case ev, ok := <-ch:
+			if !ok {
+				return
+			}
+			writeSSE(ev.Event, ev.Data)
 		}
 	}
 }

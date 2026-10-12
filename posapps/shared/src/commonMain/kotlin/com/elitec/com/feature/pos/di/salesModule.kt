@@ -4,6 +4,7 @@ import com.elitec.com.feature.pos.data.dataSource.LocalSalesDataSource
 import com.elitec.com.feature.pos.data.dataSource.RemoteSalesDataSource
 import com.elitec.com.feature.pos.data.repository.SaleRepositoryImpl
 import com.elitec.com.feature.pos.data.sync.OutboxSyncWorker
+import com.elitec.com.feature.pos.data.sync.PosRealtimeSync
 import com.elitec.com.feature.pos.domain.caseuse.GetSaleByIdCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.ListSalesByPOSCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.ListSalesCaseUse
@@ -61,6 +62,17 @@ val salesModule = module {
     factory { GetSaleByIdCaseUse(get()) }
     factory { LoadPosSnapshotCaseUse(get(), get(), get()) }
 
+    single {
+        PosRealtimeSync(
+            stream = get(),
+            sessions = get(),
+            warehouse = get(),
+            sales = get(),
+            loadPosSnapshot = get(),
+            syncPending = get(),
+        )
+    }
+
     // Worker de cola: single; start() lo dispara OutboxSyncViewModel.init
     single {
         OutboxSyncWorker(
@@ -80,6 +92,7 @@ val salesModule = module {
             registerSale = get(),
             getSaleById = get(),
             loadPosSnapshot = get(),
+            realtimeSync = get(),
             sessions = get(),
         )
     }
@@ -89,6 +102,7 @@ val salesModule = module {
             worker = get(),
             eventStream = get(),
             sessions = get(),
+            realtimeSync = get(),
         )
     }
 }

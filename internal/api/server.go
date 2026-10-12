@@ -22,10 +22,11 @@ type Server struct {
 	Store     *store.Store
 	StaticDir string
 	AppAlias  string // abacophy.app.ans
+	Hub       *EventHub
 }
 
 func NewServer(st *store.Store, staticDir string) *Server {
-	return &Server{Store: st, StaticDir: staticDir, AppAlias: "abacophy.app.ans"}
+	return &Server{Store: st, StaticDir: staticDir, AppAlias: "abacophy.app.ans", Hub: NewEventHub()}
 }
 
 func (s *Server) Handler() http.Handler {

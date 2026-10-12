@@ -10,6 +10,7 @@ import com.elitec.com.feature.identity.domain.repository.SessionRepository
 import com.elitec.com.feature.pos.domain.caseuse.GetSaleByIdCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.ListSalesByPOSCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.LoadPosSnapshotCaseUse
+import com.elitec.com.feature.pos.data.sync.PosRealtimeSync
 import com.elitec.com.feature.pos.domain.caseuse.ObserveSalesFlowCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.RegisterSaleCaseUse
 import com.elitec.com.feature.pos.domain.entities.CreateSaleInput
@@ -42,6 +43,7 @@ class SalesViewModel(
     private val registerSale: RegisterSaleCaseUse,
     private val getSaleById: GetSaleByIdCaseUse,
     private val loadPosSnapshot: LoadPosSnapshotCaseUse,
+    private val realtimeSync: PosRealtimeSync,
     private val sessions: SessionRepository,
 ) : ViewModel() {
 
@@ -65,6 +67,17 @@ class SalesViewModel(
     val sellerKey: StateFlow<String> = _sellerKey.asStateFlow()
 
     init {
+        // Transferencias web → refresco automático de stock del PDV
+        viewModelScope.launch {
+            realtimeSync.unitStockInvalidated.collect { inv ->
+                AbacoLog.i(
+                    LogCategory.POS,
+                    "[SalesViewModel] stock invalidate reason=${inv.reason} unit=${inv.unitId} tr=${inv.transferNumber}",
+                )
+                refreshAll()
+            }
+        }
+
         observeLocalCache()
         observeAuthenticatedSession()
     }

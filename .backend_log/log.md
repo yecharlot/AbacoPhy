@@ -24,3 +24,19 @@ Los PDV en contextos con cortes largos de red/energía (p.ej. Cuba) deben:
 Se conecta en sesión Active; al abrir stream → markOk + drain outbox.
 Reconexión con backoff exponencial al caer el stream.
 
+## SSE stock.transfer — push a POS tras transferencia web
+
+**Fecha:** 2026-10-12
+
+### Motivo
+Cuando un admin crea una transferencia almacén → punto de venta desde la web, los POS del tenant deben enterarse sin polling y refrescar stock local / cola offline.
+
+### Backend
+- `internal/api/sse_hub.go` — hub in-process por tenant
+- `internal/api/events.go` — suscripción al hub + keepalive
+- `internal/api/ops.go` `handleTransfers` POST éxito → `Publish(stock.transfer)` + `inventory.updated`
+- Payload: `transferId`, `number`, `unitId`, `unitCode`, `unitName`, `lineCount`, `ts`
+
+### Cliente KMP
+`PosRealtimeSync` escucha `stock.transfer` / `inventory.updated`, filtra por `unitId` del vendedor y ejecuta refresh de snapshot POS (stock + ventas caché).
+

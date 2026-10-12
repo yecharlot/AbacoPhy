@@ -835,6 +835,22 @@ func (s *Server) handleTransfers(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("Transferencia %s a unidad %s (%s) · %d líneas · stock validado",
 				body.Number, unit.Code, unit.Name, len(body.Lines)), body.ID)
 		_ = s.Store.Put(snap)
+
+		// Notifica POS conectados (SSE) para refrescar stock del PDV destino
+		if s.Hub != nil {
+			payload := map[string]any{
+				"transferId": body.ID,
+				"number":     body.Number,
+				"unitId":     body.UnitID,
+				"unitCode":   unit.Code,
+				"unitName":   unit.Name,
+				"lineCount":  len(applied),
+				"ts":         time.Now().UTC().Format(time.RFC3339),
+			}
+			s.Hub.Publish(sess.TenantID, "stock.transfer", payload)
+			s.Hub.Publish(sess.TenantID, "inventory.updated", payload)
+		}
+
 		writeJSON(w, 201, map[string]any{"transfer": body})
 	default:
 		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
