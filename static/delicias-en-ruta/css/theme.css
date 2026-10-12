@@ -363,3 +363,26 @@ th { color: var(--dr-blue); font-size: 0.75rem; text-transform: uppercase; lette
 .table-wrap table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .table-wrap th, .table-wrap td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--dr-border); }
 .muted { color: var(--dr-muted); }
+
+/* Reportes tabs */
+.tabs-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.tabs-bar .tab {
+  border: 1px solid var(--dr-border); background: #fff; border-radius: 999px;
+  padding: 6px 12px; cursor: pointer; font-size: 12px; font-weight: 600;
+}
+.tabs-bar .tab.active {
+  background: var(--dr-blue); color: #fff; border-color: var(--dr-blue);
+}
+.equation-card .equation-row {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 12px 0;
+}
+.eq-eq { font-size: 1.5rem; font-weight: 800; color: var(--dr-orange); }
+.eq-right { display: flex; flex-wrap: wrap; gap: 8px; }
+.t-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;
+}
+.t-account h4 { margin: 0 0 8px; font-size: 0.95rem; color: var(--dr-blue); }
+.t-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.t-cols ul { list-style: none; padding: 0; margin: 0; font-size: 12px; }
+.t-cols li { padding: 2px 0; border-bottom: 1px solid var(--dr-border); }
+.perm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; margin: 10px 0; }

@@ -27,6 +27,7 @@ export const NAV = [
     { id: 'traza', label: 'Traza' },
     { id: 'salvas', label: 'Salvas' },
     { id: 'usuarios', label: 'Usuarios' },
+    { id: 'roles', label: 'Roles' },
     { id: 'permisos', label: 'Permisos UI' },
     { id: 'master', label: 'Master' },
   ]},

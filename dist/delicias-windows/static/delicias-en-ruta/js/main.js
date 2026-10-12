@@ -47,6 +47,7 @@ async function paintApp() {
     case 'traza': V.renderTraza(el, eng); break;
     case 'salvas': V.renderSalvas(el, eng, redraw); break;
     case 'usuarios': V.renderUsuarios(el, eng, redraw); break;
+    case 'roles': V.renderRoles(el, eng, redraw); break;
     case 'permisos': V.renderPermisos(el, eng, redraw); break;
     case 'master': V.renderMaster(el, eng, redraw); break;
     default:

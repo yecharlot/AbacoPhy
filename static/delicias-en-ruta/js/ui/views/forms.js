@@ -18,7 +18,8 @@ export function renderIngresos(el, eng, redraw) {
   el.innerHTML = `
     <div class="card form-card">
       <h3>Registrar ingreso</h3>
-      <div class="form-row"><label>Cuenta</label><select id="acc">${accOptions(eng, 'income')}</select></div>
+      <div class="form-row"><label>Cuenta de ingreso</label><select id="acc">${accOptions(eng, 'income')}</select></div>
+      <div class="form-row"><label>Contrapartida (activo)</label><select id="cp">${accOptions(eng, 'asset')}</select></div>
       <div class="form-row"><label>Importe</label><input id="m" type="number" step="0.01" min="0"/></div>
       <div class="form-row"><label>Descripción</label><input id="d" required placeholder="Concepto"/></div>
       <button type="button" class="btn" id="ok">Guardar</button>
@@ -29,6 +30,7 @@ export function renderIngresos(el, eng, redraw) {
         accountId: el.querySelector('#acc').value,
         amount: el.querySelector('#m').value,
         description: el.querySelector('#d').value,
+        counterpart: el.querySelector('#cp')?.value,
       });
       redraw();
     } catch (e) { alert(e.message); }
@@ -41,7 +43,8 @@ export function renderGastos(el, eng, redraw) {
   el.innerHTML = `
     <div class="card form-card">
       <h3>Registrar gasto</h3>
-      <div class="form-row"><label>Cuenta</label><select id="acc">${accOptions(eng, 'expense')}</select></div>
+      <div class="form-row"><label>Cuenta de gasto</label><select id="acc">${accOptions(eng, 'expense')}</select></div>
+      <div class="form-row"><label>Contrapartida (activo)</label><select id="cp">${accOptions(eng, 'asset')}</select></div>
       <div class="form-row"><label>Importe</label><input id="m" type="number" step="0.01" min="0"/></div>
       <div class="form-row"><label>Descripción</label><input id="d" placeholder="Concepto"/></div>
       <button type="button" class="btn" id="ok">Guardar</button>
@@ -52,6 +55,7 @@ export function renderGastos(el, eng, redraw) {
         accountId: el.querySelector('#acc').value,
         amount: el.querySelector('#m').value,
         description: el.querySelector('#d').value,
+        counterpart: el.querySelector('#cp')?.value,
       });
       redraw();
     } catch (e) { alert(e.message); }
@@ -59,51 +63,171 @@ export function renderGastos(el, eng, redraw) {
 }
 
 export function renderCuentas(el, eng, redraw) {
-  const rows = eng.listAccounts().map((a) => [a.code, a.name, a.type, money(a.balance)]);
-  el.innerHTML = `
-    <div class="card form-card">
-      <h3>Nueva cuenta</h3>
-      <div class="form-row"><label>Código</label><input id="code"/></div>
-      <div class="form-row"><label>Nombre</label><input id="name"/></div>
-      <div class="form-row"><label>Tipo</label>
-        <select id="type">
-          <option value="asset">Activo</option><option value="liability">Pasivo</option>
-          <option value="income">Ingreso</option><option value="expense">Gasto</option>
-          <option value="equity">Patrimonio</option>
-        </select>
+  let q = '';
+  let typeFilter = 'all';
+  const paint = () => {
+    let list = eng.listAccounts();
+    if (typeFilter !== 'all') list = list.filter((a) => a.type === typeFilter);
+    if (q) {
+      const qq = q.toLowerCase();
+      list = list.filter((a) => (`${a.code} ${a.name} ${a.type}`).toLowerCase().includes(qq));
+    }
+    const byType = {
+      asset: eng.state.accounts.filter((a) => a.type === 'asset').length,
+      liability: eng.state.accounts.filter((a) => a.type === 'liability').length,
+      equity: eng.state.accounts.filter((a) => a.type === 'equity').length,
+      income: eng.state.accounts.filter((a) => a.type === 'income').length,
+      expense: eng.state.accounts.filter((a) => a.type === 'expense').length,
+    };
+    const rows = list.map((a) => [a.code, a.name, a.type, a.nature || '—', a.group || '—', money(a.balance)]);
+    el.innerHTML = `
+      <div class="grid">
+        <div class="kpi"><div class="label">Activo</div><div class="value">${byType.asset}</div></div>
+        <div class="kpi"><div class="label">Pasivo</div><div class="value">${byType.liability}</div></div>
+        <div class="kpi"><div class="label">Patrimonio</div><div class="value">${byType.equity}</div></div>
+        <div class="kpi"><div class="label">Ingreso / Gasto</div><div class="value">${byType.income} / ${byType.expense}</div></div>
       </div>
-      <button type="button" class="btn" id="ok">Crear</button>
-    </div>${table(rows, ['Código', 'Nombre', 'Tipo', 'Saldo'])}`;
-  el.querySelector('#ok').onclick = async () => {
-    try {
-      await eng.createAccount({
-        code: el.querySelector('#code').value,
-        name: el.querySelector('#name').value,
-        type: el.querySelector('#type').value,
-      });
-      redraw();
-    } catch (e) { alert(e.message); }
+      <div class="card form-card">
+        <h3>Nueva cuenta</h3>
+        <div class="form-row"><label>Código</label><input id="code"/></div>
+        <div class="form-row"><label>Nombre</label><input id="name"/></div>
+        <div class="form-row"><label>Tipo</label>
+          <select id="type">
+            <option value="asset">Activo</option><option value="liability">Pasivo</option>
+            <option value="equity">Patrimonio</option>
+            <option value="income">Ingreso</option><option value="expense">Gasto</option>
+          </select>
+        </div>
+        <button type="button" class="btn" id="ok">Crear</button>
+      </div>
+      <div class="card">
+        <div class="form-row" style="flex-direction:row;gap:8px;align-items:center">
+          <input id="search" placeholder="Buscar código o nombre" value="${q}" style="flex:1"/>
+          <select id="tf">
+            <option value="all">Todos</option>
+            <option value="asset">Activo</option><option value="liability">Pasivo</option>
+            <option value="equity">Patrimonio</option>
+            <option value="income">Ingreso</option><option value="expense">Gasto</option>
+          </select>
+        </div>
+        ${table(rows, ['Código', 'Nombre', 'Tipo', 'Naturaleza', 'Grupo', 'Saldo'])}
+      </div>`;
+    el.querySelector('#tf').value = typeFilter;
+    el.querySelector('#ok').onclick = async () => {
+      try {
+        await eng.createAccount({
+          code: el.querySelector('#code').value,
+          name: el.querySelector('#name').value,
+          type: el.querySelector('#type').value,
+        });
+        redraw();
+      } catch (e) { alert(e.message); }
+    };
+    el.querySelector('#search').oninput = (e) => { q = e.target.value; paint(); };
+    el.querySelector('#tf').onchange = (e) => { typeFilter = e.target.value; paint(); };
   };
+  paint();
 }
 
 export function renderReportes(el, eng) {
-  const s = eng.getSummary();
+  const eq = eng.equationSnapshot();
+  const situacion = eng.getSituacionFinanciera();
+  const resultados = eng.getEstadoResultados();
+  const ecuacion = eng.getEcuacionAmpliada();
   const tb = eng.getTrialBalance();
-  const is = eng.getIncomeStatement();
-  const journal = eng.getJournal().slice(0, 30);
+  const journal = eng.getJournalLines().slice(0, 40);
+  const tAccounts = eng.getAllTAccounts().filter((t) => t.debe.length || t.haber.length || t.saldo);
+
   el.innerHTML = `
-    <div class="grid">
-      <div class="kpi"><div class="label">Ingresos</div><div class="value">${money(s.ingresos)}</div></div>
-      <div class="kpi"><div class="label">Gastos</div><div class="value">${money(s.gastos)}</div></div>
-      <div class="kpi"><div class="label">Resultado</div><div class="value">${money(s.balance)}</div></div>
-      <div class="kpi"><div class="label">Ventas/pedidos</div><div class="value">${s.pedidos}</div></div>
+    <div class="tabs-bar" id="rep-tabs">
+      <button type="button" class="tab active" data-tab="ecuacion">Ecuación ampliada</button>
+      <button type="button" class="tab" data-tab="situacion">Estado de situación</button>
+      <button type="button" class="tab" data-tab="rendimiento">Estado de resultados</button>
+      <button type="button" class="tab" data-tab="cuenta_t">Cuentas T</button>
+      <button type="button" class="tab" data-tab="diario">Diario / balance</button>
     </div>
-    <div class="card"><h3>Estado de resultados</h3>
-      <p>Ingresos ${money(is.totalIncome)} − Gastos ${money(is.totalExpense)} = <b>${money(is.net)}</b></p></div>
-    <div class="card"><h3>Balance de comprobación</h3>
-      ${table(tb.map((a) => [a.code, a.name, a.type, money(a.balance)]), ['Código', 'Cuenta', 'Tipo', 'Saldo'])}</div>
-    <div class="card"><h3>Diario (últimos)</h3>
-      ${table(journal.map((e) => [(e.date || '').slice(0, 19), e.type, e.description, money(e.amount)]), ['Fecha', 'Tipo', 'Desc.', 'Monto'])}</div>`;
+    <div id="rep-panel"></div>`;
+
+  const panel = el.querySelector('#rep-panel');
+  const show = (tab) => {
+    el.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+    if (tab === 'ecuacion') {
+      panel.innerHTML = `
+        <div class="card equation-card">
+          <h3>Ecuación contable ampliada</h3>
+          <p class="muted">Activo = Pasivo + Patrimonio + (Ingresos − Gastos)</p>
+          <div class="equation-row">
+            <div class="eq-side">
+              <div class="kpi"><div class="label">Activo</div><div class="value">${money(eq.activo)}</div></div>
+            </div>
+            <div class="eq-eq">=</div>
+            <div class="eq-side eq-right">
+              <div class="kpi"><div class="label">Pasivo</div><div class="value">${money(eq.pasivo)}</div></div>
+              <div class="kpi"><div class="label">Patrimonio</div><div class="value">${money(eq.patrimonio)}</div></div>
+              <div class="kpi"><div class="label">Neto (Ing − Gas)</div><div class="value">${money(eq.neto)}</div></div>
+              <div class="kpi"><div class="label">Suma derecha</div><div class="value">${money(eq.pasivo_patrimonio_neto)}</div></div>
+            </div>
+          </div>
+          <p><b>${ecuacion.equilibrada ? '✓ Ecuación equilibrada' : '✗ Desbalance: revisar asientos'}</b>
+            · Δ ${money(Math.abs(eq.activo - eq.pasivo_patrimonio_neto))}</p>
+        </div>`;
+    } else if (tab === 'situacion') {
+      panel.innerHTML = `
+        <div class="grid">
+          <div class="kpi"><div class="label">Activo</div><div class="value">${money(situacion.activo)}</div></div>
+          <div class="kpi"><div class="label">Pasivo</div><div class="value">${money(situacion.pasivo)}</div></div>
+          <div class="kpi"><div class="label">Patrimonio</div><div class="value">${money(situacion.patrimonio)}</div></div>
+          <div class="kpi"><div class="label">Patrimonio neto (A−P)</div><div class="value">${money(situacion.patrimonioNeto)}</div></div>
+        </div>
+        <div class="card"><h3>Cuentas de activo / pasivo / patrimonio</h3>
+          ${table(
+            tb.filter((a) => ['asset','liability','equity'].includes(a.type)).map((a) => [a.code, a.name, a.type, a.group || '', money(a.balance)]),
+            ['Código', 'Nombre', 'Tipo', 'Grupo', 'Saldo']
+          )}
+        </div>`;
+    } else if (tab === 'rendimiento') {
+      panel.innerHTML = `
+        <div class="grid">
+          <div class="kpi"><div class="label">Ingresos</div><div class="value">${money(resultados.ingresos)}</div></div>
+          <div class="kpi"><div class="label">Gastos</div><div class="value">${money(resultados.gastos)}</div></div>
+          <div class="kpi"><div class="label">Resultado neto</div><div class="value">${money(resultados.neto)}</div></div>
+        </div>
+        <div class="card"><h3>Cuentas de resultado</h3>
+          ${table(
+            tb.filter((a) => ['income','expense'].includes(a.type)).map((a) => [a.code, a.name, a.type, money(a.balance)]),
+            ['Código', 'Nombre', 'Tipo', 'Saldo']
+          )}
+        </div>`;
+    } else if (tab === 'cuenta_t') {
+      panel.innerHTML = `<div class="card"><p class="muted">Cuentas T (debe / haber) generadas por partida doble</p></div>
+        <div class="t-grid">
+          ${tAccounts.map((t) => `
+            <div class="card t-account">
+              <h4>${t.account.code} — ${t.account.name}</h4>
+              <div class="t-cols">
+                <div><b>Debe</b>
+                  <ul>${t.debe.map((l) => `<li>${money(l.amount)} <span class="muted">${(l.description||'').slice(0,40)}</span></li>`).join('') || '<li class="muted">—</li>'}
+                  <p><b>${money(t.sumDebe)}</b></p></div>
+                <div><b>Haber</b>
+                  <ul>${t.haber.map((l) => `<li>${money(l.amount)} <span class="muted">${(l.description||'').slice(0,40)}</span></li>`).join('') || '<li class="muted">—</li>'}
+                  <p><b>${money(t.sumHaber)}</b></p></div>
+              </div>
+              <p class="muted">Saldo cuenta: <b>${money(t.saldo)}</b></p>
+            </div>`).join('') || '<p class="muted">Sin movimientos aún — registre ingresos/gastos/POS</p>'}
+        </div>`;
+    } else {
+      panel.innerHTML = `
+        <div class="card"><h3>Balance de comprobación</h3>
+          ${table(tb.map((a) => [a.code, a.name, a.type, a.nature || '', money(a.balance)]), ['Código', 'Nombre', 'Tipo', 'Naturaleza', 'Saldo'])}
+        </div>
+        <div class="card"><h3>Líneas de diario (debe/haber)</h3>
+          ${table(journal.map((l) => [(l.date||'').slice(0,19), l.side, l.accountCode, l.accountName, money(l.amount), (l.description||'').slice(0,40)]),
+            ['Fecha', 'Lado', 'Cuenta', 'Nombre', 'Monto', 'Desc.'])}
+        </div>`;
+    }
+  };
+  show('ecuacion');
+  el.querySelectorAll('.tab').forEach((b) => { b.onclick = () => show(b.dataset.tab); });
 }
 
 export function renderCatalog(el, eng, redraw) {
@@ -631,3 +755,39 @@ export const renderCostos = renderFichasCosto;
 export const renderNominas = renderLiquidaciones;
 export const renderOnline = renderPedidos;
 export const renderUnidades = renderTransferencias;
+
+
+export function renderRoles(el, eng, redraw) {
+  const rows = (eng.state.roles || []).map((r) => [
+    r.code, r.name, r.description || '—', r.system ? 'sistema' : 'custom',
+    r.system ? '—' : `<button class="btn-ghost" data-del="${r.id}">Eliminar</button>`,
+  ]);
+  el.innerHTML = `
+    <div class="card form-card">
+      <h3>Nomenclador de roles</h3>
+      <p class="muted">CRUD completo para master. Roles de sistema no se eliminan.</p>
+      <div class="form-row"><label>Código</label><input id="code" placeholder="supervisor"/></div>
+      <div class="form-row"><label>Nombre</label><input id="name"/></div>
+      <div class="form-row"><label>Descripción</label><input id="desc"/></div>
+      <button type="button" class="btn" id="ok">Crear rol</button>
+    </div>
+    ${table(rows, ['Código', 'Nombre', 'Descripción', 'Tipo', ''])}
+    <div class="card"><p class="muted">Tras crear un rol, asigne pantallas en <b>Permisos UI</b> y asígnelo a usuarios.</p></div>`;
+  el.querySelector('#ok').onclick = async () => {
+    try {
+      await eng.createRole({
+        code: el.querySelector('#code').value,
+        name: el.querySelector('#name').value,
+        description: el.querySelector('#desc').value,
+      });
+      redraw();
+    } catch (e) { alert(e.message); }
+  };
+  el.querySelectorAll('[data-del]').forEach((b) => {
+    b.onclick = async () => {
+      if (!confirm('¿Eliminar rol?')) return;
+      try { await eng.deleteRole(b.dataset.del); redraw(); }
+      catch (e) { alert(e.message); }
+    };
+  });
+}

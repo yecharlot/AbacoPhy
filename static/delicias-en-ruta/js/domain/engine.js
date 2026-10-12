@@ -1,4 +1,4 @@
-import { emptyState, uid, now, recomputeKpis } from './model.js';
+import { emptyState, uid, now, recomputeKpis, equationFromAccounts, defaultAccounts, defaultRoles } from './model.js';
 
 /**
  * DomainEngine — casos de uso offline equivalentes a main (webapp domain/usecases).
@@ -15,7 +15,12 @@ export class DomainEngine {
     if (loaded && loaded.version >= 2) {
       this.state = { ...emptyState(), ...loaded };
       if (!this.state.users?.length) this.state.users = emptyState().users;
-      if (!this.state.accounts?.length) this.state.accounts = emptyState().accounts;
+      // Migrar plan de cuentas corto al completo si hace falta
+      if (!this.state.accounts?.length || this.state.accounts.length < 10) {
+        this.state.accounts = defaultAccounts();
+      }
+      if (!this.state.roles?.length) this.state.roles = defaultRoles();
+      if (!this.state.journalLines) this.state.journalLines = [];
       if (!this.state.measureUnits?.length) this.state.measureUnits = emptyState().measureUnits;
       if (!this.state.rolePermissions) this.state.rolePermissions = emptyState().rolePermissions;
       if (!this.state.modules) this.state.modules = emptyState().modules;
@@ -24,6 +29,7 @@ export class DomainEngine {
       if (!this.state.jobPositions) this.state.jobPositions = emptyState().jobPositions;
       if (!this.state.priceSheets) this.state.priceSheets = [];
       if (!this.state.tenants) this.state.tenants = emptyState().tenants;
+      this.state.version = 4;
     } else {
       this.state = emptyState();
       await this.persist();
@@ -74,34 +80,33 @@ export class DomainEngine {
   }
 
   // —— Accounting ——
-  createIncomeEntry({ accountId, amount, description, date }) {
+  createIncomeEntry({ accountId, amount, description, date, counterpart }) {
     if (!accountId) throw new Error('Seleccione una cuenta de ingreso');
     if (!(+amount > 0)) throw new Error('El importe debe ser mayor que 0');
     if (!String(description || '').trim()) throw new Error('Indique una descripción');
-    return this._createEntry({ type: 'income', accountId, amount: +amount, description: String(description).trim(), date });
+    return this._createEntry({ type: 'income', accountId, amount: +amount, description: String(description).trim(), date, counterpart });
   }
 
-  createExpenseEntry({ accountId, amount, description, date }) {
+  createExpenseEntry({ accountId, amount, description, date, counterpart }) {
     if (!accountId) throw new Error('Seleccione una cuenta de gasto');
     if (!(+amount > 0)) throw new Error('El importe debe ser mayor que 0');
     if (!String(description || '').trim()) throw new Error('Indique una descripción');
-    return this._createEntry({ type: 'expense', accountId, amount: +amount, description: String(description).trim(), date });
+    return this._createEntry({ type: 'expense', accountId, amount: +amount, description: String(description).trim(), date, counterpart });
   }
 
-  async _createEntry({ type, accountId, amount, description, date }) {
+  async _createEntry({ type, accountId, amount, description, date, counterpart }) {
     const acc = this.state.accounts.find((a) => a.id === accountId || a.code === accountId);
     const e = {
       id: uid(), type, amount: +amount, description,
       concept: description,
       accountId: acc?.id || accountId,
       accountCode: acc?.code || '',
+      counterpart: counterpart || '',
       date: date || now(),
+      currency: this.state.tenant?.currency || 'CUP',
     };
     this.state.entries.unshift(e);
-    if (acc) {
-      if (type === 'income') acc.balance = Number(acc.balance || 0) + e.amount;
-      else acc.balance = Number(acc.balance || 0) + e.amount;
-    }
+    this.applyDoubleEntry(e);
     this.audit('entry.' + type, description + ' ' + amount);
     return this.persist();
   }
@@ -118,38 +123,55 @@ export class DomainEngine {
   async createAccount({ code, name, type }) {
     if (!code?.trim()) throw new Error('Código obligatorio');
     if (this.state.accounts.some((a) => a.code === code.trim())) throw new Error('Código ya existe');
-    this.state.accounts.push({ id: uid(), code: code.trim(), name: name || code, type: type || 'asset', balance: 0, active: true });
+    const nature = (type === 'asset' || type === 'expense') ? 'deudora' : 'acreedora';
+    this.state.accounts.push({
+      id: uid(), code: code.trim(), name: name || code, type: type || 'asset',
+      nature, group: type || 'asset', balance: 0, active: true, currency: this.state.tenant?.currency || 'CUP',
+    });
     this.audit('account.create', code);
     return this.persist();
   }
 
   getSummary() {
+    const eq = this.equationSnapshot();
     recomputeKpis(this.state);
     return {
-      ingresos: this.state.kpis.ingresos,
-      gastos: this.state.kpis.gastos,
-      balance: this.state.kpis.ingresos - this.state.kpis.gastos,
+      ingresos: eq.ingresos,
+      gastos: eq.gastos,
+      balance: eq.neto,
+      activo: eq.activo,
+      pasivo: eq.pasivo,
+      patrimonio: eq.patrimonio,
+      pasivo_patrimonio_neto: eq.pasivo_patrimonio_neto,
       pedidos: this.state.kpis.pedidos,
       stock: this.state.kpis.stock,
+      equation: eq,
     };
   }
 
   getTrialBalance() {
-    return this.state.accounts.map((a) => ({
-      code: a.code, name: a.name, type: a.type, balance: Number(a.balance || 0),
+    return this.state.accounts.filter((a) => a.active !== false).map((a) => ({
+      code: a.code, name: a.name, type: a.type, nature: a.nature, group: a.group,
+      balance: Number(a.balance || 0),
     }));
   }
 
   getIncomeStatement() {
+    const eq = this.equationSnapshot();
     const income = this.state.entries.filter((e) => e.type === 'income');
     const expense = this.state.entries.filter((e) => e.type === 'expense');
-    const ti = income.reduce((s, e) => s + e.amount, 0);
-    const te = expense.reduce((s, e) => s + e.amount, 0);
-    return { totalIncome: ti, totalExpense: te, net: ti - te, income, expense };
+    return {
+      totalIncome: eq.ingresos, totalExpense: eq.gastos, net: eq.neto,
+      income, expense, equation: eq,
+    };
   }
 
   getJournal() {
     return this.state.entries.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  }
+
+  getJournalLines() {
+    return (this.state.journalLines || []).slice();
   }
 
   // —— Catalog ——
@@ -498,6 +520,146 @@ export class DomainEngine {
 
   listAuditTrail() { return this.state.audit.slice(); }
   listSystemErrors() { return this.state.systemErrors.slice(); }
+
+
+  /** Partida doble — mirror domain.ApplyDoubleEntry */
+  applyDoubleEntry(entry) {
+    const findByCode = (code) => this.state.accounts.find((a) => a.code === code && a.active !== false);
+    const findByType = (type) => this.state.accounts.find((a) => a.type === type && a.active !== false);
+    let asset = entry.counterpart
+      ? this.state.accounts.find((a) => a.id === entry.counterpart || a.code === entry.counterpart)
+      : null;
+    if (!asset) asset = findByCode("1000") || findByType("asset");
+    const result = this.state.accounts.find((a) => a.id === entry.accountId || a.code === entry.accountId);
+    if (!result) return;
+    if (!entry.counterpart && asset) entry.counterpart = asset.id;
+    if (!this.state.journalLines) this.state.journalLines = [];
+
+    const amt = +entry.amount;
+    if (entry.type === "income") {
+      if (asset) asset.balance = Number(asset.balance || 0) + amt;
+      result.balance = Number(result.balance || 0) + amt;
+      this._postJournal(entry, asset, result, "income");
+    } else if (entry.type === "expense") {
+      result.balance = Number(result.balance || 0) + amt;
+      if (asset) asset.balance = Number(asset.balance || 0) - amt;
+      this._postJournal(entry, result, asset, "expense");
+    } else if (entry.type === "transfer") {
+      if (asset) asset.balance = Number(asset.balance || 0) - amt;
+      result.balance = Number(result.balance || 0) + amt;
+      this._postJournal(entry, result, asset, "transfer");
+    } else {
+      result.balance = Number(result.balance || 0) + amt;
+    }
+  }
+
+  _postJournal(entry, debeAcc, haberAcc, kind) {
+    if (!this.state.journalLines) this.state.journalLines = [];
+    const base = {
+      entryId: entry.id,
+      date: entry.date || now(),
+      description: entry.description || entry.concept || "",
+      amount: +entry.amount,
+      kind,
+    };
+    this.state.journalLines.unshift({
+      ...base, id: uid(), side: "debe",
+      accountId: debeAcc?.id, accountCode: debeAcc?.code, accountName: debeAcc?.name,
+    });
+    this.state.journalLines.unshift({
+      ...base, id: uid(), side: "haber",
+      accountId: haberAcc?.id, accountCode: haberAcc?.code, accountName: haberAcc?.name,
+    });
+    this.state.journalLines = this.state.journalLines.slice(0, 1000);
+  }
+
+  equationSnapshot() {
+    return equationFromAccounts(this.state.accounts);
+  }
+
+  getTAccount(accountId) {
+    const acc = this.state.accounts.find((a) => a.id === accountId || a.code === accountId);
+    if (!acc) return null;
+    const lines = (this.state.journalLines || []).filter(
+      (l) => l.accountId === acc.id || l.accountCode === acc.code
+    );
+    const debe = lines.filter((l) => l.side === "debe");
+    const haber = lines.filter((l) => l.side === "haber");
+    return {
+      account: acc,
+      debe, haber,
+      sumDebe: debe.reduce((s, l) => s + Number(l.amount || 0), 0),
+      sumHaber: haber.reduce((s, l) => s + Number(l.amount || 0), 0),
+      saldo: Number(acc.balance || 0),
+    };
+  }
+
+  getAllTAccounts() {
+    return this.state.accounts
+      .filter((a) => a.active !== false)
+      .map((a) => this.getTAccount(a.id))
+      .filter(Boolean);
+  }
+
+  getSituacionFinanciera() {
+    const eq = this.equationSnapshot();
+    return {
+      kind: "situacion",
+      activo: eq.activo, pasivo: eq.pasivo, patrimonio: eq.patrimonio,
+      patrimonioNeto: eq.activo - eq.pasivo, equation: eq,
+    };
+  }
+
+  getEstadoResultados() {
+    const eq = this.equationSnapshot();
+    return { kind: "rendimiento", ingresos: eq.ingresos, gastos: eq.gastos, neto: eq.neto, equation: eq };
+  }
+
+  getEcuacionAmpliada() {
+    const eq = this.equationSnapshot();
+    return {
+      kind: "ecuacion",
+      izquierda: eq.activo,
+      derecha: eq.pasivo_patrimonio_neto,
+      equilibrada: Math.abs(eq.activo - eq.pasivo_patrimonio_neto) < 0.01,
+      equation: eq,
+    };
+  }
+
+  async createRole({ code, name, description }) {
+    if (!code?.trim()) throw new Error("Código de rol obligatorio");
+    const c = code.trim().toLowerCase();
+    if (!this.state.roles) this.state.roles = defaultRoles();
+    if (this.state.roles.some((r) => r.code === c)) throw new Error("Rol ya existe");
+    this.state.roles.push({
+      id: uid(), code: c, name: name || c, description: description || "", system: false,
+    });
+    if (!this.state.rolePermissions[c]) this.state.rolePermissions[c] = {};
+    this.audit("role.create", c);
+    return this.persist();
+  }
+
+  async updateRole({ id, name, description }) {
+    const r = this.state.roles.find((x) => x.id === id);
+    if (!r) throw new Error("Rol no encontrado");
+    if (name != null) r.name = name;
+    if (description != null) r.description = description;
+    this.audit("role.update", r.code);
+    return this.persist();
+  }
+
+  async deleteRole(id) {
+    const r = this.state.roles.find((x) => x.id === id);
+    if (!r) throw new Error("Rol no encontrado");
+    if (r.system) throw new Error("No se puede eliminar un rol de sistema");
+    if (this.state.users.some((u) => u.role === r.code && u.active !== false)) {
+      throw new Error("Hay usuarios activos con este rol");
+    }
+    this.state.roles = this.state.roles.filter((x) => x.id !== id);
+    delete this.state.rolePermissions[r.code];
+    this.audit("role.delete", r.code);
+    return this.persist();
+  }
 
   async history() { return this.store.history(); }
 }
