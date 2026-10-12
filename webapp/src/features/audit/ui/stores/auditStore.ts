@@ -3,6 +3,7 @@ import type { BackupMeta } from '../../domain/entities/Backup';
 import type {
   CreateBackup,
   ExportBackup,
+  ImportBackup,
   ListAuditTrail,
   ListBackups,
   ListSystemErrors,
@@ -31,6 +32,7 @@ type Deps = {
   createBackup: CreateBackup;
   restoreBackup: RestoreBackup;
   exportBackup: ExportBackup;
+  importBackup: ImportBackup;
   listSystemErrors: ListSystemErrors;
 };
 
@@ -151,6 +153,17 @@ export function createAuditStore(deps: Deps) {
         return blob;
       } catch (err) {
         set({ saving: false, error: messageOf(err, 'Error al exportar la salva') });
+        throw err;
+      }
+    },
+    async importBackup(file: File): Promise<void> {
+      set({ saving: true, error: null });
+      try {
+        await deps.importBackup.execute(file);
+        set({ saving: false });
+        await this.loadAll();
+      } catch (err) {
+        set({ saving: false, error: messageOf(err, 'Error al importar la salva') });
         throw err;
       }
     },

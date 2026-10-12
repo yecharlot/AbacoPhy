@@ -3,6 +3,8 @@ import { HttpError, type HttpRequestOptions, type TokenProvider } from './types'
 export type HttpClientConfig = {
   baseUrl: string;
   getToken?: TokenProvider;
+  /** Se invoca en respuestas 401 (p.ej. limpiar token y forzar re-login). */
+  onUnauthorized?: () => void;
 };
 
 const LOG = '[Abaco.Http]';
@@ -120,6 +122,13 @@ export function createHttpClient(config: HttpClientConfig) {
         body,
         contentType,
       });
+      if (response.status === 401) {
+        try {
+          config.onUnauthorized?.();
+        } catch {
+          /* no bloquear el error original */
+        }
+      }
       throw new HttpError(kind, `${message} (${method} ${url})`, response.status, body);
     }
 

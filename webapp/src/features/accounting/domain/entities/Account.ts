@@ -7,7 +7,8 @@ export type Account = {
   type: AccountType;
   currency?: string;
   balance: number;
+  /** Si el API lo envía; cuentas inactivas se omiten en reportes. */
+  active?: boolean;
   /** JSON string opaco; ausente si el API no lo envía. */
   metadata?: string | null;
-
 };

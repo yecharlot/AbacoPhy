@@ -85,6 +85,14 @@ export class AuditRepositoryImpl implements AuditRepository {
     }
   }
 
+  async importBackup(file: File): Promise<void> {
+    try {
+      await this.remote.importBackup(file);
+    } catch (err) {
+      throw new Error(messageOf(err, 'No se pudo importar la salva'));
+    }
+  }
+
   async getSystemErrors(): Promise<AuditEvent[]> {
     try {
       const dto = await this.remote.getErrors();

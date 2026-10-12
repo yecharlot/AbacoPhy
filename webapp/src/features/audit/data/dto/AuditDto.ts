@@ -37,6 +37,8 @@ export type AuditResponseDto = {
 
 export type BackupMetaDto = {
   cid?: string;
+  /** Hash de contenido cuando el backend lo expone. */
+  content_sha?: string;
   label?: string;
   rev?: number;
   user_id?: string;

@@ -7,6 +7,8 @@ export interface AuditRepository {
   createBackup(label: string): Promise<BackupMeta>;
   restoreBackup(cid: string): Promise<void>;
   exportBackup(): Promise<Blob>;
+  /** Restaura desde un archivo ZIP exportado (disco). */
+  importBackup(file: File): Promise<void>;
   /** Solo rol master. */
   getSystemErrors(): Promise<AuditEvent[]>;
 }
