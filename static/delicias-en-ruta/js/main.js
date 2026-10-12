@@ -22,29 +22,35 @@ async function paintApp() {
   shell.setActive(screen);
   const el = shell.view;
   const redraw = () => paintApp();
+  if (user && !eng.canAccess(user.role, screen) && user.role !== 'master') {
+    el.innerHTML = `<div class="card"><h3>Acceso denegado</h3><p class="muted">Sin permiso UI para «${screen}» (rol ${user.role}).</p></div>`;
+    return;
+  }
   switch (screen) {
     case 'dashboard': renderDashboard(el, eng); break;
     case 'ingresos': V.renderIngresos(el, eng, redraw); break;
     case 'gastos': V.renderGastos(el, eng, redraw); break;
     case 'cuentas': V.renderCuentas(el, eng, redraw); break;
-    case 'asientos': V.renderAsientos(el, eng); break;
-    case 'catalog': V.renderCatalog(el, eng, redraw); break;
-    case 'pos': V.renderPos(el, eng, redraw); break;
-    case 'pedidos': V.renderPedidos(el, eng); break;
-    case 'online': V.renderOnline(el, eng, redraw); break;
-    case 'almacen': V.renderAlmacen(el, eng); break;
-    case 'recepciones': V.renderRecepciones(el, eng, redraw); break;
-    case 'transferencias': V.renderTransferencias(el, eng, redraw); break;
-    case 'costos': V.renderCostos(el, eng, redraw); break;
-    case 'empleados': V.renderEmpleados(el, eng, redraw); break;
-    case 'nominas': V.renderNominas(el, eng, redraw); break;
-    case 'facturas': V.renderFacturas(el, eng, redraw); break;
-    case 'unidades': V.renderUnidades(el, eng, redraw); break;
-    case 'usuarios': V.renderUsuarios(el, eng, redraw); break;
-    case 'tenant': V.renderTenant(el, eng, redraw); break;
     case 'reportes': V.renderReportes(el, eng); break;
-    case 'traza': V.renderTraza(el, await eng.history()); break;
-    default: renderDashboard(el, eng);
+    case 'facturas': V.renderFacturas(el, eng, redraw); break;
+    case 'empleados': V.renderEmpleados(el, eng, redraw); break;
+    case 'liquidaciones': V.renderLiquidaciones(el, eng, redraw); break;
+    case 'catalog': V.renderCatalog(el, eng, redraw); break;
+    case 'tenant': V.renderTenant(el, eng, redraw); break;
+    case 'almacen': V.renderAlmacen(el, eng); break;
+    case 'recepcion': V.renderRecepcion(el, eng, redraw); break;
+    case 'transferencias': V.renderTransferencias(el, eng, redraw); break;
+    case 'pos': V.renderPos(el, eng, redraw); break;
+    case 'fichas-costo': V.renderFichasCosto(el, eng, redraw); break;
+    case 'fichas-precio': V.renderFichasPrecio(el, eng, redraw); break;
+    case 'pedidos': V.renderPedidos(el, eng, redraw); break;
+    case 'traza': V.renderTraza(el, eng); break;
+    case 'salvas': V.renderSalvas(el, eng, redraw); break;
+    case 'usuarios': V.renderUsuarios(el, eng, redraw); break;
+    case 'permisos': V.renderPermisos(el, eng, redraw); break;
+    case 'master': V.renderMaster(el, eng, redraw); break;
+    default:
+      el.innerHTML = `<div class="card"><p class="muted">Vista no mapeada: ${screen}</p></div>`;
   }
 }
 
@@ -88,7 +94,7 @@ async function boot() {
   await eng.boot();
   user = getSession();
   if (user) {
-    const ok = (eng.state.users || []).some((u) => u.username === user.username);
+    const ok = (eng.state.users || []).some((u) => u.username === user.username && u.active !== false);
     if (!ok) { clearSession(); user = null; }
   }
   if (user) mountShell();
