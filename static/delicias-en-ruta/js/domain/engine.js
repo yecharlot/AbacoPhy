@@ -1,4 +1,5 @@
 import { emptyState, uid, now, recomputeKpis, equationFromAccounts, defaultAccounts, defaultRoles } from './model.js';
+import { notify } from '../infrastructure/reactive.js';
 
 /**
  * DomainEngine — casos de uso offline equivalentes a main (webapp domain/usecases).
@@ -41,6 +42,7 @@ export class DomainEngine {
   async persist() {
     recomputeKpis(this.state);
     this.state = await this.store.save(this.state);
+    notify('state', { rev: this.state.version, at: Date.now() });
     return this.state;
   }
 
