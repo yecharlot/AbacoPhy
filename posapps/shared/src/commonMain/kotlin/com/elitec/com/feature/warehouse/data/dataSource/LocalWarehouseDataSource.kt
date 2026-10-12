@@ -9,6 +9,8 @@ class LocalWarehouseDataSource(
     private val dao: WarehouseDao,
 ) {
     fun observeUnits(): Flow<List<SalesUnitEntity>> = dao.observeUnits()
+    suspend fun getUnits(): List<SalesUnitEntity> = dao.getUnits()
+    suspend fun getAllUnitStocks(): List<UnitStockEntity> = dao.getAllUnitStocks()
     fun observeUnitStocks(unitId: String?): Flow<List<UnitStockEntity>> =
         if (unitId.isNullOrBlank()) dao.observeAllUnitStocks()
         else dao.observeUnitStocks(unitId)

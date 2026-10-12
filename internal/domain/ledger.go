@@ -1,6 +1,10 @@
 package domain
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 // normalizeAccountType unifica códigos EN/ES del plan de cuentas al agregar la ecuación.
 func normalizeAccountType(t string) string {
@@ -28,6 +32,8 @@ func normalizeAccountType(t string) string {
 //   Ingreso:  Debe Caja/Banco  |  Haber Ingresos
 //   Gasto:    Debe Gasto       |  Haber Caja/Banco
 //   Factura emitida (cobro caja): Debe Caja | Haber Ingresos
+
+func newEntryID() string { return uuid.NewString() }
 
 func FindAccountByCode(accounts map[string]*Account, code string) *Account {
 	for _, a := range accounts {
@@ -70,19 +76,24 @@ func ApplyDoubleEntry(snap *StoreSnapshot, entry *Entry) {
 	}
 	switch entry.Type {
 	case "income":
-		// Activo ↑, Ingreso ↑  →  Activo = … + Ingresos
+		// Debe Caja/activo (Counterpart) | Haber Ingresos (AccountID)
 		if asset != nil {
 			asset.Balance += entry.Amount
 		}
 		result.Balance += entry.Amount
 	case "expense":
-		// Gasto ↑, Activo ↓  →  Activo = … − Gastos
+		// Debe Gasto/COGS (AccountID) | Haber Caja o Inventario (Counterpart)
+		result.Balance += entry.Amount
+		if asset != nil {
+			asset.Balance -= entry.Amount
+		}
+	case "inventory":
+		// Debe Inventario (AccountID) | Haber Caja/CxP (Counterpart)
 		result.Balance += entry.Amount
 		if asset != nil {
 			asset.Balance -= entry.Amount
 		}
 	case "transfer":
-		// solo entre activos
 		if asset != nil {
 			asset.Balance -= entry.Amount
 		}
@@ -231,30 +242,175 @@ func ApplyIncome(snap *StoreSnapshot, amountBase float64, desc, userID string) *
 	return &e
 }
 
-// ApplyInventoryIn entrada a almacén: Debe Inventario, Haber Caja (o CxP simplificado como Caja).
-func ApplyInventoryIn(snap *StoreSnapshot, amountBase float64) {
+// ApplyInventoryIn entrada a almacén: Debe Inventario 1300 | Haber Caja 1000.
+// Devuelve el asiento listo para append en snap.Entries (misma fuente que ventas/gastos).
+func ApplyInventoryIn(snap *StoreSnapshot, amountBase float64, desc, userID string) *Entry {
+	if amountBase <= 0 {
+		return nil
+	}
 	inv := FindAccountByCode(snap.Accounts, "1300")
 	cash := FindAccountByCode(snap.Accounts, "1000")
 	if inv == nil {
 		inv = FindAccountByType(snap.Accounts, "asset")
 	}
-	if inv != nil {
-		inv.Balance += amountBase
+	if inv == nil {
+		return nil
+	}
+	e := Entry{
+		Type: "inventory", AccountID: inv.ID, Amount: amountBase,
+		Currency: snap.Tenant.Currency, Description: desc, CreatedBy: userID,
 	}
 	if cash != nil {
-		cash.Balance -= amountBase
+		e.Counterpart = cash.ID
+	}
+	ApplyDoubleEntry(snap, &e)
+	return &e
+}
+
+// ApplyInventoryOut (COGS): Debe Costo de ventas 5000 | Haber Inventario 1300.
+func ApplyInventoryOut(snap *StoreSnapshot, amountBase float64, desc, userID string) *Entry {
+	if amountBase <= 0 {
+		return nil
+	}
+	inv := FindAccountByCode(snap.Accounts, "1300")
+	cogs := FindAccountByCode(snap.Accounts, "5000")
+	if cogs == nil {
+		cogs = FindAccountByType(snap.Accounts, "expense")
+	}
+	if cogs == nil {
+		return nil
+	}
+	e := Entry{
+		Type: "expense", AccountID: cogs.ID, Amount: amountBase,
+		Currency: snap.Tenant.Currency, Description: desc, CreatedBy: userID,
+	}
+	if inv != nil {
+		e.Counterpart = inv.ID
+	}
+	ApplyDoubleEntry(snap, &e)
+	return &e
+}
+
+// ApplyExpense gasto manual: Debe gasto | Haber Caja.
+func ApplyExpense(snap *StoreSnapshot, amountBase float64, expenseAccountID, desc, userID string) *Entry {
+	if amountBase <= 0 {
+		return nil
+	}
+	exp := snap.Accounts[expenseAccountID]
+	if exp == nil {
+		exp = FindAccountByCode(snap.Accounts, "5100")
+	}
+	if exp == nil {
+		exp = FindAccountByType(snap.Accounts, "expense")
+	}
+	cash := FindAccountByCode(snap.Accounts, "1000")
+	if exp == nil {
+		return nil
+	}
+	e := Entry{
+		Type: "expense", AccountID: exp.ID, Amount: amountBase,
+		Currency: snap.Tenant.Currency, Description: desc, CreatedBy: userID,
+	}
+	if cash != nil {
+		e.Counterpart = cash.ID
+	}
+	ApplyDoubleEntry(snap, &e)
+	return &e
+}
+
+// AppendPostedEntry completa ID/fechas y añade al libro único.
+func AppendPostedEntry(snap *StoreSnapshot, e *Entry, tenantID, date string) {
+	if snap == nil || e == nil {
+		return
+	}
+	if e.ID == "" {
+		e.ID = newEntryID()
+	}
+	if e.TenantID == "" {
+		e.TenantID = tenantID
+	}
+	if e.Date == "" {
+		e.Date = date
+	}
+	if e.Date == "" {
+		e.Date = time.Now().Format("2006-01-02")
+	}
+	if e.CreatedAt.IsZero() {
+		e.CreatedAt = time.Now().UTC()
+	}
+	if e.Currency == "" && snap.Tenant.Currency != "" {
+		e.Currency = snap.Tenant.Currency
+	}
+	snap.Entries = append(snap.Entries, *e)
+}
+
+// EntryBalanced indica si el asiento tiene cuenta principal, contrapartida e importe.
+func EntryBalanced(e Entry) bool {
+	return e.AccountID != "" && e.Counterpart != "" && e.Amount > 0
+}
+
+// LedgerIntegrity comprueba ecuación y asientos sin contrapartida.
+func LedgerIntegrity(snap *StoreSnapshot) map[string]any {
+	eq := EquationSnapshot(snap)
+	unbalanced := 0
+	for _, e := range snap.Entries {
+		if e.Amount > 0 && (e.AccountID == "" || e.Counterpart == "") {
+			unbalanced++
+		}
+	}
+	left := eq["activo"]
+	right := eq["pasivo_patrimonio_neto"]
+	delta := left - right
+	return map[string]any{
+		"equation":            eq,
+		"equation_ok":         absFloat(delta) < 0.02,
+		"equation_delta":      delta,
+		"entries_total":       len(snap.Entries),
+		"entries_unbalanced":  unbalanced,
+		"ok":                  absFloat(delta) < 0.02 && unbalanced == 0,
 	}
 }
 
-// ApplyInventoryOut salida de almacén: Debe Costo de ventas, Haber Inventario.
-func ApplyInventoryOut(snap *StoreSnapshot, amountBase float64) {
-	inv := FindAccountByCode(snap.Accounts, "1300")
-	cogs := FindAccountByCode(snap.Accounts, "5000")
-	if inv != nil {
-		inv.Balance -= amountBase
+func absFloat(v float64) float64 {
+	if v < 0 {
+		return -v
 	}
-	if cogs != nil {
-		cogs.Balance += amountBase
+	return v
+}
+
+// BalanceSheet agrupa activo / pasivo / patrimonio (sin P&L de periodo en el cuerpo).
+func BalanceSheet(snap *StoreSnapshot) map[string]any {
+	type line struct {
+		ID      string  `json:"id"`
+		Code    string  `json:"code"`
+		Name    string  `json:"name"`
+		Balance float64 `json:"balance"`
+	}
+	var assets, liabilities, equity []line
+	var ta, tl, te float64
+	for _, a := range snap.Accounts {
+		if a == nil || !a.Active {
+			continue
+		}
+		l := line{ID: a.ID, Code: a.Code, Name: a.Name, Balance: a.Balance}
+		switch normalizeAccountType(a.Type) {
+		case "asset":
+			assets = append(assets, l)
+			ta += a.Balance
+		case "liability":
+			liabilities = append(liabilities, l)
+			tl += a.Balance
+		case "equity":
+			equity = append(equity, l)
+			te += a.Balance
+		}
+	}
+	eq := EquationSnapshot(snap)
+	return map[string]any{
+		"assets": assets, "liabilities": liabilities, "equity": equity,
+		"total_assets": ta, "total_liabilities": tl, "total_equity": te,
+		"net_income": eq["neto"],
+		"equation": eq,
 	}
 }
 

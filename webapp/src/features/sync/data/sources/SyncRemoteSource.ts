@@ -4,8 +4,12 @@ import type { SyncGetResponseDto, SyncPushRequestDto, SyncPushResponseDto } from
 export class SyncRemoteSource {
   constructor(private readonly http: HttpClient) {}
 
-  pull(): Promise<SyncGetResponseDto> {
-    return this.http.get<SyncGetResponseDto>('/sync');
+  pull(sinceRev?: number): Promise<SyncGetResponseDto> {
+    const q =
+      sinceRev !== undefined && sinceRev !== null && Number.isFinite(sinceRev)
+        ? `?since_rev=${encodeURIComponent(String(sinceRev))}`
+        : '';
+    return this.http.get<SyncGetResponseDto>(`/sync${q}`);
   }
 
   push(body: SyncPushRequestDto): Promise<SyncPushResponseDto> {

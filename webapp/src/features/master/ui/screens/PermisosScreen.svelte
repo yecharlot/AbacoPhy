@@ -187,9 +187,10 @@
           syncRoleChecked();
           roleDraftDirty = false;
           notice =
+            store.getState().notice ||
             'Permisos de «' +
-            roleLabel(selectedRole) +
-            '» guardados en el servidor. Los usuarios de este rol verán el cambio al refrescar sesión.';
+              roleLabel(selectedRole) +
+              '» guardados. Las sesiones del rol se invalidan; deben volver a iniciar sesión.';
           savedPulse = true;
           setTimeout(() => (savedPulse = false), 1500);
           window.dispatchEvent(new CustomEvent('abacophy-acl-changed'));

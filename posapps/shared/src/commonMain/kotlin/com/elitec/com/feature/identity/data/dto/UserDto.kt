@@ -1,6 +1,7 @@
 package com.elitec.com.feature.identity.data.dto
 
 import com.elitec.com.feature.identity.domain.entities.User
+import com.elitec.com.infraestructure.serialization.FlexibleMetadataStringSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -11,6 +12,7 @@ data class UserDto(
     @SerialName("display_name") val displayName: String? = null,
     val role: String? = null,
     @SerialName("tenant_id") val tenantId: String? = null,
+    @Serializable(with = FlexibleMetadataStringSerializer::class)
     val metadata: String? = null,
 )
 

@@ -8,6 +8,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -53,8 +54,14 @@ func (s *Server) registerExtraRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/backups", s.handleBackups)
 	mux.HandleFunc("/api/v1/backups/restore", s.handleBackupRestore)
 	mux.HandleFunc("/api/v1/inventory/out", s.handleInventoryOut)
+	mux.HandleFunc("/api/v1/kardex", s.handleKardex)
+	mux.HandleFunc("/api/v1/inventory/adjust", s.handleInventoryAdjust)
+	mux.HandleFunc("/api/v1/inventory/reconcile", s.handleInventoryReconcile)
 	mux.HandleFunc("/api/v1/reports/financial", s.handleFinancial)
 	mux.HandleFunc("/api/v1/reports/trial-balance", s.handleTrialBalance)
+	mux.HandleFunc("/api/v1/ledger", s.handleLedgerMayor)
+	mux.HandleFunc("/api/v1/reports/balance-sheet", s.handleBalanceSheet)
+	mux.HandleFunc("/api/v1/ledger/integrity", s.handleLedgerIntegrity)
 	mux.HandleFunc("/api/v1/theme", s.handleTheme)
 	mux.HandleFunc("/api/v1/errors", s.handleErrors)
 	mux.HandleFunc("/api/v1/reports/pdf", s.handleReportPDF)
@@ -69,7 +76,7 @@ func (s *Server) handleCurrencies(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "monedas"); err != nil && r.Method != http.MethodGet {
+	if err := s.gateOp(sess, "monedas", r.Method); err != nil && r.Method != http.MethodGet {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -121,7 +128,7 @@ func (s *Server) handleAccountT(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "cuentas_t"); err != nil {
+	if err := s.gateOp(sess, "cuentas_t", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -153,7 +160,7 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "traza"); err != nil {
+	if err := s.gateOp(sess, "traza", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -191,7 +198,7 @@ func (s *Server) handleBackups(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "salvas"); err != nil {
+	if err := s.gateOp(sess, "salvas", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -242,7 +249,7 @@ func (s *Server) handleBackupRestore(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "salvas"); err != nil {
+	if err := s.gateOp(sess, "salvas", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -287,7 +294,7 @@ func (s *Server) handleInventoryOut(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "inventario"); err != nil {
+	if err := s.gateOp(sess, "inventario", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -332,28 +339,16 @@ func (s *Server) handleInventoryOut(w http.ResponseWriter, r *http.Request) {
 		item.Amount = 0
 		item.AmountBase = 0
 	}
-	domain.ApplyInventoryOut(snap, outBase)
+	if cogsEnt := domain.ApplyInventoryOut(snap, outBase, "Salida inventario legacy", sess.UserID); cogsEnt != nil {
+		domain.AppendPostedEntry(snap, cogsEnt, sess.TenantID, time.Now().Format("2006-01-02"))
+	}
 	mv := domain.InventoryMove{
 		ID: uuid.NewString(), TenantID: sess.TenantID, ItemID: item.ID,
 		Kind: "out", Qty: body.Qty, AmountBase: outBase, Note: body.Note,
 		CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
 	}
 	snap.InvMoves = append(snap.InvMoves, mv)
-	invAcc := domain.FindAccountByCode(snap.Accounts, "1300")
-	cogs := domain.FindAccountByCode(snap.Accounts, "5000")
-	entry := domain.Entry{
-		ID: uuid.NewString(), TenantID: sess.TenantID, Date: time.Now().Format("2006-01-02"),
-		Type: "inventory", Amount: outBase, Currency: snap.Tenant.Currency,
-		Description: "Salida inventario " + item.Name, Ref: item.ID,
-		CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
-	}
-	if cogs != nil {
-		entry.AccountID = cogs.ID
-	}
-	if invAcc != nil {
-		entry.Counterpart = invAcc.ID
-	}
-	snap.Entries = append(snap.Entries, entry)
+	// Asiento único vía ApplyInventoryOut + AppendPostedEntry
 	s.audit(snap, sess, "inventory.out", item.Name+" qty="+formatFloat(body.Qty), item.ID)
 	_ = s.Store.Put(snap)
 	writeJSON(w, 200, map[string]any{"item": item, "ecuacion": domain.EquationSnapshot(snap), "rev": snap.Rev})
@@ -369,7 +364,7 @@ func (s *Server) handleFinancial(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "reportes"); err != nil {
+	if err := s.gateOp(sess, "reportes", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -563,7 +558,7 @@ func (s *Server) handleReportPDF(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "reportes"); err != nil {
+	if err := s.gateOp(sess, "reportes", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -591,9 +586,17 @@ func (s *Server) handleReportPDF(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
 	sess, err := s.sess(r)
 	if err != nil {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if err := s.gateOp(sess, "salvas", r.Method); err != nil {
+		writeGateError(w, err)
 		return
 	}
 	snap := s.Store.Get(sess.TenantID)
@@ -601,6 +604,14 @@ func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
 		return
 	}
+
+	// Evitar panics que cierran la conexión (Firefox: "No se ha conseguido recuperar")
+	defer func() {
+		if rec := recover(); rec != nil {
+			writeJSON(w, 500, map[string]string{"error": "panic en export: " + toString(rec)})
+		}
+	}()
+
 	raw, err := json.MarshalIndent(snap, "", "  ")
 	if err != nil {
 		writeJSON(w, 500, map[string]string{"error": "no se pudo serializar"})
@@ -610,18 +621,67 @@ func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 	zw := zip.NewWriter(&buf)
 	f, err := zw.Create("abacophy-salva.json")
 	if err != nil {
-		writeJSON(w, 500, map[string]string{"error": "zip"})
+		writeJSON(w, 500, map[string]string{"error": "zip create"})
 		return
 	}
-	_, _ = f.Write(raw)
-	meta, _ := zw.Create("meta.txt")
-	_, _ = meta.Write([]byte("ÁbacoPhy salva\nNegocio: " + snap.Tenant.Name + "\nCID: " + snap.RootCID + "\nRev: " + strconv.FormatInt(int64(snap.Rev), 10) + "\n"))
-	_ = zw.Close()
-	s.audit(snap, sess, "salva.exportacion_zip", "Exportación de salva a ZIP · negocio "+snap.Tenant.Name+" · rev "+strconv.FormatInt(snap.Rev, 10)+" · CID "+snap.RootCID, snap.RootCID)
-	_ = s.Store.Put(snap)
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", "attachment; filename=abacophy-salva.zip")
-	w.Write(buf.Bytes())
+	if _, err := f.Write(raw); err != nil {
+		writeJSON(w, 500, map[string]string{"error": "zip write"})
+		return
+	}
+	if meta, err := zw.Create("meta.txt"); err == nil {
+		_, _ = meta.Write([]byte("AbacoPhy salva\nNegocio: " + snap.Tenant.Name +
+			"\nCID: " + snap.RootCID +
+			"\nRev: " + strconv.FormatInt(snap.Rev, 10) + "\n"))
+	}
+	if err := zw.Close(); err != nil {
+		writeJSON(w, 500, map[string]string{"error": "zip close"})
+		return
+	}
+	out := buf.Bytes()
+
+	// Auditoría best-effort (no debe tumbar el export)
+	func() {
+		defer func() { _ = recover() }()
+		s.audit(snap, sess, "salva.exportacion_zip",
+			"Exportacion ZIP · "+snap.Tenant.Name+" · rev "+strconv.FormatInt(snap.Rev, 10),
+			snap.RootCID)
+		_ = s.Store.Put(snap)
+	}()
+
+	as := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("as")))
+	// Por defecto JSON+base64 (SPA/CORS). Solo ?as=zip entrega binario.
+	if as == "zip" || as == "binary" {
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Disposition", `attachment; filename="abacophy-salva.zip"`)
+		w.Header().Set("Content-Length", strconv.Itoa(len(out)))
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(out)
+		return
+	}
+
+	writeJSON(w, 200, map[string]any{
+		"ok":           true,
+		"filename":     "abacophy-salva.zip",
+		"content_type": "application/zip",
+		"size":         len(out),
+		"rev":          snap.Rev,
+		"root_cid":     snap.RootCID,
+		"data_base64":  base64.StdEncoding.EncodeToString(out),
+	})
+}
+
+func toString(v any) string {
+	if v == nil {
+		return "nil"
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	if e, ok := v.(error); ok {
+		return e.Error()
+	}
+	return fmt.Sprintf("%v", v)
 }
 
 func (s *Server) handleBackupImport(w http.ResponseWriter, r *http.Request) {
@@ -732,7 +792,7 @@ func (s *Server) handleAccountsTAll(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "cuentas_t"); err != nil {
+	if err := s.gateOp(sess, "cuentas_t", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -839,7 +899,7 @@ func (s *Server) handlePayrollPDF(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "nomina"); err != nil {
+	if err := s.gateOp(sess, "nomina", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -1018,7 +1078,7 @@ func (s *Server) handleTrialBalance(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if err := s.gate(sess, "reportes"); err != nil {
+	if err := s.gateOp(sess, "reportes", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "forbidden"})
 		return
 	}
@@ -1087,4 +1147,223 @@ func (s *Server) handleTrialBalance(w http.ResponseWriter, r *http.Request) {
 		"root_cid":      snap.RootCID,
 		"ecuacion":      domain.EquationSnapshot(snap),
 	})
+}
+
+// handleKardex — libro de movimientos reconstruible (producto / ubicación / PDV).
+func (s *Server) handleKardex(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+		return
+	}
+	role := sess.Role
+	if role != domain.RoleAlmacenero && role != domain.RoleContador && role != domain.RoleAdmin &&
+		role != domain.RoleMaster && role != domain.RoleEconomico {
+		if err := s.gateOp(sess, "almacen", r.Method); err != nil {
+			writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+			return
+		}
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	q := r.URL.Query()
+	productID := q.Get("product_id")
+	location := q.Get("location")
+	unitID := q.Get("unit_id")
+	moves := domain.KardexQuery(snap, productID, location, unitID)
+	stored := 0.0
+	ledger := 0.0
+	if productID != "" {
+		loc := location
+		if loc == "" {
+			loc = domain.LocWarehouse
+		}
+		stored = domain.StoredQty(snap, loc, unitID, productID)
+		ledger = domain.RebuildQtyFromLedger(snap, loc, unitID, productID)
+	}
+	writeJSON(w, 200, map[string]any{
+		"movements":  moves,
+		"count":      len(moves),
+		"stored_qty": stored,
+		"ledger_qty": ledger,
+		"product_id": productID,
+		"location":   location,
+		"unit_id":    unitID,
+	})
+}
+
+// handleInventoryAdjust — ajuste formal de existencias (con asiento Kardex).
+func (s *Server) handleInventoryAdjust(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+		return
+	}
+	if sess.Role != domain.RoleAlmacenero && sess.Role != domain.RoleAdmin && sess.Role != domain.RoleMaster {
+		writeJSON(w, 403, map[string]string{"error": "solo almacenero o administración pueden ajustar stock"})
+		return
+	}
+	if err := s.gateOp(sess, "almacen", r.Method); err != nil && sess.Role != domain.RoleAdmin && sess.Role != domain.RoleMaster {
+		writeJSON(w, 403, map[string]string{"error": "módulo almacén no disponible"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	ensureOpsMaps(snap)
+	var req struct {
+		ProductID string  `json:"product_id"`
+		Location  string  `json:"location"`
+		UnitID    string  `json:"unit_id,omitempty"`
+		DeltaQty  float64 `json:"delta_qty"`
+		UnitCost  float64 `json:"unit_cost,omitempty"`
+		Note      string  `json:"note"`
+	}
+	if err := readJSON(r, &req); err != nil || req.ProductID == "" {
+		writeJSON(w, 400, map[string]string{"error": "product_id y delta_qty requeridos"})
+		return
+	}
+	if strings.TrimSpace(req.Note) == "" {
+		writeJSON(w, 400, map[string]string{"error": "indique el motivo del ajuste (trazabilidad)"})
+		return
+	}
+	if req.Location == "" {
+		req.Location = domain.LocWarehouse
+	}
+	moveID := uuid.NewString()
+	if err := domain.ApplyStockAdjustment(snap, req.Location, req.UnitID, req.ProductID, req.DeltaQty, req.UnitCost, sess.UserID, req.Note, moveID); err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	if req.Location == domain.LocWarehouse {
+		p := snap.Products[req.ProductID]
+		st := snap.WarehouseStock[req.ProductID]
+		if p != nil && st != nil {
+			s.mirrorInventoryFromProduct(snap, p, st)
+		}
+	}
+	s.audit(snap, sess, "inventario.ajuste",
+		fmt.Sprintf("Ajuste %s %s Δ%.4f · %s", req.Location, req.ProductID, req.DeltaQty, req.Note), moveID)
+	_ = s.Store.Put(snap)
+	writeJSON(w, 200, map[string]any{
+		"ok":         true,
+		"stored_qty": domain.StoredQty(snap, req.Location, req.UnitID, req.ProductID),
+		"ledger_qty": domain.RebuildQtyFromLedger(snap, req.Location, req.UnitID, req.ProductID),
+		"move_id":    moveID,
+	})
+}
+
+// handleInventoryReconcile — detecta descuadres stock persistido vs Kardex.
+func (s *Server) handleInventoryReconcile(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	disc := domain.ReconcileStock(snap)
+	writeJSON(w, 200, map[string]any{
+		"discrepancies": disc,
+		"count":         len(disc),
+		"ok":            len(disc) == 0,
+	})
+}
+
+
+// handleLedgerMayor — mayor (libro auxiliar) Debe/Haber de una cuenta.
+func (s *Server) handleLedgerMayor(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	accountID := r.URL.Query().Get("account_id")
+	if accountID == "" {
+		writeJSON(w, 400, map[string]string{"error": "account_id requerido"})
+		return
+	}
+	debe, haber, saldo := domain.TAccountLines(snap, accountID)
+	acc := snap.Accounts[accountID]
+	name, code := accountID, ""
+	if acc != nil {
+		name, code = acc.Name, acc.Code
+	}
+	writeJSON(w, 200, map[string]any{
+		"account_id": accountID,
+		"code":       code,
+		"name":       name,
+		"debe":       debe,
+		"haber":      haber,
+		"saldo":      saldo,
+		"rev":        snap.Rev,
+	})
+}
+
+func (s *Server) handleBalanceSheet(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	out := domain.BalanceSheet(snap)
+	out["rev"] = snap.Rev
+	out["root_cid"] = snap.RootCID
+	writeJSON(w, 200, out)
+}
+
+func (s *Server) handleLedgerIntegrity(w http.ResponseWriter, r *http.Request) {
+	sess, err := s.sess(r)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
+		return
+	}
+	snap := s.Store.Get(sess.TenantID)
+	if snap == nil {
+		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	writeJSON(w, 200, domain.LedgerIntegrity(snap))
 }

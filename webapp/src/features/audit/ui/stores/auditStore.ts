@@ -1,8 +1,9 @@
-import type { AuditEvent } from '../../domain/entities/AuditEvent';
+import type { AuditEvent, AuditListQuery } from '../../domain/entities/AuditEvent';
 import type { BackupMeta } from '../../domain/entities/Backup';
 import type {
   CreateBackup,
   ExportBackup,
+  ImportBackup,
   ListAuditTrail,
   ListBackups,
   ListSystemErrors,
@@ -15,6 +16,8 @@ export type AuditState = {
   status: AuditStatus;
   events: AuditEvent[];
   rootCid: string;
+  total: number;
+  actions: string[];
   backups: BackupMeta[];
   currentCid: string;
   rev: number;
@@ -29,6 +32,7 @@ type Deps = {
   createBackup: CreateBackup;
   restoreBackup: RestoreBackup;
   exportBackup: ExportBackup;
+  importBackup: ImportBackup;
   listSystemErrors: ListSystemErrors;
 };
 
@@ -37,6 +41,8 @@ export function createAuditStore(deps: Deps) {
     status: 'idle',
     events: [],
     rootCid: '',
+    total: 0,
+    actions: [],
     backups: [],
     currentCid: '',
     rev: 0,
@@ -68,11 +74,27 @@ export function createAuditStore(deps: Deps) {
     getState(): AuditState {
       return state;
     },
-    async loadAll(): Promise<void> {
+    async loadTrail(query?: AuditListQuery): Promise<void> {
+      set({ status: 'loading', error: null });
+      try {
+        const trail = await deps.listTrail.execute(query);
+        set({
+          status: trail.events.length ? 'success' : 'empty',
+          events: trail.events,
+          rootCid: trail.rootCid,
+          total: trail.total,
+          actions: trail.actions || [],
+          error: null,
+        });
+      } catch (err) {
+        set({ status: 'error', error: messageOf(err, 'Error al cargar la traza') });
+      }
+    },
+    async loadAll(query?: AuditListQuery): Promise<void> {
       set({ status: 'loading', error: null });
       try {
         const [trail, backups] = await Promise.all([
-          deps.listTrail.execute(),
+          deps.listTrail.execute(query),
           deps.listBackups
             .execute()
             .catch(() => ({ backups: [] as BackupMeta[], currentCid: '', rev: 0 })),
@@ -81,6 +103,8 @@ export function createAuditStore(deps: Deps) {
           status: trail.events.length ? 'success' : 'empty',
           events: trail.events,
           rootCid: trail.rootCid,
+          total: trail.total,
+          actions: trail.actions || [],
           backups: backups.backups,
           currentCid: backups.currentCid,
           rev: backups.rev,
@@ -129,6 +153,17 @@ export function createAuditStore(deps: Deps) {
         return blob;
       } catch (err) {
         set({ saving: false, error: messageOf(err, 'Error al exportar la salva') });
+        throw err;
+      }
+    },
+    async importBackup(file: File): Promise<void> {
+      set({ saving: true, error: null });
+      try {
+        await deps.importBackup.execute(file);
+        set({ saving: false });
+        await this.loadAll();
+      } catch (err) {
+        set({ saving: false, error: messageOf(err, 'Error al importar la salva') });
         throw err;
       }
     },

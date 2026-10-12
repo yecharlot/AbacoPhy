@@ -147,11 +147,16 @@ export function createMasterStore(deps: Deps) {
     async updateRolePermissions(role: string, permissions: Record<string, boolean>): Promise<void> {
       set({ saving: true, error: null, notice: null });
       try {
-        const saved = await deps.updateRolePermissions.execute({ role, permissions });
+        const result = await deps.updateRolePermissions.execute({ role, permissions });
+        const n = result.sessionsRevoked ?? 0;
+        const notice =
+          n > 0
+            ? `Permisos del rol guardados. ${n} sesión(es) cerrada(s): esos usuarios deben volver a entrar.`
+            : 'Permisos del rol guardados. Los usuarios afectados aplicarán el cambio al revalidar o re-login.';
         set({
           saving: false,
-          rolePermissions: { ...state.rolePermissions, [role]: saved },
-          notice: 'Permisos del rol guardados',
+          rolePermissions: { ...state.rolePermissions, [role]: result.permissions },
+          notice,
         });
       } catch (err) {
         set({ saving: false, error: messageOf(err, 'Error al guardar los permisos del rol') });
@@ -173,7 +178,11 @@ export function createMasterStore(deps: Deps) {
       set({ saving: true, error: null, notice: null });
       try {
         await deps.updateUser.execute(input);
-        set({ saving: false, notice: 'Usuario actualizado' });
+        set({
+          saving: false,
+          notice:
+            'Usuario actualizado. Si cambió rol, módulos o contraseña, sus sesiones activas se cerraron.',
+        });
         await this.loadAll();
       } catch (err) {
         set({ saving: false, error: messageOf(err, 'Error al modificar el usuario') });
@@ -184,7 +193,7 @@ export function createMasterStore(deps: Deps) {
       set({ saving: true, error: null, notice: null });
       try {
         await deps.deactivateUser.execute(id);
-        set({ saving: false, notice: 'Usuario dado de baja' });
+        set({ saving: false, notice: 'Usuario dado de baja. Sesiones activas cerradas.' });
         await this.loadAll();
       } catch (err) {
         set({ saving: false, error: messageOf(err, 'Error al dar de baja el usuario') });

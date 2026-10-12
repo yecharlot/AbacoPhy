@@ -261,8 +261,10 @@
     font-weight: 700;
   }
   .list-scroll {
-    max-height: min(68vh, 820px);
+    max-height: var(--scroll-panel-xl);
     overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
   }
   .acc-list {
     list-style: none;

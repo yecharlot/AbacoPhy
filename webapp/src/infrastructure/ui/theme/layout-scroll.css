@@ -1,0 +1,66 @@
+/* Utilidades de scroll / márgenes de bloques que crecen */
+
+.ap-scroll {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+}
+
+.ap-scroll-sm { max-height: var(--scroll-panel-sm); }
+.ap-scroll-md { max-height: var(--scroll-panel-md); }
+.ap-scroll-lg { max-height: var(--scroll-panel-lg); }
+.ap-scroll-xl { max-height: var(--scroll-panel-xl); }
+.ap-scroll-modal { max-height: var(--scroll-modal); }
+
+.ap-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--block-gap, 12px);
+  min-width: 0;
+  width: 100%;
+}
+
+.ap-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3, 12px);
+  margin: 0;
+}
+
+.ap-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--block-gap, 12px);
+  min-width: 0;
+}
+
+.ap-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--block-gap, 12px);
+  min-width: 0;
+}
+
+@media (max-width: 899px) {
+  .ap-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Evita scroll horizontal por tablas anchas: el contenedor scrollea */
+.ap-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.ap-table-wrap table {
+  min-width: 520px;
+  width: 100%;
+}

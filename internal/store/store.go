@@ -78,22 +78,29 @@ func (s *Store) Get(tenantID string) *domain.StoreSnapshot {
 func (s *Store) Put(snap *domain.StoreSnapshot) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if snap == nil || snap.Tenant.ID == "" {
+		return fmt.Errorf("snapshot inválido")
+	}
 	snap.UpdatedAt = time.Now().UTC()
 	snap.Rev++
-	// CID content-addressable del snapshot
+	// CID sobre payload sin RootCID (estable); luego se re-serializa con CID.
+	snap.RootCID = ""
+	rawForCID, err := json.Marshal(snap)
+	if err != nil {
+		return err
+	}
+	cid := ContentCID(rawForCID)
+	snap.RootCID = cid
 	raw, err := json.Marshal(snap)
 	if err != nil {
 		return err
 	}
-	cid := ContentCID(raw)
-	snap.RootCID = cid
 	s.tenants[snap.Tenant.ID] = snap
 
 	_ = os.MkdirAll(filepath.Join(s.dataDir, "tenants"), 0755)
 	if err := os.WriteFile(s.pathTenant(snap.Tenant.ID), raw, 0644); err != nil {
 		return err
 	}
-	// bloque CID local (estilo IPFS)
 	cidDir := filepath.Join(s.dataDir, "cids")
 	_ = os.MkdirAll(cidDir, 0755)
 	_ = os.WriteFile(filepath.Join(cidDir, cid+".json"), raw, 0644)
@@ -101,6 +108,19 @@ func (s *Store) Put(snap *domain.StoreSnapshot) error {
 	go s.pushDO(snap.Tenant.ID, raw)
 	return nil
 }
+
+// VerifyStoredCID comprueba que el blob CID existe y deserializa.
+func (s *Store) VerifyStoredCID(cid string) (*domain.StoreSnapshot, error) {
+	snap, err := s.LoadCID(cid)
+	if err != nil {
+		return nil, err
+	}
+	if err := domain.ValidateSnapshotStructure(snap); err != nil {
+		return nil, err
+	}
+	return snap, nil
+}
+
 
 // ContentCID genera un identificador content-addressable (compatible con flujo IPFS local).
 func ContentCID(data []byte) string {
@@ -203,6 +223,66 @@ func (s *Store) RevokeToken(token string) {
 	defer s.mu.Unlock()
 	delete(s.tokens, token)
 	s.persistTokensLocked()
+}
+
+// RevokeUserTokens invalida todas las sesiones de un usuario (cambio de rol/módulos/baja).
+func (s *Store) RevokeUserTokens(userID string) int {
+	if userID == "" {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for tok, sess := range s.tokens {
+		if sess != nil && sess.UserID == userID {
+			delete(s.tokens, tok)
+			n++
+		}
+	}
+	if n > 0 {
+		s.persistTokensLocked()
+	}
+	return n
+}
+
+// RevokeRoleTokens invalida sesiones de un rol dentro de un tenant (cambio de grants del rol).
+func (s *Store) RevokeRoleTokens(tenantID, role string) int {
+	if tenantID == "" || role == "" {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for tok, sess := range s.tokens {
+		if sess != nil && sess.TenantID == tenantID && sess.Role == role {
+			delete(s.tokens, tok)
+			n++
+		}
+	}
+	if n > 0 {
+		s.persistTokensLocked()
+	}
+	return n
+}
+
+// RevokeTenantTokens invalida todas las sesiones del tenant (p. ej. desactivar módulos masivos).
+func (s *Store) RevokeTenantTokens(tenantID string) int {
+	if tenantID == "" {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for tok, sess := range s.tokens {
+		if sess != nil && sess.TenantID == tenantID {
+			delete(s.tokens, tok)
+			n++
+		}
+	}
+	if n > 0 {
+		s.persistTokensLocked()
+	}
+	return n
 }
 
 func (s *Store) FindUserByUsername(username string) (*domain.User, *domain.StoreSnapshot) {

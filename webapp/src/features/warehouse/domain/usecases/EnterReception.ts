@@ -22,6 +22,7 @@ export class EnterReception {
       return this.repo.enterReception({
         id,
         accept: false,
+        abandon: true,
         reason: tagged,
         note: input.note?.trim() || undefined,
       });
@@ -35,6 +36,7 @@ export class EnterReception {
       accept: input.accept,
       note: input.note?.trim() || undefined,
       reason: input.accept ? undefined : input.reason?.trim(),
+      lines: input.lines,
     });
   }
 }

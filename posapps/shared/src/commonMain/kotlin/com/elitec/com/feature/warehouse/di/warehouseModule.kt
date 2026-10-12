@@ -13,7 +13,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
-import org.koin.plugin.module.dsl.viewModel
 
 @OptIn(ExperimentalCoroutinesApi::class)
 val warehouseModule = module {
@@ -22,7 +21,7 @@ val warehouseModule = module {
     single {
         RemoteWarehouseDataSource(
             http = get(),
-            baseUrl = get(named("apiBaseUrl")),
+            apiConfig = get(),
             tokenProvider = get(named("authTokenProvider")),
         )
     }

@@ -4,6 +4,7 @@ import com.elitec.com.feature.catalog.data.dto.ProductDto
 import com.elitec.com.feature.catalog.data.dto.ProductsResponseDto
 import com.elitec.com.infraestructure.logging.AbacoLog
 import com.elitec.com.infraestructure.logging.LogCategory
+import com.elitec.com.infraestructure.network.ApiConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
@@ -27,17 +28,13 @@ import kotlinx.serialization.json.jsonPrimitive
  */
 class RemoteCatalogDataSource(
     private val http: HttpClient,
-    private val baseUrl: String,
+    private val apiConfig: ApiConfig,
     private val tokenProvider: suspend () -> String?,
 ) {
-    private val endpoint get() = baseUrl.trimEnd('/') + "/products"
-    private val priceSheetsEndpoint get() = baseUrl.trimEnd('/') + "/price-sheets"
-    private val syncEndpoint get() = baseUrl.trimEnd('/') + "/sync"
+    private val endpoint get() = apiConfig.requireBaseUrl().trimEnd('/') + "/products"
+    private val priceSheetsEndpoint get() = apiConfig.requireBaseUrl().trimEnd('/') + "/price-sheets"
+    private val syncEndpoint get() = apiConfig.requireBaseUrl().trimEnd('/') + "/sync"
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
-
-    init {
-        require(baseUrl.isNotBlank()) { "apiBaseUrl vacío" }
-    }
 
     suspend fun listProducts(): List<ProductDto> {
         val token = tokenProvider() ?: error("No hay sesión activa")

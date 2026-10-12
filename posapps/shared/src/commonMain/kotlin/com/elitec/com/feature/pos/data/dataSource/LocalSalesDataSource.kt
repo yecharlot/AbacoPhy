@@ -9,6 +9,8 @@ class LocalSalesDataSource(
 ) {
     fun getSalesFlow(): Flow<List<SaleDto>> = salesDao.getAllAsFlow()
 
+    suspend fun getAll(): List<SaleDto> = salesDao.getAll()
+
     suspend fun save(sale: SaleDto) {
         salesDao.save(sale)
     }
@@ -19,6 +21,8 @@ class LocalSalesDataSource(
     }
 
     suspend fun getById(saleId: String): SaleDto? = salesDao.getById(saleId)
+
+    suspend fun deleteById(saleId: String) = salesDao.deleteById(saleId)
 
     suspend fun getByUnitId(unitId: String): List<SaleDto> = salesDao.getByUnitId(unitId)
 }

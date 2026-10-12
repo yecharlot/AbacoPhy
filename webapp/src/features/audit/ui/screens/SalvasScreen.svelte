@@ -9,6 +9,7 @@
   let label = '';
   let restoreCid = '';
   let notice = '';
+  let fileInput: HTMLInputElement | null = null;
 
   onMount(() => {
     const unsub = store.subscribe((s: AuditState) => {
@@ -32,37 +33,72 @@
       label = '';
       notice = 'Salva creada correctamente.';
     } catch {
-      /* error en el estado del store */
+      /* error en store */
     }
   }
 
-  async function handleRestore(cid: string) {
+  async function handleRestoreCid(cid: string) {
     notice = '';
     if (!confirm('Restaurar esta salva sustituye el estado actual del negocio. ¿Continuar?')) return;
     try {
       await store.restore(cid);
       restoreCid = '';
-      notice = 'Salva restaurada.';
+      notice = 'Salva restaurada. Integridad verificada en el servidor.';
     } catch {
-      /* error en el estado del store */
+      /* error en store */
     }
   }
 
-  async function handleExport() {
+    async function handleExport() {
     notice = '';
+    console.info('[Abaco.Salvas.UI] click Exportar a disco');
     try {
       const blob = await store.exportBackup();
+      console.info('[Abaco.Salvas.UI] blob recibido', { size: blob?.size, type: blob?.type });
+      if (!blob || blob.size < 32) {
+        throw new Error(`ZIP inválido (size=${blob?.size ?? 0})`);
+      }
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'abacophy-salva.zip';
+      link.download = `abacophy-salva-rev${state.rev || 'x'}.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      notice = 'Descarga iniciada.';
+      notice = `Descarga iniciada (${Math.round(blob.size / 1024)} KB).`;
+      console.info('[Abaco.Salvas.UI] descarga disparada', notice);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[Abaco.Salvas.UI] export FAIL', e);
+      notice = '';
+      // state.error ya lo pone el store; refuerzo visible
+      if (!state.error) {
+        // el store debería haber seteado error; si no, forzar lectura
+        console.warn('[Abaco.Salvas.UI] store no dejó error; mensaje local:', msg);
+      }
+    }
+  }
+
+
+  function openFilePicker() {
+    fileInput?.click();
+  }
+
+  async function handleFileChange(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    notice = '';
+    if (!confirm(`Restaurar desde «${file.name}» sustituye el estado actual del negocio. ¿Continuar?`)) {
+      return;
+    }
+    try {
+      await store.importBackup(file);
+      notice = `Restauración desde disco completada (${file.name}).`;
     } catch {
-      /* error en el estado del store */
+      /* error en store */
     }
   }
 </script>
@@ -77,15 +113,25 @@
     <p class="muted">CID actual: <code>{state.currentCid}</code></p>
   {/if}
 
-  <form on:submit={handleCreate}>
+  <form onsubmit={handleCreate}>
     <Input id="backup-label" label="Etiqueta de la salva" bind:value={label} placeholder="Cierre de mes" />
     <div class="actions">
       <Button type="submit" disabled={state.saving}>
         {state.saving ? 'Trabajando…' : 'Crear salva'}
       </Button>
-      <Button variant="secondary" disabled={state.saving} on:click={handleExport}>
+      <Button type="button" variant="secondary" disabled={state.saving} onclick={() => handleExport()}>
         Exportar a disco (ZIP)
       </Button>
+      <Button type="button" variant="secondary" disabled={state.saving} onclick={() => openFilePicker()}>
+        Restaurar desde disco
+      </Button>
+      <input
+        bind:this={fileInput}
+        type="file"
+        accept=".zip,.json,application/zip,application/json"
+        class="file-hidden"
+        onchange={handleFileChange}
+      />
     </div>
   </form>
 
@@ -99,9 +145,15 @@
 
 <Card>
   <h2>Restaurar por CID</h2>
-  <Input id="restore-cid" label="CID de la salva" bind:value={restoreCid} placeholder="bafy…" />
-  <Button variant="danger" disabled={state.saving || !restoreCid.trim()} on:click={() => handleRestore(restoreCid)}>
-    Restaurar
+  <p class="muted">Usa una salva ya registrada en el servidor (mismo negocio).</p>
+  <Input id="restore-cid" label="CID de la salva" bind:value={restoreCid} placeholder="bafkrei…" />
+  <Button
+    type="button"
+    variant="danger"
+    disabled={state.saving || !restoreCid.trim()}
+    onclick={() => handleRestoreCid(restoreCid)}
+  >
+    Restaurar por CID
   </Button>
 </Card>
 
@@ -118,6 +170,7 @@
             <th>Etiqueta</th>
             <th class="num">Rev</th>
             <th>Usuario</th>
+            <th>SHA</th>
             <th>CID</th>
             <th></th>
           </tr>
@@ -129,9 +182,12 @@
               <td>{backup.label || '—'}</td>
               <td class="num">{backup.rev}</td>
               <td>{backup.username || '—'}</td>
-              <td class="cid">{backup.cid}</td>
+              <td class="nowrap muted">
+                <code>{backup.contentSha ? backup.contentSha.slice(0, 12) : '—'}</code>
+              </td>
+              <td class="nowrap"><code class="cid">{backup.cid.slice(0, 16)}…</code></td>
               <td>
-                <Button variant="ghost" size="sm" disabled={state.saving} on:click={() => handleRestore(backup.cid)}>
+                <Button type="button" size="sm" variant="ghost" onclick={() => handleRestoreCid(backup.cid)}>
                   Restaurar
                 </Button>
               </td>
@@ -160,8 +216,8 @@
     word-break: break-all;
   }
   .ok {
-    color: var(--ap-ok);
-    font-size: 0.82rem;
+    color: var(--ap-success, #3ecf8e);
+    font-size: 0.85rem;
   }
   .err {
     color: var(--ap-danger);
@@ -169,11 +225,20 @@
   }
   .actions {
     display: flex;
-    gap: 0.6rem;
     flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+  .file-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
   }
   .table-wrap {
     overflow-x: auto;
+    max-height: min(50vh, 420px);
   }
   table {
     width: 100%;
@@ -202,8 +267,6 @@
     white-space: nowrap;
   }
   .cid {
-    font-size: 0.72rem;
-    word-break: break-all;
-    max-width: 220px;
+    font-size: 0.75rem;
   }
 </style>

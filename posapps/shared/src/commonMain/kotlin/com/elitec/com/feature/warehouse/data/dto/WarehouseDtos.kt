@@ -5,6 +5,7 @@ import androidx.room3.PrimaryKey
 import com.elitec.com.feature.warehouse.domain.entities.SalesUnit
 import com.elitec.com.feature.warehouse.domain.entities.UnitStock
 import com.elitec.com.feature.warehouse.domain.entities.WarehouseStockRow
+import com.elitec.com.infraestructure.serialization.FlexibleMetadataStringSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -16,6 +17,7 @@ data class SalesUnitDto(
     val address: String? = null,
     val phone: String? = null,
     val active: Boolean? = true,
+    @Serializable(with = FlexibleMetadataStringSerializer::class)
     val metadata: String? = null,
 )
 
@@ -37,6 +39,7 @@ data class SalesUnitEntity(
     val address: String? = null,
     val phone: String? = null,
     val active: Boolean? = true,
+    @Serializable(with = FlexibleMetadataStringSerializer::class)
     val metadata: String? = null,
 )
 
@@ -67,6 +70,7 @@ data class UnitStockDto(
     val qty: Double? = null,
     @SerialName("avg_cost") val avgCost: Double? = null,
     @SerialName("amount_base") val amountBase: Double? = null,
+    @Serializable(with = FlexibleMetadataStringSerializer::class)
     val metadata: String? = null,
 )
 
@@ -87,6 +91,7 @@ data class UnitStockEntity(
     val qty: Double = 0.0,
     val avgCost: Double = 0.0,
     val amountBase: Double = 0.0,
+    @Serializable(with = FlexibleMetadataStringSerializer::class)
     val metadata: String? = null,
 )
 

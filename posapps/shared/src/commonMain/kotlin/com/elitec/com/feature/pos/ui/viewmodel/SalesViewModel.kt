@@ -10,6 +10,7 @@ import com.elitec.com.feature.identity.domain.repository.SessionRepository
 import com.elitec.com.feature.pos.domain.caseuse.GetSaleByIdCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.ListSalesByPOSCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.LoadPosSnapshotCaseUse
+import com.elitec.com.feature.pos.data.sync.PosRealtimeSync
 import com.elitec.com.feature.pos.domain.caseuse.ObserveSalesFlowCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.RegisterSaleCaseUse
 import com.elitec.com.feature.pos.domain.entities.CreateSaleInput
@@ -42,6 +43,7 @@ class SalesViewModel(
     private val registerSale: RegisterSaleCaseUse,
     private val getSaleById: GetSaleByIdCaseUse,
     private val loadPosSnapshot: LoadPosSnapshotCaseUse,
+    private val realtimeSync: PosRealtimeSync,
     private val sessions: SessionRepository,
 ) : ViewModel() {
 
@@ -65,6 +67,17 @@ class SalesViewModel(
     val sellerKey: StateFlow<String> = _sellerKey.asStateFlow()
 
     init {
+        // Transferencias web → refresco automático de stock del PDV
+        viewModelScope.launch {
+            realtimeSync.unitStockInvalidated.collect { inv ->
+                AbacoLog.i(
+                    LogCategory.POS,
+                    "[SalesViewModel] stock invalidate reason=${inv.reason} unit=${inv.unitId} tr=${inv.transferNumber}",
+                )
+                refreshAll()
+            }
+        }
+
         observeLocalCache()
         observeAuthenticatedSession()
     }
@@ -188,7 +201,10 @@ class SalesViewModel(
             val unitId = _activeUnitId.value.ifBlank { null }
 
             _context.value = _context.value.copy(loading = true, error = null)
-            _salesUiState.value = SaleListUiState.Loading
+            // No forzar Loading si ya hay listado local (evita parpadeo / vacío en offline)
+            if (_salesUiState.value !is SaleListUiState.WithSales) {
+                _salesUiState.value = SaleListUiState.Loading
+            }
 
             loadPosSnapshot(unitId)
                 .onSuccess { snap ->
@@ -214,15 +230,29 @@ class SalesViewModel(
                         else SaleListUiState.WithSales(visibleSales)
                 }
                 .onFailure { e ->
+                    // Offline-first: no tumbar PDV ni listado. Soft error + caché local.
+                    val msg = e.message ?: "Sin conexión al servidor"
+                    AbacoLog.w(LogCategory.POS, "refreshAll degraded: $msg")
                     _context.value = _context.value.copy(
                         loading = false,
-                        error = e.message ?: "Error al cargar POS",
+                        error = msg,
                     )
-                    _assignedUnit.value = AssignedUnitUiState.Error(
-                        e.message ?: "No se pudo cargar el punto de venta",
-                    )
-                    _salesUiState.value =
-                        SaleListUiState.Error(e.message ?: "Error al cargar ventas")
+                    val uid = _activeUnitId.value
+                    if (uid.isNotBlank()) {
+                        val prevReady = _assignedUnit.value as? AssignedUnitUiState.Ready
+                        val name = prevReady?.unitName
+                            ?: _context.value.units.firstOrNull { it.id == uid }?.name
+                            ?: uid
+                        _assignedUnit.value = AssignedUnitUiState.Ready(
+                            unitId = uid,
+                            unitName = name,
+                        )
+                    }
+                    // Dejar que observeLocalCache repueble; no forzar Error vacío
+                    val current = _salesUiState.value
+                    if (current !is SaleListUiState.WithSales && current !is SaleListUiState.Empty) {
+                        _salesUiState.value = SaleListUiState.Empty
+                    }
                 }
         }
     }
@@ -325,4 +355,14 @@ class SalesViewModel(
                 .onFailure { onError(it.message ?: "Venta no encontrada") }
         }
     }
+
+    /**
+     * true si [Sale.status] es venta local aún no confirmada por el servidor
+     * (RegisterSale encoló y el one-shot no pudo completar).
+     * La UI puede usar esto sobre [registerState] Success sin cambiar el flujo.
+     */
+    fun isQueuedSale(sale: Sale): Boolean =
+        sale.status.equals("pending_local", ignoreCase = true) ||
+            sale.number.equals("PENDIENTE", ignoreCase = true) ||
+            sale.id.startsWith("local-")
 }

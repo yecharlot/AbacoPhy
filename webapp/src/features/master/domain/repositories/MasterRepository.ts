@@ -17,7 +17,10 @@ export interface MasterRepository {
   updateModules(modules: Record<string, boolean>): Promise<Record<string, boolean>>;
   getUsers(): Promise<UsersSnapshot>;
   getRolePermissions(): Promise<RolePermissions>;
-  updateRolePermissions(role: string, permissions: Record<string, boolean>): Promise<Record<string, boolean>>;
+  updateRolePermissions(role: string, permissions: Record<string, boolean>): Promise<{
+    permissions: Record<string, boolean>;
+    sessionsRevoked: number;
+  }>;
   createUser(input: CreateUserInput): Promise<PlatformUser>;
   updateUser(input: UpdateUserInput): Promise<PlatformUser>;
   deactivateUser(id: string): Promise<void>;

@@ -18,3 +18,4 @@ export {
   type JournalBook,
   type JournalRow,
 } from './journal';
+export { buildBalanceSheet } from './balanceSheet';

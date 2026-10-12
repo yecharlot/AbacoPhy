@@ -10,6 +10,8 @@ import com.elitec.com.feature.catalog.data.dao.ProductDao
 import com.elitec.com.feature.catalog.data.dto.ProductDto
 import com.elitec.com.feature.identity.data.dao.SessionDao
 import com.elitec.com.feature.identity.data.dto.SessionEntity
+import com.elitec.com.feature.outbox.data.dao.OutboxDao
+import com.elitec.com.feature.outbox.data.dto.OutboxEntity
 import com.elitec.com.feature.pos.data.dao.SaleDao
 import com.elitec.com.feature.pos.data.dto.SaleDto
 import com.elitec.com.feature.warehouse.data.dao.WarehouseDao
@@ -23,8 +25,9 @@ import com.elitec.com.feature.warehouse.data.dto.UnitStockEntity
         ProductDto::class,
         SalesUnitEntity::class,
         UnitStockEntity::class,
+        OutboxEntity::class,
     ],
-    version = 3,
+    version = 4,
 )
 @ConstructedBy(AbacoDatabaseConstructor::class)
 abstract class AbacoDataBase : RoomDatabase() {
@@ -32,6 +35,7 @@ abstract class AbacoDataBase : RoomDatabase() {
     abstract fun getSessionDao(): SessionDao
     abstract fun getProductDao(): ProductDao
     abstract fun getWarehouseDao(): WarehouseDao
+    abstract fun getOutboxDao(): OutboxDao
 }
 
 expect object AbacoDatabaseConstructor : RoomDatabaseConstructor<AbacoDataBase> {

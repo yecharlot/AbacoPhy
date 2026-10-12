@@ -1165,7 +1165,7 @@
     left: 0;
     right: 0;
     z-index: 5;
-    max-height: 180px;
+    max-height: var(--scroll-panel-sm);
     overflow: auto;
     border-radius: 10px;
     border: 1px solid var(--color-border);

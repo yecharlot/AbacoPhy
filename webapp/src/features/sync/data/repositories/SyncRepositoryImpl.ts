@@ -1,4 +1,5 @@
-import type { HttpClient, HttpError } from '../../../../infrastructure/data/http';
+import type { HttpClient } from '../../../../infrastructure/data/http';
+import { HttpError } from '../../../../infrastructure/data/http';
 import type { KeyValueStorage } from '../../../../infrastructure/data/storage';
 import type {
   PendingOperation,
@@ -18,7 +19,7 @@ import { SyncRemoteSource } from '../sources/SyncRemoteSource';
 
 function toUserMessage(err: unknown): string {
   if (err && typeof err === 'object' && 'message' in err) {
-    const msg = (err as HttpError).message;
+    const msg = (err as { message: unknown }).message;
     if (typeof msg === 'string' && msg.trim()) return msg;
   }
   return 'Error de sincronización';
@@ -40,9 +41,9 @@ export class SyncRepositoryImpl implements SyncRepository {
     this.local = new SyncLocalQueue(storage);
   }
 
-  async pullSnapshot(): Promise<SyncSnapshot> {
+  async pullSnapshot(sinceRev?: number): Promise<SyncSnapshot> {
     try {
-      const dto = await this.remote.pull();
+      const dto = await this.remote.pull(sinceRev);
       return snapshotDtoToEntity(dto);
     } catch (err) {
       throw new Error(toUserMessage(err));
@@ -54,6 +55,20 @@ export class SyncRepositoryImpl implements SyncRepository {
       const dto = await this.remote.push(pushPayloadToDto(payload));
       return pushResponseToResult(dto);
     } catch (err) {
+      if (err instanceof HttpError && err.kind === 'conflict') {
+        const body = err.body as Record<string, unknown> | null;
+        return {
+          rev: Number(body?.server_rev ?? payload.clientRev),
+          rootCid: typeof body?.root_cid === 'string' ? body.root_cid : undefined,
+          accepted: 0,
+          conflict: true,
+          serverRev: Number(body?.server_rev ?? 0),
+          message:
+            (typeof body?.error === 'string' && body.error) ||
+            err.message ||
+            'Conflicto de sincronización: haga pull y reintente.',
+        };
+      }
       throw new Error(toUserMessage(err));
     }
   }

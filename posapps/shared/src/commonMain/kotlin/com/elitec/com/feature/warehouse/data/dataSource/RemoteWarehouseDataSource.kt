@@ -6,6 +6,7 @@ import com.elitec.com.feature.warehouse.data.dto.UnitStockDto
 import com.elitec.com.feature.warehouse.data.dto.WarehouseResponseDto
 import com.elitec.com.infraestructure.logging.AbacoLog
 import com.elitec.com.infraestructure.logging.LogCategory
+import com.elitec.com.infraestructure.network.ApiConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
@@ -27,16 +28,12 @@ import kotlinx.serialization.json.jsonObject
  */
 class RemoteWarehouseDataSource(
     private val http: HttpClient,
-    private val baseUrl: String,
+    private val apiConfig: ApiConfig,
     private val tokenProvider: suspend () -> String?,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
-    private fun url(path: String) = baseUrl.trimEnd('/') + path
-
-    init {
-        require(baseUrl.isNotBlank()) { "apiBaseUrl vacío" }
-    }
+    private fun url(path: String) = apiConfig.requireBaseUrl().trimEnd('/') + path
 
     private suspend fun token(): String =
         tokenProvider() ?: error("No hay sesión activa")

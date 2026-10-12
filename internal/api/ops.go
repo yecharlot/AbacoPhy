@@ -72,7 +72,7 @@ func (s *Server) handleProducts(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "productos"); err != nil {
+	if err := s.gateOp(sess, "productos", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -201,7 +201,7 @@ func (s *Server) handleSalesUnits(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "unidades"); err != nil {
+	if err := s.gateOp(sess, "unidades", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -285,7 +285,7 @@ func (s *Server) handleWarehouse(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "almacen"); err != nil {
+	if err := s.gateOp(sess, "almacen", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -350,8 +350,8 @@ func (s *Server) handleReceptions(w http.ResponseWriter, r *http.Request) {
 		canRead := sess.Role == domain.RoleEconomico || sess.Role == domain.RoleAlmacenero ||
 			sess.Role == domain.RoleAdmin || sess.Role == domain.RoleMaster || sess.Role == domain.RoleContador
 		if !canRead {
-			if err := s.gate(sess, "recepcion"); err != nil {
-				if err2 := s.gate(sess, "almacen"); err2 != nil {
+			if err := s.gateOp(sess, "recepcion", r.Method); err != nil {
+				if err2 := s.gateOp(sess, "almacen", r.Method); err2 != nil {
 					writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 					return
 				}
@@ -382,7 +382,7 @@ func (s *Server) handleReceptions(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 403, map[string]string{"error": "solo el económico puede registrar informes de recepción"})
 			return
 		}
-		if err := s.gate(sess, "recepcion"); err != nil {
+		if err := s.gateOp(sess, "recepcion", r.Method); err != nil {
 			writeJSON(w, 403, map[string]string{"error": "módulo recepción no disponible"})
 			return
 		}
@@ -470,6 +470,12 @@ func (s *Server) handleReceptions(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleReceptionEnter: almacenero valida el IR y da entrada física al almacén.
+// Prioridad 1 — política:
+//   - Crear IR (POST /receptions) es solo documental (no stock ni CPP).
+//   - Aquí se confirma, reporta problema o abandona.
+//   - Stock + costo promedio + asiento de inventario solo si accept=true.
+//   - Diferencias por línea: qty_received / qty_damaged / qty_rejected.
+//   - Abandono definitivo: accept=false + abandon=true → status anulado (sin stock).
 func (s *Server) handleReceptionEnter(w http.ResponseWriter, r *http.Request, sess *domain.TokenSession, snap *domain.StoreSnapshot) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
@@ -479,27 +485,40 @@ func (s *Server) handleReceptionEnter(w http.ResponseWriter, r *http.Request, se
 		writeJSON(w, 403, map[string]string{"error": "solo el almacenero puede dar entrada física"})
 		return
 	}
-	if err := s.gate(sess, "almacen"); err != nil {
-		// admin/master pueden actuar aunque el módulo esté off en edge cases
+	if err := s.gateOp(sess, "almacen", r.Method); err != nil {
 		if sess.Role != domain.RoleAdmin && sess.Role != domain.RoleMaster {
 			writeJSON(w, 403, map[string]string{"error": "módulo almacén no disponible"})
 			return
 		}
 	}
+
 	var req struct {
-		ID     string `json:"id"`
-		Note   string `json:"note,omitempty"`
-		Reason string `json:"reason,omitempty"`
-		Accept bool   `json:"accept"` // true = entrada confirmada; false = problema
+		ID      string `json:"id"`
+		Note    string `json:"note,omitempty"`
+		Reason  string `json:"reason,omitempty"`
+		Accept  bool   `json:"accept"`            // true = entrada confirmada
+		Abandon bool   `json:"abandon,omitempty"` // true + accept=false = abandono definitivo
+		// Ajustes opcionales por línea (product_id debe coincidir con el IR).
+		// Si se omite, se asume qty_received = qty declarada y 0 dañado/rechazado.
+		Lines []struct {
+			ProductID   string  `json:"product_id"`
+			QtyReceived float64 `json:"qty_received"`
+			QtyDamaged  float64 `json:"qty_damaged"`
+			QtyRejected float64 `json:"qty_rejected"`
+		} `json:"lines,omitempty"`
 	}
 	if err := readJSON(r, &req); err != nil || req.ID == "" {
 		writeJSON(w, 400, map[string]string{"error": "id de informe requerido"})
 		return
 	}
+	if req.Abandon {
+		req.Accept = false
+	}
 	if !req.Accept && strings.TrimSpace(req.Reason) == "" {
-		writeJSON(w, 400, map[string]string{"error": "indique el motivo del problema de entrada"})
+		writeJSON(w, 400, map[string]string{"error": "indique el motivo del problema o del abandono"})
 		return
 	}
+
 	idx := -1
 	for i := range snap.Receptions {
 		if snap.Receptions[i].ID == req.ID || snap.Receptions[i].Number == req.ID {
@@ -517,26 +536,69 @@ func (s *Server) handleReceptionEnter(w http.ResponseWriter, r *http.Request, se
 		return
 	}
 	if rn.Status == "anulado" {
-		writeJSON(w, 409, map[string]string{"error": "informe anulado"})
+		writeJSON(w, 409, map[string]string{"error": "informe anulado (abandonado); no admite entrada"})
 		return
 	}
-	if !req.Accept {
-		now := time.Now().UTC()
-		rn.Status = "problemas_entrada"
-		if rn.Metadata == nil {
-			rn.Metadata = domain.Metadata{}
+
+	now := time.Now().UTC()
+	if rn.Metadata == nil {
+		rn.Metadata = domain.Metadata{}
+	}
+
+	// --- Abandono definitivo: sin movimiento de stock ni contabilidad ---
+	if req.Abandon || (!req.Accept && strings.Contains(strings.ToUpper(req.Reason), "[ABANDONADO]")) {
+		reason := strings.TrimSpace(req.Reason)
+		rn.Status = "anulado"
+		rn.Metadata["int.reception_status"] = "abandoned"
+		rn.Metadata["int.reception_abandon_reason"] = reason
+		rn.Metadata["int.reception_entry_actor"] = sess.UserID
+		rn.Metadata["int.reception_entry_at"] = now.Format(time.RFC3339)
+		if req.Note != "" {
+			rn.Note = strings.TrimSpace(strings.Trim(strings.Join([]string{rn.Note, req.Note}, " · "), "· "))
 		}
+		s.audit(snap, sess, "recepcion.abandonada",
+			fmt.Sprintf("Abandono definitivo IR %s · %s", rn.Number, reason), rn.ID)
+		_ = s.Store.Put(snap)
+		writeJSON(w, 200, map[string]any{
+			"reception": rn,
+			"message":   "Recepción abandonada; no se dio entrada ni se modificó stock",
+		})
+		return
+	}
+
+	// --- Problema de entrada (sigue pendiente de resolución; sin stock) ---
+	if !req.Accept {
+		rn.Status = "problemas_entrada"
 		rn.Metadata["int.reception_status"] = "entry_problem"
 		rn.Metadata["int.reception_problem_reason"] = strings.TrimSpace(req.Reason)
 		rn.Metadata["int.reception_entry_actor"] = sess.UserID
 		rn.Metadata["int.reception_entry_at"] = now.Format(time.RFC3339)
-		rn.Note = strings.TrimSpace(strings.Trim(strings.Join([]string{rn.Note, strings.TrimSpace(req.Reason)}, " · "), "·"))
+		rn.Note = strings.TrimSpace(strings.Trim(strings.Join([]string{rn.Note, strings.TrimSpace(req.Reason)}, " · "), "· "))
 		s.audit(snap, sess, "recepcion.problema_entrada",
 			fmt.Sprintf("Problema entrada IR %s · %s", rn.Number, strings.TrimSpace(req.Reason)), rn.ID)
 		_ = s.Store.Put(snap)
 		writeJSON(w, 200, map[string]any{"reception": rn, "message": "Problema de entrada registrado"})
 		return
 	}
+
+	// --- Confirmación de entrada física ---
+	adjByProduct := map[string]struct {
+		recv, dmg, rej float64
+		set            bool
+	}{}
+	for _, a := range req.Lines {
+		pid := strings.TrimSpace(a.ProductID)
+		if pid == "" {
+			continue
+		}
+		adjByProduct[pid] = struct {
+			recv, dmg, rej float64
+			set            bool
+		}{recv: a.QtyReceived, dmg: a.QtyDamaged, rej: a.QtyRejected, set: true}
+	}
+
+	var enteredCost float64
+	var enteredLines int
 	for i := range rn.Lines {
 		ln := &rn.Lines[i]
 		p := snap.Products[ln.ProductID]
@@ -544,79 +606,120 @@ func (s *Server) handleReceptionEnter(w http.ResponseWriter, r *http.Request, se
 			writeJSON(w, 400, map[string]string{"error": "producto faltante: " + ln.ProductCode})
 			return
 		}
+
+		qtyRecv := ln.Qty
+		qtyDmg := 0.0
+		qtyRej := 0.0
+		if adj, ok := adjByProduct[ln.ProductID]; ok && adj.set {
+			qtyRecv = adj.recv
+			qtyDmg = adj.dmg
+			qtyRej = adj.rej
+		}
+		if qtyRecv < 0 || qtyDmg < 0 || qtyRej < 0 {
+			writeJSON(w, 400, map[string]string{"error": "cantidades de entrada no pueden ser negativas (" + ln.ProductCode + ")"})
+			return
+		}
+		// Tolerancia: recibido+dañado+rechazado no debe superar mucho lo declarado (aviso blando vía status).
+		sumPhys := qtyRecv + qtyDmg + qtyRej
+		if sumPhys > ln.Qty*1.0001 && ln.Qty > 0 {
+			// Permitido pero marcamos partial/exceso en metadata de línea
+			if ln.Metadata == nil {
+				ln.Metadata = domain.Metadata{}
+			}
+			ln.Metadata["int.qty_over_declared"] = true
+		}
+
+		ln.QtyReceived = qtyRecv
+		ln.QtyDamaged = qtyDmg
+		ln.QtyRejected = qtyRej
+		switch {
+		case qtyRecv <= 0 && (qtyDmg > 0 || qtyRej > 0 || ln.Qty > 0):
+			ln.LineStatus = "rejected"
+		case qtyRecv+1e-9 < ln.Qty || qtyDmg > 0 || qtyRej > 0:
+			ln.LineStatus = "partial"
+		default:
+			ln.LineStatus = "ok"
+		}
+		if ln.Metadata == nil {
+			ln.Metadata = domain.Metadata{}
+		}
+		ln.Metadata["int.qty_declared"] = ln.Qty
+		ln.Metadata["int.qty_received"] = qtyRecv
+		ln.Metadata["int.qty_damaged"] = qtyDmg
+		ln.Metadata["int.qty_rejected"] = qtyRej
+
+		if qtyRecv <= 0 {
+			continue
+		}
+
+		lineAmount := qtyRecv * ln.UnitCost
 		st := snap.WarehouseStock[ln.ProductID]
 		if st == nil {
 			st = &domain.WarehouseStock{ProductID: ln.ProductID}
 			snap.WarehouseStock[ln.ProductID] = st
 		}
-		newQty := st.Qty + ln.Qty
+		newQty := st.Qty + qtyRecv
 		if newQty > 0 {
-			st.AvgCost = (st.AmountBase + ln.Amount) / newQty
+			st.AvgCost = (st.AmountBase + lineAmount) / newQty
 		}
 		st.Qty = newQty
 		st.AmountBase = st.Qty * st.AvgCost
 		p.CostStd = st.AvgCost
 		p.UpdatedAt = time.Now().UTC()
 		s.mirrorInventoryFromProduct(snap, p, st)
-		// Propagar costo hacia productos compuestos que usan este base/componente.
 		domain.PropagateCostFromProduct(snap, ln.ProductID)
-	}
-	// El reconocimiento contable de inventario ocurre junto con la entrada física.
-	domain.ApplyInventoryIn(snap, rn.TotalCost)
-	snap.Entries = append(snap.Entries, domain.Entry{
-		ID: uuid.NewString(), TenantID: sess.TenantID, Date: rn.Date, Type: "inventory",
-		Amount: rn.TotalCost, Currency: rn.Currency,
-		Description: fmt.Sprintf("Entrada almacén IR %s · %s · validado por almacenero", rn.Number, rn.Supplier),
-		CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
-	})
+		domain.AppendStockMove(snap, domain.StockMovement{
+			ID: uuid.NewString(), TenantID: sess.TenantID, ProductID: ln.ProductID,
+			Location: domain.LocWarehouse, Kind: domain.MoveReceptionIn,
+			Qty: qtyRecv, QtySigned: qtyRecv, UnitCost: ln.UnitCost, AmountBase: lineAmount,
+			RefType: "reception", RefID: rn.ID, Note: "Entrada IR " + rn.Number,
+			CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
+		})
 
-	now := time.Now().UTC()
+		enteredCost += lineAmount
+		enteredLines++
+	}
+
+	if enteredLines == 0 {
+		writeJSON(w, 400, map[string]string{"error": "ninguna línea con cantidad recibida > 0; use problema o abandono"})
+		return
+	}
+
+	// Contabilidad: misma fuente de asientos (libro único) — Debe Inventario | Haber Caja.
+	if ent := domain.ApplyInventoryIn(snap, enteredCost,
+		fmt.Sprintf("Entrada almacén IR %s · %s · validado por almacenero", rn.Number, rn.Supplier),
+		sess.UserID); ent != nil {
+		domain.AppendPostedEntry(snap, ent, sess.TenantID, rn.Date)
+	}
+
 	rn.Status = "entrado"
 	rn.EnteredBy = sess.UserID
 	rn.EnteredAt = &now
-	if rn.Metadata == nil {
-		rn.Metadata = domain.Metadata{}
-	}
 	rn.Metadata["int.reception_status"] = "entry_confirmed"
 	rn.Metadata["int.reception_entry_actor"] = sess.UserID
 	rn.Metadata["int.reception_entry_at"] = now.Format(time.RFC3339)
+	rn.Metadata["int.reception_entered_cost"] = enteredCost
+	rn.Metadata["int.reception_entered_lines"] = enteredLines
 	if req.Note != "" {
 		if rn.Note != "" {
-			rn.Note = rn.Note + " · "
+			rn.Note = rn.Note + " · " + req.Note
+		} else {
+			rn.Note = req.Note
 		}
-		rn.Note = rn.Note + req.Note
 	}
+	// Recalcular total documental se conserva; entered cost queda en metadata.
 	s.audit(snap, sess, "recepcion.entrada_almacen",
-		fmt.Sprintf("Entrada almacén IR %s · %d líneas · validado con económico", rn.Number, len(rn.Lines)), rn.ID)
+		fmt.Sprintf("Entrada IR %s · recibido costo %.2f %s · %d líneas con stock",
+			rn.Number, enteredCost, rn.Currency, enteredLines), rn.ID)
 	_ = s.Store.Put(snap)
-	writeJSON(w, 200, map[string]any{"reception": rn, "message": "Entrada a almacén registrada"})
+	writeJSON(w, 200, map[string]any{
+		"reception":     rn,
+		"entered_cost":  enteredCost,
+		"entered_lines": enteredLines,
+		"message":       "Entrada física confirmada; stock y costo promedio actualizados",
+	})
 }
 
-func (s *Server) mirrorInventoryFromProduct(snap *domain.StoreSnapshot, p *domain.Product, st *domain.WarehouseStock) {
-	if snap.Inventory == nil {
-		snap.Inventory = map[string]*domain.InventoryItem{}
-	}
-	key := "inv-" + p.Code
-	it := snap.Inventory[key]
-	if it == nil {
-		it = &domain.InventoryItem{ID: key, TenantID: snap.Tenant.ID, SKU: p.Code, Name: p.Name, Unit: p.Unit, Currency: p.Currency, Active: true}
-		snap.Inventory[key] = it
-	}
-	it.Qty = st.Qty
-	it.Cost = st.AvgCost
-	it.Amount = st.AmountBase
-	it.AmountBase = st.AmountBase
-	it.UpdatedAt = time.Now().UTC()
-}
-
-func findUnitStock(snap *domain.StoreSnapshot, unitID, productID string) *domain.UnitStock {
-	for i := range snap.UnitStocks {
-		if snap.UnitStocks[i].UnitID == unitID && snap.UnitStocks[i].ProductID == productID {
-			return &snap.UnitStocks[i]
-		}
-	}
-	return nil
-}
 
 func (s *Server) handleTransfers(w http.ResponseWriter, r *http.Request) {
 	sess, err := s.sess(r)
@@ -624,7 +727,7 @@ func (s *Server) handleTransfers(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "almacen"); err != nil {
+	if err := s.gateOp(sess, "almacen", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -638,6 +741,7 @@ func (s *Server) handleTransfers(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		writeJSON(w, 200, map[string]any{"transfers": snap.Transfers})
 	case http.MethodPost:
+		// Prioridad 2: validar TODAS las líneas antes de mutar stock (sin fallos parciales).
 		var body domain.StockTransfer
 		if err := readJSON(r, &body); err != nil || body.UnitID == "" || len(body.Lines) == 0 {
 			writeJSON(w, 400, map[string]string{"error": "unidad y líneas requeridas"})
@@ -645,10 +749,71 @@ func (s *Server) handleTransfers(w http.ResponseWriter, r *http.Request) {
 		}
 		unit := snap.SalesUnits[body.UnitID]
 		if unit == nil || !unit.Active {
-			writeJSON(w, 400, map[string]string{"error": "unidad de venta no válida"})
+			writeJSON(w, 400, map[string]string{"error": "unidad de venta no válida o inactiva", "code": "unit_invalid"})
 			return
 		}
-		body.ID = uuid.NewString()
+
+		inputs := make([]domain.TransferLineInput, 0, len(body.Lines))
+		for _, ln := range body.Lines {
+			inputs = append(inputs, domain.TransferLineInput{
+				ProductID: strings.TrimSpace(ln.ProductID),
+				Qty:       ln.Qty,
+			})
+		}
+		demand := domain.AggregateTransferDemand(inputs)
+		if err := domain.ValidateTransferStock(snap, body.UnitID, demand); err != nil {
+			code := "transfer_invalid"
+			msg := err.Error()
+			if ve, ok := err.(*domain.TransferValidationError); ok {
+				code = ve.Code
+				msg = ve.Message
+			}
+			writeJSON(w, 400, map[string]string{"error": msg, "code": code})
+			return
+		}
+
+		applied, err := domain.ApplyWarehouseToUnitTransfer(snap, body.UnitID, inputs)
+		if err != nil {
+			code := "transfer_failed"
+			msg := err.Error()
+			if ve, ok := err.(*domain.TransferValidationError); ok {
+				code = ve.Code
+				msg = ve.Message
+			}
+			writeJSON(w, 400, map[string]string{"error": msg, "code": code})
+			return
+		}
+
+		transferID := uuid.NewString()
+		body.ID = transferID
+		// Espejo inventario legacy + Kardex (salida almacén / entrada PDV).
+		seen := map[string]struct{}{}
+		for _, ln := range applied {
+			domain.AppendStockMove(snap, domain.StockMovement{
+				ID: uuid.NewString(), TenantID: sess.TenantID, ProductID: ln.ProductID,
+				Location: domain.LocWarehouse, Kind: domain.MoveTransferOut,
+				Qty: ln.Qty, QtySigned: -ln.Qty, UnitCost: ln.UnitCost, AmountBase: ln.Amount,
+				RefType: "transfer", RefID: transferID, Note: "TR → " + unit.Code,
+				CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
+			})
+			domain.AppendStockMove(snap, domain.StockMovement{
+				ID: uuid.NewString(), TenantID: sess.TenantID, ProductID: ln.ProductID,
+				Location: domain.LocUnit, UnitID: body.UnitID, Kind: domain.MoveTransferIn,
+				Qty: ln.Qty, QtySigned: ln.Qty, UnitCost: ln.UnitCost, AmountBase: ln.Amount,
+				RefType: "transfer", RefID: transferID, Note: "TR desde almacén",
+				CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
+			})
+			if _, ok := seen[ln.ProductID]; ok {
+				continue
+			}
+			seen[ln.ProductID] = struct{}{}
+			p := snap.Products[ln.ProductID]
+			st := snap.WarehouseStock[ln.ProductID]
+			if p != nil && st != nil {
+				s.mirrorInventoryFromProduct(snap, p, st)
+			}
+		}
+
 		body.TenantID = sess.TenantID
 		body.Number = nextCode("TR", &snap.DocCounters.TransferSeq)
 		if body.Date == "" {
@@ -658,38 +823,34 @@ func (s *Server) handleTransfers(w http.ResponseWriter, r *http.Request) {
 		body.Status = "confirmado"
 		body.CreatedBy = sess.UserID
 		body.CreatedAt = time.Now().UTC()
-		for i := range body.Lines {
-			ln := &body.Lines[i]
-			p := snap.Products[ln.ProductID]
-			st := snap.WarehouseStock[ln.ProductID]
-			if p == nil || st == nil || ln.Qty <= 0 || st.Qty < ln.Qty {
-				writeJSON(w, 400, map[string]string{"error": "stock insuficiente o producto inválido"})
-				return
-			}
-			ln.ProductCode, ln.ProductName = p.Code, p.Name
-			ln.UnitCost = st.AvgCost
-			ln.Amount = ln.Qty * ln.UnitCost
-			st.Qty -= ln.Qty
-			st.AmountBase = st.Qty * st.AvgCost
-			us := findUnitStock(snap, body.UnitID, ln.ProductID)
-			if us == nil {
-				snap.UnitStocks = append(snap.UnitStocks, domain.UnitStock{
-					UnitID: body.UnitID, ProductID: ln.ProductID, Qty: ln.Qty, AvgCost: ln.UnitCost, AmountBase: ln.Amount,
-				})
-			} else {
-				nq := us.Qty + ln.Qty
-				if nq > 0 {
-					us.AvgCost = (us.AmountBase + ln.Amount) / nq
-				}
-				us.Qty = nq
-				us.AmountBase = us.Qty * us.AvgCost
-			}
-			s.mirrorInventoryFromProduct(snap, p, st)
+		body.Lines = applied
+		if body.Metadata == nil {
+			body.Metadata = domain.Metadata{}
 		}
+		body.Metadata["int.transfer_unit_code"] = unit.Code
+		body.Metadata["int.transfer_line_count"] = len(applied)
+
 		snap.Transfers = append(snap.Transfers, body)
 		s.audit(snap, sess, "almacen.transferencia",
-			fmt.Sprintf("Transferencia %s a unidad %s (%s) · %d líneas", body.Number, unit.Code, unit.Name, len(body.Lines)), body.ID)
+			fmt.Sprintf("Transferencia %s a unidad %s (%s) · %d líneas · stock validado",
+				body.Number, unit.Code, unit.Name, len(body.Lines)), body.ID)
 		_ = s.Store.Put(snap)
+
+		// Notifica POS conectados (SSE) para refrescar stock del PDV destino
+		if s.Hub != nil {
+			payload := map[string]any{
+				"transferId": body.ID,
+				"number":     body.Number,
+				"unitId":     body.UnitID,
+				"unitCode":   unit.Code,
+				"unitName":   unit.Name,
+				"lineCount":  len(applied),
+				"ts":         time.Now().UTC().Format(time.RFC3339),
+			}
+			s.Hub.Publish(sess.TenantID, "stock.transfer", payload)
+			s.Hub.Publish(sess.TenantID, "inventory.updated", payload)
+		}
+
 		writeJSON(w, 201, map[string]any{"transfer": body})
 	default:
 		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
@@ -702,7 +863,7 @@ func (s *Server) handlePOSSales(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "vendedor"); err != nil {
+	if err := s.gateOp(sess, "vendedor", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -776,6 +937,13 @@ func (s *Server) handlePOSSales(w http.ResponseWriter, r *http.Request) {
 				unitCost = us.AvgCost
 				us.Qty -= ln.Qty
 				us.AmountBase = us.Qty * us.AvgCost
+				domain.AppendStockMove(snap, domain.StockMovement{
+					ID: uuid.NewString(), TenantID: sess.TenantID, ProductID: ln.ProductID,
+					Location: domain.LocUnit, UnitID: body.UnitID, Kind: domain.MoveSaleOut,
+					Qty: ln.Qty, QtySigned: -ln.Qty, UnitCost: unitCost, AmountBase: unitCost * ln.Qty,
+					RefType: "sale", RefID: body.ID, Note: "Venta " + body.Number,
+					CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
+				})
 			} else {
 				st := snap.WarehouseStock[ln.ProductID]
 				if st == nil || st.Qty < ln.Qty {
@@ -786,6 +954,13 @@ func (s *Server) handlePOSSales(w http.ResponseWriter, r *http.Request) {
 				st.Qty -= ln.Qty
 				st.AmountBase = st.Qty * st.AvgCost
 				s.mirrorInventoryFromProduct(snap, p, st)
+				domain.AppendStockMove(snap, domain.StockMovement{
+					ID: uuid.NewString(), TenantID: sess.TenantID, ProductID: ln.ProductID,
+					Location: domain.LocWarehouse, Kind: domain.MoveSaleOut,
+					Qty: ln.Qty, QtySigned: -ln.Qty, UnitCost: unitCost, AmountBase: unitCost * ln.Qty,
+					RefType: "sale", RefID: body.ID, Note: "Venta " + body.Number,
+					CreatedBy: sess.UserID, CreatedAt: time.Now().UTC(),
+				})
 			}
 			ln.UnitCost = unitCost
 			ln.CostAmount = unitCost * ln.Qty
@@ -800,43 +975,13 @@ func (s *Server) handlePOSSales(w http.ResponseWriter, r *http.Request) {
 		// Contabilidad: ingreso + COGS
 		// Fase 2: persistir el asiento de ingreso (ApplyIncome ya actualiza saldos Caja/4000).
 		if ent := domain.ApplyIncome(snap, body.Total, "Venta vendedor "+body.Number+" · rebaja "+formatFloat(disc), sess.UserID); ent != nil {
-			ent.ID = uuid.NewString()
-			ent.TenantID = sess.TenantID
-			if body.Date != "" {
-				ent.Date = body.Date
-			} else {
-				ent.Date = time.Now().Format("2006-01-02")
-			}
-			ent.CreatedAt = time.Now().UTC()
-			snap.Entries = append(snap.Entries, *ent)
+			domain.AppendPostedEntry(snap, ent, sess.TenantID, body.Date)
 		}
 		if costT > 0 {
-			// Saldos: Inventario 1300 ↓, Costo de ventas 5000 ↑ (sin ApplyDoubleEntry para no duplicar).
-			domain.ApplyInventoryOut(snap, costT)
-			// Fase 3: asiento de gasto en libro, alineado a cuenta 5000 y contrapartida inventario.
-			cogsAcc := domain.FindAccountByCode(snap.Accounts, "5000")
-			invAcc := domain.FindAccountByCode(snap.Accounts, "1300")
-			cogsEntry := domain.Entry{
-				ID:          uuid.NewString(),
-				TenantID:    sess.TenantID,
-				Date:        body.Date,
-				Type:        "expense",
-				Amount:      costT,
-				Currency:    body.Currency,
-				Description: "Costo venta " + body.Number,
-				CreatedBy:   sess.UserID,
-				CreatedAt:   time.Now().UTC(),
+			// COGS: Debe 5000 | Haber 1300 — un solo Apply (saldos + asiento).
+			if cogsEnt := domain.ApplyInventoryOut(snap, costT, "Costo venta "+body.Number, sess.UserID); cogsEnt != nil {
+				domain.AppendPostedEntry(snap, cogsEnt, sess.TenantID, body.Date)
 			}
-			if body.Date == "" {
-				cogsEntry.Date = time.Now().Format("2006-01-02")
-			}
-			if cogsAcc != nil {
-				cogsEntry.AccountID = cogsAcc.ID
-			}
-			if invAcc != nil {
-				cogsEntry.Counterpart = invAcc.ID
-			}
-			snap.Entries = append(snap.Entries, cogsEntry)
 		}
 		snap.POSSales = append(snap.POSSales, body)
 		s.audit(snap, sess, "venta.vendedor",
@@ -903,7 +1048,7 @@ func (s *Server) handleCostSheets(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "fichas_costo"); err != nil {
+	if err := s.gateOp(sess, "fichas_costo", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -1064,7 +1209,7 @@ func (s *Server) handleJobPositions(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "cargos"); err != nil {
+	if err := s.gateOp(sess, "cargos", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -1202,12 +1347,18 @@ func (s *Server) handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 		}
 		snap.Tenant.RolePermissions[body.Role] = clean
 		snap.Tenant.UpdatedAt = time.Now().UTC()
+		auth.BumpTenantPermsEpoch(snap)
 		s.audit(snap, sess, "permisos.rol.edicion", "Edición de permisos del rol «"+roleLabelES(body.Role)+"»", body.Role)
 		if err := s.Store.Put(snap); err != nil {
 			writeJSON(w, 500, map[string]string{"error": "no se pudieron persistir los permisos del rol: " + err.Error()})
 			return
 		}
-		writeJSON(w, 200, map[string]any{"role": body.Role, "permissions": clean})
+		// Invalidar sesiones del rol: deben re-login con grants nuevos.
+		revoked := s.Store.RevokeRoleTokens(sess.TenantID, body.Role)
+		writeJSON(w, 200, map[string]any{
+			"role": body.Role, "permissions": clean,
+			"sessions_revoked": revoked, "perms_epoch": snap.Tenant.PermsEpoch,
+		})
 	default:
 		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
 	}
@@ -1219,7 +1370,7 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gate(sess, "usuarios"); err != nil {
+	if err := s.gateOp(sess, "usuarios", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -1349,13 +1500,23 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 		if body.Active != nil {
 			u.Active = *body.Active
 		}
+		// Cualquier cambio de rol, módulos o estado invalida sesiones del usuario.
+		if roleChanged || body.Modules != nil || body.Active != nil || body.Password != "" {
+			auth.BumpUserPermsEpoch(u)
+		}
 		u.UpdatedAt = time.Now().UTC()
 		s.audit(snap, sess, "usuario.edicion", "Edición de usuario «"+u.Username+"» · rol «"+roleLabelES(u.Role)+"»", u.ID)
 		if err := s.Store.Put(snap); err != nil {
 			writeJSON(w, 500, map[string]string{"error": "no se pudieron persistir los cambios del usuario: " + err.Error()})
 			return
 		}
-		writeJSON(w, 200, map[string]any{"user": publicUser(snap, u), "views": auth.ViewsForUser(u.Role, snap, u)})
+		revoked := s.Store.RevokeUserTokens(u.ID)
+		writeJSON(w, 200, map[string]any{
+			"user": publicUser(snap, u),
+			"views": auth.ViewsForUser(u.Role, snap, u),
+			"sessions_revoked": revoked,
+			"perms_epoch": u.PermsEpoch,
+		})
 	case http.MethodDelete:
 		id := r.URL.Query().Get("id")
 		u := snap.Users[id]
@@ -1368,10 +1529,12 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		u.Active = false
+		auth.BumpUserPermsEpoch(u)
 		u.UpdatedAt = time.Now().UTC()
 		s.audit(snap, sess, "usuario.baja", "Baja usuario "+u.Username, id)
 		_ = s.Store.Put(snap)
-		writeJSON(w, 200, map[string]any{"ok": true})
+		revoked := s.Store.RevokeUserTokens(u.ID)
+		writeJSON(w, 200, map[string]any{"ok": true, "sessions_revoked": revoked})
 	default:
 		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
 	}
@@ -1399,4 +1562,61 @@ func roleLabelES(role string) string {
 	default:
 		return role
 	}
+}
+
+// mirrorInventoryFromProduct mantiene el inventario “legacy” alineado con el stock de almacén
+// del producto del nomenclador (misma cantidad y costo promedio).
+func (s *Server) mirrorInventoryFromProduct(snap *domain.StoreSnapshot, p *domain.Product, st *domain.WarehouseStock) {
+	if snap == nil || p == nil || st == nil {
+		return
+	}
+	if snap.Inventory == nil {
+		snap.Inventory = map[string]*domain.InventoryItem{}
+	}
+	var item *domain.InventoryItem
+	for _, it := range snap.Inventory {
+		if it == nil || !it.Active {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(it.SKU), strings.TrimSpace(p.Code)) ||
+			(it.SKU == "" && strings.EqualFold(strings.TrimSpace(it.Name), strings.TrimSpace(p.Name))) {
+			item = it
+			break
+		}
+	}
+	if item == nil {
+		item = &domain.InventoryItem{
+			ID:       uuid.NewString(),
+			TenantID: p.TenantID,
+			SKU:      p.Code,
+			Name:     p.Name,
+			Unit:     p.Unit,
+			Currency: p.Currency,
+			Active:   true,
+		}
+		if item.Currency == "" && snap.Tenant.Currency != "" {
+			item.Currency = snap.Tenant.Currency
+		}
+		snap.Inventory[item.ID] = item
+	}
+	item.Qty = st.Qty
+	item.Cost = st.AvgCost
+	item.Amount = st.Qty * st.AvgCost
+	item.AmountBase = item.Amount
+	item.UpdatedAt = time.Now().UTC()
+	if p.PriceSale > 0 {
+		item.Price = p.PriceSale
+	}
+}
+
+func findUnitStock(snap *domain.StoreSnapshot, unitID, productID string) *domain.UnitStock {
+	if snap == nil {
+		return nil
+	}
+	for i := range snap.UnitStocks {
+		if snap.UnitStocks[i].UnitID == unitID && snap.UnitStocks[i].ProductID == productID {
+			return &snap.UnitStocks[i]
+		}
+	}
+	return nil
 }

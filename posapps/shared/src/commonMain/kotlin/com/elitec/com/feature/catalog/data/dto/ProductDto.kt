@@ -3,6 +3,7 @@ package com.elitec.com.feature.catalog.data.dto
 import androidx.room3.Entity
 import androidx.room3.PrimaryKey
 import com.elitec.com.feature.catalog.domain.entities.Product
+import com.elitec.com.infraestructure.serialization.FlexibleMetadataStringSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -16,6 +17,7 @@ data class ProductDto(
     val category: String? = null,
     @SerialName("cost_std") val costStd: Double? = null,
     @SerialName("price_sale") val priceSale: Double? = null,
+    @Serializable(with = FlexibleMetadataStringSerializer::class)
     val metadata: String? = null,
 )
 

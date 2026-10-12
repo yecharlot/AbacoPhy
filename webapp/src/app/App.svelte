@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import '../infrastructure/ui/theme/tokens.css';
+  import '../infrastructure/ui/theme/layout-scroll.css';
   import { AppShell, filterNavByViews, filterNavByScreenIds, PLACEHOLDER_NAV, ForbiddenScreen, BootSkeleton } from '../infrastructure/ui/shell';
   import { canAccessScreen, firstAllowedScreen, effectiveScreens } from '../features/identity/domain/access';
   import { Card, Button, Toast } from '../infrastructure/ui/shared';
@@ -174,6 +175,11 @@
     const unsubScreen = subscribeScreen((id) => {
       activeId = id;
     });
+    const unsubExpired = container.appDataBus.on('session.expired', () => {
+      sessionStore.forceAnonymous(
+        'Su sesión se invalidó (permisos, rol o baja). Vuelva a iniciar sesión.',
+      );
+    });
     const unsubSession = sessionStore.subscribe((s) => {
       sessionState = s;
     });
@@ -191,6 +197,7 @@
     return () => {
       unsubNet();
       unsubScreen();
+      unsubExpired();
       unsubSession();
       unsubMaster();
       window.removeEventListener('abacophy-ui-access-changed', onAccess);

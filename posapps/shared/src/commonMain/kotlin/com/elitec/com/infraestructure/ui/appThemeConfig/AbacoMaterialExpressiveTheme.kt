@@ -2,7 +2,6 @@ package com.elitec.com.infraestructure.ui.appThemeConfig
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialExpressiveTheme
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import com.elitec.com.infraestructure.ui.theme.AbacoShapes
 import com.elitec.com.infraestructure.ui.theme.AbacoTypography

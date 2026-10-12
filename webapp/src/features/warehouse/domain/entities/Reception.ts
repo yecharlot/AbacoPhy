@@ -6,6 +6,11 @@ export type ReceptionLine = {
   qty: number;
   unitCost: number;
   amount: number;
+  /** Tras entrada física en almacén */
+  qtyReceived?: number;
+  qtyDamaged?: number;
+  qtyRejected?: number;
+  lineStatus?: string;
   metadata?: string | null;
 };
 
@@ -73,13 +78,22 @@ export type CreateReceptionInput = {
   metadata?: string | null;
 };
 
+export type EnterReceptionLineInput = {
+  productId: string;
+  qtyReceived: number;
+  qtyDamaged?: number;
+  qtyRejected?: number;
+};
+
 export type EnterReceptionInput = {
   id: string;
   accept: boolean;
-  /** FE: marca reason con [ABANDONADO]; no cambia schema API. */
+  /** Backend: abandono definitivo sin stock. */
   abandon?: boolean;
   note?: string;
   reason?: string;
+  /** Ajustes físicos por línea; si se omiten, el BE asume qty declarada. */
+  lines?: EnterReceptionLineInput[];
   metadata?: string | null;
 };
 

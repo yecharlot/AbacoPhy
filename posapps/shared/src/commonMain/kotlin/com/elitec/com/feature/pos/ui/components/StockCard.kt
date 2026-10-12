@@ -16,6 +16,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -36,18 +37,14 @@ import androidx.compose.material.icons.rounded.Sell
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -57,11 +54,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.elitec.com.feature.pos.ui.models.LocalStock
 import com.elitec.com.feature.pos.ui.uiStates.StockStates
-import com.gursimar.composive.responsive.core.DeviceConfiguration
-import com.gursimar.composive.responsive.core.rememberDeviceConfiguration
 import com.gursimar.composive.responsive.theme.AppTheme
 import kotlin.math.roundToLong
 
+/*
 /**
  * @param listHeight altura de la lista de productos. Si no se indica,
  * cada tipo de pantalla usa su valor por defecto.
@@ -162,6 +158,79 @@ fun StockCard(
                 showAvatar = true,
                 listHeight = listHeight.orDefault(188.dp),
             )
+        }
+    }
+}
+
+ */
+
+
+@Composable
+fun StockCard(
+    icon: ImageVector,
+    tittle: String,
+    subTittle: String,
+    stockList: List<LocalStock>,
+    stockState: StockStates,
+    modifier: Modifier = Modifier,
+    loading: Boolean = false,
+    listHeight: Dp = Dp.Unspecified,
+    compact: Boolean = false,
+) {
+    val accent by animateColorAsState(
+        targetValue = when (stockState) {
+            StockStates.OUT -> Color(0xFFC94F4F)
+            StockStates.LOW -> Color(0xFFFA8760)
+            StockStates.OK -> Color(0xFF5E8F52)
+        },
+        animationSpec = tween(350),
+        label = "stockAccent",
+    )
+
+    val data = StockCardData(
+        icon = icon,
+        title = tittle,
+        subtitle = subTittle,
+        stockList = stockList,
+        loading = loading,
+        accent = accent,
+        statusLabel = when (stockState) {
+            StockStates.OUT -> "Agotado"
+            StockStates.LOW -> "Stock bajo"
+            StockStates.OK -> "Disponible"
+        },
+        statusIcon = when (stockState) {
+            StockStates.OUT -> Icons.Rounded.Error
+            StockStates.LOW -> Icons.Rounded.Warning
+            StockStates.OK -> Icons.Rounded.CheckCircle
+        },
+    )
+
+    StockCardContainer(accent = accent, modifier = modifier) {
+        BoxWithConstraints {
+            val w = maxWidth
+
+            when {
+                // Ancho suficiente: información a la izquierda, lista a la derecha.
+                w >= 440.dp || (compact && w >= 340.dp) -> StockCardSideBySide(
+                    data = data,
+                    listHeight = listHeight.orDefault(if (compact) 96.dp else 132.dp),
+                )
+
+                // Vertical. El estado sube a la cabecera solo si hay sitio para él.
+                else -> {
+                    val roomy = w >= 340.dp
+                    StockCardVertical(
+                        data = data,
+                        padding = if (roomy) 16.dp else 12.dp,
+                        iconBoxSize = if (roomy) 44.dp else 36.dp,
+                        statusInHeader = w >= 360.dp,
+                        nameLines = 2,
+                        showAvatar = true,
+                        listHeight = listHeight.orDefault(if (roomy) 156.dp else 140.dp),
+                    )
+                }
+            }
         }
     }
 }

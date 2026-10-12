@@ -3,6 +3,7 @@ import type { SalesUnit, CreateSalesUnitInput } from '../../domain/entities/Sale
 import type { Reception, ReceptionLine, CreateReceptionInput } from '../../domain/entities/Reception';
 import { RECEPTION_ABANDON_MARKER } from '../../domain/entities/Reception';
 import type { Transfer, TransferLine, CreateTransferInput } from '../../domain/entities/Transfer';
+import type { KardexSnapshot, StockDiscrepancy, StockMovement } from '../../domain/entities/Kardex';
 import type {
   ReceptionDto,
   ReceptionLineDto,
@@ -82,10 +83,14 @@ function receptionLineDtoToEntity(dto: ReceptionLineDto): ReceptionLine {
     productId: dto.product_id,
     productCode: dto.product_code || '',
     productName: dto.product_name || '',
-    unit: (dto as { unit?: string }).unit || '',
+    unit: dto.unit || '',
     qty: dto.qty || 0,
     unitCost: dto.unit_cost || 0,
     amount: dto.amount || 0,
+    qtyReceived: dto.qty_received,
+    qtyDamaged: dto.qty_damaged,
+    qtyRejected: dto.qty_rejected,
+    lineStatus: dto.line_status,
   };
 }
 
@@ -177,12 +182,31 @@ export function createReceptionInputToDto(input: CreateReceptionInput): Record<s
 export function enterReceptionInputToDto(input: {
   id: string;
   accept: boolean;
+  abandon?: boolean;
   note?: string;
   reason?: string;
+  lines?: Array<{
+    productId: string;
+    qtyReceived?: number;
+    qtyDamaged?: number;
+    qtyRejected?: number;
+  }>;
 }): Record<string, unknown> {
   const body: Record<string, unknown> = { id: input.id, accept: input.accept };
+  if (input.abandon) {
+    body.abandon = true;
+    body.accept = false;
+  }
   if (input.note) body.note = input.note;
   if (input.reason) body.reason = input.reason;
+  if (input.lines?.length) {
+    body.lines = input.lines.map((l) => ({
+      product_id: l.productId,
+      qty_received: l.qtyReceived ?? 0,
+      qty_damaged: l.qtyDamaged ?? 0,
+      qty_rejected: l.qtyRejected ?? 0,
+    }));
+  }
   return body;
 }
 
@@ -220,4 +244,50 @@ export function createTransferInputToDto(input: CreateTransferInput): Record<str
   if (input.date) body.date = input.date;
   if (input.note) body.note = input.note;
   return body;
+}
+
+
+export function stockMovementDtoToEntity(dto: Record<string, unknown>): StockMovement {
+  return {
+    id: String(dto.id ?? ''),
+    productId: String(dto.product_id ?? ''),
+    location: String(dto.location ?? 'warehouse'),
+    unitId: dto.unit_id ? String(dto.unit_id) : undefined,
+    kind: String(dto.kind ?? ''),
+    qty: Number(dto.qty ?? 0),
+    qtySigned: Number(dto.qty_signed ?? 0),
+    unitCost: Number(dto.unit_cost ?? 0),
+    amountBase: Number(dto.amount_base ?? 0),
+    balanceAfter: Number(dto.balance_after ?? 0),
+    refType: dto.ref_type ? String(dto.ref_type) : undefined,
+    refId: dto.ref_id ? String(dto.ref_id) : undefined,
+    note: dto.note ? String(dto.note) : undefined,
+    createdBy: dto.created_by ? String(dto.created_by) : undefined,
+    createdAt: dto.created_at ? String(dto.created_at) : undefined,
+  };
+}
+
+export function kardexResponseToEntity(dto: Record<string, unknown>): KardexSnapshot {
+  const moves = (dto.movements as Record<string, unknown>[] | undefined) || [];
+  return {
+    movements: moves.map(stockMovementDtoToEntity),
+    storedQty: Number(dto.stored_qty ?? 0),
+    ledgerQty: Number(dto.ledger_qty ?? 0),
+    productId: String(dto.product_id ?? ''),
+    location: String(dto.location ?? 'warehouse'),
+    unitId: dto.unit_id ? String(dto.unit_id) : undefined,
+  };
+}
+
+export function discrepancyDtoToEntity(dto: Record<string, unknown>): StockDiscrepancy {
+  return {
+    productId: String(dto.product_id ?? ''),
+    productCode: String(dto.product_code ?? ''),
+    productName: String(dto.product_name ?? ''),
+    location: String(dto.location ?? ''),
+    unitId: dto.unit_id ? String(dto.unit_id) : undefined,
+    storedQty: Number(dto.stored_qty ?? 0),
+    ledgerQty: Number(dto.ledger_qty ?? 0),
+    delta: Number(dto.delta ?? 0),
+  };
 }

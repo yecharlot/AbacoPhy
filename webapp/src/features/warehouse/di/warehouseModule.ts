@@ -12,6 +12,9 @@ import {
   GetWarehouseStock,
   ListReceptions,
   ListTransfers,
+  GetKardex,
+  AdjustStock,
+  ReconcileStock,
 } from '../domain/usecases';
 import { createWarehouseStore, type WarehouseStore } from '../ui/stores/warehouseStore';
 
@@ -43,6 +46,9 @@ export function createWarehouseModule(
     enterReception: new EnterReception(repo),
     listTransfers: new ListTransfers(repo),
     createTransfer: new CreateTransfer(repo),
+    getKardex: new GetKardex(repo),
+    adjustStock: new AdjustStock(repo),
+    reconcileStock: new ReconcileStock(repo),
   });
 
   return { warehouseStore, repository: repo };

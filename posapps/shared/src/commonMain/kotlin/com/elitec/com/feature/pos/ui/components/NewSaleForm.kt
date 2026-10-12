@@ -34,7 +34,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -49,17 +48,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.AirplaneTicket
-import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AirplaneTicket
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Outbox
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Receipt
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AddShoppingCart
 import androidx.compose.material.icons.rounded.Check
@@ -82,7 +70,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
@@ -116,7 +103,6 @@ import com.elitec.com.feature.catalog.domain.entities.effectiveUnitPrice
 import com.elitec.com.feature.pos.domain.entities.CreateSaleInput
 import com.elitec.com.feature.pos.domain.entities.CreateSaleLineInput
 import com.elitec.com.feature.pos.ui.uiStates.RegisterSaleUiState
-import com.gursimar.composive.responsive.core.DeviceConfiguration
 import com.gursimar.composive.responsive.core.rememberDeviceConfiguration
 import com.gursimar.composive.responsive.theme.AppTheme
 import kotlinx.coroutines.delay
@@ -259,7 +245,7 @@ fun NewSaleForm(
             saving = saving,
             success = success,
             errorText = formError ?: regError,
-            canSubmit = !saving && assignedUnit is AssignedUnitUiState.Ready,
+            canSubmit = !saving && lines.isNotEmpty() && assignedUnit is AssignedUnitUiState.Ready,
             onSubmit = submit,
         )
     }
@@ -289,40 +275,30 @@ fun NewSaleForm(
     ) {
         BoxWithConstraints(Modifier.padding(AppTheme.dimensions.cardPadding)) {
 
-            // 1) El layout preferido depende del tipo de pantalla...
-            // 2) ...pero se degrada si el espacio REAL del componente no alcanza
-            //    (p. ej. ventana de escritorio estrecha). Así nunca se apiña.
-            val layout = when (deviceConfiguration) {
-                DeviceConfiguration.MOBILE_PORTRAIT -> SaleLayout.TABS
+            // Todo se decide con el espacio REAL del formulario (ya sea una
+            // pestaña a pantalla completa o un panel lateral).
+            val dense = maxHeight < 420.dp // móvil landscape: poca altura
+            val gap = if (dense) 6.dp else 12.dp
 
-                DeviceConfiguration.MOBILE_LANDSCAPE ->
-                    if (maxWidth >= 640.dp) SaleLayout.TWO_PANE else SaleLayout.TABS
-
-                DeviceConfiguration.TABLET_PORTRAIT ->
-                    if (maxHeight >= 720.dp) SaleLayout.STACKED else SaleLayout.TABS
-
-                DeviceConfiguration.TABLET_LANDSCAPE,
-                DeviceConfiguration.DESKTOP -> when {
-                    maxWidth >= 760.dp -> SaleLayout.TWO_PANE
-                    maxHeight >= 720.dp -> SaleLayout.STACKED
-                    else -> SaleLayout.TABS
-                }
+            val layout = when {
+                maxWidth >= 640.dp -> SaleLayout.TWO_PANE                         // catálogo | ticket
+                maxHeight >= 760.dp && maxWidth >= 420.dp -> SaleLayout.STACKED   // catálogo / ticket
+                else -> SaleLayout.TABS                                           // una cosa a la vez
             }
 
-            // Ancho fijo del panel del ticket (patrón "carrito lateral")
-            val ticketWidth = when (deviceConfiguration) {
-                DeviceConfiguration.MOBILE_LANDSCAPE -> 300.dp
-                DeviceConfiguration.DESKTOP -> 400.dp
-                else -> 360.dp
+            val ticketWidth = (maxWidth * 0.42f).coerceIn(290.dp, 400.dp)
+
+            val formHeader: @Composable () -> Unit = {
+                if (dense) DenseSaleHeader(assignedUnit, seller)
+                else header(maxWidth < 520.dp)
             }
 
             Column(Modifier.fillMaxSize()) {
                 when (layout) {
 
-                    // Una sola columna: Catálogo y Ticket alternan; total y CTA siempre visibles.
                     SaleLayout.TABS -> {
-                        header(this@BoxWithConstraints.maxWidth < 520.dp)
-                        Spacer(Modifier.height(12.dp))
+                        formHeader()
+                        Spacer(Modifier.height(gap))
 
                         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                             SegmentedButton(
@@ -330,10 +306,7 @@ fun NewSaleForm(
                                 onClick = { mobileTab = 0 },
                                 shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
                                 icon = {
-                                    Icon(
-                                        Icons.Rounded.Inventory2, null,
-                                        Modifier.size(SegmentedButtonDefaults.IconSize)
-                                    )
+                                    Icon(Icons.Rounded.Inventory2, null, Modifier.size(SegmentedButtonDefaults.IconSize))
                                 },
                                 label = { Text("Catálogo") },
                             )
@@ -342,15 +315,12 @@ fun NewSaleForm(
                                 onClick = { mobileTab = 1 },
                                 shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                                 icon = {
-                                    Icon(
-                                        Icons.Rounded.ReceiptLong, null,
-                                        Modifier.size(SegmentedButtonDefaults.IconSize)
-                                    )
+                                    Icon(Icons.Rounded.ReceiptLong, null, Modifier.size(SegmentedButtonDefaults.IconSize))
                                 },
                                 label = { Text(if (lines.isEmpty()) "Ticket" else "Ticket (${lines.size})") },
                             )
                         }
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(gap))
 
                         AnimatedContent(
                             targetState = mobileTab,
@@ -366,32 +336,28 @@ fun NewSaleForm(
                             else ticket(Modifier.fillMaxSize())
                         }
 
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(if (dense) 4.dp else 8.dp))
                         footer(true)
                     }
 
-                    // Catálogo arriba y ticket abajo, ambos a todo el ancho.
                     SaleLayout.STACKED -> {
-                        header(false)
-                        Spacer(Modifier.height(12.dp))
+                        formHeader()
+                        Spacer(Modifier.height(gap))
                         catalog(Modifier.weight(0.45f).fillMaxWidth())
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(gap))
                         ticketPanel(Modifier.weight(0.55f).fillMaxWidth(), true)
                     }
 
-                    // Catálogo flexible + panel de ticket de ancho fijo.
                     SaleLayout.TWO_PANE -> {
-                        header(false)
-                        Spacer(Modifier.height(12.dp))
+                        formHeader()
+                        Spacer(Modifier.height(gap))
                         Row(
                             modifier = Modifier.weight(1f),
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
                             catalog(Modifier.weight(1f).fillMaxHeight())
-                            ticketPanel(
-                                Modifier.width(ticketWidth).fillMaxHeight(),
-                                deviceConfiguration == DeviceConfiguration.MOBILE_LANDSCAPE,
-                            )
+                            // El footer decide solo si cabe en una fila (ver (d)).
+                            ticketPanel(Modifier.width(ticketWidth).fillMaxHeight(), true)
                         }
                     }
                 }
@@ -864,6 +830,28 @@ private fun TicketPane(
 }
 
 @Composable
+private fun DenseSaleHeader(assignedUnit: AssignedUnitUiState, seller: String) {
+    val colors = AppTheme.materialColors
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.PointOfSale, null, tint = colors.primary, modifier = Modifier.size(20.dp))
+        Text(
+            text = if (seller.isBlank()) "Nueva venta" else "Nueva venta · $seller",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = colors.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        UnitChip(assignedUnit, Modifier.weight(1f, fill = false))
+    }
+}
+
+@Composable
 private fun TicketLineItem(
     line: DraftLineUi,
     saving: Boolean,
@@ -1121,6 +1109,7 @@ private fun SaleFooter(
     val colors = AppTheme.materialColors
 
     val totalBlock: @Composable (Modifier) -> Unit = { m ->
+
         Column(m) {
             Text(
                 text = if (itemCount == 0) "Total" else "Total · $itemCount ${if (itemCount == 1) "producto" else "productos"}",
@@ -1149,6 +1138,7 @@ private fun SaleFooter(
         }
     }
 
+
     val submitButton: @Composable (Modifier) -> Unit = { m ->
         Button(
             onClick = onSubmit,
@@ -1161,60 +1151,63 @@ private fun SaleFooter(
             } else {
                 Icon(Icons.Rounded.ShoppingCartCheckout, null, Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Registrar venta", fontWeight = FontWeight.SemiBold)
+                Text("Registrar venta", fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
         }
     }
 
-    Column {
-        AnimatedVisibility(
-            visible = errorText != null,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically(),
-        ) {
-            StatusBanner(
-                text = errorText.orEmpty(),
-                icon = Icons.Rounded.Error,
-                container = colors.errorContainer,
-                content = colors.onErrorContainer,
-            )
-        }
-        AnimatedVisibility(
-            visible = success,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically(),
-        ) {
-            StatusBanner(
-                text = "Venta registrada",
-                icon = Icons.Rounded.CheckCircle,
-                container = colors.primaryContainer,
-                content = colors.onPrimaryContainer,
-            )
-        }
-
-        Spacer(Modifier.height(8.dp))
-        HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.6f))
-        Spacer(Modifier.height(8.dp))
-
-        if (compact) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
+    BoxWithConstraints {
+        val oneRow = compact && maxWidth >= 330.dp
+        Column {
+            AnimatedVisibility(
+                visible = errorText != null,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
             ) {
-                totalBlock(Modifier.weight(1f))
-                submitButton(Modifier)
+                StatusBanner(
+                    text = errorText.orEmpty(),
+                    icon = Icons.Rounded.Error,
+                    container = colors.errorContainer,
+                    content = colors.onErrorContainer,
+                )
             }
-        } else {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+            AnimatedVisibility(
+                visible = success,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
             ) {
-                totalBlock(Modifier)
+                StatusBanner(
+                    text = "Venta registrada",
+                    icon = Icons.Rounded.CheckCircle,
+                    container = colors.primaryContainer,
+                    content = colors.onPrimaryContainer,
+                )
             }
-            Spacer(Modifier.height(10.dp))
-            submitButton(Modifier.fillMaxWidth())
+
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.6f))
+            Spacer(Modifier.height(8.dp))
+
+            if (oneRow) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    totalBlock(Modifier.weight(1f, fill = false))
+                    submitButton(Modifier)
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    totalBlock(Modifier)
+                }
+                Spacer(Modifier.height(10.dp))
+                submitButton(Modifier.fillMaxWidth())
+            }
         }
     }
 }

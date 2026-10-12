@@ -1,6 +1,7 @@
 package com.elitec.com.infraestructure.data.database
 
 import android.content.Context
+import com.elitec.com.infraestructure.data.database.AppContextHolder.install
 
 /**
  * Contexto de aplicación para Room sin depender de koin-android en common.

@@ -17,5 +17,14 @@ export default defineConfig({
   build: {
     outDir: resolve(__dirname, '../web/dist'),
     emptyOutDir: true
-  }
+  },
+  server: {
+    proxy: {
+      // Dev: same-origin /api → backend (evita CORS en binarios y formularios)
+      '/api': {
+        target: process.env.VITE_PROXY_TARGET || 'http://127.0.0.1:8090',
+        changeOrigin: true,
+      },
+    },
+  },
 })

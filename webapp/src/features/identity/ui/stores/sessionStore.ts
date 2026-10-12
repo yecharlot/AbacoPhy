@@ -88,6 +88,14 @@ export function createSessionStore(deps: Deps) {
       await deps.logout.execute();
       set({ status: 'anonymous', session: null, error: null });
     },
+    /** Token ya invalidado en servidor (P6). No llama /logout. */
+    forceAnonymous(reason?: string): void {
+      set({
+        status: 'anonymous',
+        session: null,
+        error: reason || 'Sesión cerrada por cambio de permisos. Vuelva a iniciar sesión.',
+      });
+    },
     async changePassword(currentPassword: string, newPassword: string): Promise<void> {
       await deps.changePassword.execute({ currentPassword, newPassword });
     },

@@ -816,7 +816,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
-    max-height: 220px;
+    max-height: var(--scroll-panel-sm);
     overflow-y: auto;
   }
   .var-row {
@@ -1112,7 +1112,7 @@
     left: 0;
     right: 0;
     z-index: 30;
-    max-height: 220px;
+    max-height: var(--scroll-panel-sm);
     overflow-y: auto;
     border-radius: 12px;
     border: 1px solid var(--ap-border, var(--color-border));

@@ -27,7 +27,7 @@ val identityModule = module {
     single {
         RemoteAuthDataSource(
             http = get(),
-            baseUrl = get(named("apiBaseUrl")),
+            apiConfig = get(),
         )
     }
     single<AuthRepository> { AuthenticationRepositoryImpl(get(), get()) }

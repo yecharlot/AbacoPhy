@@ -1159,8 +1159,11 @@
     .side-col {
       position: sticky;
       top: 0.5rem;
-      max-height: calc(100dvh - 8rem);
+      max-height: min(var(--scroll-panel-xl), calc(100dvh - 8rem));
       overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
     }
   }
   /* Móvil: paneles arriba del historial (no bajo lista larga) */
@@ -1233,6 +1236,7 @@
     width: min(440px, 100%);
     max-height: min(92vh, 740px);
     overflow: auto;
+    overscroll-behavior: contain;
     padding: 1.1rem 1.15rem 1.2rem;
     border-radius: 16px;
     border: 1px solid var(--color-border, var(--ap-border));
@@ -1411,8 +1415,10 @@
     left: 0;
     right: 0;
     z-index: 20;
-    max-height: 220px;
+    max-height: var(--scroll-panel-sm);
     overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
     border-radius: 12px;
     border: 1px solid var(--color-border, var(--ap-border));
     background: var(--color-surface, var(--ap-bg-elevated, #171b29));

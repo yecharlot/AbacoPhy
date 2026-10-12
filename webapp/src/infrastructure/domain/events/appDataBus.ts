@@ -5,8 +5,9 @@
  * ledger.changed  → resumen, cuentas, asientos, ecuación
  * stock.changed   → almacén / POS stock
  * ops.changed     → recepciones, transferencias, listados ops
+ * session.expired → token revocado (perms/rol/baja) → forzar login
  */
-export type AppDataEvent = 'ledger.changed' | 'stock.changed' | 'ops.changed';
+export type AppDataEvent = 'ledger.changed' | 'stock.changed' | 'ops.changed' | 'session.expired';
 
 export type AppDataBus = {
   emit(event: AppDataEvent): void;

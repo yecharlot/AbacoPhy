@@ -48,4 +48,17 @@ export class AccountingRemoteSource {
     }
     return entry;
   }
+  getBalanceSheet(): Promise<Record<string, unknown>> {
+    return this.http.get<Record<string, unknown>>('/reports/balance-sheet');
+  }
+
+  getLedgerIntegrity(): Promise<Record<string, unknown>> {
+    return this.http.get<Record<string, unknown>>('/ledger/integrity');
+  }
+
+  getMayor(accountId: string): Promise<Record<string, unknown>> {
+    const q = new URLSearchParams({ account_id: accountId });
+    return this.http.get<Record<string, unknown>>(`/ledger?${q.toString()}`);
+  }
+
 }

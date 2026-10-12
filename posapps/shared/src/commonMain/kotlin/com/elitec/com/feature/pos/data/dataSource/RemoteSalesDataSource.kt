@@ -6,6 +6,7 @@ import com.elitec.com.feature.pos.data.dto.SalesResponseDto
 import com.elitec.com.feature.pos.data.dto.toEntity
 import com.elitec.com.feature.pos.data.mappers.SaleMapper
 import com.elitec.com.feature.pos.domain.entities.CreateSaleInput
+import com.elitec.com.infraestructure.network.ApiConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
@@ -18,10 +19,10 @@ import io.ktor.http.isSuccess
 
 class RemoteSalesDataSource(
     private val http: HttpClient,
-    private val baseUrl: String,
+    private val apiConfig: ApiConfig,
     private val tokenProvider: suspend () -> String?,
 ) {
-    private val endpoint get() = baseUrl.trimEnd('/') + "/pos/sales"
+    private val endpoint get() = apiConfig.requireBaseUrl().trimEnd('/') + "/pos/sales"
 
     private suspend fun authToken(): String =
         tokenProvider() ?: error("No hay sesión activa (token ausente)")

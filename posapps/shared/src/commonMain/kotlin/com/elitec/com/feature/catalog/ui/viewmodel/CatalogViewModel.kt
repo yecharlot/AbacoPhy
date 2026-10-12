@@ -2,15 +2,12 @@ package com.elitec.com.feature.catalog.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.elitec.com.feature.catalog.domain.caseuse.GetProductsCaseUse
 import com.elitec.com.feature.catalog.domain.caseuse.ObserveProductsCaseUse
 import com.elitec.com.feature.catalog.domain.entities.Product
 import com.elitec.com.feature.catalog.ui.uiStates.CatalogChargingUiState
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 
