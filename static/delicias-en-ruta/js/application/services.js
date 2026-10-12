@@ -1,4 +1,4 @@
-import { createEmptyState } from '../domain/entities.js';
+import { createEmptyState, effectiveScreens, canAccess, ALL_SCREENS, ROLE_TEMPLATES } from '../domain/entities.js';
 
 export class DeliciasAppService {
   constructor(repo) {
@@ -7,13 +7,88 @@ export class DeliciasAppService {
   }
 
   async boot() {
-    this.state = await this.repo.load();
+    const loaded = await this.repo.load();
+    this.state = { ...createEmptyState(), ...loaded };
+    if (!Array.isArray(this.state.usuarios) || !this.state.usuarios.length) {
+      this.state.usuarios = createEmptyState().usuarios;
+    }
+    // no restaurar sesión automáticamente por seguridad básica
+    this.state.session = null;
     return this.state;
   }
 
   async persist() {
-    this.state = await this.repo.save(this.state);
+    const { session, ...rest } = this.state;
+    // persistimos sin password en claro idealmente; aquí demo local
+    this.state = await this.repo.save({ ...rest, session: null });
+    this.state.session = session;
     return this.state;
+  }
+
+  login(username, password) {
+    const u = (this.state.usuarios || []).find(
+      (x) => x.username.toLowerCase() === String(username || '').toLowerCase()
+        && x.password === String(password || ''),
+    );
+    if (!u) return { ok: false, error: 'Usuario o clave incorrectos' };
+    this.state.session = {
+      userId: u.id,
+      username: u.username,
+      role: u.role,
+      screens: effectiveScreens(u),
+    };
+    return { ok: true, session: this.state.session };
+  }
+
+  logout() {
+    this.state.session = null;
+  }
+
+  currentUser() {
+    if (!this.state.session) return null;
+    return (this.state.usuarios || []).find((u) => u.id === this.state.session.userId) || null;
+  }
+
+  isMaster() {
+    return this.state.session?.role === 'master';
+  }
+
+  menuScreens() {
+    const u = this.currentUser();
+    return effectiveScreens(u);
+  }
+
+  async setUserScreens(userId, screens) {
+    if (!this.isMaster()) throw new Error('Solo Master puede gestionar permisos de menú');
+    const u = this.state.usuarios.find((x) => x.id === userId);
+    if (!u) throw new Error('Usuario no encontrado');
+    if (u.role === 'master') {
+      u.screens = null; // master siempre ve todo
+    } else {
+      u.screens = (screens || []).filter((s) => ALL_SCREENS.includes(s));
+    }
+    return this.persist();
+  }
+
+  async upsertUser({ id, username, password, role }) {
+    if (!this.isMaster()) throw new Error('Solo Master');
+    if (id) {
+      const u = this.state.usuarios.find((x) => x.id === id);
+      if (!u) throw new Error('No existe');
+      if (username) u.username = username;
+      if (password) u.password = password;
+      if (role && role !== 'master') u.role = role;
+      if (role && role !== 'master' && !u.screens) u.screens = [...(ROLE_TEMPLATES[role] || [])];
+    } else {
+      this.state.usuarios.push({
+        id: crypto.randomUUID(),
+        username,
+        password: password || 'cambiar',
+        role: role || 'consulta',
+        screens: [...(ROLE_TEMPLATES[role] || ROLE_TEMPLATES.consulta)],
+      });
+    }
+    return this.persist();
   }
 
   async addIngreso(monto, concepto) {
@@ -49,3 +124,5 @@ export class DeliciasAppService {
     return this.repo.history();
   }
 }
+
+export { canAccess, ALL_SCREENS, ROLE_TEMPLATES };

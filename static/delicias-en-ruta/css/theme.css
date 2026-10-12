@@ -222,3 +222,43 @@ th { color: var(--dr-blue); font-size: 0.75rem; text-transform: uppercase; lette
   .nav { flex-direction: row; flex-wrap: wrap; }
   .nav button { width: auto; }
 }
+
+/* Login */
+.login-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(255,183,3,.35), transparent),
+    linear-gradient(160deg, #0d2137, #1b4965 40%, #2d6a4f);
+}
+.login-card {
+  width: min(400px, 100%);
+  background: rgba(255,248,240,.95);
+  border-radius: 18px;
+  padding: 28px 24px;
+  box-shadow: 0 20px 50px rgba(0,0,0,.35);
+  text-align: center;
+}
+.login-logo { width: 100px; height: auto; margin-bottom: 8px; }
+.login-card h1 { color: #1b4965; font-size: 1.25rem; margin: 0 0 8px; }
+.login-card .err { color: #b00020; font-size: 0.9rem; }
+.login-card label { text-align: left; }
+.checks { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; max-height: 280px; overflow: auto; }
+.check-row { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: #1a1a1a; }
+.btn-logout {
+  margin-top: 8px;
+  width: 100%;
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.2);
+  color: #eef6fb;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.btn-logout:hover { background: rgba(232,93,4,.5); }
+.muted-foot { margin-top: 8px; font-size: 0.65rem; opacity: 0.55; }
+#session-label { font-size: 0.8rem; margin-bottom: 4px; color: #ffb703; }
