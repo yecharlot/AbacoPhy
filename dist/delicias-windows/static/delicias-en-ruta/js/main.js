@@ -1,85 +1,99 @@
 import { IpfsBusinessStore } from './infrastructure/ipfs-store.js';
-import { DeliciasAppService } from './application/services.js';
+import { DomainEngine } from './domain/engine.js';
+import { getSession, setSession, clearSession } from './auth/session.js';
+import { showSplash } from './ui/splash.js';
+import { renderLogin } from './ui/login.js';
 import { renderShell, NAV } from './ui/shell.js';
 import { renderDashboard } from './ui/views/dashboard.js';
-import {
-  renderIngresos, renderGastos, renderCatalog, renderPedidos,
-  renderEmpleados, renderReportes, renderTenant, renderTraza,
-  renderPos, renderAlmacen, renderCuentas, renderAsientos, renderFacturas,
-  renderRecepciones, renderCostos, renderOnline, renderUsuarios, renderUnidades,
-} from './ui/views/forms.js';
-import { currentUser } from './infrastructure/api-bridge.js';
+import * as V from './ui/views/forms.js';
 
 const titles = {};
 NAV.forEach((g) => g.items.forEach((i) => { titles[i.id] = i.label; }));
 
-const repo = new IpfsBusinessStore();
-const svc = new DeliciasAppService(repo);
+const store = new IpfsBusinessStore();
+const eng = new DomainEngine(store);
 let screen = 'dashboard';
-let shell;
+let shell = null;
+let user = null;
 
-function modeLabel() {
-  return svc.state.online ? 'Online · API ÁbacoPhy' : 'Local · IPFS/storage';
-}
-
-async function paint() {
-  const state = svc.state;
+async function paintApp() {
+  if (!shell) return;
   shell.setTitle(titles[screen] || screen);
   shell.setActive(screen);
-  shell.setMode(modeLabel());
-  shell.setUser(currentUser());
   const el = shell.view;
-  const redraw = () => paint();
+  const redraw = () => paintApp();
   switch (screen) {
-    case 'dashboard': renderDashboard(el, state); break;
-    case 'ingresos': renderIngresos(el, state, svc, redraw); break;
-    case 'gastos': renderGastos(el, state, svc, redraw); break;
-    case 'catalog': renderCatalog(el, state, svc, redraw); break;
-    case 'pedidos': renderPedidos(el, state, svc, redraw); break;
-    case 'empleados': renderEmpleados(el, state, svc, redraw); break;
-    case 'reportes': renderReportes(el, state); break;
-    case 'tenant': renderTenant(el, state); break;
-    case 'traza': renderTraza(el, await svc.history(), state); break;
-    case 'pos': renderPos(el, state, svc, redraw); break;
-    case 'almacen': renderAlmacen(el, state); break;
-    case 'cuentas': renderCuentas(el, state); break;
-    case 'asientos': renderAsientos(el, state); break;
-    case 'facturas': renderFacturas(el, state); break;
-    case 'recepciones': renderRecepciones(el, state); break;
-    case 'costos': renderCostos(el, state); break;
-    case 'online': renderOnline(el, state); break;
-    case 'usuarios': renderUsuarios(el, state); break;
-    case 'unidades': renderUnidades(el, state); break;
-    default: renderDashboard(el, state);
+    case 'dashboard': renderDashboard(el, eng); break;
+    case 'ingresos': V.renderIngresos(el, eng, redraw); break;
+    case 'gastos': V.renderGastos(el, eng, redraw); break;
+    case 'cuentas': V.renderCuentas(el, eng, redraw); break;
+    case 'asientos': V.renderAsientos(el, eng); break;
+    case 'catalog': V.renderCatalog(el, eng, redraw); break;
+    case 'pos': V.renderPos(el, eng, redraw); break;
+    case 'pedidos': V.renderPedidos(el, eng); break;
+    case 'online': V.renderOnline(el, eng, redraw); break;
+    case 'almacen': V.renderAlmacen(el, eng); break;
+    case 'recepciones': V.renderRecepciones(el, eng, redraw); break;
+    case 'transferencias': V.renderTransferencias(el, eng, redraw); break;
+    case 'costos': V.renderCostos(el, eng, redraw); break;
+    case 'empleados': V.renderEmpleados(el, eng, redraw); break;
+    case 'nominas': V.renderNominas(el, eng, redraw); break;
+    case 'facturas': V.renderFacturas(el, eng, redraw); break;
+    case 'unidades': V.renderUnidades(el, eng, redraw); break;
+    case 'usuarios': V.renderUsuarios(el, eng, redraw); break;
+    case 'tenant': V.renderTenant(el, eng, redraw); break;
+    case 'reportes': V.renderReportes(el, eng); break;
+    case 'traza': V.renderTraza(el, await eng.history()); break;
+    default: renderDashboard(el, eng);
   }
 }
 
-async function boot() {
-  await svc.boot();
+function mountShell() {
   const root = document.getElementById('app');
   shell = renderShell(root, {
     title: titles[screen],
     active: screen,
-    modeLabel: modeLabel(),
-    user: currentUser(),
-    onNav: (id) => { screen = id; paint(); },
-    onLogin: async () => {
-      const u = prompt('Usuario', 'admin') || 'admin';
-      const p = prompt('Contraseña', 'admin123') || '';
-      try {
-        await svc.login(u, p);
-        alert('Sesión iniciada');
-        await paint();
-      } catch (e) {
-        alert('Login: ' + (e.message || e));
-      }
-    },
-    onLogout: async () => {
-      await svc.logout();
-      await paint();
+    user,
+    onNav: (id) => { screen = id; paintApp(); },
+    onLogout: () => {
+      clearSession();
+      user = null;
+      shell = null;
+      showLogin();
     },
   });
-  await paint();
+  paintApp();
+}
+
+function showLogin(err) {
+  const root = document.getElementById('app');
+  renderLogin(root, {
+    error: err,
+    onSubmit: async (username, password) => {
+      try {
+        const u = eng.login(username, password);
+        user = setSession(u);
+        await eng.persist();
+        mountShell();
+      } catch (e) {
+        showLogin(e.message || 'Error de acceso');
+      }
+    },
+  });
+}
+
+async function boot() {
+  const root = document.getElementById('app');
+  await showSplash(root);
+  await eng.boot();
+  user = getSession();
+  if (user) {
+    // re-validate user still exists
+    const ok = (eng.state.users || []).some((u) => u.username === user.username);
+    if (!ok) { clearSession(); user = null; }
+  }
+  if (user) mountShell();
+  else showLogin();
 }
 
 boot();

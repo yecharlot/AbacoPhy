@@ -1,29 +1,17 @@
-# Probar Delicias en Ruta sin tocar main
+# Delicias en Ruta — rama segura
 
-Esta UI vive en `static/delicias-en-ruta/` sobre la rama:
+`feature/delicias-en-ruta-safe` = `main` + UI Delicias (diseño propio) + **gemelo funcional**.
 
-**`feature/delicias-en-ruta-safe`** = `main` (9e14dae) + cherry-pick del commit Delicias.
-
-## Cómo probar
+## Probar
 
 ```bash
 git fetch origin
-git checkout feature/delicias-en-ruta-safe
-go run ./cmd/abacophy
-# abrir http://localhost:8090/delicias-en-ruta/
-# o servir solo static según README de la carpeta
+git checkout -b feature/delicias-en-ruta-safe origin/feature/delicias-en-ruta-safe
+
+DELICIAS_HOME=1 go run ./cmd/abacophy
+# http://localhost:8090/delicias-en-ruta/
 ```
 
-## Qué NO hacer
+Windows: `dist/delicias-windows/Iniciar-Delicias-en-Ruta.bat` (sin Go/npm).
 
-- No hagas merge a `main` hasta validar.
-- No uses la rama antigua `feature/delicias-en-ruta` (va ~191 commits atrás y provoca conflictos de pull).
-
-## Si tu clone local está “roto”
-
-```bash
-git fetch origin
-git checkout main
-git reset --hard origin/main
-git checkout feature/delicias-en-ruta-safe
-```
+No merges a `main` hasta validar.

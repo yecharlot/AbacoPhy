@@ -1,21 +1,28 @@
-# Delicias en Ruta · UI ÁbacoPhy
+# Delicias en Ruta
 
-Diseño propio de **Delicias en Ruta** + **gemelo funcional** de la rama `main` de ÁbacoPhy.
+Diseño propio + **lógica completa offline** con persistencia **IPFS local** (cadena de CID en `localStorage`).
+
+No modifica ni depende de la UI Svelte de `main`.
+
+## Flujo
+
+1. Splash animada  
+2. Login / sesión (`localStorage`)  
+3. Módulos: POS, ventas, online, ingresos/gastos, cuentas, asientos, facturas, carta, almacén, recepciones, transferencias, costos, equipo, nóminas, unidades, usuarios, negocio, reportes, traza IPFS  
+
+## Credenciales offline
+
+| Usuario | Clave |
+|---------|--------|
+| admin | admin123 |
+| caja | caja123 |
+| master | AbacoPhy#Master1 |
 
 ## Arranque
 
 ```bash
-# En la raíz del repo (rama feature/delicias-en-ruta-safe)
 DELICIAS_HOME=1 go run ./cmd/abacophy
-# → http://localhost:8090/delicias-en-ruta/
-# con DELICIAS_HOME=1 la raíz / redirige a Delicias
+# http://localhost:8090/delicias-en-ruta/
 ```
 
-- **Online:** si `/api/v1/health` responde, usa la API real (cuentas, asientos, POS, almacén, etc.).
-- **Offline:** persiste en almacenamiento local / IPFS mock.
-
-Login (API): `admin` / `admin123` o master según `LOGIN.md`.
-
-## Windows portable
-
-Ver `dist/delicias-windows/` o `scripts/build-delicias-windows.sh`.
+Windows: `dist/delicias-windows/Iniciar-Delicias-en-Ruta.bat`

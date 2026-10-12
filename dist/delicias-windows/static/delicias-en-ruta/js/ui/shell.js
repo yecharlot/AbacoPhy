@@ -1,9 +1,8 @@
-/** Lateral navigation — módulos alineados con ÁbacoPhy main (diseño Delicias) */
 export const NAV = [
   { group: 'Operación', items: [
     { id: 'dashboard', label: 'Resumen', icon: '⌂' },
     { id: 'pos', label: 'Punto de venta', icon: '▣' },
-    { id: 'pedidos', label: 'Pedidos / ventas', icon: '☰' },
+    { id: 'pedidos', label: 'Ventas', icon: '☰' },
     { id: 'online', label: 'Pedidos online', icon: '☁' },
   ]},
   { group: 'Finanzas', items: [
@@ -18,29 +17,33 @@ export const NAV = [
     { id: 'catalog', label: 'Carta / productos', icon: '◈' },
     { id: 'almacen', label: 'Almacén', icon: '▢' },
     { id: 'recepciones', label: 'Recepciones', icon: '↓' },
+    { id: 'transferencias', label: 'Transferencias', icon: '⇄' },
     { id: 'costos', label: 'Fichas de costo', icon: 'ƒ' },
-    { id: 'empleados', label: 'Equipo / nómina', icon: '☺' },
-    { id: 'unidades', label: 'Unidades de venta', icon: '◎' },
+    { id: 'empleados', label: 'Equipo', icon: '☺' },
+    { id: 'nominas', label: 'Nóminas', icon: '₴' },
+    { id: 'unidades', label: 'Unidades venta', icon: '◎' },
   ]},
   { group: 'Sistema', items: [
     { id: 'usuarios', label: 'Usuarios', icon: '👤' },
     { id: 'tenant', label: 'Negocio', icon: '⚙' },
-    { id: 'traza', label: 'Traza / sync', icon: '⬡' },
+    { id: 'traza', label: 'Traza IPFS', icon: '⬡' },
   ]},
 ];
 
-export function renderShell(root, { title, onNav, active, modeLabel, onLogin, onLogout, user }) {
+export function renderShell(root, { title, onNav, active, user, onLogout }) {
   const aside = document.createElement('aside');
   aside.className = 'sidebar';
   aside.innerHTML = `
-    <div class="brand">
-      <img src="./assets/logo.png" alt="Delicias en Ruta" />
+    <div class="brand brand-fixed">
+      <img src="./assets/logo.png" alt="Delicias en Ruta" class="brand-logo"/>
       <h1>Delicias en Ruta</h1>
       <p>Gastronomía · Calidad · Sostenibilidad</p>
     </div>
     <nav class="nav" id="nav"></nav>
-    <div class="sidebar-foot">AbacoPhy · gemelo funcional<br/><span id="mode-lab">${modeLabel || ''}</span></div>
-  `;
+    <div class="sidebar-foot">
+      <div>${user?.name || user?.username || ''} · ${user?.role || ''}</div>
+      <div class="muted">IPFS local · offline</div>
+    </div>`;
   const nav = aside.querySelector('#nav');
   NAV.forEach((g) => {
     const lab = document.createElement('div');
@@ -51,7 +54,7 @@ export function renderShell(root, { title, onNav, active, modeLabel, onLogin, on
       const b = document.createElement('button');
       b.type = 'button';
       b.dataset.id = it.id;
-      b.className = it.id === active ? 'active' : '';
+      if (it.id === active) b.classList.add('active');
       b.innerHTML = `<span class="icon">${it.icon}</span><span>${it.label}</span>`;
       b.onclick = () => onNav(it.id);
       nav.appendChild(b);
@@ -62,16 +65,14 @@ export function renderShell(root, { title, onNav, active, modeLabel, onLogin, on
   main.className = 'main';
   main.innerHTML = `
     <header class="topbar">
-      <h2 id="page-title">${title}</h2>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <span class="badge" id="mode-badge">${modeLabel || 'Delicias'}</span>
-        <span class="badge" id="user-badge">${user ? (user.username || user.name || 'sesión') : 'sin sesión'}</span>
-        <button type="button" class="btn-ghost" id="btn-login" style="display:${user?'none':'inline-block'}">Entrar</button>
-        <button type="button" class="btn-ghost" id="btn-logout" style="display:${user?'inline-block':'none'}">Salir</button>
+      <h2 id="page-title">${title || ''}</h2>
+      <div class="topbar-actions">
+        <span class="badge">IPFS offline</span>
+        <span class="badge">${user?.username || ''}</span>
+        <button type="button" class="btn-ghost" id="btn-logout">Cerrar sesión</button>
       </div>
     </header>
-    <div class="content" id="view"></div>
-  `;
+    <div class="content" id="view"></div>`;
 
   root.innerHTML = '';
   const app = document.createElement('div');
@@ -79,8 +80,6 @@ export function renderShell(root, { title, onNav, active, modeLabel, onLogin, on
   app.appendChild(aside);
   app.appendChild(main);
   root.appendChild(app);
-
-  main.querySelector('#btn-login').onclick = () => onLogin && onLogin();
   main.querySelector('#btn-logout').onclick = () => onLogout && onLogout();
 
   return {
@@ -88,18 +87,6 @@ export function renderShell(root, { title, onNav, active, modeLabel, onLogin, on
     setTitle: (t) => { main.querySelector('#page-title').textContent = t; },
     setActive: (id) => {
       nav.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.id === id));
-    },
-    setMode: (lab) => {
-      const a = main.querySelector('#mode-badge');
-      const f = aside.querySelector('#mode-lab');
-      if (a) a.textContent = lab;
-      if (f) f.textContent = lab;
-    },
-    setUser: (u) => {
-      const ub = main.querySelector('#user-badge');
-      if (ub) ub.textContent = u ? (u.username || u.name || 'sesión') : 'sin sesión';
-      main.querySelector('#btn-login').style.display = u ? 'none' : 'inline-block';
-      main.querySelector('#btn-logout').style.display = u ? 'inline-block' : 'none';
     },
   };
 }

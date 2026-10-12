@@ -1,82 +1,52 @@
 /**
- * Persistencia orientada a IPFS (clean architecture — infrastructure).
- * - Si existe un nodo/API IPFS (window.__IPFS_API__), usa add/cat HTTP.
- * - Si no, content-addressing local (SHA-256) + localStorage, compatible con el
- *   mismo contrato (CID + payload) para no romper el dominio.
+ * Persistencia offline estilo IPFS: cada save genera un CID local (hash)
+ * y encadena el estado. Todo en localStorage — sin servidor.
  */
-import { BusinessRepository } from '../domain/repository.js';
-import { createEmptyState } from '../domain/entities.js';
+const KEY = 'delicias.ipfs.v2';
+const HIST = 'delicias.ipfs.history.v2';
 
-const NS = 'delicias-en-ruta:v1';
-const KEY_STATE = NS + ':state';
-const KEY_HIST = NS + ':history';
-
-async function sha256Hex(text) {
-  const data = new TextEncoder().encode(text);
-  const buf = await crypto.subtle.digest('SHA-256', data);
-  return [...new Uint8Array(buf)].map((b) => b.toHexString?.() || b.toString(16).padStart(2, '0')).join('');
+async function sha256(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-function toCid(hex) {
-  return 'bafy' + hex.slice(0, 46);
-}
-
-export class IpfsBusinessStore extends BusinessRepository {
-  constructor(apiBase) {
-    super();
-    this.apiBase = apiBase || (typeof window !== 'undefined' && window.__IPFS_API__) || '';
-  }
-
-  async _putRemote(json) {
-    if (!this.apiBase) return null;
+export class IpfsBusinessStore {
+  async load() {
     try {
-      const res = await fetch(this.apiBase.replace(/\/$/, '') + '/api/v0/add', {
-        method: 'POST',
-        body: (() => {
-          const fd = new FormData();
-          fd.append('file', new Blob([json], { type: 'application/json' }));
-          return fd;
-        })(),
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data.Hash || data.cid || null;
+      const raw = localStorage.getItem(KEY);
+      if (!raw) return null;
+      const pack = JSON.parse(raw);
+      return pack.state || pack;
     } catch {
       return null;
     }
   }
 
   async save(state) {
-    const payload = JSON.stringify({ ...state, meta: { ...state.meta, updatedAt: new Date().toISOString() } });
-    let cid = await this._putRemote(payload);
-    if (!cid) {
-      const hex = await sha256Hex(payload);
-      cid = toCid(hex);
-    }
-    const next = JSON.parse(payload);
-    next.meta = { ...(next.meta || {}), lastCid: cid, updatedAt: new Date().toISOString() };
-    localStorage.setItem(KEY_STATE, JSON.stringify(next));
-    const hist = JSON.parse(localStorage.getItem(KEY_HIST) || '[]');
-    hist.unshift({ cid, at: next.meta.updatedAt });
-    localStorage.setItem(KEY_HIST, JSON.stringify(hist.slice(0, 50)));
-    return next;
-  }
-
-  async load() {
-    const raw = localStorage.getItem(KEY_STATE);
-    if (!raw) return createEmptyState();
-    try {
-      return { ...createEmptyState(), ...JSON.parse(raw) };
-    } catch {
-      return createEmptyState();
-    }
+    const payload = JSON.stringify(state);
+    const cid = await sha256(payload + '|' + Date.now());
+    const prev = localStorage.getItem(KEY);
+    let prevCid = null;
+    try { prevCid = prev ? JSON.parse(prev).cid : null; } catch {}
+    const pack = { cid, prevCid, ts: new Date().toISOString(), state };
+    localStorage.setItem(KEY, JSON.stringify(pack));
+    const hist = JSON.parse(localStorage.getItem(HIST) || '[]');
+    hist.unshift({ cid, prevCid, ts: pack.ts, size: payload.length });
+    localStorage.setItem(HIST, JSON.stringify(hist.slice(0, 100)));
+    return state;
   }
 
   async history() {
-    try {
-      return JSON.parse(localStorage.getItem(KEY_HIST) || '[]');
-    } catch {
-      return [];
-    }
+    return JSON.parse(localStorage.getItem(HIST) || '[]');
+  }
+
+  async exportSnapshot() {
+    return localStorage.getItem(KEY);
+  }
+
+  async importSnapshot(raw) {
+    const pack = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    localStorage.setItem(KEY, JSON.stringify(pack));
+    return pack.state;
   }
 }
