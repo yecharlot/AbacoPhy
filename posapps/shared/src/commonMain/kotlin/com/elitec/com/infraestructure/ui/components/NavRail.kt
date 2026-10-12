@@ -5,11 +5,18 @@ import abacopos.shared.generated.resources.abacus_color_icon
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
@@ -39,6 +46,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.MenuOpen
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.CloudQueue
+import androidx.compose.material.icons.rounded.CloudSync
+import androidx.compose.material.icons.rounded.DoneAll
+import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -48,6 +63,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,11 +74,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
+import com.elitec.com.feature.pos.data.sync.OutboxSyncWorker
 import com.elitec.com.infraestructure.ui.navigation.InternalRoute
 import com.elitec.com.infraestructure.ui.navigation.NavDestinationUi
 import com.elitec.com.infraestructure.ui.uiModels.NavButton
@@ -85,10 +105,12 @@ fun AppNavRail(
     expanded: Boolean,
     dense: Boolean,
     userName: String,
+    sync: SyncIndicatorUi,            // SYNC
+    onSyncClick: () -> Unit,          // SYNC
     onNavigate: (InternalRoute) -> Unit,
     onLogoutClick: () -> Unit,
     modifier: Modifier = Modifier,
-    /** null = sin botón de contraer/expandir. */
+
     onToggleExpanded: (() -> Unit)? = null,
 ) {
     val colors = AppTheme.materialColors
@@ -187,6 +209,13 @@ fun AppNavRail(
                         }
                     }
 
+                    // ---------- Estado de sincronización (justo sobre el logout)  // SYNC ----------
+                    if (expanded) {
+                        SyncStatusCard(ui = sync, onClick = onSyncClick)
+                    } else {
+                        SyncStatusChip(ui = sync, onClick = onSyncClick)
+                    }
+
                     // ---------- Cerrar sesión (fijo abajo) ----------
                     if (expanded) {
                         LogoutButton(onLogout = onLogoutClick)
@@ -271,6 +300,8 @@ private fun RailItem(
 private fun CompactTopBar(
     title: String,
     userName: String,
+    sync: SyncIndicatorUi,            // SYNC
+    onSyncClick: () -> Unit,          // SYNC
     onLogoutClick: () -> Unit,
 ) {
     val colors = AppTheme.materialColors
@@ -304,6 +335,10 @@ private fun CompactTopBar(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+
+        // SYNC: estado de conexión / cola, a la izquierda del avatar
+        SyncStatusChip(ui = sync, onClick = onSyncClick, size = 36.dp)
+
         Box {
             Box(
                 contentAlignment = Alignment.Center,
@@ -333,6 +368,235 @@ private fun CompactTopBar(
                     onClick = { menuOpen = false; onLogoutClick() },
                 )
             }
+        }
+    }
+}
+
+enum class SyncKind { UNKNOWN, ONLINE, OFFLINE, SYNCING, FINISHED }
+
+@Immutable
+data class SyncIndicatorUi(
+    val kind: SyncKind = SyncKind.UNKNOWN,
+    val pending: Int = 0,
+) {
+    /** Tocar tiene sentido: cerrar el resumen, o reintentar si hay cola. */
+    val clickable: Boolean
+        get() = kind == SyncKind.FINISHED || (kind != SyncKind.SYNCING && pending > 0)
+}
+
+fun OutboxSyncWorker.UiStatus.toSyncKind(): SyncKind = when (this) {
+    is OutboxSyncWorker.UiStatus.Online -> SyncKind.ONLINE
+    is OutboxSyncWorker.UiStatus.Offline -> SyncKind.OFFLINE
+    is OutboxSyncWorker.UiStatus.Syncing -> SyncKind.SYNCING
+    is OutboxSyncWorker.UiStatus.SyncFinished -> SyncKind.FINISHED
+    else -> SyncKind.UNKNOWN
+}
+
+/** Un único punto para decidir qué hace el toque. */
+fun SyncIndicatorUi.handleClick(requestSync: () -> Unit, dismissFinished: () -> Unit) {
+    when {
+        kind == SyncKind.FINISHED -> dismissFinished()
+        clickable -> requestSync()
+    }
+}
+
+/** El resumen "Sincronizado" se oculta solo tras unos segundos (vuelve a Online). */
+@Composable
+fun SyncFinishedAutoDismiss(kind: SyncKind, onDismiss: () -> Unit) {
+    LaunchedEffect(kind) {
+        if (kind == SyncKind.FINISHED) {
+            delay(3500.milliseconds)
+            onDismiss()
+        }
+    }
+}
+
+/* ================================================================== */
+/*  Apariencia por estado                                              */
+/* ================================================================== */
+
+@Immutable
+private data class SyncVisual(
+    val icon: ImageVector,
+    val color: Color,
+    val title: String,
+    val subtitle: String?,
+)
+
+@Composable
+private fun syncVisual(ui: SyncIndicatorUi): SyncVisual {
+    val c = AppTheme.materialColors
+    return when (ui.kind) {
+        SyncKind.ONLINE ->
+            if (ui.pending > 0) SyncVisual(Icons.Rounded.CloudSync, c.primary, "En línea", "Toca para sincronizar")
+            else SyncVisual(Icons.Rounded.CloudDone, c.primary, "En línea", "Todo al día")
+
+        SyncKind.OFFLINE ->
+            SyncVisual(
+                Icons.Rounded.CloudOff, c.error, "Sin conexión",
+                if (ui.pending > 0) "Cambios en cola" else "Modo sin conexión",
+            )
+
+        SyncKind.SYNCING ->
+            SyncVisual(Icons.Rounded.Sync, c.tertiary, "Sincronizando…", "Enviando cambios")
+
+        SyncKind.FINISHED ->
+            SyncVisual(Icons.Rounded.DoneAll, c.primary, "Sincronizado", "Cambios enviados")
+
+        SyncKind.UNKNOWN ->
+            SyncVisual(Icons.Rounded.CloudQueue, c.onSurfaceVariant, "Conectando…", null)
+    }
+}
+
+/** Icono con transición al cambiar de estado; gira mientras sincroniza. */
+@Composable
+private fun SyncGlyph(
+    kind: SyncKind,
+    icon: ImageVector,
+    tint: Color,
+    size: Dp,
+    description: String?,
+) {
+    AnimatedContent(
+        targetState = kind to icon,
+        transitionSpec = {
+            (fadeIn(tween(180, 60)) + scaleIn(tween(180, 60), initialScale = 0.8f)) togetherWith
+                    fadeOut(tween(90))
+        },
+        label = "syncGlyph",
+    ) { (k, ic) ->
+        if (k == SyncKind.SYNCING) {
+            val rotation by rememberInfiniteTransition(label = "syncSpin").animateFloat(
+                initialValue = 0f,
+                targetValue = 360f,
+                animationSpec = infiniteRepeatable(tween(1100, easing = LinearEasing)),
+                label = "syncRotation",
+            )
+            Icon(
+                ic, description, tint = tint,
+                modifier = Modifier.size(size).graphicsLayer { rotationZ = rotation },
+            )
+        } else {
+            Icon(ic, description, tint = tint, modifier = Modifier.size(size))
+        }
+    }
+}
+
+/* ================================================================== */
+/*  Chip: rail compacto y top bar                                      */
+/* ================================================================== */
+
+@Composable
+fun SyncStatusChip(
+    ui: SyncIndicatorUi,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: Dp = 44.dp,
+) {
+    val colors = AppTheme.materialColors
+    val visual = syncVisual(ui)
+    val tint by animateColorAsState(visual.color, tween(250), label = "syncChipTint")
+
+    val description = buildString {
+        append(visual.title)
+        if (ui.pending > 0) append(", ${ui.pending} pendientes")
+    }
+
+    BadgedBox(
+        modifier = modifier,
+        badge = {
+            if (ui.pending > 0) {
+                Badge(containerColor = tint, contentColor = colors.surface) {
+                    Text(if (ui.pending > 99) "99+" else ui.pending.toString())
+                }
+            }
+        },
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(size)
+                .clip(CircleShape)
+                .background(tint.copy(alpha = 0.14f))
+                .clickable(enabled = ui.clickable, role = Role.Button, onClick = onClick),
+        ) {
+            SyncGlyph(ui.kind, visual.icon, tint, size * 0.5f, description)
+        }
+    }
+}
+
+/* ================================================================== */
+/*  Tarjeta: rail expandido                                            */
+/* ================================================================== */
+
+@Composable
+fun SyncStatusCard(
+    ui: SyncIndicatorUi,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AppTheme.materialColors
+    val visual = syncVisual(ui)
+    val tint by animateColorAsState(visual.color, tween(250), label = "syncCardTint")
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(colors.surfaceContainerHighest)
+            .clickable(enabled = ui.clickable, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(32.dp).background(tint.copy(alpha = 0.14f), CircleShape),
+        ) {
+            SyncGlyph(ui.kind, visual.icon, tint, 18.dp, null)
+        }
+
+        Column(Modifier.weight(1f).animateContentSize()) {
+            AnimatedContent(
+                targetState = visual.title,
+                transitionSpec = { fadeIn(tween(160, 40)) togetherWith fadeOut(tween(80)) },
+                label = "syncTitle",
+            ) { title ->
+                Text(
+                    title,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            visual.subtitle?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = ui.pending > 0,
+            enter = fadeIn() + scaleIn(initialScale = 0.6f),
+            exit = fadeOut() + scaleOut(targetScale = 0.6f),
+        ) {
+            Text(
+                text = if (ui.pending > 99) "99+" else ui.pending.toString(),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = tint,
+                maxLines = 1,
+                modifier = Modifier
+                    .background(tint.copy(alpha = 0.14f), CircleShape)
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+            )
         }
     }
 }

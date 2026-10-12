@@ -325,4 +325,14 @@ class SalesViewModel(
                 .onFailure { onError(it.message ?: "Venta no encontrada") }
         }
     }
+
+    /**
+     * true si [Sale.status] es venta local aún no confirmada por el servidor
+     * (RegisterSale encoló y el one-shot no pudo completar).
+     * La UI puede usar esto sobre [registerState] Success sin cambiar el flujo.
+     */
+    fun isQueuedSale(sale: Sale): Boolean =
+        sale.status.equals("pending_local", ignoreCase = true) ||
+            sale.number.equals("PENDIENTE", ignoreCase = true) ||
+            sale.id.startsWith("local-")
 }

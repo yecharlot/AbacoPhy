@@ -72,10 +72,15 @@ import androidx.navigation3.ui.NavDisplay
 import androidx.savedstate.serialization.SavedStateConfiguration
 import com.elitec.com.feature.catalog.ui.screens.CatalogScreen
 import com.elitec.com.feature.identity.domain.entities.Session
+import com.elitec.com.feature.pos.ui.viewmodel.OutboxSyncViewModel
 import com.elitec.com.feature.pos.ui.viewmodel.SalesViewModel
 import com.elitec.com.feature.stats.ui.screen.StatsRoute
 import com.elitec.com.feature.warehouse.ui.screens.PosStockScreen
 import com.elitec.com.infraestructure.ui.components.AppNavRail
+import com.elitec.com.infraestructure.ui.components.SyncFinishedAutoDismiss
+import com.elitec.com.infraestructure.ui.components.SyncIndicatorUi
+import com.elitec.com.infraestructure.ui.components.handleClick
+import com.elitec.com.infraestructure.ui.components.toSyncKind
 import com.elitec.com.infraestructure.ui.screen.MainScreen
 import com.elitec.com.infraestructure.ui.uiModels.NavButton
 import com.gursimar.composive.responsive.core.DeviceConfiguration
@@ -153,6 +158,23 @@ fun HomeNavHost(
     var confirmLogout by rememberSaveable { mutableStateOf(false) }
     var userCollapsed by rememberSaveable { mutableStateOf(false) }
 
+    val syncVm: OutboxSyncViewModel = koinViewModel()
+    val syncStatus by syncVm.uiStatus.collectAsStateWithLifecycle()
+    val pending by syncVm.pendingCount.collectAsStateWithLifecycle()
+
+    val syncUi = remember(syncStatus, pending) {
+        SyncIndicatorUi(kind = syncStatus.toSyncKind(), pending = pending)
+    }
+    val onSyncClick: () -> Unit = {
+        syncUi.handleClick(
+            requestSync = syncVm::requestSync,
+            dismissFinished = syncVm::dismissSyncFinished,
+        )
+    }
+
+    // El resumen "Sincronizado" se oculta solo (vuelve a "En línea").
+    SyncFinishedAutoDismiss(kind = syncUi.kind, onDismiss = syncVm::dismissSyncFinished)
+
     val navigate: (InternalRoute) -> Unit = { backStack.navigateTopLevel(it) }
 
     val content: @Composable (Modifier) -> Unit = { m ->
@@ -218,6 +240,8 @@ fun HomeNavHost(
                         userName = sessionState.user.displayName,
                         onNavigate = navigate,
                         onLogoutClick = { confirmLogout = true },
+                        sync = syncUi,
+                        onSyncClick = onSyncClick,
                         onToggleExpanded = if (mode == NavMode.RAIL_EXPANDED) {
                             { userCollapsed = !userCollapsed }
                         } else null,

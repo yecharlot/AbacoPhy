@@ -3,14 +3,17 @@ package com.elitec.com.feature.pos.di
 import com.elitec.com.feature.pos.data.dataSource.LocalSalesDataSource
 import com.elitec.com.feature.pos.data.dataSource.RemoteSalesDataSource
 import com.elitec.com.feature.pos.data.repository.SaleRepositoryImpl
+import com.elitec.com.feature.pos.data.sync.OutboxSyncWorker
 import com.elitec.com.feature.pos.domain.caseuse.GetSaleByIdCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.ListSalesByPOSCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.ListSalesCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.LoadPosSnapshotCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.ObserveSalesFlowCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.RegisterSaleCaseUse
+import com.elitec.com.feature.pos.domain.caseuse.SyncPendingOutboxOps
 import com.elitec.com.feature.pos.domain.caseuse.SyncSaleOutboxOneShot
 import com.elitec.com.feature.pos.domain.repository.SalesRepository
+import com.elitec.com.feature.pos.ui.viewmodel.OutboxSyncViewModel
 import com.elitec.com.feature.pos.ui.viewmodel.PosOrderViewModel
 import com.elitec.com.feature.pos.ui.viewmodel.SalesViewModel
 import com.elitec.com.infraestructure.data.database.AbacoDataBase
@@ -43,6 +46,12 @@ val salesModule = module {
         )
     }
     factory {
+        SyncPendingOutboxOps(
+            listRetryable = get(),
+            syncSaleOneShot = get(),
+        )
+    }
+    factory {
         RegisterSaleCaseUse(
             enqueue = get(),
             syncOneShot = get(),
@@ -50,6 +59,15 @@ val salesModule = module {
     }
     factory { GetSaleByIdCaseUse(get()) }
     factory { LoadPosSnapshotCaseUse(get(), get(), get()) }
+
+    // Worker de cola: single; start() lo dispara OutboxSyncViewModel.init
+    single {
+        OutboxSyncWorker(
+            connectivity = get(),
+            syncPending = get(),
+            observePendingCount = get(),
+        )
+    }
 
     viewModel { PosOrderViewModel() }
 
@@ -63,4 +81,6 @@ val salesModule = module {
             sessions = get(),
         )
     }
+
+    viewModel { OutboxSyncViewModel(worker = get()) }
 }
