@@ -1,13 +1,13 @@
 package com.elitec.com.infraestructure.logging
 
+import com.elitec.com.infraestructure.network.ServerConnectivityBridge
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.plugins.HttpSend
+import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.plugins.plugin
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.http.content.OutgoingContent
-import io.ktor.client.plugins.logging.LogLevel
-import io.ktor.client.plugins.logging.Logging
-import com.elitec.com.infraestructure.network.ServerConnectivityBridge
 import kotlin.time.TimeSource
 
 /**

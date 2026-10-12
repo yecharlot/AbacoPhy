@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,9 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.RemoveShoppingCart
@@ -73,17 +70,14 @@ import com.elitec.com.feature.identity.domain.entities.Session
 import com.elitec.com.feature.pos.domain.entities.Sale
 import com.elitec.com.feature.pos.domain.entities.SaleLine
 import com.elitec.com.feature.pos.domain.entities.effectiveLineTotal
-import com.elitec.com.feature.pos.domain.entities.effectiveTotal
 import com.elitec.com.feature.pos.domain.entities.effectiveSubtotal
+import com.elitec.com.feature.pos.domain.entities.effectiveTotal
 import com.elitec.com.feature.pos.ui.components.NewSaleForm
 import com.elitec.com.feature.pos.ui.components.StockCard
 import com.elitec.com.feature.pos.ui.models.LocalStock
 import com.elitec.com.feature.pos.ui.uiStates.SaleListUiState
 import com.elitec.com.feature.pos.ui.uiStates.StockStates
 import com.elitec.com.feature.pos.ui.viewmodel.SalesViewModel
-import com.gursimar.composive.responsive.core.DeviceConfiguration
-import com.gursimar.composive.responsive.core.rememberDeviceConfiguration
-import com.gursimar.composive.responsive.theme.AppTheme
 import kotlinx.coroutines.delay
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.time.Duration.Companion.milliseconds
@@ -368,6 +362,7 @@ fun MainScreen(
                 stockOf = salesVm::stockOf,
                 registerState = registerState,
                 onSubmit = salesVm::createSale,
+                //isQueuedSale = salesVm::isQueuedSale,
                 onClearRegisterState = salesVm::clearRegisterState,
                 modifier = m,
             )

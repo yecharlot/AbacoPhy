@@ -18,11 +18,17 @@ interface SaleDao {
     @Query("SELECT * FROM pos_sales ORDER BY date DESC")
     fun getAllAsFlow(): Flow<List<SaleDto>>
 
+    @Query("SELECT * FROM pos_sales ORDER BY date DESC")
+    suspend fun getAll(): List<SaleDto>
+
     @Query("SELECT * FROM pos_sales WHERE id = :saleId LIMIT 1")
     suspend fun getById(saleId: String): SaleDto?
 
     @Query("SELECT * FROM pos_sales WHERE unitId = :unitId ORDER BY date DESC")
     suspend fun getByUnitId(unitId: String): List<SaleDto>
+
+    @Query("DELETE FROM pos_sales WHERE id = :saleId")
+    suspend fun deleteById(saleId: String)
 
     @Query("DELETE FROM pos_sales")
     suspend fun clearAll()

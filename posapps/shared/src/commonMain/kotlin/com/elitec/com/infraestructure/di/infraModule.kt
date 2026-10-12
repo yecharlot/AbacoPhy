@@ -1,7 +1,6 @@
 package com.elitec.com.infraestructure.di
 
 import com.elitec.com.infraestructure.data.database.getHttpClient
-import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 /**

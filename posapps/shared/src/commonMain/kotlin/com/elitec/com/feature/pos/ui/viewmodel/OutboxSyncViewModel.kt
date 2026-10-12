@@ -1,35 +1,45 @@
 package com.elitec.com.feature.pos.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.elitec.com.feature.identity.domain.entities.SessionControl
+import com.elitec.com.feature.identity.domain.repository.SessionRepository
 import com.elitec.com.feature.pos.data.sync.OutboxSyncWorker
+import com.elitec.com.infraestructure.network.ServerEventStream
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 /**
- * Capa de presentación del worker de cola / conectividad.
- * La UI (a cargo del equipo de vistas) solo debe:
- *   val vm: OutboxSyncViewModel = koinViewModel()
- *   val status by vm.uiStatus.collectAsStateWithLifecycle()
- *   val pending by vm.pendingCount.collectAsStateWithLifecycle()
- *
- * No modifica navegación ni layout por sí mismo.
+ * Worker de cola + canal SSE de recuperación.
+ * La UI solo observa [uiStatus] / [pendingCount]; el drenado es automático.
  */
 class OutboxSyncViewModel(
     private val worker: OutboxSyncWorker,
+    private val eventStream: ServerEventStream,
+    private val sessions: SessionRepository,
 ) : ViewModel() {
 
-    /** Estado de red + sync (Unknown / Online / Offline / Syncing / SyncFinished). */
     val uiStatus: StateFlow<OutboxSyncWorker.UiStatus> = worker.uiStatus
-
-    /** Cantidad de ops PENDING|IN_FLIGHT (badge). */
     val pendingCount: StateFlow<Int> = worker.pendingCount
 
     init {
         worker.start()
+        viewModelScope.launch {
+            sessions.sessionState.collect { state ->
+                when (state) {
+                    is SessionControl.Active -> eventStream.start()
+                    else -> eventStream.stop()
+                }
+            }
+        }
     }
 
-    /** Reintento manual de drenado de cola. */
     fun requestSync() = worker.requestSync()
 
-    /** Oculta el resumen SyncFinished (vuelve a Online). */
     fun dismissSyncFinished() = worker.dismissSyncFinished()
+
+    override fun onCleared() {
+        eventStream.stop()
+        super.onCleared()
+    }
 }

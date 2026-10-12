@@ -1,7 +1,6 @@
 package com.elitec.com.feature.outbox.domain.repositories
 
 import com.elitec.com.feature.outbox.domain.entities.OutboxEntry
-import com.elitec.com.feature.outbox.domain.entities.OutboxOpType
 import com.elitec.com.feature.outbox.domain.entities.OutboxStatus
 import kotlinx.coroutines.flow.Flow
 

@@ -8,13 +8,14 @@ import com.elitec.com.feature.pos.domain.entities.CreateSaleInput
 import com.elitec.com.feature.pos.domain.entities.Sale
 import com.elitec.com.feature.pos.domain.entities.SaleLine
 import com.elitec.com.feature.pos.domain.entities.effectiveLineTotal
+import com.elitec.com.feature.pos.domain.repository.SalesRepository
 import com.elitec.com.infraestructure.logging.AbacoLog
 import com.elitec.com.infraestructure.logging.LogCategory
-import kotlin.time.Clock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlin.time.Clock
 
 /**
  * 1. Valida el ticket (mismas reglas que web).
@@ -27,6 +28,7 @@ import kotlinx.serialization.json.put
 class RegisterSaleCaseUse(
     private val enqueue: EnqueueOutboxOp,
     private val syncOneShot: SyncSaleOutboxOneShot,
+    private val sales: SalesRepository,
 ) {
     suspend operator fun invoke(input: CreateSaleInput): Result<Sale> = runCatching {
         validate(input)
@@ -63,6 +65,7 @@ class RegisterSaleCaseUse(
         }
 
         val provisional = provisionalSale(input, clientOpId, entry.id)
+        sales.cacheSale(provisional)
         AbacoLog.step(
             LogCategory.POS,
             "RegisterSale",

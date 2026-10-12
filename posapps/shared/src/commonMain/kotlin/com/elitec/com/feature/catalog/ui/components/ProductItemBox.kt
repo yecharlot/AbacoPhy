@@ -1,13 +1,6 @@
 package com.elitec.com.feature.catalog.ui.components
 
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.ui.unit.dp
-import com.elitec.com.feature.catalog.domain.entities.Product
-import com.gursimar.composive.responsive.theme.AppTheme
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
@@ -50,23 +43,20 @@ import androidx.compose.material.icons.rounded.LocalGroceryStore
 import androidx.compose.material.icons.rounded.Medication
 import androidx.compose.material.icons.rounded.Pets
 import androidx.compose.material.icons.rounded.Restaurant
-import androidx.compose.material.icons.rounded.Sell
 import androidx.compose.material.icons.rounded.Straighten
 import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material.icons.rounded.Toys
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
@@ -74,6 +64,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.elitec.com.feature.catalog.domain.entities.Product
+import com.gursimar.composive.responsive.theme.AppTheme
 import java.text.NumberFormat
 
 /* ------------------------------------------------------------------ */

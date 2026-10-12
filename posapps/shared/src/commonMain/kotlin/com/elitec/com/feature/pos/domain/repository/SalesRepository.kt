@@ -25,4 +25,10 @@ interface SalesRepository {
 
     /** Observa el cache local de ventas (offline / UI reactiva). */
     fun observeSalesFlow(): Flow<List<Sale>>
+
+    /** Guarda en Room sin ir al servidor (venta provisional / outbox). */
+    suspend fun cacheSale(sale: Sale)
+
+    /** Quita venta local-$clientOpId y guarda la confirmada del servidor. */
+    suspend fun replaceProvisional(clientOpId: String, confirmed: Sale)
 }

@@ -34,7 +34,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -49,17 +48,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.AirplaneTicket
-import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AirplaneTicket
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Outbox
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Receipt
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AddShoppingCart
 import androidx.compose.material.icons.rounded.Check
@@ -82,7 +70,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
@@ -116,7 +103,6 @@ import com.elitec.com.feature.catalog.domain.entities.effectiveUnitPrice
 import com.elitec.com.feature.pos.domain.entities.CreateSaleInput
 import com.elitec.com.feature.pos.domain.entities.CreateSaleLineInput
 import com.elitec.com.feature.pos.ui.uiStates.RegisterSaleUiState
-import com.gursimar.composive.responsive.core.DeviceConfiguration
 import com.gursimar.composive.responsive.core.rememberDeviceConfiguration
 import com.gursimar.composive.responsive.theme.AppTheme
 import kotlinx.coroutines.delay
@@ -259,7 +245,7 @@ fun NewSaleForm(
             saving = saving,
             success = success,
             errorText = formError ?: regError,
-            canSubmit = !saving && assignedUnit is AssignedUnitUiState.Ready,
+            canSubmit = !saving && lines.isNotEmpty() && assignedUnit is AssignedUnitUiState.Ready,
             onSubmit = submit,
         )
     }

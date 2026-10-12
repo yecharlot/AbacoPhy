@@ -5,12 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.elitec.com.feature.identity.domain.caseuse.RestoreSessionCaseUse
 import com.elitec.com.infraestructure.logging.AbacoLog
 import com.elitec.com.infraestructure.logging.LogCategory
-import kotlin.time.TimeSource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlin.time.TimeSource
 
 sealed class SplashDestination {
     data object Loading : SplashDestination()

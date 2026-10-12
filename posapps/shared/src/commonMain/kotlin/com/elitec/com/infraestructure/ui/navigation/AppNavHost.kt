@@ -26,7 +26,11 @@ import org.koin.compose.viewmodel.koinViewModel
 /**
  * 1. Sin URL → InitialSetup (solo guarda tras health OK)
  * 2. Con URL → Splash / Login / Home
- * 3. Health o API mal configurada → diálogo Reintentar / Cambiar URL
+ * 3. Diálogo de servidor **bloqueante** solo cuando la política lo exige
+ *    (ver [ServerConnectivityGuard] / offline-first POS).
+ *
+ * En sesión activa + backend caído (transporte): no se muestra el modal;
+ * el rail «Sin conexión» + outbox mantienen la operatividad.
  */
 @Composable
 fun AppNavHost(
@@ -65,14 +69,39 @@ fun AppNavHost(
         }
 
         val unreachable = reachability as? ServerConnectivityState.Unreachable
-        if (unreachable != null) {
+        val sessionActive = session is SessionControl.Active
+
+        /**
+         * Modal bloqueante:
+         * - Fuera de sesión (login): sí.
+         * - En sesión: SOLO misconfig de URL (requiresBlockingUi).
+         * - Corte de red/energía de horas en caja: NUNCA modal (chip + outbox).
+         *   Contexto: PDV con respaldo eléctrico debe vender aunque el ISP/backend caigan.
+         */
+        val showBlockingDialog = unreachable != null && when {
+            !sessionActive -> true
+            unreachable.requiresBlockingUi -> true
+            else -> false
+        }
+
+        if (showBlockingDialog && unreachable != null) {
             AlertDialog(
                 onDismissRequest = { connectivity.dismiss() },
-                title = { Text("No se puede contactar el servidor") },
+                title = {
+                    Text("No se puede contactar el servidor")
+                },
                 text = {
                     Text(
                         buildString {
-                            append("Compruebe que el backend está en marcha y que la URL es correcta.\n\n")
+                            if (!sessionActive) {
+                                append(
+                                    "Compruebe que el backend está en marcha y que la URL es correcta.\n\n",
+                                )
+                            } else {
+                                append(
+                                    "Hay un problema de configuración con el servidor.\n\n",
+                                )
+                            }
                             append("URL actual:\n${unreachable.baseUrl}\n\n")
                             append(unreachable.reason)
                             if (unreachable.suggestUpdateUrl) {
@@ -93,7 +122,9 @@ fun AppNavHost(
                     TextButton(
                         onClick = {
                             connectivity.dismiss()
-                            forceReconfigureUrl = true
+                            if (!sessionActive || unreachable.suggestUpdateUrl) {
+                                forceReconfigureUrl = true
+                            }
                         },
                     ) {
                         Text("Cambiar URL")

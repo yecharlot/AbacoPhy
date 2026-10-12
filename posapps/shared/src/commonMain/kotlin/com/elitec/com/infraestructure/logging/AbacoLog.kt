@@ -2,7 +2,6 @@ package com.elitec.com.infraestructure.logging
 
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /**
  * Fachada de logging expresiva sobre Napier.

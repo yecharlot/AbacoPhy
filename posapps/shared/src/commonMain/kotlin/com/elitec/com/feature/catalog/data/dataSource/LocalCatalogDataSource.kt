@@ -8,6 +8,7 @@ class LocalCatalogDataSource(
     private val dao: ProductDao,
 ) {
     fun observeProducts(): Flow<List<ProductDto>> = dao.observeAll()
+    suspend fun getAll(): List<ProductDto> = dao.getAll()
     suspend fun saveAll(items: List<ProductDto>) = dao.saveAll(items)
     suspend fun getById(id: String): ProductDto? = dao.getById(id)
 }

@@ -8,6 +8,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import com.elitec.com.infraestructure.serialization.FlexibleMetadataStringSerializer
 
 private val saleJson = Json {
     ignoreUnknownKeys = true
@@ -30,6 +31,7 @@ data class SaleNetworkDto(
     val currency: String? = null,
     val status: String? = null,
     val note: String? = null,
+    @Serializable(with = FlexibleMetadataStringSerializer::class)
     val metadata: String? = null,
 )
 
@@ -110,3 +112,40 @@ data class SalesResponseDto(
 data class SaleResponseDto(
     val sale: SaleNetworkDto? = null,
 )
+
+
+/** Persistencia local de una venta de dominio (p.ej. provisional offline). */
+fun Sale.toLocalDto(): SaleDto {
+    val lineDtos = lines.map { line ->
+        SaleLineDto(
+            productId = line.productId,
+            productCode = line.productCode,
+            productName = line.productName,
+            qty = line.qty,
+            unitPrice = line.unitPrice,
+            discountPct = line.discountPct,
+            discountAmt = line.discountAmt,
+            lineTotal = line.lineTotal,
+            unitCost = line.unitCost,
+            costAmount = line.costAmount,
+            metadata = line.metadata,
+        )
+    }
+    return SaleDto(
+        id = id,
+        number = number,
+        date = date,
+        unitId = unitId,
+        unitName = unitName,
+        seller = seller,
+        linesJson = saleJson.encodeToString(lineDtos),
+        subtotal = subtotal,
+        discount = discount,
+        total = total,
+        costTotal = costTotal,
+        currency = currency,
+        status = status,
+        note = note,
+        metadata = metadata,
+    )
+}

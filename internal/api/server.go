@@ -33,6 +33,7 @@ func (s *Server) Handler() http.Handler {
 
 	// Health / meta
 	mux.HandleFunc("/api/v1/info", s.handleInfo)
+	mux.HandleFunc("/api/v1/events", s.handleEvents)
 	mux.HandleFunc("/api/v1/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]any{"ok": true, "app": "ÁbacoPhy", "ts": time.Now().UTC()})
 	})

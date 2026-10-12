@@ -77,6 +77,7 @@ import com.elitec.com.feature.pos.ui.viewmodel.SalesViewModel
 import com.elitec.com.feature.stats.ui.screen.StatsRoute
 import com.elitec.com.feature.warehouse.ui.screens.PosStockScreen
 import com.elitec.com.infraestructure.ui.components.AppNavRail
+import com.elitec.com.infraestructure.ui.feedback.AppFeedbackHost
 import com.elitec.com.infraestructure.ui.components.SyncFinishedAutoDismiss
 import com.elitec.com.infraestructure.ui.components.SyncIndicatorUi
 import com.elitec.com.infraestructure.ui.components.handleClick
@@ -189,6 +190,7 @@ fun HomeNavHost(
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val mode = navModeFor(maxWidth, maxHeight)
 
+        Box(Modifier.fillMaxSize()) {
         when (mode) {
             NavMode.BOTTOM_BAR -> Scaffold(
                 modifier = Modifier.fillMaxSize(),
@@ -222,7 +224,7 @@ fun HomeNavHost(
             }
 
             NavMode.RAIL_COMPACT, NavMode.RAIL_EXPANDED -> {
-                val dense = maxHeight < 480.dp // móvil landscape
+                val dense = this@BoxWithConstraints.maxHeight < 480.dp
                 val expanded = mode == NavMode.RAIL_EXPANDED && !userCollapsed
                 val gap = if (dense) 8.dp else 12.dp
 
@@ -250,6 +252,13 @@ fun HomeNavHost(
                 }
             }
         }
+
+        AppFeedbackHost(
+            status = syncStatus,
+            pending = pending,
+            onDismiss = syncVm::dismissSyncFinished,
+        )
+        } // Box overlay
     }
 
     // Acción destructiva: se confirma siempre.

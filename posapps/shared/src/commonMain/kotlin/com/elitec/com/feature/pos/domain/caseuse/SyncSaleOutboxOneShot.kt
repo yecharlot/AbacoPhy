@@ -38,6 +38,8 @@ class SyncSaleOutboxOneShot(
         val input = SaleMapper.createSaleInputFromPayloadJson(entry.payloadJson)
         return try {
             val sale = repository.createSale(input)
+            // Sustituye pending_local en listado por la venta real del servidor
+            repository.replaceProvisional(entry.clientOpId, sale)
             markConfirmed.execute(entry.id, serverId = sale.id)
             AbacoLog.i(
                 LogCategory.POS,

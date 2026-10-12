@@ -19,6 +19,12 @@ interface WarehouseDao {
     @Query("SELECT * FROM sales_units WHERE active = 1 OR active IS NULL ORDER BY name ASC")
     fun observeUnits(): Flow<List<SalesUnitEntity>>
 
+    @Query("SELECT * FROM sales_units ORDER BY name ASC")
+    suspend fun getUnits(): List<SalesUnitEntity>
+
+    @Query("SELECT * FROM unit_stocks")
+    suspend fun getAllUnitStocks(): List<UnitStockEntity>
+
     @Query("SELECT * FROM unit_stocks")
     fun observeAllUnitStocks(): Flow<List<UnitStockEntity>>
 

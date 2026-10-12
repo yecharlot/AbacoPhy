@@ -55,6 +55,7 @@ val salesModule = module {
         RegisterSaleCaseUse(
             enqueue = get(),
             syncOneShot = get(),
+            sales = get(),
         )
     }
     factory { GetSaleByIdCaseUse(get()) }
@@ -66,6 +67,7 @@ val salesModule = module {
             connectivity = get(),
             syncPending = get(),
             observePendingCount = get(),
+            eventStream = get(),
         )
     }
 
@@ -82,5 +84,11 @@ val salesModule = module {
         )
     }
 
-    viewModel { OutboxSyncViewModel(worker = get()) }
+    viewModel {
+        OutboxSyncViewModel(
+            worker = get(),
+            eventStream = get(),
+            sessions = get(),
+        )
+    }
 }

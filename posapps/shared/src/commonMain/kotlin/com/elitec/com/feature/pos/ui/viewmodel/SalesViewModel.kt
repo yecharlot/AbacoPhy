@@ -188,7 +188,10 @@ class SalesViewModel(
             val unitId = _activeUnitId.value.ifBlank { null }
 
             _context.value = _context.value.copy(loading = true, error = null)
-            _salesUiState.value = SaleListUiState.Loading
+            // No forzar Loading si ya hay listado local (evita parpadeo / vacío en offline)
+            if (_salesUiState.value !is SaleListUiState.WithSales) {
+                _salesUiState.value = SaleListUiState.Loading
+            }
 
             loadPosSnapshot(unitId)
                 .onSuccess { snap ->
@@ -214,15 +217,29 @@ class SalesViewModel(
                         else SaleListUiState.WithSales(visibleSales)
                 }
                 .onFailure { e ->
+                    // Offline-first: no tumbar PDV ni listado. Soft error + caché local.
+                    val msg = e.message ?: "Sin conexión al servidor"
+                    AbacoLog.w(LogCategory.POS, "refreshAll degraded: $msg")
                     _context.value = _context.value.copy(
                         loading = false,
-                        error = e.message ?: "Error al cargar POS",
+                        error = msg,
                     )
-                    _assignedUnit.value = AssignedUnitUiState.Error(
-                        e.message ?: "No se pudo cargar el punto de venta",
-                    )
-                    _salesUiState.value =
-                        SaleListUiState.Error(e.message ?: "Error al cargar ventas")
+                    val uid = _activeUnitId.value
+                    if (uid.isNotBlank()) {
+                        val prevReady = _assignedUnit.value as? AssignedUnitUiState.Ready
+                        val name = prevReady?.unitName
+                            ?: _context.value.units.firstOrNull { it.id == uid }?.name
+                            ?: uid
+                        _assignedUnit.value = AssignedUnitUiState.Ready(
+                            unitId = uid,
+                            unitName = name,
+                        )
+                    }
+                    // Dejar que observeLocalCache repueble; no forzar Error vacío
+                    val current = _salesUiState.value
+                    if (current !is SaleListUiState.WithSales && current !is SaleListUiState.Empty) {
+                        _salesUiState.value = SaleListUiState.Empty
+                    }
                 }
         }
     }

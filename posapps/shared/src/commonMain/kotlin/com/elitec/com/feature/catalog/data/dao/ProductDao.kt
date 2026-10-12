@@ -15,6 +15,9 @@ interface ProductDao {
     @Query("SELECT * FROM catalog_products ORDER BY name ASC")
     fun observeAll(): Flow<List<ProductDto>>
 
+    @Query("SELECT * FROM catalog_products ORDER BY name ASC")
+    suspend fun getAll(): List<ProductDto>
+
     @Query("SELECT * FROM catalog_products WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): ProductDto?
 

@@ -3,6 +3,7 @@ package com.elitec.com.feature.pos.data.dto
 import com.elitec.com.feature.pos.domain.entities.SaleLine
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import com.elitec.com.infraestructure.serialization.FlexibleMetadataStringSerializer
 
 @Serializable
 data class SaleLineDto(
@@ -16,6 +17,7 @@ data class SaleLineDto(
     @SerialName("line_total") val lineTotal: Double? = null,
     @SerialName("unit_cost") val unitCost: Double? = null,
     @SerialName("cost_amount") val costAmount: Double? = null,
+    @Serializable(with = FlexibleMetadataStringSerializer::class)
     val metadata: String? = null,
 )
 

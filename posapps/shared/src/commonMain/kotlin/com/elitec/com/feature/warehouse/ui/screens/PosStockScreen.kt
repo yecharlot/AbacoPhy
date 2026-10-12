@@ -79,11 +79,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.elitec.com.feature.pos.ui.components.AssignedUnitUiState
-import com.elitec.com.feature.pos.ui.uiStates.StockStates
 import com.elitec.com.feature.pos.ui.models.PosStockLoadState
 import com.elitec.com.feature.pos.ui.models.PosStockSummary
 import com.elitec.com.feature.pos.ui.models.PosStockUiState
 import com.elitec.com.feature.pos.ui.models.StockItemUi
+import com.elitec.com.feature.pos.ui.uiStates.StockStates
 import com.elitec.com.feature.warehouse.ui.viewmodels.PosStockViewModel
 import com.gursimar.composive.responsive.core.DeviceConfiguration
 import com.gursimar.composive.responsive.core.rememberDeviceConfiguration
