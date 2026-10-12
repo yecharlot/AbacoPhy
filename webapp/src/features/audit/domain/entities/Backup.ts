@@ -13,3 +13,11 @@ export type BackupsSnapshot = {
   currentCid: string;
   rev: number;
 };
+
+/** Resultado de importar una salva desde disco. */
+export type ImportBackupResult = {
+  ok: boolean;
+  rev: number;
+  rootCid: string;
+  contentSha: string;
+};

@@ -1,6 +1,6 @@
 import type { HttpClient } from '../../../../infrastructure/data/http';
 import type { AuditEvent, AuditListQuery, AuditTrail } from '../../domain/entities/AuditEvent';
-import type { BackupMeta, BackupsSnapshot } from '../../domain/entities/Backup';
+import type { BackupMeta, BackupsSnapshot, ImportBackupResult } from '../../domain/entities/Backup';
 import type { AuditRepository } from '../../domain/repositories/AuditRepository';
 import { auditEntryDtoToEntity, backupMetaDtoToEntity } from '../mappers/auditMapper';
 import { AuditRemoteSource } from '../sources/AuditRemoteSource';
@@ -85,9 +85,15 @@ export class AuditRepositoryImpl implements AuditRepository {
     }
   }
 
-  async importBackup(file: File): Promise<void> {
+  async importBackup(file: File): Promise<ImportBackupResult> {
     try {
-      await this.remote.importBackup(file);
+      const dto = await this.remote.importBackup(file);
+      return {
+        ok: dto.ok !== false,
+        rev: dto.rev ?? 0,
+        rootCid: dto.root_cid || '',
+        contentSha: dto.content_sha || '',
+      };
     } catch (err) {
       throw new Error(messageOf(err, 'No se pudo importar la salva'));
     }

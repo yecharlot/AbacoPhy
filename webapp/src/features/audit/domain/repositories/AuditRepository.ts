@@ -1,5 +1,5 @@
 import type { AuditEvent, AuditListQuery, AuditTrail } from '../entities/AuditEvent';
-import type { BackupMeta, BackupsSnapshot } from '../entities/Backup';
+import type { BackupMeta, BackupsSnapshot, ImportBackupResult } from '../entities/Backup';
 
 export interface AuditRepository {
   getTrail(query?: AuditListQuery): Promise<AuditTrail>;
@@ -8,7 +8,7 @@ export interface AuditRepository {
   restoreBackup(cid: string): Promise<void>;
   exportBackup(): Promise<Blob>;
   /** Restaura desde un archivo ZIP exportado (disco). */
-  importBackup(file: File): Promise<void>;
+  importBackup(file: File): Promise<ImportBackupResult>;
   /** Solo rol master. */
   getSystemErrors(): Promise<AuditEvent[]>;
 }
