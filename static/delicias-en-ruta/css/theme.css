@@ -53,10 +53,11 @@ body {
   text-align: center;
   border-bottom: 1px solid rgba(255,255,255,0.1);
 }
-.brand img {
-  width: 120px;
+.brand img, .brand-logo {
+  width: 180px;
+  max-width: 88%;
   height: auto;
-  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.35));
+  filter: drop-shadow(0 6px 16px rgba(0,0,0,0.4));
 }
 .brand h1 {
   margin: 10px 0 2px;

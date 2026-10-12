@@ -88,7 +88,6 @@ async function boot() {
   await eng.boot();
   user = getSession();
   if (user) {
-    // re-validate user still exists
     const ok = (eng.state.users || []).some((u) => u.username === user.username);
     if (!ok) { clearSession(); user = null; }
   }
