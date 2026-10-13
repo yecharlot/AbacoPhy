@@ -1,4 +1,4 @@
-/** Menú = PLACEHOLDER_NAV de main (navTypes.ts) — labels y ids idénticos */
+/** Menú = PLACEHOLDER_NAV de main — se filtra por permisos efectivos */
 export const NAV = [
   { group: 'Finanzas', items: [
     { id: 'dashboard', label: 'Resumen' },
@@ -33,7 +33,19 @@ export const NAV = [
   ]},
 ];
 
-export function renderShell(root, { title, onNav, active, user, onLogout }) {
+/**
+ * @param canAccess fn(screenId) => boolean
+ */
+export function filterNav(canAccess) {
+  if (!canAccess) return NAV;
+  return NAV.map((g) => ({
+    group: g.group,
+    items: g.items.filter((it) => canAccess(it.id)),
+  })).filter((g) => g.items.length > 0);
+}
+
+export function renderShell(root, { title, onNav, active, user, onLogout, canAccess }) {
+  const navItems = filterNav(canAccess);
   const aside = document.createElement('aside');
   aside.className = 'sidebar';
   aside.innerHTML = `
@@ -48,7 +60,7 @@ export function renderShell(root, { title, onNav, active, user, onLogout }) {
       <div class="muted">IPFS local · offline</div>
     </div>`;
   const nav = aside.querySelector('#nav');
-  NAV.forEach((g) => {
+  navItems.forEach((g) => {
     const lab = document.createElement('div');
     lab.className = 'nav-group';
     lab.textContent = g.group;
@@ -90,6 +102,26 @@ export function renderShell(root, { title, onNav, active, user, onLogout }) {
     setTitle: (t) => { main.querySelector('#page-title').textContent = t; },
     setActive: (id) => {
       nav.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.id === id));
+    },
+    /** Reconstruir menú tras cambiar permisos (misma sesión) */
+    refreshNav: (nextCanAccess, nextActive) => {
+      const items = filterNav(nextCanAccess || canAccess);
+      nav.innerHTML = '';
+      items.forEach((g) => {
+        const lab = document.createElement('div');
+        lab.className = 'nav-group';
+        lab.textContent = g.group;
+        nav.appendChild(lab);
+        g.items.forEach((it) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.dataset.id = it.id;
+          if (it.id === (nextActive || active)) b.classList.add('active');
+          b.innerHTML = `<span>${it.label}</span>`;
+          b.onclick = () => onNav(it.id);
+          nav.appendChild(b);
+        });
+      });
     },
   };
 }

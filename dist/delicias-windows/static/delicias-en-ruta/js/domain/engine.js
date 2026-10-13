@@ -73,12 +73,66 @@ export class DomainEngine {
     return this.persist();
   }
 
-  canAccess(role, screenId) {
+  /**
+   * Acceso efectivo a una pantalla.
+   * sessionUser opcional: { role, screens?: { [screenId]: true|false } }
+   * - screens[id] === true  → forzar visible
+   * - screens[id] === false → forzar oculto
+   * - ausente → hereda permisos del rol
+   * master sin override negativo ve todo.
+   */
+  canAccess(roleOrUser, screenId) {
+    let role = roleOrUser;
+    let screens = null;
+    if (roleOrUser && typeof roleOrUser === 'object') {
+      role = roleOrUser.role;
+      screens = roleOrUser.screens || null;
+      // refrescar screens desde store si hay id
+      if (roleOrUser.id) {
+        const u = (this.state.users || []).find((x) => x.id === roleOrUser.id || x.username === roleOrUser.username);
+        if (u && u.screens) screens = u.screens;
+      }
+    }
     if (!role) return false;
+    if (screens && Object.prototype.hasOwnProperty.call(screens, screenId)) {
+      return !!screens[screenId];
+    }
     if (role === 'master') return true;
     const rp = this.state.rolePermissions[role] || {};
     if (rp['*']) return true;
     return !!rp[screenId];
+  }
+
+  /** Lista de ids de menú visibles para el usuario de sesión */
+  visibleScreens(sessionUser) {
+    const all = [
+      'dashboard', 'ingresos', 'gastos', 'cuentas', 'reportes', 'facturas',
+      'empleados', 'liquidaciones', 'catalog', 'tenant', 'almacen', 'recepcion',
+      'transferencias', 'pos', 'fichas-costo', 'fichas-precio', 'pedidos',
+      'traza', 'salvas', 'usuarios', 'roles', 'permisos', 'master',
+    ];
+    return all.filter((id) => this.canAccess(sessionUser, id));
+  }
+
+  async setUserScreenAccess(userId, screenId, value) {
+    const u = this.state.users.find((x) => x.id === userId);
+    if (!u) throw new Error('Usuario no encontrado');
+    if (!u.screens) u.screens = {};
+    if (value === null || value === undefined || value === 'inherit') {
+      delete u.screens[screenId];
+    } else {
+      u.screens[screenId] = !!value;
+    }
+    this.audit('user.screens', u.username + ' ' + screenId + '=' + value);
+    return this.persist();
+  }
+
+  async setUserScreens(userId, screensMap) {
+    const u = this.state.users.find((x) => x.id === userId);
+    if (!u) throw new Error('Usuario no encontrado');
+    u.screens = { ...(screensMap || {}) };
+    this.audit('user.screens', u.username);
+    return this.persist();
   }
 
   // —— Accounting ——
@@ -434,6 +488,7 @@ export class DomainEngine {
     this.state.users.push({
       id: uid(), username: username.trim(), password: password || 'changeme',
       role: role || 'cashier', displayName: displayName || username, active: true,
+      screens: {},
     });
     this.audit('user.create', username);
     return this.persist();

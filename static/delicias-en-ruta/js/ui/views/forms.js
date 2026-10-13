@@ -655,10 +655,7 @@ export function renderUsuarios(el, eng, redraw) {
       <div class="form-row"><label>Nombre</label><input id="n"/></div>
       <div class="form-row"><label>Clave</label><input id="p" type="password"/></div>
       <div class="form-row"><label>Rol</label>
-        <select id="r">
-          <option value="cashier">cashier</option><option value="almacenero">almacenero</option>
-          <option value="admin">admin</option><option value="master">master</option>
-        </select>
+        <select id="r">${(eng.state.roles||[]).map((r)=>`<option value="${r.code}">${r.code}</option>`).join('') || '<option value="cashier">cashier</option>'}</select>
       </div>
       <button type="button" class="btn" id="ok">Crear</button>
     </div>${table(rows, ['Usuario', 'Nombre', 'Rol', 'Activo', ''])}`;
@@ -677,32 +674,88 @@ export function renderUsuarios(el, eng, redraw) {
 }
 
 export function renderPermisos(el, eng, redraw) {
-  const roles = Object.keys(eng.state.rolePermissions);
+  const roles = Object.keys(eng.state.rolePermissions || {});
   const screens = [
     'dashboard', 'ingresos', 'gastos', 'cuentas', 'reportes', 'facturas',
     'empleados', 'liquidaciones', 'catalog', 'tenant', 'almacen', 'recepcion',
     'transferencias', 'pos', 'fichas-costo', 'fichas-precio', 'pedidos',
-    'traza', 'salvas', 'usuarios', 'permisos', 'master',
+    'traza', 'salvas', 'usuarios', 'roles', 'permisos', 'master',
   ];
-  let role = roles[0] || 'admin';
+  const users = (eng.state.users || []).filter((u) => u.active !== false);
+  let role = roles.includes('admin') ? 'admin' : (roles[0] || 'admin');
+  let userId = users[0]?.id || '';
+
   const paint = () => {
     const perms = eng.state.rolePermissions[role] || {};
+    const selUser = users.find((u) => u.id === userId);
+    const uscreens = (selUser && selUser.screens) || {};
+
     el.innerHTML = `
       <div class="card form-card">
         <h3>Permisos UI por rol</h3>
+        <p class="muted">Define qué ve cada rol en el menú lateral. Los overrides por usuario (abajo) tienen prioridad.</p>
         <div class="form-row"><label>Rol</label>
           <select id="role">${roles.map((r) => `<option value="${r}" ${r === role ? 'selected' : ''}>${r}</option>`).join('')}</select>
         </div>
         <div class="perm-grid">
           ${screens.map((s) => `<label><input type="checkbox" data-s="${s}" ${perms[s] || perms['*'] ? 'checked' : ''}/> ${s}</label>`).join('')}
         </div>
-        <button type="button" class="btn" id="ok">Guardar permisos</button>
+        <button type="button" class="btn" id="ok-role">Guardar permisos del rol</button>
+      </div>
+
+      <div class="card form-card">
+        <h3>Menú por usuario (override master)</h3>
+        <p class="muted">Para un usuario concreto: <b>Heredar</b> del rol, <b>Mostrar</b> u <b>Ocultar</b> cada opción del menú.</p>
+        <div class="form-row"><label>Usuario</label>
+          <select id="uid">${users.map((u) => `<option value="${u.id}" ${u.id === userId ? 'selected' : ''}>${u.username} (${u.role})</option>`).join('')}</select>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Pantalla</th><th>Rol</th><th>Override</th></tr></thead>
+          <tbody>
+            ${screens.map((s) => {
+              const roleAllows = !!(perms[s] || perms['*'] || (selUser && selUser.role === 'master'));
+              const ov = Object.prototype.hasOwnProperty.call(uscreens, s) ? (uscreens[s] ? 'show' : 'hide') : 'inherit';
+              return `<tr>
+                <td>${s}</td>
+                <td>${roleAllows ? 'sí' : 'no'}</td>
+                <td>
+                  <select data-ov="${s}">
+                    <option value="inherit" ${ov === 'inherit' ? 'selected' : ''}>Heredar rol</option>
+                    <option value="show" ${ov === 'show' ? 'selected' : ''}>Mostrar</option>
+                    <option value="hide" ${ov === 'hide' ? 'selected' : ''}>Ocultar</option>
+                  </select>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table></div>
+        <button type="button" class="btn" id="ok-user" style="margin-top:10px">Guardar menú del usuario</button>
       </div>`;
+
     el.querySelector('#role').onchange = (e) => { role = e.target.value; paint(); };
-    el.querySelector('#ok').onclick = async () => {
+    const uidEl = el.querySelector('#uid');
+    if (uidEl) uidEl.onchange = (e) => { userId = e.target.value; paint(); };
+
+    el.querySelector('#ok-role').onclick = async () => {
       const permissions = {};
       el.querySelectorAll('[data-s]').forEach((c) => { permissions[c.dataset.s] = c.checked; });
       await eng.updateRolePermissions(role, permissions);
+      if (window.__deliciasRefreshMenu) window.__deliciasRefreshMenu();
+      redraw();
+    };
+
+    el.querySelector('#ok-user').onclick = async () => {
+      if (!userId) return;
+      const map = {};
+      el.querySelectorAll('[data-ov]').forEach((sel) => {
+        const v = sel.value;
+        if (v === 'show') map[sel.dataset.ov] = true;
+        else if (v === 'hide') map[sel.dataset.ov] = false;
+        // inherit → no key
+      });
+      await eng.setUserScreens(userId, map);
+      if (window.__deliciasRefreshMenu) window.__deliciasRefreshMenu();
+      alert('Menú del usuario actualizado. Si es la sesión actual, el lateral se refresca al momento.');
       redraw();
     };
   };

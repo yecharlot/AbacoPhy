@@ -19,7 +19,6 @@ let user = null;
 let painting = false;
 let pendingPaint = false;
 
-/** Pantallas que se refrescan solas ante cambios de estado / otras pestañas */
 const LIVE_SCREENS = new Set([
   'dashboard', 'ingresos', 'gastos', 'cuentas', 'reportes', 'facturas',
   'empleados', 'liquidaciones', 'catalog', 'almacen', 'recepcion',
@@ -39,8 +38,10 @@ async function paintApp() {
     shell.setActive(screen);
     const el = shell.view;
     const redraw = () => paintApp();
-    if (user && !eng.canAccess(user.role, screen) && user.role !== 'master') {
-      el.innerHTML = `<div class="card"><h3>Acceso denegado</h3><p class="muted">Sin permiso UI para «${screen}» (rol ${user.role}).</p></div>`;
+    if (user && !eng.canAccess(user, screen)) {
+      el.innerHTML = `<div class="card"><h3>Acceso denegado</h3>
+        <p class="muted">Sin permiso de menú para «${screen}» (rol ${user.role}).
+        Master puede habilitarlo en <b>Permisos UI</b> → override por usuario.</p></div>`;
       return;
     }
     switch (screen) {
@@ -79,12 +80,29 @@ async function paintApp() {
   }
 }
 
+function sessionFromUser(full) {
+  return {
+    id: full.id,
+    username: full.username,
+    role: full.role,
+    displayName: full.displayName || full.name,
+    name: full.displayName || full.name,
+    screens: full.screens || {},
+  };
+}
+
 function mountShell() {
   const root = document.getElementById('app');
+  const accessFn = (id) => eng.canAccess(user, id);
+  if (user && !eng.canAccess(user, screen)) {
+    const vis = eng.visibleScreens(user);
+    screen = vis[0] || 'dashboard';
+  }
   shell = renderShell(root, {
     title: titles[screen],
     active: screen,
     user,
+    canAccess: accessFn,
     onNav: (id) => { screen = id; paintApp(); },
     onLogout: () => {
       clearSession();
@@ -96,6 +114,19 @@ function mountShell() {
   paintApp();
 }
 
+/** Tras cambiar permisos, refrescar menú lateral */
+function refreshSessionMenu() {
+  if (!user || !shell) return;
+  const u = (eng.state.users || []).find((x) => x.username === user.username);
+  if (u) user = setSession(sessionFromUser(u));
+  if (shell.refreshNav) shell.refreshNav((id) => eng.canAccess(user, id), screen);
+  if (user && !eng.canAccess(user, screen)) {
+    const vis = eng.visibleScreens(user);
+    screen = vis[0] || 'dashboard';
+  }
+  paintApp();
+}
+
 function showLogin(err) {
   const root = document.getElementById('app');
   renderLogin(root, {
@@ -103,7 +134,8 @@ function showLogin(err) {
     onSubmit: async (username, password) => {
       try {
         const u = eng.login(username, password);
-        user = setSession(u);
+        const full = (eng.state.users || []).find((x) => x.username === u.username) || u;
+        user = setSession(sessionFromUser({ ...u, ...full }));
         await eng.persist();
         mountShell();
       } catch (e) {
@@ -113,18 +145,14 @@ function showLogin(err) {
   });
 }
 
-/** Tiempo real: cualquier persist() o cambio en otra pestaña repinta la vista activa */
 subscribe(async (msg) => {
   if (!shell || !user) return;
   if (!LIVE_SCREENS.has(screen)) return;
-  // Recargar estado si el evento viene de otra pestaña
   if (msg?.detail?.reason === 'storage' || msg?.type === 'state') {
     try {
       const loaded = await store.load();
-      if (loaded) {
-        eng.state = { ...eng.state, ...loaded };
-      }
-    } catch (_) { /* keep memory state */ }
+      if (loaded) eng.state = { ...eng.state, ...loaded };
+    } catch (_) { /* keep memory */ }
   }
   paintApp();
 });
@@ -135,11 +163,20 @@ async function boot() {
   await eng.boot();
   user = getSession();
   if (user) {
-    const ok = (eng.state.users || []).some((u) => u.username === user.username && u.active !== false);
-    if (!ok) { clearSession(); user = null; }
+    const full = (eng.state.users || []).find((u) => u.username === user.username && u.active !== false);
+    if (!full) {
+      clearSession();
+      user = null;
+    } else {
+      user = setSession(sessionFromUser(full));
+    }
   }
   if (user) mountShell();
   else showLogin();
 }
+
+window.__deliciasRefreshMenu = () => {
+  try { refreshSessionMenu(); } catch (_) {}
+};
 
 boot();
