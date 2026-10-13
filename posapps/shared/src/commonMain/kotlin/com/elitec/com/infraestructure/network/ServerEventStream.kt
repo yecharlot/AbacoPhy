@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.min
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Canal SSE hacia `GET /api/v1/events`.
@@ -76,12 +77,12 @@ class ServerEventStream(
         while (_running.value) {
             val token = tokenProvider()
             if (token.isNullOrBlank()) {
-                delay(2_000)
+                delay(2_000.milliseconds)
                 continue
             }
             val base = apiConfig.baseUrl.trimEnd('/')
             if (base.isBlank()) {
-                delay(3_000)
+                delay(3_000.milliseconds)
                 continue
             }
             val url = "$base/events"
@@ -144,7 +145,7 @@ class ServerEventStream(
             attempt++
             val wait = min(60_000L, 1_000L * (1L shl min(attempt, 6)))
             AbacoLog.i(LogCategory.APP, "SSE reconnect in ${wait}ms (attempt=$attempt)")
-            delay(wait)
+            delay(wait.milliseconds)
         }
     }
 
