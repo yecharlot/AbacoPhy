@@ -7,13 +7,12 @@ export function renderLogin(root, { error, onSubmit }) {
         <p class="login-sub">Gestión offline · persistencia IPFS local</p>
         <form id="login-form" class="login-form">
           <label>Usuario</label>
-          <input id="user" name="username" autocomplete="username" required placeholder="admin" value="admin"/>
+          <input id="user" name="username" autocomplete="username" required placeholder="Usuario" value=""/>
           <label>Contraseña</label>
-          <input id="pass" name="password" type="password" autocomplete="current-password" required/>
+          <input id="pass" name="password" type="password" autocomplete="current-password" required placeholder="Contraseña" value=""/>
           ${error ? `<p class="login-err">${error}</p>` : ''}
           <button type="submit" class="btn login-btn">Entrar</button>
         </form>
-        <p class="login-hint muted">admin / admin123 · caja / caja123 · master / AbacoPhy#Master1</p>
       </div>
     </div>`;
   root.querySelector('#login-form').onsubmit = async (e) => {

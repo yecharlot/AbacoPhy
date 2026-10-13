@@ -101,7 +101,7 @@ export function emptyState() {
     ],
     rolePermissions: {
       master: { "*": true },
-      admin: full,
+      admin: full, // full incluye roles/permisos/master si full map los tiene
       contador: Object.fromEntries(["dashboard","ingresos","gastos","cuentas","reportes","facturas","traza"].map((s) => [s, true])),
       economico: Object.fromEntries(["dashboard","reportes","fichas-costo","fichas-precio","catalog","cuentas"].map((s) => [s, true])),
       almacenero: Object.fromEntries(["dashboard","almacen","recepcion","transferencias","catalog"].map((s) => [s, true])),
