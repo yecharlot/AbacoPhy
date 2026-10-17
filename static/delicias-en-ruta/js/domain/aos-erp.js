@@ -1,7 +1,8 @@
 /**
- * AOS-ERP — operaciones como nodos firmados (Zyrion 0/1/2).
- * Verde=éxito, Rojo=fallo/pérdida, Gris=pendiente/dudoso.
- * Cadena append-only con SHA-256 (Web Crypto).
+ * AOS-ERP — nodos firmados con DOBLE señal visual:
+ * 1) Flujo económico (relleno): entra dinero / sale dinero / neutro
+ * 2) Zyrion operativo (borde): éxito / fallo / pendiente
+ * Cadena SHA-256 append-only.
  */
 
 const CHAIN_KEY = 'delicias.aos-erp.chain';
@@ -12,28 +13,93 @@ export const ZYRION = {
   INDETERMINATE: 2,
 };
 
+/** Naturaleza de caja para el dueño (no confundir con Zyrion). */
+export const FLOW = {
+  IN: 'in',       // entra efectivo / mejora resultado
+  OUT: 'out',     // sale efectivo (compra, gasto, impuesto, nómina)
+  LOSS: 'loss',   // pérdida / merma / castigo (rojo intenso)
+  NEUTRAL: 'neutral',
+};
+
 export const CATEGORIES = [
   { id: 'all', label: 'Todas' },
   { id: 'compra', label: 'Compras' },
   { id: 'venta', label: 'Ventas' },
   { id: 'ingreso', label: 'Ingresos' },
   { id: 'gasto', label: 'Gastos' },
+  { id: 'impuesto', label: 'Impuestos' },
   { id: 'caja', label: 'Caja' },
   { id: 'inventario', label: 'Inventario' },
   { id: 'nomina', label: 'Nómina' },
   { id: 'otro', label: 'Otros' },
 ];
 
+export const FLOW_FILTERS = [
+  { id: 'all', label: 'Todo flujo' },
+  { id: 'in', label: 'Entra dinero' },
+  { id: 'out', label: 'Sale dinero' },
+  { id: 'loss', label: 'Pérdidas' },
+];
+
+/** Color de RELLENO = impacto económico */
+export function flowColor(flow) {
+  if (flow === FLOW.IN) return '#22c55e';
+  if (flow === FLOW.OUT) return '#f97316';      // naranja-rojo: salida legítima
+  if (flow === FLOW.LOSS) return '#dc2626';     // rojo fuerte: pérdida
+  return '#64748b';
+}
+
+export function flowLabel(flow) {
+  if (flow === FLOW.IN) return 'Entra dinero (+)';
+  if (flow === FLOW.OUT) return 'Sale dinero (−)';
+  if (flow === FLOW.LOSS) return 'Pérdida / merma';
+  return 'Neutro';
+}
+
+/** Color de BORDE = estado operativo Zyrion */
 export function zyrionColor(z) {
-  if (z === ZYRION.SUCCESS) return '#22c55e';
-  if (z === ZYRION.FAILURE) return '#ef4444';
-  return '#94a3b8';
+  if (z === ZYRION.SUCCESS) return '#86efac';
+  if (z === ZYRION.FAILURE) return '#fca5a5';
+  return '#cbd5e1';
 }
 
 export function zyrionLabel(z) {
-  if (z === ZYRION.SUCCESS) return 'Éxito (Zyrion 1)';
-  if (z === ZYRION.FAILURE) return 'Fallo / pérdida (Zyrion 0)';
+  if (z === ZYRION.SUCCESS) return 'Operación OK (Zyrion 1)';
+  if (z === ZYRION.FAILURE) return 'Operación fallida (Zyrion 0)';
   return 'Pendiente / dudoso (Zyrion 2)';
+}
+
+/**
+ * Color principal del nodo para el dueño:
+ * - Fallo operativo → rojo borde dominante (ya falló el proceso)
+ * - Si no: relleno por flujo (entra verde / sale naranja / pérdida rojo)
+ * - Pendiente → atenúa hacia gris
+ */
+export function nodeDisplayColor(node) {
+  if (node.isNucleus) return '#f4b400';
+  if (node.isActor) return '#64748b';
+  if (node.zyrion === ZYRION.FAILURE) return '#ef4444';
+  if (node.zyrion === ZYRION.INDETERMINATE) {
+    // pendiente: tinte del flujo pero apagado
+    if (node.flow === FLOW.IN) return '#4ade80aa';
+    if (node.flow === FLOW.OUT || node.flow === FLOW.LOSS) return '#fb923c99';
+    return '#94a3b8';
+  }
+  return flowColor(node.flow || FLOW.NEUTRAL);
+}
+
+/** Clasifica flujo económico a partir de tipo/categoría/texto */
+export function classifyFlow({ type, category, label, amount, loss }) {
+  if (loss) return FLOW.LOSS;
+  const blob = `${type || ''} ${category || ''} ${label || ''}`.toLowerCase();
+  if (/merma|perdida|pérdida|castigo|robo|siniestro|write.?off/.test(blob)) return FLOW.LOSS;
+  if (/impuesto|tax|tribut|fiscal|onat|iva/.test(blob)) return FLOW.OUT;
+  if (/compra|proveedor|suministro|gasto|egreso|nomina|nómina|salario|combustible|pago/.test(blob)) return FLOW.OUT;
+  if (/venta|ingreso|cobro|recaud|catering|cliente/.test(blob)) return FLOW.IN;
+  if (type === 'expense' || category === 'gasto' || category === 'compra' || category === 'nomina' || category === 'impuesto') return FLOW.OUT;
+  if (type === 'income' || category === 'ingreso' || category === 'venta') return FLOW.IN;
+  if (typeof amount === 'number' && amount < 0) return FLOW.OUT;
+  return FLOW.NEUTRAL;
 }
 
 async function sha256Hex(text) {
@@ -71,6 +137,7 @@ export async function sealNode(node) {
     amount: node.amount,
     currency: node.currency,
     zyrion: node.zyrion,
+    flow: node.flow,
     from: node.from,
     to: node.to,
     label: node.label,
@@ -119,16 +186,27 @@ export function buildGraphFromState(state) {
     if (e.status === 'failed' || e.status === 'cancelled' || e.failed) zyrion = ZYRION.FAILURE;
     if (e.loss || e.category === 'perdida' || e.category === 'pérdida') zyrion = ZYRION.FAILURE;
 
-    const cat = isIncome ? 'ingreso' : isExpense ? 'gasto' : 'otro';
+    let cat = isIncome ? 'ingreso' : isExpense ? 'gasto' : 'otro';
+    const label = e.memo || e.description || e.concept || (isIncome ? 'Ingreso' : 'Gasto');
+    if (/impuesto|tax|tribut|onat|iva/i.test(label)) cat = 'impuesto';
+    if (/nomina|nómina|salario/i.test(label)) cat = 'nomina';
+    const flow = classifyFlow({
+      type: isIncome ? 'income' : isExpense ? 'expense' : 'otro',
+      category: cat,
+      label,
+      amount: e.amount,
+      loss: e.loss || e.category === 'perdida' || e.category === 'pérdida',
+    });
     const id = e.id || `entry-${i}`;
     push({
       id,
-      label: e.memo || e.description || e.concept || (isIncome ? 'Ingreso' : 'Gasto'),
+      label,
       type: isIncome ? 'ingreso' : 'gasto',
       category: cat,
       amount: Math.abs(Number(e.amount) || 0),
       currency: e.currency || state.tenant?.currency || 'CUP',
       zyrion,
+      flow,
       from: isExpense ? (e.accountName || tenant) : (e.counterparty || e.from || 'Cliente'),
       to: isIncome ? (e.accountName || tenant) : (e.counterparty || e.to || 'Proveedor'),
       at: e.at || e.date || e.createdAt || Date.now(),
@@ -153,6 +231,7 @@ export function buildGraphFromState(state) {
       amount: Number(s.total || s.amount || 0),
       currency: s.currency || state.tenant?.currency || 'CUP',
       zyrion,
+      flow: classifyFlow({ type: 'venta', category: 'venta', label: s.memo || 'venta' }),
       from: 'Cliente',
       to: tenant,
       at: s.at || s.createdAt || Date.now(),
@@ -177,6 +256,7 @@ export function buildGraphFromState(state) {
       amount: Number(o.total || o.amount || 0),
       currency: o.currency || state.tenant?.currency || 'CUP',
       zyrion,
+      flow: classifyFlow({ type: 'pedido', category: 'venta', label: o.memo || 'pedido' }),
       from: o.customer || 'Cliente online',
       to: tenant,
       at: o.at || o.createdAt || Date.now(),
@@ -201,6 +281,7 @@ export function buildGraphFromState(state) {
       amount: 0,
       currency: '',
       zyrion: ZYRION.INDETERMINATE,
+      flow: FLOW.NEUTRAL,
       from: '',
       to: '',
       at: 0,
@@ -215,15 +296,17 @@ export function buildGraphFromState(state) {
 /** Demo si no hay datos reales (para que el directivo vea el panel de inmediato). */
 export function demoGraph(tenantName = 'Delicias en Ruta') {
   const nodes = [
-    { id: 'op-1', label: 'Venta mostrador #101', type: 'venta', category: 'venta', amount: 850, currency: 'CUP', zyrion: 1, from: 'Cliente', to: tenantName, at: Date.now() - 86400000 * 2 },
-    { id: 'op-2', label: 'Compra suministros', type: 'compra', category: 'compra', amount: 12000, currency: 'USD', zyrion: 1, from: 'Caja Central', to: 'Vendor-Beta', at: Date.now() - 86400000 },
-    { id: 'op-3', label: 'Gasto combustible', type: 'gasto', category: 'gasto', amount: 420, currency: 'CUP', zyrion: 1, from: 'Caja Central', to: 'Gasolinera', at: Date.now() - 3600000 * 20 },
-    { id: 'op-4', label: 'Pedido online pendiente', type: 'pedido', category: 'venta', amount: 1500, currency: 'CUP', zyrion: 2, from: 'Cliente Web', to: tenantName, at: Date.now() - 3600000 },
-    { id: 'op-5', label: 'Cobro rechazado POS', type: 'venta', category: 'venta', amount: 300, currency: 'CUP', zyrion: 0, from: 'Cliente', to: tenantName, at: Date.now() - 7200000 },
-    { id: 'op-6', label: 'Pérdida merma cocina', type: 'gasto', category: 'gasto', amount: 200, currency: 'CUP', zyrion: 0, from: 'Almacén', to: 'Merma', at: Date.now() - 86400000 * 3 },
-    { id: 'op-7', label: 'Ingreso catering', type: 'ingreso', category: 'ingreso', amount: 5000, currency: 'CUP', zyrion: 1, from: 'Empresa XYZ', to: tenantName, at: Date.now() - 86400000 * 4 },
-    { id: 'actor:Caja Central', label: 'Caja Central', type: 'actor', category: 'caja', amount: 0, zyrion: 2, isActor: true },
-    { id: 'actor:Vendor-Beta', label: 'Vendor-Beta', type: 'actor', category: 'compra', amount: 0, zyrion: 2, isActor: true },
+    { id: 'op-1', label: 'Venta mostrador #101', type: 'venta', category: 'venta', amount: 850, currency: 'CUP', zyrion: 1, flow: 'in', from: 'Cliente', to: tenantName, at: Date.now() - 86400000 * 2 },
+    { id: 'op-2', label: 'Compra suministros', type: 'compra', category: 'compra', amount: 12000, currency: 'USD', zyrion: 1, flow: 'out', from: 'Caja Central', to: 'Vendor-Beta', at: Date.now() - 86400000 },
+    { id: 'op-3', label: 'Gasto combustible', type: 'gasto', category: 'gasto', amount: 420, currency: 'CUP', zyrion: 1, flow: 'out', from: 'Caja Central', to: 'Gasolinera', at: Date.now() - 3600000 * 20 },
+    { id: 'op-3b', label: 'Pago impuestos ONAT', type: 'gasto', category: 'impuesto', amount: 2100, currency: 'CUP', zyrion: 1, flow: 'out', from: 'Caja Central', to: 'ONAT', at: Date.now() - 86400000 * 5 },
+    { id: 'op-3c', label: 'Nómina quincena', type: 'gasto', category: 'nomina', amount: 8000, currency: 'CUP', zyrion: 1, flow: 'out', from: 'Caja Central', to: 'Personal', at: Date.now() - 86400000 * 1 },
+    { id: 'op-4', label: 'Pedido online pendiente', type: 'pedido', category: 'venta', amount: 1500, currency: 'CUP', zyrion: 2, flow: 'in', from: 'Cliente Web', to: tenantName, at: Date.now() - 3600000 },
+    { id: 'op-5', label: 'Cobro rechazado POS', type: 'venta', category: 'venta', amount: 300, currency: 'CUP', zyrion: 0, flow: 'in', from: 'Cliente', to: tenantName, at: Date.now() - 7200000 },
+    { id: 'op-6', label: 'Pérdida merma cocina', type: 'gasto', category: 'gasto', amount: 200, currency: 'CUP', zyrion: 1, flow: 'loss', from: 'Almacén', to: 'Merma', at: Date.now() - 86400000 * 3 },
+    { id: 'op-7', label: 'Ingreso catering', type: 'ingreso', category: 'ingreso', amount: 5000, currency: 'CUP', zyrion: 1, flow: 'in', from: 'Empresa XYZ', to: tenantName, at: Date.now() - 86400000 * 4 },
+    { id: 'actor:Caja Central', label: 'Caja Central', type: 'actor', category: 'caja', amount: 0, zyrion: 2, flow: 'neutral', isActor: true },
+    { id: 'actor:Vendor-Beta', label: 'Vendor-Beta', type: 'actor', category: 'compra', amount: 0, zyrion: 2, flow: 'neutral', isActor: true },
   ];
   const edges = [
     { from: 'actor:Caja Central', to: 'op-2' },
@@ -236,14 +319,17 @@ export function demoGraph(tenantName = 'Delicias en Ruta') {
   return { nodes, edges };
 }
 
-export function filterGraph(graph, category, zyrionFilter) {
+export function filterGraph(graph, category, zyrionFilter, flowFilter) {
   let nodes = graph.nodes.slice();
   if (category && category !== 'all') {
-    nodes = nodes.filter((n) => n.category === category || n.isActor);
+    nodes = nodes.filter((n) => n.category === category || n.isActor || n.isNucleus);
   }
   if (zyrionFilter !== null && zyrionFilter !== undefined && zyrionFilter !== 'all') {
     const z = Number(zyrionFilter);
-    nodes = nodes.filter((n) => n.isActor || n.zyrion === z);
+    nodes = nodes.filter((n) => n.isActor || n.isNucleus || n.zyrion === z);
+  }
+  if (flowFilter && flowFilter !== 'all') {
+    nodes = nodes.filter((n) => n.isActor || n.isNucleus || n.flow === flowFilter);
   }
   const ids = new Set(nodes.map((n) => n.id));
   const edges = graph.edges.filter((e) => ids.has(e.from) && ids.has(e.to));

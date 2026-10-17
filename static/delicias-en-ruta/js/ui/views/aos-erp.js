@@ -4,7 +4,10 @@
  */
 import {
   CATEGORIES,
+  FLOW_FILTERS,
   ZYRION,
+  flowLabel,
+  nodeDisplayColor,
   zyrionColor,
   zyrionLabel,
   buildGraphFromState,
@@ -46,6 +49,7 @@ export async function renderAosErp(el, eng) {
 
   let category = 'all';
   let zFilter = 'all';
+  let flowFilter = 'all';
   let selected = null;
   let focusMode = false;
   let showAll = false;
@@ -78,20 +82,29 @@ export async function renderAosErp(el, eng) {
           <h3 style="margin:0">AOS-ERP · Salud del negocio</h3>
           <p class="muted" style="margin:4px 0 0">
             <span class="aos-legend-n"></span> Núcleo ·
-            <b style="color:#22c55e">verde</b> éxito ·
-            <b style="color:#ef4444">rojo</b> fallo ·
+            <b style="color:#22c55e">verde</b> entra $ ·
+            <b style="color:#f97316">naranja</b> sale $ (compras, impuestos, gastos) ·
+            <b style="color:#dc2626">rojo fuerte</b> pérdida/fallo ·
             <b style="color:#94a3b8">gris</b> pendiente.
-            Arrastrar = rotar 3D · Shift+arrastrar = desplazar · Rueda = zoom.
+            <br/>Relleno = dinero; borde claro = operación OK. Arrastrar = 3D · Shift = pan · rueda = zoom.
           </p>
         </div>
         <div class="aos-erp-filters">
           <label>Categoría<select id="aos-cat" class="input"></select></label>
-          <label>Estado
+          <label>Estado op.
             <select id="aos-z" class="input">
               <option value="all">Todos</option>
-              <option value="1">Éxito</option>
-              <option value="0">Fallo</option>
+              <option value="1">OK</option>
+              <option value="0">Fallida</option>
               <option value="2">Pendiente</option>
+            </select>
+          </label>
+          <label>Flujo $
+            <select id="aos-flow" class="input">
+              <option value="all">Todo flujo</option>
+              <option value="in">Entra dinero</option>
+              <option value="out">Sale dinero</option>
+              <option value="loss">Pérdidas</option>
             </select>
           </label>
           <button type="button" class="btn" id="aos-zoom-in">＋</button>
@@ -197,7 +210,7 @@ export async function renderAosErp(el, eng) {
   }
 
   function currentGraph() {
-    let g = filterGraph(raw, category, zFilter);
+    let g = filterGraph(raw, category, zFilter, flowFilter);
     if (!g.nodes.some((n) => n.isNucleus)) {
       const nuc = raw.nodes.find((n) => n.isNucleus);
       if (nuc) g.nodes = [nuc, ...g.nodes];
@@ -309,14 +322,10 @@ export async function renderAosErp(el, eng) {
     // nodos de atrás hacia adelante
     projected.sort((a, b) => a.pr.z - b.pr.z);
     projected.forEach(({ n, pr, rad }) => {
-      let col = zyrionColor(n.zyrion);
-      if (n.isNucleus) col = '#f4b400';
-      else if (n.isActor) col = '#64748b';
-      else if (n.isCluster) col = n.zyrion === 0 ? '#f87171' : n.zyrion === 2 ? '#94a3b8' : '#38bdf8';
-
+      const col = nodeDisplayColor(n);
       if (n.isNucleus || selected === n.id) {
         ctx.beginPath();
-        ctx.fillStyle = n.isNucleus ? 'rgba(244,180,0,0.2)' : 'rgba(255,255,255,0.1)';
+        ctx.fillStyle = n.isNucleus ? 'rgba(244,180,0,0.22)' : 'rgba(255,255,255,0.1)';
         ctx.arc(pr.x, pr.y, rad + 8, 0, Math.PI * 2);
         ctx.fill();
       }
@@ -324,13 +333,14 @@ export async function renderAosErp(el, eng) {
       ctx.fillStyle = col;
       ctx.arc(pr.x, pr.y, rad, 0, Math.PI * 2);
       ctx.fill();
+      // Borde = Zyrion (estado operativo), distinto del relleno económico
       if (n.isNucleus) {
         ctx.strokeStyle = '#fff8e0';
         ctx.lineWidth = 2.5;
         ctx.stroke();
-      } else if (selected === n.id) {
-        ctx.strokeStyle = '#f4b400';
-        ctx.lineWidth = 2.5;
+      } else if (!n.isActor) {
+        ctx.strokeStyle = selected === n.id ? '#f4b400' : zyrionColor(n.zyrion);
+        ctx.lineWidth = selected === n.id ? 3 : 2;
         ctx.stroke();
       }
       ctx.fillStyle = 'rgba(226,232,240,0.95)';
@@ -339,12 +349,16 @@ export async function renderAosErp(el, eng) {
       ctx.fillText((n.label || '').slice(0, 22), pr.x, pr.y + rad + 12);
     });
 
-    const ops = g.nodes.filter((n) => !n.isActor && !n.isNucleus);
+    const ops = g.nodes.filter((n) => !n.isActor && !n.isNucleus && !n.isCluster);
     const lodNote = g.lod ? ` · LOD ${g.hidden} agrupadas` : '';
-    stats.innerHTML = `3D · dist ${Math.round(distance)} · ops <b>${ops.length}</b> ·
-      <span style="color:#22c55e">${ops.filter((n) => n.zyrion === 1).length}</span>/
-      <span style="color:#ef4444">${ops.filter((n) => n.zyrion === 0).length}</span>/
-      <span style="color:#94a3b8">${ops.filter((n) => n.zyrion === 2).length}</span>${lodNote}`;
+    const nIn = ops.filter((n) => n.flow === 'in').length;
+    const nOut = ops.filter((n) => n.flow === 'out').length;
+    const nLoss = ops.filter((n) => n.flow === 'loss').length;
+    stats.innerHTML = `3D · ops <b>${ops.length}</b> ·
+      <span style="color:#22c55e">+entra ${nIn}</span> ·
+      <span style="color:#f97316">−sale ${nOut}</span> ·
+      <span style="color:#dc2626">pérdida ${nLoss}</span>
+      <span class="muted"> · OK ${ops.filter((n)=>n.zyrion===1).length} / fallidas ${ops.filter((n)=>n.zyrion===0).length}</span>${lodNote}`;
     const tip = getChainTip();
     chainEl.textContent = tip ? `Cadena · ${tip.hash.slice(0, 16)}…` : 'Cadena AOS-ERP';
   }
@@ -363,11 +377,15 @@ export async function renderAosErp(el, eng) {
     const deps = g.nodes.filter((x) => x.id !== n.id);
     detail.innerHTML = `
       <h4>${escapeHtml(n.label || n.id)}</h4>
-      <p><span class="badge" style="background:${n.isNucleus ? '#f4b400' : zyrionColor(n.zyrion)};color:#111">
-        ${n.isNucleus ? 'Núcleo' : zyrionLabel(n.zyrion)}</span></p>
+      <p>
+        <span class="badge" style="background:${n.isNucleus ? '#f4b400' : nodeDisplayColor(n)};color:#111">
+          ${n.isNucleus ? 'Núcleo' : flowLabel(n.flow)}</span>
+        ${n.isNucleus ? '' : `<span class="badge" style="background:#1e293b;color:${zyrionColor(n.zyrion)};border:1px solid ${zyrionColor(n.zyrion)};margin-left:6px">${zyrionLabel(n.zyrion)}</span>`}
+      </p>
       <dl class="aos-dl">
         <dt>Tipo</dt><dd>${escapeHtml(n.type || '—')}</dd>
         <dt>Categoría</dt><dd>${escapeHtml(n.category || '—')}</dd>
+        <dt>Flujo $</dt><dd>${escapeHtml(flowLabel(n.flow))}</dd>
         <dt>Monto</dt><dd>${n.amount ? `${n.amount} ${n.currency || ''}` : '—'}</dd>
         <dt>Desde</dt><dd>${escapeHtml(n.from || '—')}</dd>
         <dt>Hacia</dt><dd>${escapeHtml(n.to || '—')}</dd>
@@ -474,14 +492,15 @@ export async function renderAosErp(el, eng) {
 
   catSel.onchange = () => { category = catSel.value; focusMode = false; scheduleDraw(); };
   el.querySelector('#aos-z').onchange = (e) => { zFilter = e.target.value; focusMode = false; scheduleDraw(); };
+  el.querySelector('#aos-flow').onchange = (e) => { flowFilter = e.target.value; focusMode = false; scheduleDraw(); };
   el.querySelector('#aos-zoom-in').onclick = () => { distance = Math.max(220, distance - 40); scheduleDraw(); };
   el.querySelector('#aos-zoom-out').onclick = () => { distance = Math.min(1200, distance + 40); scheduleDraw(); };
   el.querySelector('#aos-reset-cam').onclick = () => {
     rotX = 0.25; rotY = 0.35; distance = 520; panX = 0; panY = 0; scheduleDraw();
   };
   el.querySelector('#aos-reset').onclick = () => {
-    focusMode = false; selected = null; category = 'all'; zFilter = 'all'; showAll = false;
-    catSel.value = 'all'; el.querySelector('#aos-z').value = 'all';
+    focusMode = false; selected = null; category = 'all'; zFilter = 'all'; flowFilter = 'all'; showAll = false;
+    catSel.value = 'all'; el.querySelector('#aos-z').value = 'all'; el.querySelector('#aos-flow').value = 'all';
     rotX = 0.25; rotY = 0.35; distance = 520; panX = 0; panY = 0;
     showDetail(null); scheduleDraw();
   };
