@@ -12,32 +12,87 @@ export class DomainEngine {
   }
 
   async boot() {
+    const defaults = emptyState();
     const loaded = await this.store.load();
     if (loaded && loaded.version >= 2) {
-      this.state = { ...emptyState(), ...loaded };
-      if (!this.state.users?.length) this.state.users = emptyState().users;
-      // Migrar plan de cuentas corto al completo si hace falta
+      this.state = { ...defaults, ...loaded };
+      if (!this.state.users?.length) this.state.users = defaults.users;
       if (!this.state.accounts?.length || this.state.accounts.length < 10) {
         this.state.accounts = defaultAccounts();
       }
       if (!this.state.roles?.length) this.state.roles = defaultRoles();
       if (!this.state.journalLines) this.state.journalLines = [];
-      if (!this.state.measureUnits?.length) this.state.measureUnits = emptyState().measureUnits;
-      if (!this.state.rolePermissions) this.state.rolePermissions = emptyState().rolePermissions;
-      if (!this.state.modules) this.state.modules = emptyState().modules;
+      if (!this.state.measureUnits?.length) this.state.measureUnits = defaults.measureUnits;
+      if (!this.state.modules) this.state.modules = defaults.modules;
       if (!this.state.backups) this.state.backups = [];
       if (!this.state.systemErrors) this.state.systemErrors = [];
-      if (!this.state.jobPositions) this.state.jobPositions = emptyState().jobPositions;
+      if (!this.state.jobPositions) this.state.jobPositions = defaults.jobPositions;
       if (!this.state.priceSheets) this.state.priceSheets = [];
-      if (!this.state.tenants) this.state.tenants = emptyState().tenants;
-      this.state.version = 4;
+      if (!this.state.tenants) this.state.tenants = defaults.tenants;
+      // Permisos: fusionar defaults (admin/master/roles de sistema) sin perder overrides de master
+      this.state.rolePermissions = this._mergeRolePermissions(loaded.rolePermissions, defaults.rolePermissions);
+      // Usuarios: screens vacío = heredar rol; no dejar mapas que bloqueen todo
+      (this.state.users || []).forEach((u) => {
+        if (!u.screens || typeof u.screens !== 'object') u.screens = {};
+      });
+      this.state.version = 5;
     } else {
-      this.state = emptyState();
+      this.state = defaults;
       await this.persist();
     }
     recomputeKpis(this.state);
     return this.state;
   }
+
+  /**
+   * Une permisos guardados con defaults.
+   * master → siempre *.
+   * admin → todos los módulos de negocio del default (no se quedan pantallas nuevas a false).
+   * Otros roles → default + claves guardadas (guardado gana en true/false explícito).
+   */
+  _mergeRolePermissions(stored, defaults) {
+    const out = {};
+    const def = defaults || emptyState().rolePermissions;
+    const st = stored || {};
+    for (const role of Object.keys(def)) {
+      out[role] = { ...def[role] };
+      if (role === 'master') {
+        out[role] = { '*': true };
+        continue;
+      }
+      if (role === 'admin') {
+        // admin = default completo; solo respeta false explícitos del store si existieran por pantalla
+        const saved = st.admin || {};
+        for (const k of Object.keys(def.admin || {})) {
+          if (Object.prototype.hasOwnProperty.call(saved, k) && saved[k] === false) {
+            // no permitir que un store viejo deje a admin sin módulos críticos
+            if (['dashboard', 'ingresos', 'gastos', 'pos', 'aos-erp', 'cuentas', 'reportes', 'facturas',
+                 'catalog', 'almacen', 'usuarios', 'tenant', 'empleados'].includes(k)) {
+              out[role][k] = true;
+            } else {
+              out[role][k] = false;
+            }
+          } else {
+            out[role][k] = true;
+          }
+        }
+        out[role]['aos-erp'] = true;
+        continue;
+      }
+      const saved = st[role] || {};
+      out[role] = { ...def[role], ...saved };
+      // pantallas nuevas del default que no están en saved → true del default
+      for (const k of Object.keys(def[role] || {})) {
+        if (!Object.prototype.hasOwnProperty.call(saved, k)) out[role][k] = def[role][k];
+      }
+    }
+    // roles custom en store
+    for (const role of Object.keys(st)) {
+      if (!out[role]) out[role] = { ...st[role] };
+    }
+    return out;
+  }
+
 
   async persist() {
     recomputeKpis(this.state);

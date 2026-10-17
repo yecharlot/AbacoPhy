@@ -101,9 +101,10 @@ export function emptyState() {
     ],
     rolePermissions: {
       master: { "*": true },
-      admin: full, // full incluye roles/permisos/master si full map los tiene
-      contador: Object.fromEntries(["dashboard","aos-erp","ingresos","gastos","cuentas","reportes","facturas","traza"].map((s) => [s, true])),
-      economico: Object.fromEntries(["dashboard","reportes","fichas-costo","fichas-precio","catalog","cuentas"].map((s) => [s, true])),
+      // admin: operación completa del negocio (incluye AOS-ERP, usuarios, roles UI)
+      admin: { ...full, master: false },
+      contador: Object.fromEntries(["dashboard","aos-erp","ingresos","gastos","cuentas","reportes","facturas","traza","salvas"].map((s) => [s, true])),
+      economico: Object.fromEntries(["dashboard","aos-erp","reportes","fichas-costo","fichas-precio","catalog","cuentas","ingresos","gastos"].map((s) => [s, true])),
       almacenero: Object.fromEntries(["dashboard","almacen","recepcion","transferencias","catalog"].map((s) => [s, true])),
       cashier: Object.fromEntries(["dashboard","pos","catalog","pedidos"].map((s) => [s, true])),
     },
