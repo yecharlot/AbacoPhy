@@ -106,7 +106,7 @@ export class DomainEngine {
   /** Lista de ids de menú visibles para el usuario de sesión */
   visibleScreens(sessionUser) {
     const all = [
-      'dashboard', 'ingresos', 'gastos', 'cuentas', 'reportes', 'facturas',
+      'dashboard', 'aos-erp', 'ingresos', 'gastos', 'cuentas', 'reportes', 'facturas',
       'empleados', 'liquidaciones', 'catalog', 'tenant', 'almacen', 'recepcion',
       'transferencias', 'pos', 'fichas-costo', 'fichas-precio', 'pedidos',
       'traza', 'salvas', 'usuarios', 'roles', 'permisos', 'master',

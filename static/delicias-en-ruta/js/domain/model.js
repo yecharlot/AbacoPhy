@@ -46,7 +46,7 @@ export function emptyState() {
   const accounts = defaultAccounts();
   const roles = defaultRoles();
   const allScreens = [
-    "dashboard","ingresos","gastos","cuentas","reportes","facturas",
+    "dashboard","aos-erp","ingresos","gastos","cuentas","reportes","facturas",
     "empleados","liquidaciones","catalog","tenant","almacen","recepcion",
     "transferencias","pos","fichas-costo","fichas-precio","pedidos",
     "traza","salvas","usuarios","permisos","master","roles",
@@ -102,7 +102,7 @@ export function emptyState() {
     rolePermissions: {
       master: { "*": true },
       admin: full, // full incluye roles/permisos/master si full map los tiene
-      contador: Object.fromEntries(["dashboard","ingresos","gastos","cuentas","reportes","facturas","traza"].map((s) => [s, true])),
+      contador: Object.fromEntries(["dashboard","aos-erp","ingresos","gastos","cuentas","reportes","facturas","traza"].map((s) => [s, true])),
       economico: Object.fromEntries(["dashboard","reportes","fichas-costo","fichas-precio","catalog","cuentas"].map((s) => [s, true])),
       almacenero: Object.fromEntries(["dashboard","almacen","recepcion","transferencias","catalog"].map((s) => [s, true])),
       cashier: Object.fromEntries(["dashboard","pos","catalog","pedidos"].map((s) => [s, true])),

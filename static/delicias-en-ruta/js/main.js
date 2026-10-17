@@ -5,6 +5,7 @@ import { showSplash } from './ui/splash.js';
 import { renderLogin } from './ui/login.js';
 import { renderShell, NAV } from './ui/shell.js';
 import { renderDashboard } from './ui/views/dashboard.js';
+import { renderAosErp } from './ui/views/aos-erp.js';
 import * as V from './ui/views/forms.js';
 import { subscribe } from './infrastructure/reactive.js';
 
@@ -20,7 +21,7 @@ let painting = false;
 let pendingPaint = false;
 
 const LIVE_SCREENS = new Set([
-  'dashboard', 'ingresos', 'gastos', 'cuentas', 'reportes', 'facturas',
+  'dashboard', 'aos-erp', 'ingresos', 'gastos', 'cuentas', 'reportes', 'facturas',
   'empleados', 'liquidaciones', 'catalog', 'almacen', 'recepcion',
   'transferencias', 'pos', 'fichas-costo', 'fichas-precio', 'pedidos',
   'traza', 'salvas', 'usuarios', 'roles', 'permisos', 'master', 'tenant',
@@ -46,6 +47,7 @@ async function paintApp() {
     }
     switch (screen) {
       case 'dashboard': renderDashboard(el, eng); break;
+      case 'aos-erp': renderAosErp(el, eng); break;
       case 'ingresos': V.renderIngresos(el, eng, redraw); break;
       case 'gastos': V.renderGastos(el, eng, redraw); break;
       case 'cuentas': V.renderCuentas(el, eng, redraw); break;

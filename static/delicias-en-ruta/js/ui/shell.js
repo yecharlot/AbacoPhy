@@ -6,6 +6,7 @@ export const NAV = [
     { id: 'gastos', label: 'Gastos' },
     { id: 'cuentas', label: 'Cuentas' },
     { id: 'reportes', label: 'Reportes' },
+    { id: 'aos-erp', label: 'AOS-ERP · Salud' },
     { id: 'facturas', label: 'Facturación' },
   ]},
   { group: 'Nómina', items: [
