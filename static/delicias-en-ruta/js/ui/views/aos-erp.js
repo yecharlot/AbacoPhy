@@ -4,7 +4,7 @@
  */
 import {
   CATEGORIES,
-  DATE_PRESETS,
+  ZYRION,
   flowLabel,
   nodeDisplayColor,
   quantStats,
@@ -24,12 +24,22 @@ const CANVAS_H = 480; // altura fija CSS — evita el bucle de reducción
 export async function renderAosErp(el, eng) {
   const state = eng.state || {};
   const tenantName = state.tenant?.name || 'Delicias en Ruta';
-  let raw = buildGraphFromState(state);
-  if (raw.nodes.filter((n) => !n.isActor).length === 0) {
+  let raw;
+  try {
+    raw = buildGraphFromState(state);
+    if (!raw.nodes.filter((n) => !n.isActor && !n.isNucleus).length) {
+      raw = demoGraph(tenantName);
+    }
+    try {
+      raw.nodes = await sealGraphOps(raw.nodes);
+    } catch (sealErr) {
+      console.warn('AOS-ERP seal skipped', sealErr);
+    }
+  } catch (buildErr) {
+    console.warn('AOS-ERP build fallback demo', buildErr);
     raw = demoGraph(tenantName);
   }
-  raw.nodes = await sealGraphOps(raw.nodes);
-  raw.nodes = raw.nodes.filter((n) => n.id !== 'nucleus');
+  raw.nodes = (raw.nodes || []).filter((n) => n.id !== 'nucleus');
   raw.nodes.unshift({
     id: 'nucleus',
     label: tenantName,
@@ -38,7 +48,10 @@ export async function renderAosErp(el, eng) {
     amount: 0,
     zyrion: ZYRION.SUCCESS,
     isNucleus: true,
+    dateLabel: '—',
+    detail: 'Núcleo del negocio',
   });
+  if (!raw.edges) raw.edges = [];
   const extraEdges = [];
   raw.nodes.forEach((n) => {
     if (n.isActor && /caja|central/i.test(n.label || '')) {
@@ -304,6 +317,8 @@ export async function renderAosErp(el, eng) {
   }
 
   function paint() {
+    if (!canvas || !ctx || !wrap) return;
+    try {
     syncCanvasSize();
     const g = currentGraph();
     layout3D(g.nodes);
@@ -386,7 +401,11 @@ export async function renderAosErp(el, eng) {
       <span class="muted"> · OK ${q.byZyrion.ok} / fallidas ${q.byZyrion.fail} / pend. ${q.byZyrion.pending}</span>
       ${catBits ? `<br/><span class="muted">Por tipo: ${catBits}</span>` : ''}${lodNote}`;
     const tip = getChainTip();
-    chainEl.textContent = tip ? `Cadena · ${tip.hash.slice(0, 16)}…` : 'Cadena AOS-ERP';
+    if (chainEl) chainEl.textContent = tip ? `Cadena · ${tip.hash.slice(0, 16)}…` : 'Cadena AOS-ERP';
+    } catch (paintErr) {
+      console.error('AOS-ERP paint', paintErr);
+      if (stats) stats.textContent = 'Error al dibujar el grafo: ' + (paintErr.message || paintErr);
+    }
   }
 
   function showDetail(n) {

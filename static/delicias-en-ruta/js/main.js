@@ -47,7 +47,7 @@ async function paintApp() {
     }
     switch (screen) {
       case 'dashboard': renderDashboard(el, eng); break;
-      case 'aos-erp': renderAosErp(el, eng); break;
+      case 'aos-erp': renderAosErp(el, eng).catch((e) => { console.error(e); el.innerHTML = '<div class="card"><h3>AOS-ERP</h3><p class="muted">No se pudo cargar el grafo: ' + (e.message||e) + '</p></div>'; }); break;
       case 'ingresos': V.renderIngresos(el, eng, redraw); break;
       case 'gastos': V.renderGastos(el, eng, redraw); break;
       case 'cuentas': V.renderCuentas(el, eng, redraw); break;

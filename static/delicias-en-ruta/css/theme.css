@@ -454,3 +454,21 @@ table.data th, table.data td { padding: 8px 10px; border-bottom: 1px solid var(-
 table.data th { color: var(--dr-muted); font-weight: 600; }
 .btn-ghost { background: transparent; border: 1px solid var(--dr-border); border-radius: 8px; padding: 4px 8px; cursor: pointer; color: var(--dr-blue); }
 .btn-ghost:hover { background: rgba(27,73,101,0.08); }
+
+
+/* aos-erp fix */
+.aos-erp-body { min-height: 480px; }
+.aos-canvas-wrap, #aos-canvas {
+  width: 100% !important;
+  height: 480px !important;
+  min-height: 480px !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+.aos-erp-stats { color: var(--dr-muted, #5c6b73); font-size: 13px; line-height: 1.45; }
+.aos-erp-filters .input, .aos-erp-filters select {
+  background: #fff;
+  color: var(--dr-text, #1a1a1a);
+  border: 1px solid var(--dr-border);
+}
