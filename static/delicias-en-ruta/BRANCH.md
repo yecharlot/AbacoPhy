@@ -32,3 +32,11 @@ Panel **AOS-ERP · Salud** en menú Finanzas:
 - Grafo: núcleo dorado (nombre del negocio), zoom/pan, LOD (>48 ops se agrupan por categoría).
 - Permisos: boot fusiona defaults; **admin** recupera acceso a módulos de negocio (AOS-ERP, finanzas, POS, etc.).
 - Si el menú sigue incompleto: borrar datos locales Delicias o usar Master → Permisos UI.
+
+
+## AOS-ERP fechas + cuantitativos (2026-10-18)
+
+- Detalle de nodo: **fecha**, **detalle/descripción**, flujo, Zyrion, monto, from/to, cuenta, hash.
+- Filtros: últimas 10/30, hoy, mes, mes anterior, rango desde–hasta; combinables con categoría, flujo $ y estado operativo.
+- Panel cuantitativo: conteos entra/sale/pérdida, OK/fallidas/pendientes, montos y desglose por tipo.
+- Grafo alimentado por entries, sales, onlineOrders, invoices, payslips, receptions (misma lógica offline que el motor Delicias alineado a main).

@@ -35,6 +35,10 @@ export class DomainEngine {
       (this.state.users || []).forEach((u) => {
         if (!u.screens || typeof u.screens !== 'object') u.screens = {};
       });
+      // Colecciones operativas (grafo AOS-ERP + mirror main)
+      ['entries','sales','onlineOrders','invoices','payslips','receptions','transfers','audit'].forEach((k) => {
+        if (!Array.isArray(this.state[k])) this.state[k] = [];
+      });
       this.state.version = 5;
     } else {
       this.state = defaults;

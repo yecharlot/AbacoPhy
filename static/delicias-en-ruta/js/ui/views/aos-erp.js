@@ -4,10 +4,10 @@
  */
 import {
   CATEGORIES,
-  FLOW_FILTERS,
-  ZYRION,
+  DATE_PRESETS,
   flowLabel,
   nodeDisplayColor,
+  quantStats,
   zyrionColor,
   zyrionLabel,
   buildGraphFromState,
@@ -50,6 +50,9 @@ export async function renderAosErp(el, eng) {
   let category = 'all';
   let zFilter = 'all';
   let flowFilter = 'all';
+  let datePreset = 'all';
+  let dateFrom = '';
+  let dateTo = '';
   let selected = null;
   let focusMode = false;
   let showAll = false;
@@ -106,6 +109,23 @@ export async function renderAosErp(el, eng) {
               <option value="out">Sale dinero</option>
               <option value="loss">Pérdidas</option>
             </select>
+          </label>
+          <label>Fecha
+            <select id="aos-date-preset" class="input">
+              <option value="all">Todo el tiempo</option>
+              <option value="last10">Últimas 10</option>
+              <option value="last30">Últimas 30</option>
+              <option value="today">Hoy</option>
+              <option value="month">Mes actual</option>
+              <option value="prev_month">Mes anterior</option>
+              <option value="range">Rango…</option>
+            </select>
+          </label>
+          <label class="aos-range" id="aos-range-wrap" style="display:none">Desde
+            <input type="date" id="aos-date-from" class="input"/>
+          </label>
+          <label class="aos-range" id="aos-range-wrap2" style="display:none">Hasta
+            <input type="date" id="aos-date-to" class="input"/>
           </label>
           <button type="button" class="btn" id="aos-zoom-in">＋</button>
           <button type="button" class="btn" id="aos-zoom-out">－</button>
@@ -210,7 +230,10 @@ export async function renderAosErp(el, eng) {
   }
 
   function currentGraph() {
-    let g = filterGraph(raw, category, zFilter, flowFilter);
+    let g = filterGraph(raw, {
+      category, zyrionFilter: zFilter, flowFilter,
+      datePreset, dateFrom, dateTo,
+    });
     if (!g.nodes.some((n) => n.isNucleus)) {
       const nuc = raw.nodes.find((n) => n.isNucleus);
       if (nuc) g.nodes = [nuc, ...g.nodes];
@@ -349,16 +372,19 @@ export async function renderAosErp(el, eng) {
       ctx.fillText((n.label || '').slice(0, 22), pr.x, pr.y + rad + 12);
     });
 
-    const ops = g.nodes.filter((n) => !n.isActor && !n.isNucleus && !n.isCluster);
+    const q = quantStats(g.nodes);
     const lodNote = g.lod ? ` · LOD ${g.hidden} agrupadas` : '';
-    const nIn = ops.filter((n) => n.flow === 'in').length;
-    const nOut = ops.filter((n) => n.flow === 'out').length;
-    const nLoss = ops.filter((n) => n.flow === 'loss').length;
-    stats.innerHTML = `3D · ops <b>${ops.length}</b> ·
-      <span style="color:#22c55e">+entra ${nIn}</span> ·
-      <span style="color:#f97316">−sale ${nOut}</span> ·
-      <span style="color:#dc2626">pérdida ${nLoss}</span>
-      <span class="muted"> · OK ${ops.filter((n)=>n.zyrion===1).length} / fallidas ${ops.filter((n)=>n.zyrion===0).length}</span>${lodNote}`;
+    const catBits = Object.entries(q.byCategory)
+      .sort((a,b)=>b[1]-a[1])
+      .slice(0, 6)
+      .map(([k,v]) => `${k}:${v}`)
+      .join(' · ');
+    stats.innerHTML = `Ops <b>${q.total}</b> ·
+      <span style="color:#22c55e">+entra ${q.byFlow.in||0} (${q.sumIn})</span> ·
+      <span style="color:#f97316">−sale ${q.byFlow.out||0} (${q.sumOut})</span> ·
+      <span style="color:#dc2626">pérdida ${q.byFlow.loss||0} (${q.sumLoss})</span>
+      <span class="muted"> · OK ${q.byZyrion.ok} / fallidas ${q.byZyrion.fail} / pend. ${q.byZyrion.pending}</span>
+      ${catBits ? `<br/><span class="muted">Por tipo: ${catBits}</span>` : ''}${lodNote}`;
     const tip = getChainTip();
     chainEl.textContent = tip ? `Cadena · ${tip.hash.slice(0, 16)}…` : 'Cadena AOS-ERP';
   }
@@ -383,12 +409,15 @@ export async function renderAosErp(el, eng) {
         ${n.isNucleus ? '' : `<span class="badge" style="background:#1e293b;color:${zyrionColor(n.zyrion)};border:1px solid ${zyrionColor(n.zyrion)};margin-left:6px">${zyrionLabel(n.zyrion)}</span>`}
       </p>
       <dl class="aos-dl">
+        <dt>Fecha</dt><dd>${escapeHtml(n.dateLabel || n.dateIso || '—')}</dd>
+        <dt>Detalle</dt><dd>${escapeHtml(n.detail || n.label || '—')}</dd>
         <dt>Tipo</dt><dd>${escapeHtml(n.type || '—')}</dd>
         <dt>Categoría</dt><dd>${escapeHtml(n.category || '—')}</dd>
         <dt>Flujo $</dt><dd>${escapeHtml(flowLabel(n.flow))}</dd>
         <dt>Monto</dt><dd>${n.amount ? `${n.amount} ${n.currency || ''}` : '—'}</dd>
         <dt>Desde</dt><dd>${escapeHtml(n.from || '—')}</dd>
         <dt>Hacia</dt><dd>${escapeHtml(n.to || '—')}</dd>
+        <dt>Cuenta</dt><dd>${escapeHtml(n.accountCode || '—')}</dd>
         <dt>Hash</dt><dd class="mono">${escapeHtml(String(n.hash || '—').slice(0, 24))}</dd>
       </dl>
       <h5>Conexiones (${deps.length})</h5>
@@ -490,17 +519,50 @@ export async function renderAosErp(el, eng) {
   }, { passive: true });
   canvas.addEventListener('touchend', () => { dragging = false; });
 
-  catSel.onchange = () => { category = catSel.value; focusMode = false; scheduleDraw(); };
-  el.querySelector('#aos-z').onchange = (e) => { zFilter = e.target.value; focusMode = false; scheduleDraw(); };
-  el.querySelector('#aos-flow').onchange = (e) => { flowFilter = e.target.value; focusMode = false; scheduleDraw(); };
+  function refreshFilters() {
+    focusMode = false;
+    scheduleDraw();
+  }
+  catSel.onchange = () => { category = catSel.value; refreshFilters(); };
+  el.querySelector('#aos-z').onchange = (e) => { zFilter = e.target.value; refreshFilters(); };
+  el.querySelector('#aos-flow').onchange = (e) => { flowFilter = e.target.value; refreshFilters(); };
+  const presetEl = el.querySelector('#aos-date-preset');
+  const range1 = el.querySelector('#aos-range-wrap');
+  const range2 = el.querySelector('#aos-range-wrap2');
+  function toggleRange() {
+    const show = presetEl.value === 'range';
+    if (range1) range1.style.display = show ? '' : 'none';
+    if (range2) range2.style.display = show ? '' : 'none';
+  }
+  if (presetEl) {
+    presetEl.onchange = () => {
+      datePreset = presetEl.value;
+      toggleRange();
+      refreshFilters();
+    };
+  }
+  el.querySelector('#aos-date-from')?.addEventListener('change', (e) => {
+    dateFrom = e.target.value; datePreset = 'range'; if (presetEl) presetEl.value = 'range'; toggleRange(); refreshFilters();
+  });
+  el.querySelector('#aos-date-to')?.addEventListener('change', (e) => {
+    dateTo = e.target.value; datePreset = 'range'; if (presetEl) presetEl.value = 'range'; toggleRange(); refreshFilters();
+  });
   el.querySelector('#aos-zoom-in').onclick = () => { distance = Math.max(220, distance - 40); scheduleDraw(); };
   el.querySelector('#aos-zoom-out').onclick = () => { distance = Math.min(1200, distance + 40); scheduleDraw(); };
   el.querySelector('#aos-reset-cam').onclick = () => {
     rotX = 0.25; rotY = 0.35; distance = 520; panX = 0; panY = 0; scheduleDraw();
   };
   el.querySelector('#aos-reset').onclick = () => {
-    focusMode = false; selected = null; category = 'all'; zFilter = 'all'; flowFilter = 'all'; showAll = false;
-    catSel.value = 'all'; el.querySelector('#aos-z').value = 'all'; el.querySelector('#aos-flow').value = 'all';
+    focusMode = false; selected = null; category = 'all'; zFilter = 'all'; flowFilter = 'all';
+    datePreset = 'all'; dateFrom = ''; dateTo = ''; showAll = false;
+    catSel.value = 'all';
+    el.querySelector('#aos-z').value = 'all';
+    el.querySelector('#aos-flow').value = 'all';
+    if (el.querySelector('#aos-date-preset')) el.querySelector('#aos-date-preset').value = 'all';
+    if (el.querySelector('#aos-date-from')) el.querySelector('#aos-date-from').value = '';
+    if (el.querySelector('#aos-date-to')) el.querySelector('#aos-date-to').value = '';
+    const r1 = el.querySelector('#aos-range-wrap'); const r2 = el.querySelector('#aos-range-wrap2');
+    if (r1) r1.style.display = 'none'; if (r2) r2.style.display = 'none';
     rotX = 0.25; rotY = 0.35; distance = 520; panX = 0; panY = 0;
     showDetail(null); scheduleDraw();
   };
