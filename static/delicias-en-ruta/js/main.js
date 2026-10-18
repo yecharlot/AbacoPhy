@@ -57,7 +57,7 @@ async function paintApp() {
       case 'liquidaciones': V.renderLiquidaciones(el, eng, redraw); break;
       case 'catalog': V.renderCatalog(el, eng, redraw); break;
       case 'tenant': V.renderTenant(el, eng, redraw); break;
-      case 'almacen': V.renderAlmacen(el, eng); break;
+      case 'almacen': V.renderAlmacen(el, eng, redraw); break;
       case 'recepcion': V.renderRecepcion(el, eng, redraw); break;
       case 'transferencias': V.renderTransferencias(el, eng, redraw); break;
       case 'pos': V.renderPos(el, eng, redraw); break;

@@ -36,7 +36,7 @@ export class DomainEngine {
         if (!u.screens || typeof u.screens !== 'object') u.screens = {};
       });
       // Colecciones operativas (grafo AOS-ERP + mirror main)
-      ['entries','sales','onlineOrders','invoices','payslips','receptions','transfers','audit'].forEach((k) => {
+      ['entries','sales','onlineOrders','invoices','payslips','receptions','transfers','audit','kardex','inventory','employees','products'].forEach((k) => {
         if (!Array.isArray(this.state[k])) this.state[k] = [];
       });
       this.state.version = 5;
@@ -405,13 +405,30 @@ export class DomainEngine {
   }
 
   // —— Payroll ——
-  async createEmployee({ name, role, salary, positionId }) {
+  async createEmployee({ name, role, salary, positionId, phone, hireDate }) {
     if (!name?.trim()) throw new Error('Nombre obligatorio');
     this.state.employees.unshift({
       id: uid(), name: name.trim(), role: role || 'general',
-      positionId, salary: +salary || 0, active: true,
+      positionId, salary: +salary || 0, phone: phone || '',
+      hireDate: hireDate || now().slice(0, 10), active: true,
     });
     this.audit('employee.create', name);
+    return this.persist();
+  }
+
+  async updateEmployee(id, patch) {
+    const e = this.state.employees.find((x) => x.id === id);
+    if (!e) throw new Error('Empleado no encontrado');
+    Object.assign(e, patch);
+    this.audit('employee.update', id);
+    return this.persist();
+  }
+
+  async deactivateEmployee(id) {
+    const e = this.state.employees.find((x) => x.id === id);
+    if (!e) throw new Error('Empleado no encontrado');
+    e.active = false;
+    this.audit('employee.deactivate', e.name);
     return this.persist();
   }
 
@@ -451,36 +468,87 @@ export class DomainEngine {
     return { items: this.state.inventory, products: this.state.products };
   }
 
-  async createReception({ supplier, lines, notes }) {
+  async createReception({ supplier, receiver, lines, notes, hasInvoice, invoiceRef, docRef }) {
+    if (!(lines || []).length) throw new Error('La recepción necesita al menos una línea');
+    for (const line of lines) {
+      if (!line.productId && !line.name) throw new Error('Cada línea necesita un producto');
+      if (!(+line.qty > 0)) throw new Error('La cantidad debe ser mayor que cero');
+      if (line.unitCost != null && +line.unitCost < 0) throw new Error('El costo no puede ser negativo');
+    }
+    if (hasInvoice) {
+      if (!(invoiceRef || docRef || '').trim()) throw new Error('Compra con factura: indique el número de factura');
+      if (!(supplier || '').trim()) throw new Error('Compra con factura: indique el proveedor');
+    }
     const rec = {
       id: uid(),
       code: 'R-' + String((this.state.receptions.length || 0) + 1).padStart(4, '0'),
-      supplier: supplier || 'Proveedor', lines: lines || [], notes: notes || '',
-      status: 'pendiente', at: now(),
+      supplier: (supplier || 'Proveedor').trim(),
+      receiver: (receiver || '').trim() || 'Almacén',
+      hasInvoice: !!hasInvoice,
+      invoiceRef: (invoiceRef || docRef || '').trim(),
+      docRef: (docRef || '').trim(),
+      lines: (lines || []).map((l) => {
+        const p = this.state.products.find((x) => x.id === l.productId);
+        const qty = +l.qty || 0;
+        const unitCost = +l.unitCost || +l.cost || p?.cost || 0;
+        return {
+          productId: l.productId || '',
+          productName: p?.name || l.name || '',
+          qty, unitCost, amount: qty * unitCost,
+          unit: p?.unit || l.unit || 'U',
+        };
+      }),
+      notes: notes || '',
+      totalCost: 0,
+      status: 'pendiente',
+      at: now(),
     };
+    rec.totalCost = rec.lines.reduce((s, l) => s + (l.amount || 0), 0);
     this.state.receptions.unshift(rec);
     this.audit('reception.create', rec.code);
     return this.persist();
   }
 
-  async enterReception({ receptionId, ok, problem }) {
+  async enterReception({ receptionId, ok, problem, abandon, reason }) {
     const rec = this.state.receptions.find((r) => r.id === receptionId);
     if (!rec) throw new Error('Recepción no encontrada');
+    if (rec.status === 'recibido' || rec.status === 'anulado') {
+      throw new Error('La recepción ya está cerrada');
+    }
+    if (abandon) {
+      const r = (reason || problem || '').trim();
+      if (!r) throw new Error('Indique el motivo del abandono');
+      rec.status = 'anulado';
+      rec.problem = '[ABANDONADO] ' + r;
+      this.audit('reception.abandon', rec.code);
+      return this.persist();
+    }
     if (ok === false || problem) {
       rec.status = 'problema';
       rec.problem = problem || 'Incidencia en recepción';
       this.audit('reception.problem', rec.code);
       return this.persist();
     }
+    if (!this.state.kardex) this.state.kardex = [];
     for (const l of rec.lines || []) {
+      const q = +l.qty || 0;
       if (l.productId) {
         const p = this.state.products.find((x) => x.id === l.productId);
-        const inv = this.state.inventory.find((i) => i.productId === l.productId);
-        const q = +l.qty || 1;
+        let inv = this.state.inventory.find((i) => i.productId === l.productId);
         if (p) p.stock = Number(p.stock || 0) + q;
         if (inv) inv.quantity = Number(inv.quantity || 0) + q;
-      } else if (l.name) {
-        await this.createProduct({ name: l.name, price: l.price || 0, cost: l.cost || 0, stock: l.qty || 1 });
+        else if (p) {
+          inv = { id: uid(), productId: p.id, name: p.name, sku: p.sku || p.id.slice(0, 8), quantity: q, unit: p.unit || 'U' };
+          this.state.inventory.unshift(inv);
+        }
+        this.state.kardex.unshift({
+          id: uid(), at: now(), productId: l.productId, productName: l.productName || p?.name,
+          delta: q, reason: 'Recepción ' + rec.code, type: 'in', balance: p ? p.stock : q,
+        });
+      } else if (l.productName || l.name) {
+        await this.createProduct({
+          name: l.productName || l.name, price: 0, cost: l.unitCost || 0, stock: q,
+        });
       }
     }
     rec.status = 'recibido';
@@ -489,16 +557,67 @@ export class DomainEngine {
     return this.persist();
   }
 
+  async adjustStock({ productId, deltaQty, note, location }) {
+    const noteT = (note || '').trim();
+    if (!noteT) throw new Error('Indique el motivo del ajuste');
+    if (!productId) throw new Error('Producto requerido');
+    const delta = +deltaQty;
+    if (!delta) throw new Error('La cantidad de ajuste no puede ser cero');
+    const p = this.state.products.find((x) => x.id === productId);
+    if (!p) throw new Error('Producto no encontrado');
+    let inv = this.state.inventory.find((i) => i.productId === productId);
+    p.stock = Math.max(0, Number(p.stock || 0) + delta);
+    if (inv) inv.quantity = Math.max(0, Number(inv.quantity || 0) + delta);
+    else {
+      this.state.inventory.unshift({
+        id: uid(), productId: p.id, name: p.name, sku: p.sku || p.id.slice(0, 8),
+        quantity: p.stock, unit: p.unit || 'U',
+      });
+    }
+    if (!this.state.kardex) this.state.kardex = [];
+    this.state.kardex.unshift({
+      id: uid(), at: now(), productId, productName: p.name,
+      delta, reason: noteT, type: delta > 0 ? 'in' : 'out',
+      location: location || 'warehouse', balance: p.stock,
+    });
+    this.audit('stock.adjust', p.name + ' ' + delta);
+    return this.persist();
+  }
+
+  getKardex(productId) {
+    const list = (this.state.kardex || []).slice();
+    if (productId) return list.filter((k) => k.productId === productId);
+    return list;
+  }
+
   async createTransfer({ fromUnitId, toUnitId, productId, qty, notes }) {
-    if (!(+qty > 0)) throw new Error('Cantidad inválida');
+    if (!productId) throw new Error('Producto requerido');
+    if (!(+qty > 0)) throw new Error('La cantidad debe ser mayor que cero');
+    if (!fromUnitId || !toUnitId) throw new Error('Indique unidad origen y destino');
+    if (fromUnitId === toUnitId) throw new Error('Origen y destino deben ser distintos');
+    const p = this.state.products.find((x) => x.id === productId);
+    if (!p) throw new Error('Producto no encontrado');
+    const q = +qty;
+    if (Number(p.stock || 0) < q) throw new Error('Stock insuficiente para transferir');
+    p.stock = Number(p.stock || 0) - q;
+    const inv = this.state.inventory.find((i) => i.productId === productId);
+    if (inv) inv.quantity = Math.max(0, Number(inv.quantity || 0) - q);
+    // destino: registramos movimiento; stock global ya reflejado en producto
+    // (unidades de venta son puntos de origen/destino lógicos)
+    if (!this.state.kardex) this.state.kardex = [];
+    this.state.kardex.unshift({
+      id: uid(), at: now(), productId, productName: p.name,
+      delta: -q, reason: 'Transferencia', type: 'transfer', balance: p.stock,
+    });
     const t = {
-      id: uid(), fromUnitId, toUnitId, productId, qty: +qty, notes: notes || '',
+      id: uid(), fromUnitId, toUnitId, productId, productName: p.name, qty: q, notes: notes || '',
       status: 'ok', at: now(),
       from: this.state.salesUnits.find((u) => u.id === fromUnitId)?.name || fromUnitId || 'Origen',
       to: this.state.salesUnits.find((u) => u.id === toUnitId)?.name || toUnitId || 'Destino',
     };
+    if (!this.state.transfers) this.state.transfers = [];
     this.state.transfers.unshift(t);
-    this.audit('transfer', t.from + '→' + t.to);
+    this.audit('transfer', t.from + '→' + t.to + ' ' + p.name);
     return this.persist();
   }
 

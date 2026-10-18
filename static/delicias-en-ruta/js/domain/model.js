@@ -86,6 +86,8 @@ export function emptyState() {
     invoices: [],
     receptions: [],
     transfers: [],
+    kardex: [],
+    transfers: [],
     costSheets: [],
     priceSheets: [],
     salesUnits: [

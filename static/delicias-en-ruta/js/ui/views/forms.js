@@ -232,28 +232,43 @@ export function renderReportes(el, eng) {
 
 export function renderCatalog(el, eng, redraw) {
   const units = eng.state.measureUnits.map((m) => `<option value="${m.id}">${m.code} — ${m.name}</option>`).join('');
-  const rows = eng.state.products.slice(0, 100).map((p) => [
-    p.name, money(p.price), money(p.cost), p.stock, p.unit,
-    `<button type="button" class="btn-ghost" data-edit="${p.id}">Stock+</button>`,
+  const rows = eng.state.products.slice(0, 200).map((p) => [
+    p.sku || '—',
+    p.name,
+    money(p.price),
+    money(p.cost),
+    p.stock,
+    p.unit || 'U',
+    p.active === false ? 'no' : 'sí',
+    `<button type="button" class="btn-ghost" data-stock="${p.id}">Ajustar</button>
+     <button type="button" class="btn-ghost" data-off="${p.id}">${p.active === false ? 'Activar' : 'Baja'}</button>`,
+  ]);
+  const muRows = eng.state.measureUnits.map((m) => [
+    m.code, m.name,
+    `<button type="button" class="btn-ghost" data-delmu="${m.id}">Eliminar</button>`,
   ]);
   el.innerHTML = `
     <div class="card form-card">
-      <h3>Producto (nomenclador)</h3>
-      <div class="form-row"><label>Nombre</label><input id="n"/></div>
-      <div class="form-row"><label>Precio</label><input id="p" type="number" step="0.01"/></div>
-      <div class="form-row"><label>Costo</label><input id="c" type="number" step="0.01"/></div>
-      <div class="form-row"><label>Stock</label><input id="s" type="number" value="0"/></div>
-      <div class="form-row"><label>UM</label><select id="u">${units}</select></div>
-      <div class="form-row"><label>SKU</label><input id="sku"/></div>
+      <h3>Nomenclador · Producto</h3>
+      <p class="muted">Catálogo de productos (equivalente main: CreateProduct / UpdateProduct).</p>
+      <div class="form-row"><label>Nombre</label><input id="n" placeholder="Nombre del producto"/></div>
+      <div class="form-row"><label>SKU</label><input id="sku" placeholder="Código interno"/></div>
+      <div class="form-row"><label>Precio venta</label><input id="p" type="number" step="0.01" min="0"/></div>
+      <div class="form-row"><label>Costo</label><input id="c" type="number" step="0.01" min="0"/></div>
+      <div class="form-row"><label>Stock inicial</label><input id="s" type="number" value="0" min="0"/></div>
+      <div class="form-row"><label>Unidad de medida</label><select id="u">${units}</select></div>
       <button type="button" class="btn" id="ok">Crear producto</button>
     </div>
     <div class="card form-card">
-      <h3>Unidad de medida</h3>
-      <div class="form-row"><label>Código</label><input id="mc"/></div>
+      <h3>Unidades de medida</h3>
+      <div class="form-row"><label>Código</label><input id="mc" placeholder="KG, L, U…"/></div>
       <div class="form-row"><label>Nombre</label><input id="mn"/></div>
       <button type="button" class="btn" id="mu">Añadir UM</button>
+      ${table(muRows, ['Código', 'Nombre', ''])}
     </div>
-    ${table(rows, ['Nombre', 'Precio', 'Costo', 'Stock', 'UM', ''])}`;
+    <div class="card"><h3>Productos (${eng.state.products.length})</h3>
+      ${table(rows, ['SKU', 'Nombre', 'Precio', 'Costo', 'Stock', 'UM', 'Activo', ''])}
+    </div>`;
   el.querySelector('#ok').onclick = async () => {
     try {
       await eng.createProduct({
@@ -265,14 +280,34 @@ export function renderCatalog(el, eng, redraw) {
     } catch (e) { alert(e.message); }
   };
   el.querySelector('#mu').onclick = async () => {
-    await eng.createMeasureUnit({ code: el.querySelector('#mc').value, name: el.querySelector('#mn').value });
-    redraw();
+    try {
+      await eng.createMeasureUnit({ code: el.querySelector('#mc').value, name: el.querySelector('#mn').value });
+      redraw();
+    } catch (e) { alert(e.message); }
   };
-  el.querySelectorAll('[data-edit]').forEach((b) => {
+  el.querySelectorAll('[data-delmu]').forEach((b) => {
     b.onclick = async () => {
-      const p = eng.state.products.find((x) => x.id === b.dataset.edit);
+      if (!confirm('¿Eliminar unidad de medida?')) return;
+      await eng.deleteMeasureUnit(b.dataset.delmu);
+      redraw();
+    };
+  });
+  el.querySelectorAll('[data-stock]').forEach((b) => {
+    b.onclick = async () => {
+      const delta = prompt('Ajuste de stock (+/- cantidad):', '1');
+      if (delta == null || delta === '') return;
+      const note = prompt('Motivo del ajuste:', 'Ajuste manual nomenclador') || 'Ajuste manual';
+      try {
+        await eng.adjustStock({ productId: b.dataset.stock, deltaQty: Number(delta), note });
+        redraw();
+      } catch (e) { alert(e.message); }
+    };
+  });
+  el.querySelectorAll('[data-off]').forEach((b) => {
+    b.onclick = async () => {
+      const p = eng.state.products.find((x) => x.id === b.dataset.off);
       if (!p) return;
-      await eng.updateProduct(p.id, { stock: Number(p.stock || 0) + 1 });
+      await eng.updateProduct(p.id, { active: p.active === false });
       redraw();
     };
   });
@@ -281,175 +316,267 @@ export function renderCatalog(el, eng, redraw) {
 export function renderPos(el, eng, redraw) {
   const products = eng.state.products.filter((p) => p.active !== false);
   const units = eng.state.salesUnits.filter((u) => u.active !== false)
-    .map((u) => `<option value="${u.id}">${u.code} — ${u.name}</option>`).join('');
-  let cart = [];
-  const paint = () => {
-    const total = cart.reduce((s, l) => s + l.qty * l.unitPrice * (1 - (l.discountPct || 0) / 100), 0);
-    el.innerHTML = `
-      <div class="pos-grid">
-        <div class="card">
-          <h3>Carta</h3>
-          <div class="pos-products">
-            ${products.map((p) => `<button type="button" class="pos-item" data-id="${p.id}">
-              <strong>${p.name}</strong><span>${money(p.price)} · stock ${p.stock}</span></button>`).join('')
-              || '<p class="muted">Sin productos — cree en Nomenclador</p>'}
-          </div>
-        </div>
-        <div class="card form-card">
-          <h3>Ticket POS</h3>
-          <div class="form-row"><label>Cliente</label><input id="cust" value="Mostrador"/></div>
-          <div class="form-row"><label>Unidad de venta</label><select id="unit">${units}</select></div>
-          <div class="form-row"><label>Pago</label>
-            <select id="pay"><option value="cash">Efectivo</option><option value="card">Tarjeta</option><option value="transfer">Transferencia</option></select>
-          </div>
-          <ul class="cart-list">${cart.map((l, i) => `<li>${l.name} ×${l.qty} @${money(l.unitPrice)}
-            <span><input type="number" min="0" max="100" value="${l.discountPct || 0}" data-disc="${i}" style="width:48px" title="% rebaja"/>%
-            <button type="button" data-rm="${i}" class="btn-ghost">×</button></span></li>`).join('')}</ul>
-          <p><strong>Total: ${money(total)}</strong></p>
-          <button type="button" class="btn" id="cobrar" ${cart.length ? '' : 'disabled'}>Cobrar venta</button>
-        </div>
-      </div>`;
-    el.querySelectorAll('.pos-item').forEach((b) => {
-      b.onclick = () => {
-        const p = products.find((x) => x.id === b.dataset.id);
-        if (!p) return;
-        const line = cart.find((c) => c.productId === p.id);
-        if (line) line.qty += 1;
-        else cart.push({ productId: p.id, name: p.name, unitPrice: p.price, qty: 1, discountPct: 0 });
-        paint();
-      };
-    });
-    el.querySelectorAll('[data-rm]').forEach((b) => {
-      b.onclick = () => { cart.splice(+b.dataset.rm, 1); paint(); };
-    });
-    el.querySelectorAll('[data-disc]').forEach((inp) => {
-      inp.onchange = () => { cart[+inp.dataset.disc].discountPct = +inp.value || 0; paint(); };
-    });
-    const cobrar = el.querySelector('#cobrar');
-    if (cobrar) cobrar.onclick = async () => {
-      try {
-        await eng.registerSale({
-          lines: cart,
-          customer: el.querySelector('#cust').value,
-          unitId: el.querySelector('#unit').value,
-          paymentMethod: el.querySelector('#pay').value,
-        });
-        cart = [];
-        redraw();
-      } catch (e) { alert(e.message); }
-    };
+    .map((u) => `<option value="${u.id}">${u.name}</option>`).join('');
+  const opts = products.map((p) => `<option value="${p.id}">${p.name} · ${money(p.price)} · stock ${p.stock}</option>`).join('');
+  const recent = eng.listSales().slice(0, 15).map((s) => [
+    (s.at || '').slice(0, 19), money(s.total), s.paymentMethod || 'cash', s.status || 'ok',
+  ]);
+  el.innerHTML = `
+    <div class="card form-card">
+      <h3>Punto de venta</h3>
+      <div class="form-row"><label>Producto</label><select id="pid">${opts || '<option value="">Sin productos</option>'}</select></div>
+      <div class="form-row"><label>Cantidad</label><input id="qty" type="number" min="1" value="1"/></div>
+      <div class="form-row"><label>Unidad de venta</label><select id="su">${units}</select></div>
+      <div class="form-row"><label>Cliente</label><input id="cust" placeholder="Opcional"/></div>
+      <div class="form-row"><label>Pago</label>
+        <select id="pay"><option value="cash">Efectivo</option><option value="card">Tarjeta</option><option value="transfer">Transferencia</option></select>
+      </div>
+      <button type="button" class="btn" id="ok">Registrar venta</button>
+    </div>
+    <div class="card"><h3>Ventas recientes</h3>${table(recent, ['Fecha', 'Total', 'Pago', 'Estado'])}</div>`;
+  el.querySelector('#ok').onclick = async () => {
+    try {
+      const pid = el.querySelector('#pid').value;
+      if (!pid) throw new Error('Seleccione un producto');
+      await eng.registerSale({
+        lines: [{ productId: pid, qty: Number(el.querySelector('#qty').value || 1) }],
+        customer: el.querySelector('#cust').value,
+        unitId: el.querySelector('#su').value,
+        paymentMethod: el.querySelector('#pay').value,
+      });
+      redraw();
+    } catch (e) { alert(e.message); }
   };
-  paint();
 }
 
 export function renderPedidos(el, eng, redraw) {
-  // ventas POS historial + pedidos online (main: pedidos = online)
-  const online = eng.state.onlineOrders.slice(0, 50).map((o) => [
-    o.id.slice(0, 8), o.customer, money(o.total), o.status,
-    `<button class="btn-ghost" data-id="${o.id}" data-st="preparando">Prep.</button>
-     <button class="btn-ghost" data-id="${o.id}" data-st="entregado">Entregado</button>
-     <button class="btn-ghost" data-id="${o.id}" data-st="cancelado">Cancelar</button>`,
-  ]);
-  const sales = eng.listSales().slice(0, 30).map((s) => [
-    s.id.slice(0, 8), s.customer, money(s.total), s.status, (s.at || '').slice(0, 19),
+  const rows = eng.state.onlineOrders.slice(0, 50).map((o) => [
+    (o.at || '').slice(0, 19), o.customer || '—', money(o.total), o.status || 'nuevo',
+    `<select data-st="${o.id}">
+      <option value="nuevo">nuevo</option>
+      <option value="preparando">preparando</option>
+      <option value="entregado">entregado</option>
+      <option value="cancelado">cancelado</option>
+    </select>
+    <button type="button" class="btn-ghost" data-apply="${o.id}">Aplicar</button>`,
   ]);
   el.innerHTML = `
     <div class="card form-card">
       <h3>Pedido online</h3>
       <div class="form-row"><label>Cliente</label><input id="c"/></div>
-      <div class="form-row"><label>Teléfono</label><input id="ph"/></div>
       <div class="form-row"><label>Total</label><input id="t" type="number" step="0.01"/></div>
+      <div class="form-row"><label>Notas</label><input id="n"/></div>
       <button type="button" class="btn" id="ok">Crear pedido</button>
     </div>
-    <div class="card"><h3>Pedidos online</h3>${table(online, ['Id', 'Cliente', 'Total', 'Estado', 'Acciones'])}</div>
-    <div class="card"><h3>Ventas POS recientes</h3>${table(sales, ['Id', 'Cliente', 'Total', 'Estado', 'Fecha'])}</div>`;
+    <div class="card"><h3>Pedidos</h3>${table(rows, ['Fecha', 'Cliente', 'Total', 'Estado', ''])}</div>`;
   el.querySelector('#ok').onclick = async () => {
-    await eng.createOnlineOrder({
-      customer: el.querySelector('#c').value, phone: el.querySelector('#ph').value, total: el.querySelector('#t').value,
-    });
-    redraw();
+    try {
+      await eng.createOnlineOrder({
+        customer: el.querySelector('#c').value,
+        total: el.querySelector('#t').value,
+        notes: el.querySelector('#n').value,
+        items: [],
+      });
+      redraw();
+    } catch (e) { alert(e.message); }
   };
-  el.querySelectorAll('[data-st]').forEach((b) => {
+  el.querySelectorAll('[data-apply]').forEach((b) => {
     b.onclick = async () => {
-      try { await eng.updateOrderStatus(b.dataset.id, b.dataset.st); redraw(); }
-      catch (e) { alert(e.message); }
+      const sel = el.querySelector(`select[data-st="${b.dataset.apply}"]`);
+      try {
+        await eng.updateOrderStatus(b.dataset.apply, sel.value);
+        redraw();
+      } catch (e) { alert(e.message); }
+    };
+  });
+  el.querySelectorAll('select[data-st]').forEach((sel) => {
+    const o = eng.state.onlineOrders.find((x) => x.id === sel.dataset.st);
+    if (o?.status) sel.value = o.status;
+  });
+}
+
+export function renderAlmacen(el, eng, redraw) {
+  const stock = eng.getStock();
+  const items = stock.items || [];
+  const rows = items.map((i) => [
+    i.name, i.sku || '—', i.quantity, i.unit || 'U',
+    `<button type="button" class="btn-ghost" data-adj="${i.productId}">Ajustar</button>`,
+  ]);
+  const prods = eng.state.products.filter((p) => p.active !== false)
+    .map((p) => `<option value="${p.id}">${p.name} (stock ${p.stock})</option>`).join('');
+  const kardex = (eng.getKardex ? eng.getKardex() : (eng.state.kardex || [])).slice(0, 40).map((k) => [
+    (k.at || '').slice(0, 19), k.productName || k.productId, k.delta, k.reason || k.type, k.balance ?? '—',
+  ]);
+  el.innerHTML = `
+    <div class="card form-card">
+      <h3>Almacén · stock</h3>
+      <p class="muted">Inventario físico y kardex (equivalente main: GetWarehouseStock / AdjustStock / GetKardex).</p>
+      <div class="form-row"><label>Producto</label><select id="pid">${prods}</select></div>
+      <div class="form-row"><label>Ajuste (+/-)</label><input id="d" type="number" step="1" value="1"/></div>
+      <div class="form-row"><label>Motivo</label><input id="note" placeholder="Conteo, merma, corrección…"/></div>
+      <button type="button" class="btn" id="ok">Aplicar ajuste</button>
+    </div>
+    <div class="card"><h3>Existencias (${items.length})</h3>
+      ${table(rows, ['Producto', 'SKU', 'Cant.', 'UM', '']) || '<p class="muted">Sin stock registrado. Cree productos o recepciones.</p>'}
+    </div>
+    <div class="card"><h3>Kardex reciente</h3>
+      ${table(kardex, ['Fecha', 'Producto', 'Δ', 'Motivo', 'Saldo'])}
+    </div>`;
+  const doAdj = async (productId, delta, note) => {
+    try {
+      await eng.adjustStock({ productId, deltaQty: delta, note: note || 'Ajuste almacén' });
+      redraw();
+    } catch (e) { alert(e.message); }
+  };
+  el.querySelector('#ok').onclick = () => doAdj(
+    el.querySelector('#pid').value,
+    Number(el.querySelector('#d').value),
+    el.querySelector('#note').value,
+  );
+  el.querySelectorAll('[data-adj]').forEach((b) => {
+    b.onclick = async () => {
+      const delta = prompt('Cantidad (+/-):', '1');
+      if (delta == null) return;
+      const note = prompt('Motivo:', 'Ajuste desde listado') || 'Ajuste';
+      await doAdj(b.dataset.adj, Number(delta), note);
     };
   });
 }
 
-export function renderAlmacen(el, eng) {
-  const stock = eng.getStock();
-  const rows = (stock.items || []).map((i) => [i.name, i.sku, i.quantity, i.unit]);
-  el.innerHTML = `<div class="card"><p class="muted">Snapshot de almacén (getStock)</p></div>
-    ${table(rows, ['Producto', 'SKU', 'Cant.', 'UM'])}`;
-}
-
 export function renderRecepcion(el, eng, redraw) {
   const prods = eng.state.products.map((p) => `<option value="${p.id}">${p.name}</option>`).join('');
-  const rows = eng.state.receptions.slice(0, 40).map((r) => [
-    r.code, r.supplier, r.status, (r.at || '').slice(0, 19),
-    r.status === 'pendiente'
-      ? `<button class="btn-ghost" data-enter="${r.id}">Entrar</button>
-         <button class="btn-ghost" data-prob="${r.id}">Problema</button>`
-      : '—',
-  ]);
+  const rows = eng.state.receptions.slice(0, 50).map((r) => {
+    const actions = r.status === 'pendiente' || r.status === 'problema'
+      ? `<button type="button" class="btn-ghost" data-enter="${r.id}">Confirmar entrada</button>
+         <button type="button" class="btn-ghost" data-prob="${r.id}">Problema</button>
+         <button type="button" class="btn-ghost" data-ab="${r.id}">Abandonar</button>`
+      : (r.problem || r.status);
+    return [
+      r.code,
+      r.supplier,
+      r.receiver || '—',
+      (r.lines || []).length,
+      money(r.totalCost || 0),
+      r.status,
+      (r.at || '').slice(0, 19),
+      actions,
+    ];
+  });
   el.innerHTML = `
     <div class="card form-card">
-      <h3>Crear recepción</h3>
-      <div class="form-row"><label>Proveedor</label><input id="sup"/></div>
-      <div class="form-row"><label>Producto</label><select id="pid"><option value="">— nuevo —</option>${prods}</select></div>
-      <div class="form-row"><label>Nombre (si nuevo)</label><input id="pn"/></div>
-      <div class="form-row"><label>Cantidad</label><input id="q" type="number" value="1"/></div>
+      <h3>Recepción de mercancía</h3>
+      <p class="muted">Flujo main: crear IR → entrada física en almacén (o problema / abandono).</p>
+      <div class="form-row"><label>Proveedor</label><input id="sup" placeholder="Nombre del proveedor"/></div>
+      <div class="form-row"><label>Quién recibe</label><input id="recv" placeholder="Almacenero / responsable"/></div>
+      <div class="form-row"><label>¿Con factura?</label>
+        <select id="inv"><option value="no">No</option><option value="si">Sí</option></select>
+      </div>
+      <div class="form-row"><label>Nº factura / doc</label><input id="doc" placeholder="Opcional o obligatorio si hay factura"/></div>
+      <div class="form-row"><label>Producto</label><select id="pid"><option value="">— elegir —</option>${prods}</select></div>
+      <div class="form-row"><label>Nombre (si producto nuevo)</label><input id="pname"/></div>
+      <div class="form-row"><label>Cantidad</label><input id="qty" type="number" min="0.01" step="0.01" value="1"/></div>
+      <div class="form-row"><label>Costo unitario</label><input id="cost" type="number" min="0" step="0.01" value="0"/></div>
       <div class="form-row"><label>Notas</label><input id="notes"/></div>
-      <button type="button" class="btn" id="ok">Crear (pendiente)</button>
+      <button type="button" class="btn" id="ok">Registrar recepción (pendiente de entrada)</button>
     </div>
-    <div class="card"><p class="muted">EnterReception: confirmar entrada física o marcar problema sin mover stock</p>
-      ${table(rows, ['Código', 'Proveedor', 'Estado', 'Fecha', 'Acciones'])}</div>`;
+    <div class="card"><h3>Recepciones</h3>
+      ${table(rows, ['Código', 'Proveedor', 'Recibe', 'Líneas', 'Costo', 'Estado', 'Fecha', ''])}
+    </div>`;
   el.querySelector('#ok').onclick = async () => {
-    const pid = el.querySelector('#pid').value;
-    const line = pid
-      ? { productId: pid, qty: +el.querySelector('#q').value }
-      : { name: el.querySelector('#pn').value || 'insumo', qty: +el.querySelector('#q').value };
-    await eng.createReception({
-      supplier: el.querySelector('#sup').value,
-      lines: [line],
-      notes: el.querySelector('#notes').value,
-    });
-    redraw();
+    try {
+      const pid = el.querySelector('#pid').value;
+      const lines = [{
+        productId: pid,
+        name: el.querySelector('#pname').value,
+        qty: Number(el.querySelector('#qty').value),
+        unitCost: Number(el.querySelector('#cost').value),
+      }];
+      await eng.createReception({
+        supplier: el.querySelector('#sup').value,
+        receiver: el.querySelector('#recv').value,
+        hasInvoice: el.querySelector('#inv').value === 'si',
+        invoiceRef: el.querySelector('#doc').value,
+        docRef: el.querySelector('#doc').value,
+        notes: el.querySelector('#notes').value,
+        lines,
+      });
+      redraw();
+    } catch (e) { alert(e.message); }
   };
   el.querySelectorAll('[data-enter]').forEach((b) => {
-    b.onclick = async () => { await eng.enterReception({ receptionId: b.dataset.enter, ok: true }); redraw(); };
+    b.onclick = async () => {
+      try {
+        await eng.enterReception({ receptionId: b.dataset.enter, ok: true });
+        redraw();
+      } catch (e) { alert(e.message); }
+    };
   });
   el.querySelectorAll('[data-prob]').forEach((b) => {
     b.onclick = async () => {
-      const problem = prompt('Descripción del problema') || 'Incidencia';
-      await eng.enterReception({ receptionId: b.dataset.prob, ok: false, problem });
-      redraw();
+      const problem = prompt('Describa el problema de entrada:');
+      if (problem == null) return;
+      try {
+        await eng.enterReception({ receptionId: b.dataset.prob, ok: false, problem });
+        redraw();
+      } catch (e) { alert(e.message); }
+    };
+  });
+  el.querySelectorAll('[data-ab]').forEach((b) => {
+    b.onclick = async () => {
+      const reason = prompt('Motivo del abandono definitivo:');
+      if (!reason) return;
+      try {
+        await eng.enterReception({ receptionId: b.dataset.ab, abandon: true, reason });
+        redraw();
+      } catch (e) { alert(e.message); }
     };
   });
 }
 
 export function renderTransferencias(el, eng, redraw) {
-  const units = eng.state.salesUnits.map((u) => `<option value="${u.id}">${u.name}</option>`).join('');
-  const prods = eng.state.products.map((p) => `<option value="${p.id}">${p.name}</option>`).join('');
-  const rows = eng.state.transfers.slice(0, 40).map((t) => [t.from, t.to, t.qty, (t.at || '').slice(0, 19)]);
+  const units = eng.state.salesUnits.filter((u) => u.active !== false);
+  const uOpts = units.map((u) => `<option value="${u.id}">${u.code} — ${u.name}</option>`).join('');
+  const prods = eng.state.products.filter((p) => p.active !== false)
+    .map((p) => `<option value="${p.id}">${p.name} (stock ${p.stock})</option>`).join('');
+  const rows = (eng.state.transfers || []).slice(0, 50).map((t) => [
+    (t.at || '').slice(0, 19), t.from, t.to, t.productName || t.productId, t.qty, t.status || 'ok', t.notes || '—',
+  ]);
   el.innerHTML = `
     <div class="card form-card">
       <h3>Transferencia entre unidades</h3>
-      <div class="form-row"><label>Desde</label><select id="from">${units}</select></div>
-      <div class="form-row"><label>Hacia</label><select id="to">${units}</select></div>
-      <div class="form-row"><label>Producto</label><select id="p">${prods}</select></div>
-      <div class="form-row"><label>Cantidad</label><input id="q" type="number" value="1"/></div>
-      <button type="button" class="btn" id="ok">Registrar</button>
-    </div>${table(rows, ['Desde', 'Hacia', 'Cant.', 'Fecha'])}`;
+      <p class="muted">Mueve stock lógico entre puntos de venta / ruta (main: CreateTransfer).</p>
+      <div class="form-row"><label>Origen</label><select id="from">${uOpts}</select></div>
+      <div class="form-row"><label>Destino</label><select id="to">${uOpts}</select></div>
+      <div class="form-row"><label>Producto</label><select id="pid">${prods}</select></div>
+      <div class="form-row"><label>Cantidad</label><input id="qty" type="number" min="0.01" step="0.01" value="1"/></div>
+      <div class="form-row"><label>Notas</label><input id="n"/></div>
+      <button type="button" class="btn" id="ok">Transferir</button>
+    </div>
+    <div class="card form-card">
+      <h3>Unidad de venta</h3>
+      <div class="form-row"><label>Código</label><input id="uc"/></div>
+      <div class="form-row"><label>Nombre</label><input id="un"/></div>
+      <button type="button" class="btn" id="su">Crear unidad</button>
+      <p class="muted">Unidades: ${units.map((u) => u.name).join(', ') || '—'}</p>
+    </div>
+    <div class="card"><h3>Historial de transferencias</h3>
+      ${table(rows, ['Fecha', 'Desde', 'Hacia', 'Producto', 'Cant.', 'Estado', 'Notas'])}
+    </div>`;
   el.querySelector('#ok').onclick = async () => {
     try {
       await eng.createTransfer({
         fromUnitId: el.querySelector('#from').value,
         toUnitId: el.querySelector('#to').value,
-        productId: el.querySelector('#p').value,
-        qty: el.querySelector('#q').value,
+        productId: el.querySelector('#pid').value,
+        qty: el.querySelector('#qty').value,
+        notes: el.querySelector('#n').value,
       });
+      redraw();
+    } catch (e) { alert(e.message); }
+  };
+  el.querySelector('#su').onclick = async () => {
+    try {
+      await eng.createSalesUnit({ code: el.querySelector('#uc').value, name: el.querySelector('#un').value });
       redraw();
     } catch (e) { alert(e.message); }
   };
@@ -465,7 +592,7 @@ export function renderFichasCosto(el, eng, redraw) {
       <h3>Ficha de costo</h3>
       <div class="form-row"><label>Nombre</label><input id="n"/></div>
       <div class="form-row"><label>Costo</label><input id="c" type="number" step="0.01"/></div>
-      <div class="form-row"><label>Precio</label><input id="p" type="number" step="0.01"/></div>
+      <div class="form-row"><label>Precio ref.</label><input id="p" type="number" step="0.01"/></div>
       <button type="button" class="btn" id="ok">Guardar</button>
     </div>${table(rows, ['Nombre', 'Costo', 'Precio', ''])}`;
   el.querySelector('#ok').onclick = async () => {
@@ -502,45 +629,83 @@ export function renderFichasPrecio(el, eng, redraw) {
 
 export function renderEmpleados(el, eng, redraw) {
   const pos = eng.state.jobPositions.map((j) => `<option value="${j.id}">${j.name}</option>`).join('');
-  const rows = eng.state.employees.map((e) => [e.name, e.role, money(e.salary), e.active === false ? 'no' : 'sí']);
+  const rows = eng.state.employees.map((e) => [
+    e.name,
+    e.role || '—',
+    money(e.salary),
+    e.phone || '—',
+    e.hireDate || '—',
+    e.active === false ? 'no' : 'sí',
+    e.active === false
+      ? '—'
+      : `<button type="button" class="btn-ghost" data-deact="${e.id}">Dar de baja</button>`,
+  ]);
   el.innerHTML = `
     <div class="card form-card">
-      <h3>Alta empleado</h3>
+      <h3>Empleados</h3>
+      <p class="muted">Alta y baja (main: CreateEmployee / DeactivateEmployee).</p>
       <div class="form-row"><label>Nombre</label><input id="n"/></div>
-      <div class="form-row"><label>Rol</label><input id="r" placeholder="caja / cocina"/></div>
+      <div class="form-row"><label>Rol / área</label><input id="r" placeholder="caja, cocina, ruta…"/></div>
       <div class="form-row"><label>Cargo</label><select id="jp">${pos}</select></div>
       <div class="form-row"><label>Salario</label><input id="s" type="number" step="0.01"/></div>
-      <button type="button" class="btn" id="ok">Guardar</button>
-    </div>${table(rows, ['Nombre', 'Rol', 'Salario', 'Activo'])}`;
+      <div class="form-row"><label>Teléfono</label><input id="ph"/></div>
+      <div class="form-row"><label>Fecha alta</label><input id="hd" type="date"/></div>
+      <button type="button" class="btn" id="ok">Guardar empleado</button>
+    </div>
+    <div class="card"><h3>Plantilla (${eng.state.employees.length})</h3>
+      ${table(rows, ['Nombre', 'Rol', 'Salario', 'Tel.', 'Alta', 'Activo', ''])}
+    </div>`;
   el.querySelector('#ok').onclick = async () => {
     try {
       await eng.createEmployee({
-        name: el.querySelector('#n').value, role: el.querySelector('#r').value,
-        positionId: el.querySelector('#jp').value, salary: el.querySelector('#s').value,
+        name: el.querySelector('#n').value,
+        role: el.querySelector('#r').value,
+        positionId: el.querySelector('#jp').value,
+        salary: el.querySelector('#s').value,
+        phone: el.querySelector('#ph').value,
+        hireDate: el.querySelector('#hd').value,
       });
       redraw();
     } catch (e) { alert(e.message); }
   };
+  el.querySelectorAll('[data-deact]').forEach((b) => {
+    b.onclick = async () => {
+      if (!confirm('¿Dar de baja al empleado?')) return;
+      try {
+        await eng.deactivateEmployee(b.dataset.deact);
+        redraw();
+      } catch (e) { alert(e.message); }
+    };
+  });
 }
 
 export function renderLiquidaciones(el, eng, redraw) {
-  const opts = eng.state.employees.filter((e) => e.active !== false)
-    .map((e) => `<option value="${e.id}">${e.name} (${money(e.salary)})</option>`).join('');
-  const rows = eng.state.payslips.slice(0, 50).map((p) => [p.employeeName, p.period, money(p.amount), p.status, (p.at || '').slice(0, 10)]);
+  const emps = eng.state.employees.filter((e) => e.active !== false)
+    .map((e) => `<option value="${e.id}">${e.name} · ${money(e.salary)}</option>`).join('');
+  const rows = eng.state.payslips.slice(0, 50).map((p) => [
+    (p.at || '').slice(0, 19), p.employeeName, p.period, money(p.amount), p.status || 'pagado',
+  ]);
   el.innerHTML = `
     <div class="card form-card">
-      <h3>Liquidación de nómina</h3>
-      <div class="form-row"><label>Empleado</label><select id="e">${opts || '<option value="">—</option>'}</select></div>
-      <div class="form-row"><label>Periodo</label><input id="per" value="${new Date().toISOString().slice(0, 7)}"/></div>
-      <div class="form-row"><label>Monto</label><input id="m" type="number" step="0.01" placeholder="vacío = salario"/></div>
-      <button type="button" class="btn" id="ok">Liquidar</button>
-    </div>${table(rows, ['Empleado', 'Periodo', 'Monto', 'Estado', 'Fecha'])}`;
+      <h3>Nómina / liquidación</h3>
+      <p class="muted">Genera asiento de gasto automáticamente (main: CreatePayslip).</p>
+      <div class="form-row"><label>Empleado</label><select id="e">${emps || '<option value="">Sin empleados activos</option>'}</select></div>
+      <div class="form-row"><label>Periodo</label><input id="per" placeholder="2026-10" value="${new Date().toISOString().slice(0, 7)}"/></div>
+      <div class="form-row"><label>Importe (vacío = salario)</label><input id="amt" type="number" step="0.01" placeholder="Auto"/></div>
+      <button type="button" class="btn" id="ok">Liquidar y registrar gasto</button>
+    </div>
+    <div class="card"><h3>Liquidaciones</h3>
+      ${table(rows, ['Fecha', 'Empleado', 'Periodo', 'Importe', 'Estado'])}
+    </div>`;
   el.querySelector('#ok').onclick = async () => {
     try {
+      const id = el.querySelector('#e').value;
+      if (!id) throw new Error('Seleccione un empleado');
+      const amt = el.querySelector('#amt').value;
       await eng.createPayslip({
-        employeeId: el.querySelector('#e').value,
-        amount: el.querySelector('#m').value,
+        employeeId: id,
         period: el.querySelector('#per').value,
+        amount: amt === '' ? undefined : amt,
       });
       redraw();
     } catch (e) { alert(e.message); }

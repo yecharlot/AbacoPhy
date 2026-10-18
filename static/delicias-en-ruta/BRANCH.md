@@ -40,3 +40,11 @@ Panel **AOS-ERP · Salud** en menú Finanzas:
 - Filtros: últimas 10/30, hoy, mes, mes anterior, rango desde–hasta; combinables con categoría, flujo $ y estado operativo.
 - Panel cuantitativo: conteos entra/sale/pérdida, OK/fallidas/pendientes, montos y desglose por tipo.
 - Grafo alimentado por entries, sales, onlineOrders, invoices, payslips, receptions (misma lógica offline que el motor Delicias alineado a main).
+
+## Módulos operativos completados (2026-10-18)
+- Nomenclador: productos + UM + ajuste stock + baja
+- Almacén: stock, ajuste con motivo, kardex
+- Recepción: factura/doc, confirmar entrada, problema, abandono
+- Transferencias: entre unidades con validación de stock + crear unidad venta
+- Nómina: empleados (tel, alta, baja) + liquidación con asiento de gasto
+- POS/Pedidos reforzados

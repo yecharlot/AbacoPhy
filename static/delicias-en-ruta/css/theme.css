@@ -445,3 +445,12 @@ th { color: var(--dr-blue); font-size: 0.75rem; text-transform: uppercase; lette
   display:inline-block; width:10px; height:10px; border-radius:50%;
   background:#f4b400; box-shadow:0 0 8px #f4b400; vertical-align:middle; margin-right:4px;
 }
+
+.form-card h3 { margin-top: 0; color: var(--dr-blue); }
+.form-card .muted { font-size: 0.9rem; }
+.card h3 { margin-top: 0; }
+table.data { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+table.data th, table.data td { padding: 8px 10px; border-bottom: 1px solid var(--dr-border); text-align: left; }
+table.data th { color: var(--dr-muted); font-weight: 600; }
+.btn-ghost { background: transparent; border: 1px solid var(--dr-border); border-radius: 8px; padding: 4px 8px; cursor: pointer; color: var(--dr-blue); }
+.btn-ghost:hover { background: rgba(27,73,101,0.08); }
