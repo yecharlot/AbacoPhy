@@ -280,8 +280,7 @@ export function buildGraphFromState(state) {
     }, e.date || e.at || e.createdAt);
 
     push(node);
-    edges.push({ from: `actor:${node.from}`, to: id });
-    edges.push({ from: id, to: `actor:${node.to}` });
+    // sin nodos de cuenta/contraparte en el grafo
   });
 
   // —— Ventas POS ——
@@ -312,8 +311,6 @@ export function buildGraphFromState(state) {
       source: 'sales',
       raw: s,
     }, s.at || s.createdAt || s.date));
-    edges.push({ from: 'actor:Cliente', to: id });
-    edges.push({ from: id, to: `actor:${tenant}` });
   });
 
   // —— Pedidos online ——
@@ -410,34 +407,15 @@ export function buildGraphFromState(state) {
     }, r.at || r.date));
   });
 
-  // Actores
-  const actors = new Set();
-  edges.forEach((e) => {
-    if (String(e.from).startsWith('actor:')) actors.add(e.from);
-    if (String(e.to).startsWith('actor:')) actors.add(e.to);
-  });
-  actors.forEach((aid) => {
-    push({
-      id: aid,
-      label: aid.replace(/^actor:/, ''),
-      detail: 'Actor / contraparte',
-      type: 'actor',
-      category: 'caja',
-      amount: 0,
-      currency: '',
-      zyrion: ZYRION.INDETERMINATE,
-      flow: FLOW.NEUTRAL,
-      from: '',
-      to: '',
-      at: 0,
-      dateIso: '',
-      dateLabel: '—',
-      source: 'actor',
-      isActor: true,
-    });
-  });
+  // Solo operaciones como nodos (no actores ni saldos/cuentas).
+  // Contrapartes y montos viven en el detalle al hacer clic.
+  const opNodes = nodes.filter((n) => !n.isActor && n.type !== 'actor');
+  const opIds = new Set(opNodes.map((n) => n.id));
+  // Aristas ligeras: cada operación se enlaza al núcleo (se añade en la vista)
+  // y se conservan dependencias reales entre operaciones si ambas existen.
+  const opEdges = edges.filter((e) => opIds.has(e.from) && opIds.has(e.to));
 
-  return { nodes, edges };
+  return { nodes: opNodes, edges: opEdges };
 }
 
 export function demoGraph(tenantName = 'Delicias en Ruta') {
@@ -452,15 +430,8 @@ export function demoGraph(tenantName = 'Delicias en Ruta') {
     enrichDate({ id: 'op-5', label: 'Cobro rechazado POS', detail: 'Tarjeta declinada · reintento pendiente', type: 'venta', category: 'venta', amount: 300, currency: 'CUP', zyrion: 0, flow: 'in', from: 'Cliente', to: tenantName }, now - 7200000),
     enrichDate({ id: 'op-6', label: 'Pérdida merma cocina', detail: 'Merma controlada · inventario', type: 'gasto', category: 'gasto', amount: 200, currency: 'CUP', zyrion: 1, flow: 'loss', from: 'Almacén', to: 'Merma' }, now - 86400000 * 3),
     enrichDate({ id: 'op-7', label: 'Ingreso catering', detail: 'Evento corporativo XYZ', type: 'ingreso', category: 'ingreso', amount: 5000, currency: 'CUP', zyrion: 1, flow: 'in', from: 'Empresa XYZ', to: tenantName }, now - 86400000 * 4),
-    { id: 'actor:Caja Central', label: 'Caja Central', detail: 'Actor', type: 'actor', category: 'caja', amount: 0, zyrion: 2, flow: 'neutral', isActor: true, at: 0, dateLabel: '—' },
-    { id: 'actor:Vendor-Beta', label: 'Vendor-Beta', detail: 'Actor', type: 'actor', category: 'compra', amount: 0, zyrion: 2, flow: 'neutral', isActor: true, at: 0, dateLabel: '—' },
   ];
   const edges = [
-    { from: 'actor:Caja Central', to: 'op-2' },
-    { from: 'op-2', to: 'actor:Vendor-Beta' },
-    { from: 'op-1', to: 'actor:Caja Central' },
-    { from: 'op-7', to: 'actor:Caja Central' },
-    { from: 'op-3', to: 'actor:Caja Central' },
     { from: 'op-5', to: 'op-1' },
   ];
   return { nodes, edges };

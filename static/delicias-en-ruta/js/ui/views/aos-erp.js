@@ -52,13 +52,13 @@ export async function renderAosErp(el, eng) {
     detail: 'Núcleo del negocio',
   });
   if (!raw.edges) raw.edges = [];
-  const extraEdges = [];
-  raw.nodes.forEach((n) => {
-    if (n.isActor && /caja|central/i.test(n.label || '')) {
-      extraEdges.push({ from: 'nucleus', to: n.id });
-    }
-  });
-  raw.edges = [...raw.edges, ...extraEdges];
+  if (!raw.edges) raw.edges = [];
+  // Cada operación → núcleo (sin nodos de saldo/cuenta)
+  const hubEdges = raw.nodes
+    .filter((n) => !n.isNucleus && !n.isActor)
+    .map((n) => ({ from: 'nucleus', to: n.id }));
+  raw.edges = [...raw.edges.filter((e) => !String(e.from).startsWith('actor:') && !String(e.to).startsWith('actor:')), ...hubEdges];
+
 
   let category = 'all';
   let zFilter = 'all';
@@ -102,7 +102,7 @@ export async function renderAosErp(el, eng) {
             <b style="color:#f97316">naranja</b> sale $ (compras, impuestos, gastos) ·
             <b style="color:#dc2626">rojo fuerte</b> pérdida/fallo ·
             <b style="color:#94a3b8">gris</b> pendiente.
-            <br/>Relleno = dinero; borde claro = operación OK. Arrastrar = 3D · Shift = pan · rueda = zoom.
+            <br/>Relleno = dinero; borde claro = operación OK. Nodos = operaciones (nombre). Montos solo al hacer clic. Arrastrar = 3D · Shift = pan · rueda = zoom.
           </p>
         </div>
         <div class="aos-erp-filters">
@@ -384,7 +384,7 @@ export async function renderAosErp(el, eng) {
       ctx.fillStyle = 'rgba(226,232,240,0.95)';
       ctx.font = '11px system-ui,sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText((n.label || '').slice(0, 22), pr.x, pr.y + rad + 12);
+      ctx.fillText(opLabel(n), pr.x, pr.y + rad + 12);
     });
 
     const q = quantStats(g.nodes);
@@ -433,7 +433,7 @@ export async function renderAosErp(el, eng) {
         <dt>Tipo</dt><dd>${escapeHtml(n.type || '—')}</dd>
         <dt>Categoría</dt><dd>${escapeHtml(n.category || '—')}</dd>
         <dt>Flujo $</dt><dd>${escapeHtml(flowLabel(n.flow))}</dd>
-        <dt>Monto</dt><dd>${n.amount ? `${n.amount} ${n.currency || ''}` : '—'}</dd>
+        <dt>Monto / saldo op.</dt><dd><b>${n.amount != null && n.amount !== '' ? `${n.amount} ${n.currency || ''}` : '—'}</b></dd>
         <dt>Desde</dt><dd>${escapeHtml(n.from || '—')}</dd>
         <dt>Hacia</dt><dd>${escapeHtml(n.to || '—')}</dd>
         <dt>Cuenta</dt><dd>${escapeHtml(n.accountCode || '—')}</dd>
@@ -602,6 +602,17 @@ export async function renderAosErp(el, eng) {
   ro.observe(wrap);
 
   scheduleDraw();
+}
+
+/** Nombre identificable de la operación — sin montos ni saldos en el grafo */
+function opLabel(n) {
+  if (!n || n.isNucleus) return (n && n.label) || 'Negocio';
+  if (n.isCluster) return (n.label || '').slice(0, 24);
+  let s = String(n.label || n.type || n.id || 'Op').trim();
+  // quitar cifras sueltas tipo montos pegados al nombre
+  s = s.replace(/\s*[\$€]?\s*\d+[\d.,]*\s*(CUP|USD|EUR)?\s*$/i, '').trim();
+  if (s.length > 24) s = s.slice(0, 22) + '…';
+  return s || 'Operación';
 }
 
 function escapeHtml(s) {
