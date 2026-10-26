@@ -372,27 +372,34 @@
         let userId: string | undefined;
         let userWasNew = false;
         try {
-          await masterStore.addUser({
+          const created = await masterStore.addUser({
             username: selectedUsername,
             displayName: fullName,
             password: TEMP_PASSWORD,
             role: pos.role,
           });
           userWasNew = true;
+          userId = created?.id;
         } catch (userErr) {
           const msg = userErr instanceof Error ? userErr.message : String(userErr);
-          const exists =
-            /ya existe|already exists|duplicate|duplicad/i.test(msg) ||
-            /username/i.test(msg);
-          if (!exists) throw userErr;
+          // Solo 409 / “ya existe” — no cualquier mensaje con “username”
+          const exists = /ya existe|already exists|duplicate|duplicad|409/i.test(msg);
+          if (!exists) {
+            formError =
+              msg ||
+              'No se pudo crear el usuario de sistema (¿sesión admin/master y módulo Usuarios?)';
+            return;
+          }
           // Continuar: vincularemos el usuario existente
         }
-        await masterStore.loadAll().catch(() => undefined);
-        const linked =
-          (masterStore.getState().users ?? []).find(
-            (u) => u.username.toLowerCase() === selectedUsername.toLowerCase(),
-          ) || null;
-        userId = linked?.id;
+        if (!userId) {
+          await masterStore.loadAll().catch(() => undefined);
+          const linked =
+            (masterStore.getState().users ?? []).find(
+              (u) => u.username.toLowerCase() === selectedUsername.toLowerCase(),
+            ) || null;
+          userId = linked?.id;
+        }
         if (!userId) {
           formError =
             'No se pudo resolver el usuario de sistema. Revise Usuarios/Roles o elija otro username.';
@@ -474,7 +481,7 @@
     try {
       // Backend valida autorización; el FE solo envía la petición.
       await masterStore.editUser({ id: userId, password: TEMP_PASSWORD });
-      formOk = `Contraseña restablecida a ${TEMP_PASSWORD} (temporal)`;
+      formOk = `Contraseña de «${meta.username || e.name}» restablecida a ${TEMP_PASSWORD}. Use esa clave en el POS (login).`;
     } catch (err) {
       formError =
         err instanceof Error
