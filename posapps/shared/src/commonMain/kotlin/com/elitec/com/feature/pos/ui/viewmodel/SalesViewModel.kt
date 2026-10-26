@@ -365,4 +365,22 @@ class SalesViewModel(
         sale.status.equals("pending_local", ignoreCase = true) ||
             sale.number.equals("PENDIENTE", ignoreCase = true) ||
             sale.id.startsWith("local-")
+
+    /**
+     * 02.K4 — Habilitar «Registrar venta» sin depender de conectividad online.
+     * Requiere PDV asignado (Ready) y al menos un producto en caché local.
+     * La UI no debe deshabilitar por Offline del rail.
+     */
+    fun canRegisterNewSale(): Boolean {
+        val unitOk = _assignedUnit.value is AssignedUnitUiState.Ready
+        val hasCatalog = _context.value.products.isNotEmpty()
+        return unitOk && hasCatalog
+    }
+
+    /** Stock disponible local (caché PDV); 0 si no hay fila — la UI decide el bloqueo por línea. */
+    fun hasLocalStockContext(): Boolean {
+        val unitId = _activeUnitId.value
+        if (unitId.isBlank()) return false
+        return _context.value.unitStocks.any { it.unitId == unitId }
+    }
 }

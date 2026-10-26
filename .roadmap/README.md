@@ -20,6 +20,19 @@
 3. Marcar tareas en el checklist de la fase; no abrir la siguiente fase si el criterio de salida no se cumple.
 4. Registrar desviaciones o decisiones en `DECISIONES.md`.
 
+
+## Progreso
+
+| Fase | Estado |
+|------|--------|
+| 01 Idempotencia outbox | **Cerrada** — B1–B3, K1–K4, W1 |
+| 02 Resiliencia 6 h | **Código listo** — falta evidencia 02.T2 en campo |
+| 03 Inventario + SSE | Base ya en código; formalizar en fase |
+| 04 Contabilidad | Pendiente |
+| 05 Permisos | Pendiente |
+| 06 Backup + CI | Pendiente |
+| 07 UX + runbooks | Pendiente |
+
 **Estado de partida (baseline MVP)**
 
 - Flujos: recepción → almacén → transferencia → venta POS (web + KMP con outbox).

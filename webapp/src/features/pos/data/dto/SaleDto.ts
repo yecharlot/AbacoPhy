@@ -11,6 +11,7 @@ export type SaleLineDto = {
   line_total?: number;
   unit_cost?: number;
   cost_amount?: number;
+  metadata?: unknown;
 };
 
 export type SaleDto = {
@@ -28,6 +29,11 @@ export type SaleDto = {
   currency?: string;
   status?: string;
   note?: string;
+  /**
+   * Flexible: string JSON u objeto.
+   * El mapper lo normaliza a string canónico (nunca rompe el listado).
+   */
+  metadata?: unknown;
 };
 
 export type SalesResponseDto = {

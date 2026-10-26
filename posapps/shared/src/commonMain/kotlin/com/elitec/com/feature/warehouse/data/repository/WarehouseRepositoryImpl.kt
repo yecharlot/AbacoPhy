@@ -60,4 +60,16 @@ class WarehouseRepositoryImpl(
 
     override fun observeUnitStocks(unitId: String?): Flow<List<UnitStock>> =
         local.observeUnitStocks(unitId).map { list -> list.map { it.toDomain() } }
+
+    override suspend fun applyProvisionalSaleOut(unitId: String, productQty: Map<String, Double>) {
+        if (unitId.isBlank() || productQty.isEmpty()) return
+        local.applyProvisionalSaleOut(
+            unitId,
+            productQty.entries.map { it.key to it.value },
+        )
+        AbacoLog.i(
+            LogCategory.POS,
+            "Provisional stock out unit=$unitId lines=${productQty.size}",
+        )
+    }
 }

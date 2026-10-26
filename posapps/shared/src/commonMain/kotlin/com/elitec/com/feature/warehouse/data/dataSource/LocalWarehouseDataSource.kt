@@ -26,4 +26,23 @@ class LocalWarehouseDataSource(
         dao.clearUnitStocks()
         if (stocks.isNotEmpty()) dao.saveUnitStocks(stocks)
     }
+
+    /**
+     * Descuento provisional de stock PDV (offline). No toca servidor.
+     * qty se reduce y no baja de 0. Filas inexistentes se ignoran.
+     */
+    suspend fun applyProvisionalSaleOut(unitId: String, lines: List<Pair<String, Double>>) {
+        if (unitId.isBlank() || lines.isEmpty()) return
+        val updated = mutableListOf<UnitStockEntity>()
+        for ((productId, qtySold) in lines) {
+            if (productId.isBlank() || qtySold <= 0.0) continue
+            val row = dao.getUnitStock(unitId, productId) ?: continue
+            val newQty = (row.qty - qtySold).coerceAtLeast(0.0)
+            updated += row.copy(
+                qty = newQty,
+                amountBase = newQty * row.avgCost,
+            )
+        }
+        if (updated.isNotEmpty()) dao.saveUnitStocks(updated)
+    }
 }
