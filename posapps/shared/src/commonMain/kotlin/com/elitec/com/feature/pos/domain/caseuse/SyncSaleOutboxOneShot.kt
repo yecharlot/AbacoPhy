@@ -105,7 +105,10 @@ class SyncSaleOutboxOneShot(
     private suspend fun recoverConfirmedSale(clientOpId: String): Sale? {
         if (clientOpId.isBlank()) return null
         return try {
-            repository.getSales().firstOrNull { it.matchesClientOpId(clientOpId) }
+            // Solo servidor: getSales() mergea pending_local y matchearía el provisional.
+            repository.getServerSales()
+                .filter { it.isServerConfirmed() }
+                .firstOrNull { it.matchesClientOpId(clientOpId) }
         } catch (t: Throwable) {
             AbacoLog.w(LogCategory.POS, "recoverConfirmedSale falló: ${t.message}")
             null
@@ -140,5 +143,14 @@ class SyncSaleOutboxOneShot(
             return false
         }
 
+        fun Sale.matchesClientOpId(clientOpId: String): Boolean {
+            val m = metadata?.trim().orEmpty()
+            if (m.isEmpty()) return false
+            if (m == clientOpId) return true
+            // metadata puede ser JSON string u objeto serializado
+            return m.contains("\"client_op_id\"") && m.contains(clientOpId) ||
+                m.contains("\"clientOpId\"") && m.contains(clientOpId) ||
+                m.contains(clientOpId)
+        }
     }
 }

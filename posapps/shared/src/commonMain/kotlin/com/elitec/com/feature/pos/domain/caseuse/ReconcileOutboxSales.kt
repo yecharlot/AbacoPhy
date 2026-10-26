@@ -9,10 +9,11 @@ import com.elitec.com.infraestructure.logging.LogCategory
 
 /**
  * Roadmap 01.K3 — barrido de reconciliación:
- * pendientes de outbox × ventas en servidor por [client_op_id].
+ * pendientes de outbox × ventas **solo de servidor** por [client_op_id].
  *
- * Cierra como CONFIRMED las que ya existen en el servidor (p.ej. 201 previo
- * con fallo de parse, o POST idempotente) y deja solo las realmente pendientes.
+ * IMPORTANTE: no usar [SalesRepository.getSales] (mergea pending_local).
+ * Un provisional local lleva el mismo client_op_id y matchearía a sí mismo,
+ * marcando CONFIRMED sin haber enviado nunca la venta al backend.
  *
  * Se invoca al recuperar conectividad / SSE Connected, antes del drain de envío.
  */
@@ -34,19 +35,21 @@ class ReconcileOutboxSales(
             return Report(scanned = 0, closed = 0, stillPending = 0)
         }
 
-        val remote = try {
-            sales.getSales()
+        val serverSales = try {
+            sales.getServerSales()
+                .filter { it.isServerConfirmed() }
         } catch (t: Throwable) {
             AbacoLog.w(
                 LogCategory.POS,
-                "ReconcileOutboxSales: no se pudo listar ventas remotas: ${t.message}",
+                "ReconcileOutboxSales: no se pudo listar ventas de servidor: ${t.message}",
             )
             return Report(scanned = pending.size, closed = 0, stillPending = pending.size)
         }
 
         var closed = 0
         for (entry in pending) {
-            val match = remote.firstOrNull { it.matchesClientOpId(entry.clientOpId) } ?: continue
+            val match = serverSales.firstOrNull { it.matchesClientOpId(entry.clientOpId) }
+                ?: continue
             try {
                 sales.replaceProvisional(entry.clientOpId, match)
                 markConfirmed.execute(entry.id, serverId = match.id)

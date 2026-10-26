@@ -29,6 +29,13 @@ class SaleRepositoryImpl(
         }
     }
 
+    override suspend fun getServerSales(): List<Sale> {
+        // Sin merge: solo verdad de servidor. No cae a local (eso falsearía reconcile).
+        val remoteList = remote.listSales()
+        local.saveAll(remoteList)
+        return remoteList.map { it.toDomain() }
+    }
+
     private suspend fun mergeRemoteWithLocalPending(remote: List<Sale>): List<Sale> {
         val pending = local.getAll().map { it.toDomain() }.filter { sale ->
             sale.id.startsWith("local-") ||

@@ -13,3 +13,14 @@ fun Sale.matchesClientOpId(clientOpId: String): Boolean {
     if (m == clientOpId) return true
     return m.contains(clientOpId)
 }
+
+/**
+ * Venta confirmada por backend (no provisional de outbox local).
+ * Las provisionales usan id local-*, status pending_local, number PENDIENTE.
+ */
+fun Sale.isServerConfirmed(): Boolean {
+    if (id.startsWith("local-")) return false
+    if (status.equals("pending_local", ignoreCase = true)) return false
+    if (number.equals("PENDIENTE", ignoreCase = true)) return false
+    return id.isNotBlank()
+}
