@@ -95,6 +95,19 @@ func LookupIdempotent(snap *StoreSnapshot, clientOpID string) (string, bool) {
 	return id, ok
 }
 
+// FindPOSSaleByID busca una venta POS por id de servidor.
+func FindPOSSaleByID(snap *StoreSnapshot, id string) (POSSale, bool) {
+	if snap == nil || id == "" {
+		return POSSale{}, false
+	}
+	for i := range snap.POSSales {
+		if snap.POSSales[i].ID == id {
+			return snap.POSSales[i], true
+		}
+	}
+	return POSSale{}, false
+}
+
 // ClientOpIDFromMeta lee client_op_id / clientOpId / idempotency_key del metadata flexible.
 func ClientOpIDFromMeta(meta Metadata) string {
 	if meta == nil {

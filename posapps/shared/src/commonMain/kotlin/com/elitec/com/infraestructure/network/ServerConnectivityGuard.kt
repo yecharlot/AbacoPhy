@@ -172,9 +172,17 @@ class ServerConnectivityGuard(
     ) {
         val now = Clock.System.now().toEpochMilliseconds()
         if (offlineSinceMs <= 0L) offlineSinceMs = now
+        val duration = now - offlineSinceMs
+        // 02.P2: a partir de 6 h, mensaje fuerte pero sin forzar bloqueo por transporte
+        val finalReason =
+            if (!requiresBlockingUi && duration >= OfflineShiftPolicy.SHIFT_MS) {
+                OfflineShiftPolicy.extendedOutageMessage(duration)
+            } else {
+                reason
+            }
         _state.value = ServerConnectivityState.Unreachable(
             baseUrl = baseOverride ?: apiConfig.baseUrl,
-            reason = reason,
+            reason = finalReason,
             suggestUpdateUrl = suggestUpdateUrl,
             requiresBlockingUi = requiresBlockingUi,
             sinceEpochMs = offlineSinceMs,

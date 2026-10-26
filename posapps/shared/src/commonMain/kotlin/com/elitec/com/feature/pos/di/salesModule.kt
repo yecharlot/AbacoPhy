@@ -11,6 +11,7 @@ import com.elitec.com.feature.pos.domain.caseuse.ListSalesCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.LoadPosSnapshotCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.ObserveSalesFlowCaseUse
 import com.elitec.com.feature.pos.domain.caseuse.RegisterSaleCaseUse
+import com.elitec.com.feature.pos.domain.caseuse.ReconcileOutboxSales
 import com.elitec.com.feature.pos.domain.caseuse.SyncPendingOutboxOps
 import com.elitec.com.feature.pos.domain.caseuse.SyncSaleOutboxOneShot
 import com.elitec.com.feature.pos.domain.repository.SalesRepository
@@ -52,11 +53,20 @@ val salesModule = module {
             syncSaleOneShot = get(),
         )
     }
+
+    factory {
+        ReconcileOutboxSales(
+            listRetryable = get(),
+            sales = get(),
+            markConfirmed = get(),
+        )
+    }
     factory {
         RegisterSaleCaseUse(
             enqueue = get(),
             syncOneShot = get(),
             sales = get(),
+            warehouse = get(),
         )
     }
     factory { GetSaleByIdCaseUse(get()) }
@@ -78,6 +88,7 @@ val salesModule = module {
         OutboxSyncWorker(
             connectivity = get(),
             syncPending = get(),
+            reconcileOutbox = get(),
             observePendingCount = get(),
             eventStream = get(),
         )

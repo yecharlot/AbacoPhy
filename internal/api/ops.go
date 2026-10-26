@@ -1419,7 +1419,7 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 		}
 		hash, err := auth.HashPassword(body.Password)
 		if err != nil {
-			writeJSON(w, 500, map[string]string{"error": "hash"})
+			writeJSON(w, 500, map[string]string{"error": "no se pudo hashear la contraseña"})
 			return
 		}
 		u := &domain.User{
@@ -1434,7 +1434,13 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 		}
 		snap.Users[u.ID] = u
 		s.audit(snap, sess, "usuario.alta", "Alta de usuario «"+u.Username+"» con rol «"+roleLabelES(u.Role)+"»", u.ID)
-		_ = s.Store.Put(snap)
+		// Debe persistir: si Put falla, el cliente no debe creer que el usuario existe
+		// (login 401 tras reinicio / túnel Cloudflare).
+		if err := s.Store.Put(snap); err != nil {
+			delete(snap.Users, u.ID)
+			writeJSON(w, 500, map[string]string{"error": "no se pudo persistir el usuario: " + err.Error()})
+			return
+		}
 		writeJSON(w, 201, map[string]any{"user": publicUser(snap, u)})
 	case http.MethodPut:
 		var body struct {
@@ -1493,9 +1499,11 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 		}
 		if body.Password != "" {
 			h, err := auth.HashPassword(body.Password)
-			if err == nil {
-				u.PasswordHash = h
+			if err != nil {
+				writeJSON(w, 500, map[string]string{"error": "no se pudo hashear la contraseña"})
+				return
 			}
+			u.PasswordHash = h
 		}
 		if body.Active != nil {
 			u.Active = *body.Active

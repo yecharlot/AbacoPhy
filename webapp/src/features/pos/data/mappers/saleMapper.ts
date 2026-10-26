@@ -1,4 +1,5 @@
 import type { CreateSaleInput, Sale, SaleLine } from '../../domain/entities/Sale';
+import { normalizeMetadataField } from '../../../../infrastructure/domain/metadata';
 import type { SaleDto, SaleLineDto } from '../dto/SaleDto';
 
 function saleLineDtoToEntity(dto: SaleLineDto): SaleLine {
@@ -13,6 +14,7 @@ function saleLineDtoToEntity(dto: SaleLineDto): SaleLine {
     lineTotal: dto.line_total || 0,
     unitCost: dto.unit_cost || 0,
     costAmount: dto.cost_amount || 0,
+    metadata: normalizeMetadataField(dto) ?? null,
   };
 }
 
@@ -32,6 +34,8 @@ export function saleDtoToEntity(dto: SaleDto): Sale {
     currency: dto.currency || '',
     status: dto.status || '',
     note: dto.note || '',
+    // 01.W1: string JSON u objeto → string canónico; ausente si inválido
+    metadata: normalizeMetadataField(dto) ?? null,
   };
 }
 
@@ -48,5 +52,13 @@ export function createSaleInputToDto(input: CreateSaleInput): Record<string, unk
   if (input.seller) body.seller = input.seller;
   if (input.date) body.date = input.date;
   if (input.note) body.note = input.note;
+  if (input.metadata) {
+    // El API acepta metadata como objeto o se serializa; preferir parse JSON string
+    try {
+      body.metadata = JSON.parse(input.metadata) as unknown;
+    } catch {
+      body.metadata = input.metadata;
+    }
+  }
   return body;
 }

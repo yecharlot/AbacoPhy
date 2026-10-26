@@ -163,12 +163,13 @@ export function createMasterStore(deps: Deps) {
         throw err;
       }
     },
-    async addUser(input: CreateUserInput): Promise<void> {
+    async addUser(input: CreateUserInput): Promise<PlatformUser> {
       set({ saving: true, error: null, notice: null });
       try {
-        await deps.createUser.execute(input);
-        set({ saving: false, notice: 'Usuario creado' });
+        const user = await deps.createUser.execute(input);
+        set({ saving: false, notice: `Usuario «${user.username}» creado` });
         await this.loadAll();
+        return user;
       } catch (err) {
         set({ saving: false, error: messageOf(err, 'Error al crear el usuario') });
         throw err;

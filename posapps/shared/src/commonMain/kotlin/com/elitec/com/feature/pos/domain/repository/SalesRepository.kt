@@ -12,6 +12,12 @@ interface SalesRepository {
     /** Lista ventas del tenant (GET /pos/sales). Opcionalmente refresca cache local. */
     suspend fun getSales(): List<Sale>
 
+    /**
+     * Solo ventas devueltas por el servidor (sin merge de pending_local).
+     * Uso: reconciliación outbox / recovery — no debe matchear provisionales locales.
+     */
+    suspend fun getServerSales(): List<Sale>
+
     /** Ventas filtradas por punto de venta (unitId). Si unitId vacío, equivale a getSales(). */
     suspend fun getSalesByUnitId(unitId: String): List<Sale>
 

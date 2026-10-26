@@ -36,4 +36,7 @@ interface WarehouseDao {
 
     @Query("DELETE FROM unit_stocks")
     suspend fun clearUnitStocks()
+
+    @Query("SELECT * FROM unit_stocks WHERE unitId = :unitId AND productId = :productId LIMIT 1")
+    suspend fun getUnitStock(unitId: String, productId: String): UnitStockEntity?
 }

@@ -1,6 +1,7 @@
 package com.elitec.com.feature.pos.data.sync
 
 import com.elitec.com.feature.outbox.domain.usecases.ObservePendingOutboxCount
+import com.elitec.com.feature.pos.domain.caseuse.ReconcileOutboxSales
 import com.elitec.com.feature.pos.domain.caseuse.SyncPendingOutboxOps
 import com.elitec.com.infraestructure.logging.AbacoLog
 import com.elitec.com.infraestructure.logging.LogCategory
@@ -31,6 +32,7 @@ import kotlinx.coroutines.sync.withLock
 class OutboxSyncWorker(
     private val connectivity: ServerConnectivityGuard,
     private val syncPending: SyncPendingOutboxOps,
+    private val reconcileOutbox: ReconcileOutboxSales,
     private val observePendingCount: ObservePendingOutboxCount,
     private val eventStream: ServerEventStream,
 ) {
@@ -151,6 +153,18 @@ class OutboxSyncWorker(
 
     private suspend fun drainAndPublish() {
         drainMutex.withLock {
+            // 01.K3: cerrar ops ya confirmadas en servidor antes de reenviar
+            try {
+                val rec = reconcileOutbox.execute()
+                if (rec.closed > 0) {
+                    AbacoLog.i(
+                        LogCategory.POS,
+                        "Reconcile closed ${rec.closed}/${rec.scanned} outbox ops already on server",
+                    )
+                }
+            } catch (t: Throwable) {
+                AbacoLog.w(LogCategory.POS, "ReconcileOutboxSales error: ${t.message}")
+            }
             val pending = _pendingCount.value
             if (pending <= 0) {
                 _uiStatus.value = UiStatus.Online

@@ -9,6 +9,7 @@ import com.elitec.com.feature.pos.domain.entities.Sale
 import com.elitec.com.feature.pos.domain.entities.SaleLine
 import com.elitec.com.feature.pos.domain.entities.effectiveLineTotal
 import com.elitec.com.feature.pos.domain.repository.SalesRepository
+import com.elitec.com.feature.warehouse.domain.repository.WarehouseRepository
 import com.elitec.com.infraestructure.logging.AbacoLog
 import com.elitec.com.infraestructure.logging.LogCategory
 import kotlinx.serialization.json.Json
@@ -29,6 +30,7 @@ class RegisterSaleCaseUse(
     private val enqueue: EnqueueOutboxOp,
     private val syncOneShot: SyncSaleOutboxOneShot,
     private val sales: SalesRepository,
+    private val warehouse: WarehouseRepository,
 ) {
     suspend operator fun invoke(input: CreateSaleInput): Result<Sale> = runCatching {
         validate(input)
@@ -66,6 +68,17 @@ class RegisterSaleCaseUse(
 
         val provisional = provisionalSale(input, clientOpId, entry.id)
         sales.cacheSale(provisional)
+        // 02.K2: descontar stock local del PDV de forma provisional
+        val unitId = input.unitId?.trim().orEmpty()
+        if (unitId.isNotEmpty()) {
+            val deductions = input.lines
+                .groupBy { it.productId }
+                .mapValues { (_, ls) -> ls.sumOf { it.qty } }
+            runCatching { warehouse.applyProvisionalSaleOut(unitId, deductions) }
+                .onFailure {
+                    AbacoLog.w(LogCategory.POS, "provisional stock fail: ${it.message}")
+                }
+        }
         AbacoLog.step(
             LogCategory.POS,
             "RegisterSale",

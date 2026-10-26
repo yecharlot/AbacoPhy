@@ -21,11 +21,31 @@ class SaleRepositoryImpl(
         return try {
             val remoteList = remote.listSales()
             local.saveAll(remoteList)
-            remoteList.map { it.toDomain() }
+            // 02.K3: no perder ventas pending_local aún no confirmadas
+            mergeRemoteWithLocalPending(remoteList.map { it.toDomain() })
         } catch (t: Throwable) {
             AbacoLog.w(LogCategory.POS, "getSales remote fail → local cache: ${t.message}")
             local.getAll().map { it.toDomain() }
         }
+    }
+
+    override suspend fun getServerSales(): List<Sale> {
+        // Sin merge: solo verdad de servidor. No cae a local (eso falsearía reconcile).
+        val remoteList = remote.listSales()
+        local.saveAll(remoteList)
+        return remoteList.map { it.toDomain() }
+    }
+
+    private suspend fun mergeRemoteWithLocalPending(remote: List<Sale>): List<Sale> {
+        val pending = local.getAll().map { it.toDomain() }.filter { sale ->
+            sale.id.startsWith("local-") ||
+                sale.status.equals("pending_local", ignoreCase = true)
+        }
+        if (pending.isEmpty()) return remote
+        val remoteIds = remote.map { it.id }.toHashSet()
+        val extra = pending.filter { it.id !in remoteIds }
+        if (extra.isEmpty()) return remote
+        return (remote + extra).sortedByDescending { it.date }
     }
 
     override suspend fun getSalesByUnitId(unitId: String): List<Sale> {
