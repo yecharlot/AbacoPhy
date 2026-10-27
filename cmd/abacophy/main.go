@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/yecharlot/AbacoPhy/internal/api"
+	"github.com/yecharlot/AbacoPhy/internal/identity"
 	"github.com/yecharlot/AbacoPhy/internal/store"
 )
 
@@ -25,6 +26,12 @@ func main() {
 	if staticDir == "" {
 		staticDir = "static"
 	}
+
+	instance, err := identity.LoadOrCreate(dataDir)
+	if err != nil {
+		log.Fatal("instance identity:", err)
+	}
+	fmt.Printf("AbacoPhy instance: %s\n", instance.InstanceID)
 
 	st := store.New(dataDir)
 	if err := api.EnsureBootstrap(st); err != nil {
