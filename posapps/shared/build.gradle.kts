@@ -1,3 +1,4 @@
+import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -99,6 +100,28 @@ dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
     add("kspAndroid", libs.androidx.room3.compiler)
     add("kspJvm", libs.androidx.room3.compiler)
+}
+
+
+compose.desktop {
+    application {
+        mainClass = "MainKt"
+        nativeDistributions {
+            targetFormats(TargetFormat.Msi)
+            packageName = "AbacoPos"
+            packageVersion = "0.1.1"
+            description = "Application for Abaco POS"
+            copyright = "© 2026 elitec. All rights reserved."
+            vendor = "Elitec"
+            appResourcesRootDir.set(project.layout.projectDirectory.dir("resources"))
+           // licenseFile.set(project.file("LICENSE.txt"))
+        }
+        buildTypes.release.proguard {
+            configurationFiles.from(project.file("compose-desktop.pro"))
+            obfuscate.set(true)
+            optimize.set(false)
+        }
+    }
 }
 
 room3 {
