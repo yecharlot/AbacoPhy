@@ -42,7 +42,7 @@ func resolveBindAddress(getenv func(string) string) (host, port, address string)
 }
 
 func main() {
-	host, port, addr := resolveBindAddress(os.Getenv)
+	host, _, addr := resolveBindAddress(os.Getenv)
 
 	dataDir := os.Getenv("ABACOPHY_DATA")
 	if dataDir == "" {
