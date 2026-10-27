@@ -7,6 +7,7 @@ import com.elitec.com.feature.server_discovery.PlatformServerDiscovery
 import com.elitec.com.feature.settings.domain.ProbeApiConnection
 import com.elitec.com.infraestructure.network.ApiConfig
 import com.elitec.com.infraestructure.settings.AppSettingsRepository
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,13 +39,32 @@ class InitialSetupViewModel(
     }
 
     fun searchServers(onConfigured: () -> Unit) {
-        if (_state.value.discovering || _state.value.testing) return
+        if (_state.value.discovering || _state.value.testing) {
+            Napier.w("SEARCH_IGNORED already busy", tag = "AbacoPhy-Setup")
+            return
+        }
         viewModelScope.launch {
+            Napier.i("SEARCH_START source=InitialSetupScreen", tag = "AbacoPhy-Setup")
             _state.update { it.copy(discovering = true, error = null, successMessage = null, discoveredServers = emptyList()) }
-            val candidates = runCatching { discovery.discover() }.getOrElse { emptyList() }
-            val compatible = candidates.distinctBy { it.baseUrl }.filter { candidate ->
-                probe.validateDiscovered(candidate.baseUrl).isSuccess
+            val candidates = runCatching {
+                discovery.discover().also {
+                    Napier.i("MDNS_FINISHED candidates=${it.size}", tag = "AbacoPhy-Setup")
+                }
+            }.getOrElse {
+                Napier.e("MDNS_THROW type=${it::class.simpleName} message=${it.message}", it, tag = "AbacoPhy-Setup")
+                emptyList()
             }
+            val compatible = candidates.distinctBy { it.baseUrl }.filter { candidate ->
+                val result = probe.validateDiscovered(candidate.baseUrl)
+                if (result.isSuccess) {
+                    Napier.i("CANDIDATE_ACCEPTED name=${candidate.name} url=${candidate.baseUrl}", tag = "AbacoPhy-Setup")
+                    true
+                } else {
+                    Napier.w("CANDIDATE_REJECTED name=${candidate.name} url=${candidate.baseUrl} reason=${result.exceptionOrNull()?.message}", tag = "AbacoPhy-Setup")
+                    false
+                }
+            }
+            Napier.i("SEARCH_FINISHED rawCandidates=${candidates.size} compatible=${compatible.size}", tag = "AbacoPhy-Setup")
             when (compatible.size) {
                 0 -> _state.update {
                     it.copy(
