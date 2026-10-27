@@ -107,6 +107,8 @@ class InitialSetupViewModel(
                     "SERVER_FOUND name=${candidate.name} url=${candidate.baseUrl}",
                     tag = "AbacoPhy-Setup",
                 )
+                // Keep the discovered state visible before showing the connection attempt.
+                delay(500)
                 _state.update {
                     it.copy(
                         phase = SetupConnectionPhase.CONNECTING,
@@ -160,6 +162,8 @@ class InitialSetupViewModel(
                     statusDetail = "${server.name} · ${server.host}:${server.port}",
                 )
             }
+            // Let the user see which server was selected before testing it.
+            delay(500)
             _state.update {
                 it.copy(
                     phase = SetupConnectionPhase.CONNECTING,
