@@ -12,4 +12,6 @@ data class OrchestratorState(
     val lastError: String? = null,
     val logLines: List<LogLine> = emptyList(),
     val lanUrls: List<String> = emptyList(),
+    val discoveryActive: Boolean = false,
+    val connectedClients: Int = 0,
 )

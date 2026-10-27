@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -65,6 +66,22 @@ func main() {
 	}
 
 	handler := api.WithDiscoveryInfo(api.NewServer(st, staticDir).Handler(), instance.InstanceID)
+	// Record one event per LAN IP when a remote client reaches the REST API.
+	// The launcher consumes this log to expose live client connection status.
+	apiHandler := handler
+	var seenClients sync.Map
+	handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host, _, splitErr := net.SplitHostPort(r.RemoteAddr)
+		if splitErr == nil && strings.HasPrefix(r.URL.Path, "/api/") {
+			ip := net.ParseIP(host)
+			if ip != nil && !ip.IsLoopback() && !ip.IsUnspecified() {
+				if _, loaded := seenClients.LoadOrStore(ip.String(), struct{}{}); !loaded {
+					log.Printf("CLIENT_CONNECTED remote=%s path=%s", ip.String(), r.URL.Path)
+				}
+			}
+		}
+		apiHandler.ServeHTTP(w, r)
+	})
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Fatal("listen:", err)

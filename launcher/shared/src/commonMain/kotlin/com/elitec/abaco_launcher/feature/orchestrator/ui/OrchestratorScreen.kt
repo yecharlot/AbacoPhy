@@ -113,6 +113,7 @@ fun OrchestratorScreen(
                     TaskStep("port", "Resolver puerto libre"),
                     TaskStep("backend", "Lanzar backend Go"),
                     TaskStep("health", "Esperar health del API"),
+                    TaskStep("discovery", "Anunciar servidor en la red (mDNS)"),
                     TaskStep("browser", "Abrir navegador"),
                 ),
             ),
@@ -317,6 +318,32 @@ fun OrchestratorScreen(
                             )
                         }
                     }
+                    if (state.backendRunning) {
+                        Spacer(Modifier.height(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(BgSurface2.copy(alpha = 0.6f))
+                                .border(1.dp, if (state.discoveryActive) AccentGreen.copy(alpha = 0.35f) else AccentYellow.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                                .padding(10.dp),
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    if (state.discoveryActive) "● DISCOVERY mDNS ACTIVO" else "◌ DISCOVERY mDNS PENDIENTE",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (state.discoveryActive) AccentGreen else AccentYellow,
+                                )
+                                Text("Servicio: _abacophy._tcp.local", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = TextMain)
+                                Text(
+                                    "Clientes conectados desde LAN: ${state.connectedClients}",
+                                    fontSize = 10.sp,
+                                    color = if (state.connectedClients > 0) AccentGreen else TextSubtle,
+                                )
+                            }
+                        }
+                    }
 
                     // URLs de acceso (Local + LAN)
                     if (state.backendRunning) {
@@ -440,11 +467,49 @@ fun OrchestratorScreen(
                                 scope.launch {
                                     try {
                                         val preferred = parsePreferredPort()
-                                        state = onRun(
+                                        val result = onRun(
                                             preferred,
                                             { s -> state = s },
                                             { raw ->
                                                 logLines = logLines + parseLogLine(raw)
+                                                when {
+                                                    raw.contains("Discovery:") && raw.contains("_abacophy._tcp") -> {
+                                                        state = state.copy(
+                                                            discoveryActive = true,
+                                                            steps = state.steps.map {
+                                                                if (it.id == "discovery") it.copy(
+                                                                    status = TaskStepStatus.Success,
+                                                                    detail = "Anuncio mDNS registrado",
+                                                                ) else it
+                                                            },
+                                                        )
+                                                    }
+                                                    raw.contains("mDNS discovery unavailable", ignoreCase = true) ||
+                                                        raw.contains("discovery disabled", ignoreCase = true) -> {
+                                                        state = state.copy(
+                                                            discoveryActive = false,
+                                                            steps = state.steps.map {
+                                                                if (it.id == "discovery") it.copy(
+                                                                    status = TaskStepStatus.Failed,
+                                                                    detail = "No se pudo activar mDNS; revisar consola",
+                                                                ) else it
+                                                            },
+                                                        )
+                                                    }
+                                                    raw.contains("CLIENT_CONNECTED") -> {
+                                                        state = state.copy(connectedClients = state.connectedClients + 1)
+                                                    }
+                                                }
+                                            },
+                                        )
+                                        state = result.copy(
+                                            discoveryActive = state.discoveryActive,
+                                            connectedClients = state.connectedClients,
+                                            steps = result.steps.map { resultStep ->
+                                                val observed = state.steps.firstOrNull { it.id == resultStep.id }
+                                                if (resultStep.id == "discovery" &&
+                                                    observed?.status in listOf(TaskStepStatus.Success, TaskStepStatus.Failed)
+                                                ) observed else resultStep
                                             },
                                         )
                                     } catch (e: Exception) {
@@ -481,7 +546,7 @@ fun OrchestratorScreen(
                             onClick = {
                                 onStop()
                                 logLines = logLines + LogLine(nowTs(), "Backend detenido por el usuario.", LogLevel.WARN)
-                                state = state.copy(backendRunning = false, lastError = null)
+                                state = state.copy(backendRunning = false, discoveryActive = false, connectedClients = 0, lastError = null)
                             },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.outlinedButtonColors(

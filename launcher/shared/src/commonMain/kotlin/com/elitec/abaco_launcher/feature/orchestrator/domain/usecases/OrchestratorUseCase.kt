@@ -27,6 +27,7 @@ class OrchestratorUseCase(
         "port" to "Resolver puerto libre",
         "backend" to "Lanzar backend Go",
         "health" to "Esperar health del API",
+        "discovery" to "Anunciar servidor en la red (mDNS)",
         "browser" to "Abrir navegador",
     )
 
@@ -139,11 +140,13 @@ class OrchestratorUseCase(
                 )
             }
             updateStep("health", TaskStepStatus.Success, "API listo")
+            updateStep("discovery", TaskStepStatus.Running, "Esperando confirmación del anuncio mDNS")
             val ips = lanIpResolver()
             lanUrls = ips.map { "http://$it:$port" }
             emit(backendRunning = true)
             onLog("✅ Health OK")
             onLog("🌐 URL Local:      $baseUrl/")
+            onLog("🔎 Discovery esperado: _abacophy._tcp.local; esperando confirmación del backend")
             if (lanUrls.isNotEmpty()) {
                 lanUrls.forEach { u ->
                     onLog("🌐 URL Red (LAN):  $u/")

@@ -76,7 +76,7 @@ class InitialSetupViewModel(
                         it.copy(
                             testing = false,
                             urlInput = normalized,
-                            successMessage = "Conexión correcta · \${server.name}",
+                            successMessage = "Conexión correcta · ${server.name}",
                             discoveredServers = emptyList(),
                         )
                     }
