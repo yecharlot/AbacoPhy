@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,7 +26,7 @@ func TestWithDiscoveryInfoEnrichesLegacyInfo(t *testing.T) {
 	}
 
 	var body map[string]any
-	if err := decodeJSON(res.Body.Bytes(), &body); err != nil {
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
 
