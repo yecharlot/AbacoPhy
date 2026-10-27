@@ -41,6 +41,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -124,6 +126,7 @@ fun OrchestratorScreen(
     var portText by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+    val clipboard = LocalClipboardManager.current
 
     // Auto-scroll al final cuando llegan nuevos logs
     LaunchedEffect(logLines.size) {
@@ -637,6 +640,21 @@ fun OrchestratorScreen(
                                     color = TextSubtle.copy(alpha = 0.5f),
                                 )
                             }
+                        }
+                        TextButton(
+                            onClick = {
+                                val content = logLines.joinToString("\\n") { line ->
+                                    "[${line.timestamp}][${line.level.name}] ${line.text}"
+                                }
+                                clipboard.setText(AnnotatedString(content))
+                            },
+                            enabled = logLines.isNotEmpty(),
+                        ) {
+                            Text(
+                                "Copiar logs",
+                                fontSize = 11.sp,
+                                color = if (logLines.isNotEmpty()) Accent else TextSubtle.copy(alpha = 0.3f),
+                            )
                         }
                         TextButton(
                             onClick = { logLines = emptyList() },
