@@ -21,8 +21,8 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "com.elitec.abaco_launcher"
-            packageVersion = "1.0.0"
+            packageName = "AbacoLauncher"
+            packageVersion = "0.1.1"
         }
     }
 }
