@@ -507,9 +507,18 @@ fun OrchestratorScreen(
                                             connectedClients = state.connectedClients,
                                             steps = result.steps.map { resultStep ->
                                                 val observed = state.steps.firstOrNull { it.id == resultStep.id }
-                                                if (resultStep.id == "discovery" &&
-                                                    observed?.status in listOf(TaskStepStatus.Success, TaskStepStatus.Failed)
-                                                ) observed else resultStep
+
+                                                if (
+                                                    resultStep.id == "discovery" &&
+                                                    observed?.status in listOf(
+                                                        TaskStepStatus.Success,
+                                                        TaskStepStatus.Failed,
+                                                    )
+                                                ) {
+                                                    observed ?: resultStep
+                                                } else {
+                                                    resultStep
+                                                }
                                             },
                                         )
                                     } catch (e: Exception) {
