@@ -149,7 +149,7 @@ func main() {
 			log.Printf("EVENT=discovery.register_failed service=%s port=%d error=%q", discovery.ServiceType, actualPort, err.Error())
 			log.Printf("mDNS discovery unavailable (HTTP server remains active): %v", err)
 		} else {
-			log.Printf("EVENT=discovery.advertised service=%s domain=local. name=%q port=%d txt=%q", discovery.ServiceType, discovery.DefaultServiceName, actualPort, discovery.TXTRecords(discovery.Config{
+			log.Printf("EVENT=discovery.advertised service=%s domain=local. name=%q port=%d txt=%v", discovery.ServiceType, discovery.DefaultServiceName, actualPort, discovery.TXTRecords(discovery.Config{
 				InstanceID: instance.InstanceID, Name: discovery.DefaultServiceName, Version: discovery.ServerVersion,
 				APIVersion: discovery.APIVersion, Web: true, PairingRequired: false,
 			}))
