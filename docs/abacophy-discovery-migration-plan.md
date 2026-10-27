@@ -44,7 +44,7 @@ Android POS / otros clientes
 |---|---|---|
 | 1. Identidad persistente | ✅ Hecha | `feat(server): add persistent AbacoPhy instance identity` + inicialización del servidor |
 | 2. `/api/v1/info` discovery metadata | ✅ Hecha | `feat(api): expose discovery metadata` |
-| 3. Host/puerto configurable | ⬜ Pendiente | — |
+| 3. Host/puerto configurable | ✅ Hecha | `feat(server): configure bind host and port` |
 | 4. mDNS/DNS-SD en Go | ⬜ Pendiente | — |
 | 5. Integración discovery en launcher | ⬜ Pendiente | — |
 | 6. Dominio discovery en POS | ⬜ Pendiente | — |
@@ -198,36 +198,52 @@ No se exponen:
 
 ---
 
-# Fase 3 — Separar host y puerto ⬜
+# Fase 3 — Separar host y puerto ✅
 
-Formalizar:
+## Implementado
+
+Configuración integrada en `cmd/abacophy/main.go` mediante `resolveBindAddress`.
+
+Variables:
+
+- `ABACOPHY_HOST`: interfaz/dirección de escucha.
+- `ABACOPHY_PORT`: puerto preferido.
+- `PORT`: fallback legacy para no romper el launcher actual.
+
+Precedencia efectiva:
 
 ```text
-ABACOPHY_HOST
-ABACOPHY_PORT
-```
-
-Compatibilidad:
-
-```text
+ABACOPHY_HOST → 0.0.0.0
 ABACOPHY_PORT → PORT → 8090
 ```
 
-Default LAN previsto:
+El host por defecto es `0.0.0.0` para permitir conexiones LAN. Para restringir el servidor a la propia máquina:
 
 ```text
-0.0.0.0
+ABACOPHY_HOST=127.0.0.1
 ```
 
-Debe existir una opción para restringir el servidor a localhost.
+Se usa `net.JoinHostPort` para formar correctamente la dirección de escucha, incluidos hosts IPv6. La identidad persistente y los endpoints API no cambian en esta fase.
+
+Pruebas añadidas en `cmd/abacophy/main_test.go`:
+
+- valores por defecto;
+- compatibilidad con `PORT`;
+- prioridad de `ABACOPHY_PORT` sobre `PORT`;
+- configuración explícita del host;
+- modo solo-localhost;
+- formato de dirección IPv6.
 
 ## Aceptación
 
-- [ ] Launcher continúa funcionando.
-- [ ] `PORT` continúa funcionando.
-- [ ] `ABACOPHY_PORT` funciona.
-- [ ] `ABACOPHY_HOST` funciona.
-- [ ] Puede desactivarse la exposición LAN.
+- [x] Se conserva la variable `PORT` que utiliza el launcher existente.
+- [x] `ABACOPHY_PORT` tiene prioridad sobre `PORT`.
+- [x] `ABACOPHY_HOST` permite elegir la interfaz de escucha.
+- [x] `0.0.0.0` permite exposición LAN por defecto.
+- [x] `127.0.0.1` permite restringir la escucha a localhost.
+- [x] La configuración tiene pruebas unitarias escritas.
+
+**Validación pendiente en entorno Go:** las pruebas están añadidas, pero todavía no se ha confirmado una ejecución exitosa de `go test` en este entorno.
 
 ---
 
@@ -530,7 +546,7 @@ No sustituir inicialmente la UI de tareas/logs existente.
 
 1. `feat(server): add persistent AbacoPhy instance identity` ✅
 2. `feat(api): expose discovery metadata` ✅
-3. `feat(server): add configurable bind host`
+3. `feat(server): configure bind host and port` ✅
 4. `feat(discovery): advertise AbacoPhy through mdns`
 5. `feat(launcher): expose discovery status`
 6. `feat(pos): add AbacoPhy discovery domain`
@@ -550,7 +566,7 @@ No sustituir inicialmente la UI de tareas/logs existente.
    ↓
 2. /api/v1/info                  ✅
    ↓
-3. host + port configuration     ⬜
+3. host + port configuration     ✅
    ↓
 4. mDNS advertisement            ⬜
    ↓
@@ -621,7 +637,7 @@ El launcher actual no se desecha: será el **host/lifecycle manager**. Go será 
 - [x] Estado actual contrastado con `launcher-app`.
 - [x] Fase 1 — Instance identity.
 - [x] Fase 2 — Discovery metadata.
-- [ ] Fase 3 — Host/port configuration.
+- [x] Fase 3 — Host/port configuration.
 - [ ] Fase 4 — mDNS.
 - [ ] Fase 5 — Launcher integration.
 - [ ] Fase 6 — POS discovery domain.
