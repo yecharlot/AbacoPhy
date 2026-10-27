@@ -476,7 +476,7 @@ fun OrchestratorScreen(
                                             { raw ->
                                                 logLines = logLines + parseLogLine(raw)
                                                 when {
-                                                    raw.contains("Discovery:") && raw.contains("_abacophy._tcp") -> {
+                                                    (raw.contains("Discovery:") && raw.contains("_abacophy._tcp")) || raw.contains("EVENT=discovery.advertised") -> {
                                                         state = state.copy(
                                                             discoveryActive = true,
                                                             steps = state.steps.map {
@@ -488,7 +488,9 @@ fun OrchestratorScreen(
                                                         )
                                                     }
                                                     raw.contains("mDNS discovery unavailable", ignoreCase = true) ||
-                                                        raw.contains("discovery disabled", ignoreCase = true) -> {
+                                                        raw.contains("discovery disabled", ignoreCase = true) ||
+                                                        raw.contains("EVENT=discovery.register_failed") ||
+                                                        raw.contains("EVENT=discovery.disabled") -> {
                                                         state = state.copy(
                                                             discoveryActive = false,
                                                             steps = state.steps.map {
@@ -643,7 +645,7 @@ fun OrchestratorScreen(
                         }
                         TextButton(
                             onClick = {
-                                val content = logLines.joinToString("\\n") { line ->
+                                val content = logLines.joinToString("\n") { line ->
                                     "[${line.timestamp}][${line.level.name}] ${line.text}"
                                 }
                                 clipboard.setText(AnnotatedString(content))
