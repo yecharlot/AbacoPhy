@@ -1,15 +1,20 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/yecharlot/AbacoPhy/internal/api"
+	"github.com/yecharlot/AbacoPhy/internal/discovery"
 	"github.com/yecharlot/AbacoPhy/internal/identity"
 	"github.com/yecharlot/AbacoPhy/internal/store"
 )
@@ -59,13 +64,25 @@ func main() {
 		log.Fatal("bootstrap:", err)
 	}
 
-	srv := api.NewServer(st, staticDir)
-	fmt.Printf("ÁbacoPhy listening on %s\n", addr)
+	handler := api.WithDiscoveryInfo(api.NewServer(st, staticDir).Handler(), instance.InstanceID)
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatal("listen:", err)
+	}
+	actualPort := listener.Addr().(*net.TCPAddr).Port
+	httpServer := &http.Server{Handler: handler}
 
-	// A wildcard bind accepts loopback and LAN connections. A specific host
-	// (for example 127.0.0.1) restricts the server to that interface.
+	// Start serving before announcing the service. The listener is already bound,
+	// so clients that discover it can immediately reach the HTTP server.
+	go func() {
+		if err := httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
+			log.Printf("HTTP server: %v", err)
+		}
+	}()
+
+	fmt.Printf("ÁbacoPhy listening on %s\n", listener.Addr().String())
 	if isWildcardHost(host) {
-		fmt.Printf("  App (Local):  http://localhost:%s/\n", port)
+		fmt.Printf("  App (Local):  http://localhost:%d/\n", actualPort)
 		if ifaces, err := net.Interfaces(); err == nil {
 			for _, iface := range ifaces {
 				if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
@@ -77,22 +94,49 @@ func main() {
 				}
 				for _, a := range addrs {
 					if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
-						fmt.Printf("  App (LAN IP): http://%s:%s/\n", ipnet.IP.String(), port)
+						fmt.Printf("  App (LAN IP): http://%s:%d/\n", ipnet.IP.String(), actualPort)
 					}
 				}
 			}
 		}
 	} else {
-		fmt.Printf("  App:          http://%s/\n", net.JoinHostPort(host, port))
+		fmt.Printf("  App:          http://%s/\n", net.JoinHostPort(host, fmt.Sprint(actualPort)))
 	}
-	fmt.Printf("  ANS alias:    http://localhost:%s/w/abacophy.app.ans\n", port)
-	fmt.Printf("  API:          http://localhost:%s/api/v1/info\n", port)
+	fmt.Printf("  ANS alias:    http://localhost:%d/w/abacophy.app.ans\n", actualPort)
+	fmt.Printf("  API:          http://localhost:%d/api/v1/info\n", actualPort)
 	fmt.Println("  Master:       master / AbacoPhy#Master1")
 	fmt.Println("  Admin:        admin / admin123")
 
-	handler := api.WithDiscoveryInfo(srv.Handler(), instance.InstanceID)
-	if err := http.ListenAndServe(addr, handler); err != nil {
-		log.Fatal(err)
+	var mdnsServer interface{ Shutdown() }
+	if discovery.ShouldAdvertise(host) {
+		mdnsServer, err = discovery.Advertise(discovery.Config{
+			InstanceID:      instance.InstanceID,
+			Name:            discovery.DefaultServiceName,
+			Version:         discovery.ServerVersion,
+			APIVersion:      discovery.APIVersion,
+			Web:             true,
+			PairingRequired: false,
+		}, actualPort)
+		if err != nil {
+			log.Printf("mDNS discovery unavailable (HTTP server remains active): %v", err)
+		} else {
+			fmt.Printf("  Discovery:    _abacophy._tcp.local (port %d)\n", actualPort)
+		}
+	} else {
+		log.Printf("mDNS discovery disabled for local-only bind host %q", host)
+	}
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	<-stop
+
+	if mdnsServer != nil {
+		mdnsServer.Shutdown()
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := httpServer.Shutdown(ctx); err != nil {
+		log.Printf("HTTP shutdown: %v", err)
 	}
 }
 

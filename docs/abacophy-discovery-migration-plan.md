@@ -45,7 +45,7 @@ Android POS / otros clientes
 | 1. Identidad persistente | ✅ Hecha | `feat(server): add persistent AbacoPhy instance identity` + inicialización del servidor |
 | 2. `/api/v1/info` discovery metadata | ✅ Hecha | `feat(api): expose discovery metadata` |
 | 3. Host/puerto configurable | ✅ Hecha | `feat(server): configure bind host and port` |
-| 4. mDNS/DNS-SD en Go | ⬜ Pendiente | — |
+| 4. mDNS/DNS-SD en Go | 🟡 Implementada; pendiente de validación Go/LAN | `feat(discovery): advertise AbacoPhy through mdns` (en preparación) |
 | 5. Integración discovery en launcher | ⬜ Pendiente | — |
 | 6. Dominio discovery en POS | ⬜ Pendiente | — |
 | 7. Android NSD | ⬜ Pendiente | — |
@@ -247,7 +247,7 @@ Pruebas añadidas en `cmd/abacophy/main_test.go`:
 
 ---
 
-# Fase 4 — mDNS / DNS-SD ⬜
+# Fase 4 — mDNS / DNS-SD 🟡 Implementación añadida; validación pendiente
 
 Servicio:
 
@@ -274,11 +274,11 @@ pairing=0|1
 
 Reglas:
 
-- [ ] Nunca publicar secretos en TXT.
-- [ ] TXT no es fuente única de verdad.
-- [ ] Resolver servicio y confirmar mediante `/api/v1/info`.
-- [ ] Publicar solo después de que HTTP esté listo.
-- [ ] Retirar anuncio al cerrar el servidor.
+- [x] Nunca publicar secretos en TXT.
+- [x] TXT no es fuente única de verdad.
+- [x] El anuncio publica solo metadatos; el cliente debe confirmar mediante `/api/v1/info` (validación del cliente en fases posteriores).
+- [x] El listener HTTP se enlaza y comienza a servir antes de registrar mDNS.
+- [x] El anuncio se retira durante el cierre ordenado del proceso.
 
 ---
 
@@ -591,7 +591,7 @@ No sustituir inicialmente la UI de tareas/logs existente.
 
 - [x] `instanceId` persistente.
 - [x] `/api/v1/info` devuelve identidad y `apiVersion`.
-- [ ] Go anuncia `_abacophy._tcp.local`.
+- [ ] Go anuncia `_abacophy._tcp.local` (implementación añadida; falta validar en entorno Go/LAN).
 - [ ] Launcher continúa sin regresiones.
 - [ ] Android descubre automáticamente.
 - [ ] Una instancia compatible conecta automáticamente.
@@ -638,7 +638,7 @@ El launcher actual no se desecha: será el **host/lifecycle manager**. Go será 
 - [x] Fase 1 — Instance identity.
 - [x] Fase 2 — Discovery metadata.
 - [x] Fase 3 — Host/port configuration.
-- [ ] Fase 4 — mDNS.
+- [ ] Fase 4 — mDNS (pendiente de validación Go/LAN).
 - [ ] Fase 5 — Launcher integration.
 - [ ] Fase 6 — POS discovery domain.
 - [ ] Fase 7 — Android NSD.
