@@ -1,3 +1,4 @@
+import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -98,6 +99,22 @@ dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
     add("kspAndroid", libs.androidx.room3.compiler)
     add("kspJvm", libs.androidx.room3.compiler)
+}
+
+compose.desktop {
+    application {
+        mainClass = "MainKt"
+        nativeDistributions {
+            targetFormats(TargetFormat.Msi, TargetFormat.Exe)
+            packageName = "AbacoPOS"
+            description = "Compose Multiplatform App"
+            copyright = "© 2026 Elitec. All rights reserved."
+            vendor = "Elitec"
+            packageVersion = "0.1.1"
+
+            appResourcesRootDir.set(project.layout.projectDirectory.dir("resources"))
+        }
+    }
 }
 
 room3 {
