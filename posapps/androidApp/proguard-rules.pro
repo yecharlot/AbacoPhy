@@ -154,7 +154,7 @@
 -keep class arrow.fx.** { *; }
 -dontwarn arrow.**
 
-# Charts / tooltip / composive (por si usan reflection)
+# Charts / tooltip / window-size-class (por si usan reflection)
 -dontwarn io.github.**
 -dontwarn com.github.**
 

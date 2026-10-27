@@ -1,5 +1,7 @@
 package com.elitec.com.feature.stats.ui.screen
 
+import com.elitec.com.infraestructure.ui.responsive.AppDeviceLayout
+import com.elitec.com.infraestructure.ui.responsive.rememberAppDeviceLayout
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -55,8 +57,6 @@ import com.elitec.com.feature.stats.ui.components.UnitsCard
 import com.elitec.com.feature.stats.ui.models.StatsEvent
 import com.elitec.com.feature.stats.ui.models.StatsUiState
 import com.elitec.com.feature.stats.ui.viewmodels.StatsViewModel
-import com.gursimar.composive.responsive.core.DeviceConfiguration
-import com.gursimar.composive.responsive.core.rememberDeviceConfiguration
 import org.koin.compose.viewmodel.koinViewModel
 
 private val Gap = 16.dp
@@ -113,13 +113,13 @@ fun StatsScreen(state: StatsUiState, onEvent: (StatsEvent) -> Unit, modifier: Mo
 
 @Composable
 private fun StatsLayout(state: StatsUiState, onEvent: (StatsEvent) -> Unit) {
-    val deviceConfig = rememberDeviceConfiguration()
+    val deviceConfig = rememberAppDeviceLayout()
     when (deviceConfig) {
-        DeviceConfiguration.MOBILE_PORTRAIT -> MobilePortrait(state, onEvent)
-        DeviceConfiguration.MOBILE_LANDSCAPE -> MobileLandscape(state, onEvent)
-        DeviceConfiguration.TABLET_PORTRAIT -> TabletPortrait(state, onEvent)
-        DeviceConfiguration.TABLET_LANDSCAPE -> TabletLandscape(state, onEvent)
-        DeviceConfiguration.DESKTOP -> Desktop(state, onEvent)
+        AppDeviceLayout.MobilePortrait -> MobilePortrait(state, onEvent)
+        AppDeviceLayout.MobileLandscape -> MobileLandscape(state, onEvent)
+        AppDeviceLayout.TabletPortrait -> TabletPortrait(state, onEvent)
+        AppDeviceLayout.TabletLandscape -> TabletLandscape(state, onEvent)
+        AppDeviceLayout.Desktop -> Desktop(state, onEvent)
     }
 }
 

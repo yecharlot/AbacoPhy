@@ -1,5 +1,7 @@
 package com.elitec.com.infraestructure.ui.screen
 
+import com.elitec.com.infraestructure.ui.responsive.AppDeviceLayout
+import com.elitec.com.infraestructure.ui.responsive.rememberAppDeviceLayout
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -90,7 +92,7 @@ fun MainScreen(
     salesVm: SalesViewModel = koinViewModel(),
 ) {
 
-    val deviceConfiguration = rememberDeviceConfiguration()
+    val deviceConfiguration = rememberAppDeviceLayout()
 
     val scrollState = rememberScrollState()
 
@@ -136,7 +138,7 @@ fun MainScreen(
                 )
             }
             when (deviceConfiguration) {
-                DeviceConfiguration.MOBILE_PORTRAIT, DeviceConfiguration.TABLET_PORTRAIT -> {
+                AppDeviceLayout.MobilePortrait, AppDeviceLayout.TabletPortrait -> {
                     Column (Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         StockCard(
                             icon = Icons.Default.RemoveShoppingCart,
@@ -167,7 +169,7 @@ fun MainScreen(
                         )
                     }
                 }
-                DeviceConfiguration.MOBILE_LANDSCAPE -> {
+                AppDeviceLayout.MobileLandscape -> {
                     Column (Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row (Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                             StockCard(
@@ -200,7 +202,7 @@ fun MainScreen(
                         )
                     }
                 }
-                DeviceConfiguration.TABLET_LANDSCAPE,DeviceConfiguration.DESKTOP -> {
+                AppDeviceLayout.TabletLandscape,AppDeviceLayout.Desktop -> {
                     Row (Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         StockCard(
                             icon = Icons.Default.RemoveShoppingCart,
