@@ -1,5 +1,8 @@
 package com.elitec.abaco_launcher
 
+import java.io.File
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -9,7 +12,22 @@ import com.elitec.abaco_launcher.feature.orchestrator.data.DesktopBrowserLaunche
 import com.elitec.abaco_launcher.feature.orchestrator.di.OrchestratorModule
 import com.elitec.abaco_launcher.infrastructure.lifecycle.ProcessShutdown
 import com.elitec.abaco_launcher.infrastructure.lifecycle.SingleInstanceLock
+import com.elitec.abaco_launcher.infrastructure.config.LauncherPaths
 import javax.swing.JOptionPane
+
+private val launcherLogLock = Any()
+private val launcherLogTimestamp = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
+
+private fun persistLauncherLog(line: String) {
+    runCatching {
+        val dataDir = LauncherPaths.resolveDataDir()
+        if (!dataDir.exists()) dataDir.mkdirs()
+        val logFile = File(dataDir, "launcher.log")
+        synchronized(launcherLogLock) {
+            logFile.appendText("${LocalDateTime.now().format(launcherLogTimestamp)} $line\n", Charsets.UTF_8)
+        }
+    }
+}
 
 fun main() = application {
     if (!SingleInstanceLock.tryAcquire()) {
@@ -46,7 +64,10 @@ fun main() = application {
                 useCase.run(
                     preferredPort = preferredPort,
                     onState = onState,
-                    onLog = onLog,
+                    onLog = { line ->
+                        persistLauncherLog(line)
+                        onLog(line)
+                    },
                 )
             },
             onStop = { useCase.stopBackend() },
