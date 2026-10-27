@@ -46,7 +46,7 @@ Android POS / otros clientes
 | 2. `/api/v1/info` discovery metadata | ✅ Hecha | `feat(api): expose discovery metadata` |
 | 3. Host/puerto configurable | ✅ Hecha | `feat(server): configure bind host and port` |
 | 4. mDNS/DNS-SD en Go | 🟡 Implementada; pendiente de validación Go/LAN | `feat(discovery): advertise AbacoPhy through mdns` (en preparación) |
-| 5. Integración discovery en launcher | ⬜ Pendiente | — |
+| 5. Integración discovery en launcher | 🟡 Implementación añadida; CI/ejecución pendiente | `OrchestratorUseCase.kt`, `OrchestratorScreen.kt` |
 | 6. Dominio discovery en POS | 🟡 Base implementada | `feature/server_discovery/PlatformServerDiscovery.kt` |
 | 7. Android NSD | 🟡 Implementado; validación Android/LAN pendiente | `PlatformServerDiscovery.android.kt` |
 | 8. Auto-conexión | 🟡 Flujo inicial implementado; validación pendiente | `InitialSetupViewModel.kt` |
@@ -55,7 +55,7 @@ Android POS / otros clientes
 | 11. Pairing y seguridad | ⬜ Pendiente | — |
 | 12. QR fallback | ⬜ Pendiente | — |
 | 13. Compatibilidad de API en POS | ⬜ Pendiente | — |
-| 14. UI de discovery del launcher | ⬜ Pendiente | — |
+| 14. UI de discovery del launcher | 🟡 Estado mDNS y clientes LAN añadidos; CI pendiente | `OrchestratorScreen.kt` |
 | 15. Pruebas de integración | ⬜ Pendiente | — |
 
 **Regla:** una fase solo se marca como hecha cuando su implementación real está en la rama. Diseño aprobado no equivale a implementación.
@@ -282,13 +282,15 @@ Reglas:
 
 ---
 
-# Fase 5 — Integración con launcher ⬜
+# Fase 5 — Integración con launcher 🟡 Implementación añadida; validar CI/runtime
 
 Mantener:
 
 ```text
-ResolvePort → LaunchGo → Health → Browser
+ResolvePort → LaunchGo → Health → Discovery → Browser
 ```
+
+El orquestador añade un paso explícito de anuncio mDNS. La consola distingue `Discovery: _abacophy._tcp.local`, fallo de registro y `CLIENT_CONNECTED` cuando una IP de la LAN alcanza la API. El contador representa IPs LAN únicas vistas desde el arranque del proceso, no sesiones autenticadas.
 
 Evolucionar a:
 
@@ -505,24 +507,9 @@ Después podrá evolucionarse a rangos de compatibilidad.
 
 ---
 
-# Fase 14 — UI del launcher ⬜
+# Fase 14 — UI del launcher 🟡 Implementación añadida; validar CI
 
-Añadir a la pantalla existente:
-
-```text
-AbacoPhy Oficina
-
-● Servidor activo
-● Discovery activo
-
-Red
-192.168.x.x
-
-[ Abrir aplicación ]
-[ Mostrar QR ]
-```
-
-No sustituir inicialmente la UI de tareas/logs existente.
+Añadido a la UI existente sin sustituir los logs ni los controles: estado `DISCOVERY mDNS ACTIVO/PENDIENTE`, nombre del servicio `_abacophy._tcp.local` y contador `Clientes conectados desde LAN`. El backend registra una sola línea `CLIENT_CONNECTED` por IP remota que accede a `/api/`, excluyendo loopback. QR sigue pendiente.
 
 ---
 
@@ -644,7 +631,7 @@ El launcher actual no se desecha: será el **host/lifecycle manager**. Go será 
 - [x] Fase 2 — Discovery metadata.
 - [x] Fase 3 — Host/port configuration.
 - [ ] Fase 4 — mDNS (pendiente de validación Go/LAN).
-- [ ] Fase 5 — Launcher integration.
+- [ ] Fase 5 — Launcher integration (implementación añadida; CI pendiente).
 - [x] Fase 6 — POS discovery domain (base implementada; compilación pendiente).
 - [ ] Fase 7 — Android NSD (implementación añadida; validación pendiente).
 - [ ] Fase 8 — Auto-connect (implementación inicial añadida; validación pendiente).
@@ -653,5 +640,5 @@ El launcher actual no se desecha: será el **host/lifecycle manager**. Go será 
 - [ ] Fase 11 — Pairing/security.
 - [ ] Fase 12 — QR fallback.
 - [ ] Fase 13 — API compatibility.
-- [ ] Fase 14 — Launcher UI.
+- [ ] Fase 14 — Launcher UI (estado mDNS/clientes añadido; CI pendiente).
 - [ ] Fase 15 — Integration tests.
