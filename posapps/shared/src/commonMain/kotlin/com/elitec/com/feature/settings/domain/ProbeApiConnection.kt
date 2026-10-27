@@ -5,6 +5,11 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.isSuccess
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 /**
  * Prueba `{base}/info` y `{base}/health`.
@@ -64,6 +69,34 @@ class ProbeApiConnection(
                     e,
                 ),
             )
+        }
+    }
+
+    /**
+     * Valida el contrato público de discovery. Los TXT mDNS son solo pistas;
+     * /api/v1/info es la fuente de verdad para identidad y compatibilidad.
+     */
+    suspend fun validateDiscovered(rawUrl: String): Result<String> {
+        val base = ApiConfig.normalizeBaseUrl(rawUrl)
+        return try {
+            val response = http.get("$base/info")
+            val contentType = response.headers["Content-Type"].orEmpty().lowercase()
+            if (!response.status.isSuccess() || !contentType.contains("json")) {
+                return Result.failure(IllegalStateException("El servidor descubierto no ofrece /api/v1/info en JSON"))
+            }
+            val payload = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+            val product = payload["product"]?.jsonPrimitive?.contentOrNull
+            val instanceId = payload["instanceId"]?.jsonPrimitive?.contentOrNull
+            val apiVersion = payload["apiVersion"]?.jsonPrimitive?.intOrNull
+            if (!product.equals("AbacoPhy", ignoreCase = true) || instanceId.isNullOrBlank()) {
+                return Result.failure(IllegalStateException("El servidor no se identifica como una instancia AbacoPhy válida"))
+            }
+            if (apiVersion != 1) {
+                return Result.failure(IllegalStateException("Versión de API incompatible: " + (apiVersion?.toString() ?: "desconocida") + "; esta APK requiere API 1"))
+            }
+            Result.success(base)
+        } catch (e: Exception) {
+            Result.failure(IllegalStateException(e.message ?: "No se pudo validar el servidor descubierto", e))
         }
     }
 

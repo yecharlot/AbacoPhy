@@ -47,9 +47,9 @@ Android POS / otros clientes
 | 3. Host/puerto configurable | ✅ Hecha | `feat(server): configure bind host and port` |
 | 4. mDNS/DNS-SD en Go | 🟡 Implementada; pendiente de validación Go/LAN | `feat(discovery): advertise AbacoPhy through mdns` (en preparación) |
 | 5. Integración discovery en launcher | ⬜ Pendiente | — |
-| 6. Dominio discovery en POS | ⬜ Pendiente | — |
-| 7. Android NSD | ⬜ Pendiente | — |
-| 8. Auto-conexión | ⬜ Pendiente | — |
+| 6. Dominio discovery en POS | 🟡 Base implementada | `feature/server_discovery/PlatformServerDiscovery.kt` |
+| 7. Android NSD | 🟡 Implementado; validación Android/LAN pendiente | `PlatformServerDiscovery.android.kt` |
+| 8. Auto-conexión | 🟡 Flujo inicial implementado; validación pendiente | `InitialSetupViewModel.kt` |
 | 9. Persistencia de instancia confiable | ⬜ Pendiente | — |
 | 10. Modos AUTO/QR/MANUAL | ⬜ Pendiente | — |
 | 11. Pairing y seguridad | ⬜ Pendiente | — |
@@ -308,7 +308,7 @@ Estados futuros:
 
 ---
 
-# Fase 6 — Dominio discovery en `posapps` ⬜
+# Fase 6 — Dominio discovery en `posapps` 🟡
 
 Crear:
 
@@ -333,11 +333,11 @@ data class AbacoPhyInstance(
 }
 ```
 
-Discovery debe permanecer independiente de identidad/login/business modules.
+Implementado el modelo compartido `DiscoveredServer` y la abstracción `PlatformServerDiscovery`, aislada de identidad/login/business. El target JVM devuelve lista vacía y conserva URL manual; Android implementa NSD. Pendiente compilación multiplataforma.
 
 ---
 
-# Fase 7 — Android NSD ⬜
+# Fase 7 — Android NSD 🟡 Implementación añadida; validación pendiente
 
 Usar `NsdManager`:
 
@@ -357,18 +357,21 @@ validar
 
 El POS no confiará únicamente en TXT.
 
+Implementación añadida en `posapps/shared/src/androidMain/.../PlatformServerDiscovery.android.kt`: descubre `_abacophy._tcp.`, resuelve host/puerto y entrega candidatos. `ProbeApiConnection.validateDiscovered` valida `product`, `instanceId` y `apiVersion == 1` contra `/api/v1/info`. Falta compilar Android y probar en una LAN real; algunas redes/AP pueden bloquear mDNS.
+
 ---
 
-# Fase 8 — Conexión automática ⬜
+# Fase 8 — Conexión automática 🟡 Implementación inicial
 
 ### Cero servidores
 
 ```text
 No encontrado
- → reintentar
- → QR
+ → informar y permitir nueva búsqueda
  → URL manual
 ```
+
+La pantalla inicial dispara discovery automáticamente. Si no hay servidores compatibles, muestra el fallback manual. QR sigue pendiente de la Fase 12.
 
 ### Un servidor compatible
 
@@ -379,6 +382,8 @@ descubierto → /info → compatible → conectar
 ### Varios servidores
 
 Mostrar selector.
+
+Implementado en `InitialSetupScreen`: lista servidores compatibles para selección. Si solo hay uno, lo valida y conecta automáticamente. Si no hay ninguno, conserva la introducción manual de URL.
 
 ### Incompatible
 
@@ -583,7 +588,7 @@ No sustituir inicialmente la UI de tareas/logs existente.
 10. QR fallback                  ⬜
 ```
 
-**No comenzar Android NSD antes de estabilizar el contrato de servidor.**
+**El contrato de servidor ya está definido; Android NSD se ha implementado inicialmente, pero no se considera validado hasta que CI compile Android y se pruebe en una LAN real.**
 
 ---
 
@@ -593,10 +598,10 @@ No sustituir inicialmente la UI de tareas/logs existente.
 - [x] `/api/v1/info` devuelve identidad y `apiVersion`.
 - [ ] Go anuncia `_abacophy._tcp.local` (implementación añadida; falta validar en entorno Go/LAN).
 - [ ] Launcher continúa sin regresiones.
-- [ ] Android descubre automáticamente.
-- [ ] Una instancia compatible conecta automáticamente.
-- [ ] Varias instancias muestran selector.
-- [ ] Cero instancias muestra fallback.
+- [ ] Android descubre automáticamente (código añadido; falta validar build/LAN).
+- [ ] Una instancia compatible conecta automáticamente (flujo añadido; falta validar build/LAN).
+- [ ] Varias instancias muestran selector (UI añadida; falta validar build).
+- [ ] Cero instancias muestra fallback manual (UI añadida; falta validar build).
 - [ ] Cambio de IP no cambia identidad.
 - [ ] URL manual continúa disponible.
 
@@ -640,9 +645,9 @@ El launcher actual no se desecha: será el **host/lifecycle manager**. Go será 
 - [x] Fase 3 — Host/port configuration.
 - [ ] Fase 4 — mDNS (pendiente de validación Go/LAN).
 - [ ] Fase 5 — Launcher integration.
-- [ ] Fase 6 — POS discovery domain.
-- [ ] Fase 7 — Android NSD.
-- [ ] Fase 8 — Auto-connect.
+- [x] Fase 6 — POS discovery domain (base implementada; compilación pendiente).
+- [ ] Fase 7 — Android NSD (implementación añadida; validación pendiente).
+- [ ] Fase 8 — Auto-connect (implementación inicial añadida; validación pendiente).
 - [ ] Fase 9 — Trusted instance.
 - [ ] Fase 10 — Connection modes.
 - [ ] Fase 11 — Pairing/security.
