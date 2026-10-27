@@ -64,7 +64,9 @@ func main() {
 	fmt.Printf("  API:          http://localhost%s/api/v1/info\n", addr)
 	fmt.Println("  Master:       master / AbacoPhy#Master1")
 	fmt.Println("  Admin:        admin / admin123")
-	if err := http.ListenAndServe(addr, srv.Handler()); err != nil {
+
+	handler := api.WithDiscoveryInfo(srv.Handler(), instance.InstanceID)
+	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatal(err)
 	}
 }
