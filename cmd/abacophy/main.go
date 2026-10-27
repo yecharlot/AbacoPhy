@@ -43,7 +43,9 @@ func resolveBindAddress(getenv func(string) string) (host, port, address string)
 }
 
 func main() {
-	host, _, addr := resolveBindAddress(os.Getenv)
+	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
+	host, portSetting, addr := resolveBindAddress(os.Getenv)
+	log.Printf("EVENT=server.start host=%q port_setting=%q bind=%q", host, portSetting, addr)
 
 	dataDir := os.Getenv("ABACOPHY_DATA")
 	if dataDir == "" {
@@ -59,6 +61,7 @@ func main() {
 		log.Fatal("instance identity:", err)
 	}
 	fmt.Printf("AbacoPhy instance: %s\n", instance.InstanceID)
+	log.Printf("EVENT=server.instance_ready instance_id=%q data_dir=%q", instance.InstanceID, dataDir)
 
 	st := store.New(dataDir)
 	if err := api.EnsureBootstrap(st); err != nil {
@@ -71,8 +74,12 @@ func main() {
 	apiHandler := handler
 	var seenClients sync.Map
 	handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		host, _, splitErr := net.SplitHostPort(r.RemoteAddr)
+		remoteHost, _, splitErr := net.SplitHostPort(r.RemoteAddr)
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			log.Printf("EVENT=http.request method=%s path=%q remote=%q", r.Method, r.URL.Path, r.RemoteAddr)
+		}
 		if splitErr == nil && strings.HasPrefix(r.URL.Path, "/api/") {
+			host := remoteHost
 			ip := net.ParseIP(host)
 			if ip != nil && !ip.IsLoopback() && !ip.IsUnspecified() {
 				if _, loaded := seenClients.LoadOrStore(ip.String(), struct{}{}); !loaded {
@@ -84,9 +91,11 @@ func main() {
 	})
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
+		log.Printf("EVENT=http.listen_failed bind=%q error=%q", addr, err.Error())
 		log.Fatal("listen:", err)
 	}
 	actualPort := listener.Addr().(*net.TCPAddr).Port
+	log.Printf("EVENT=http.listening bind=%q actual_port=%d", listener.Addr().String(), actualPort)
 	httpServer := &http.Server{Handler: handler}
 
 	// Start serving before announcing the service. The listener is already bound,
@@ -112,6 +121,7 @@ func main() {
 				for _, a := range addrs {
 					if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
 						fmt.Printf("  App (LAN IP): http://%s:%d/\n", ipnet.IP.String(), actualPort)
+						log.Printf("EVENT=network.interface_up interface=%q ip=%q", iface.Name, ipnet.IP.String())
 					}
 				}
 			}
@@ -126,6 +136,7 @@ func main() {
 
 	var mdnsServer interface{ Shutdown() }
 	if discovery.ShouldAdvertise(host) {
+		log.Printf("EVENT=discovery.register_start service=%s domain=local. port=%d", discovery.ServiceType, actualPort)
 		mdnsServer, err = discovery.Advertise(discovery.Config{
 			InstanceID:      instance.InstanceID,
 			Name:            discovery.DefaultServiceName,
@@ -135,11 +146,17 @@ func main() {
 			PairingRequired: false,
 		}, actualPort)
 		if err != nil {
+			log.Printf("EVENT=discovery.register_failed service=%s port=%d error=%q", discovery.ServiceType, actualPort, err.Error())
 			log.Printf("mDNS discovery unavailable (HTTP server remains active): %v", err)
 		} else {
+			log.Printf("EVENT=discovery.advertised service=%s domain=local. name=%q port=%d txt=%q", discovery.ServiceType, discovery.DefaultServiceName, actualPort, discovery.TXTRecords(discovery.Config{
+				InstanceID: instance.InstanceID, Name: discovery.DefaultServiceName, Version: discovery.ServerVersion,
+				APIVersion: discovery.APIVersion, Web: true, PairingRequired: false,
+			}))
 			fmt.Printf("  Discovery:    _abacophy._tcp.local (port %d)\n", actualPort)
 		}
 	} else {
+		log.Printf("EVENT=discovery.disabled host=%q reason=local_only_bind", host)
 		log.Printf("mDNS discovery disabled for local-only bind host %q", host)
 	}
 
@@ -147,7 +164,9 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 
+	log.Printf("EVENT=server.shutdown signal_received=true")
 	if mdnsServer != nil {
+		log.Printf("EVENT=discovery.shutdown")
 		mdnsServer.Shutdown()
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
