@@ -1,6 +1,7 @@
 package com.elitec.com.feature.settings.domain
 
 import com.elitec.com.infraestructure.network.ApiConfig
+import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
@@ -78,10 +79,13 @@ class ProbeApiConnection(
      */
     suspend fun validateDiscovered(rawUrl: String): Result<String> {
         val base = ApiConfig.normalizeBaseUrl(rawUrl)
+        Napier.i("HTTP_PROBE_START url=$base/info", tag = "AbacoPhy-Probe")
         return try {
             val response = http.get("$base/info")
             val contentType = response.headers["Content-Type"].orEmpty().lowercase()
+            Napier.i("HTTP_PROBE_RESPONSE url=$base/info status=${response.status.value} contentType=$contentType", tag = "AbacoPhy-Probe")
             if (!response.status.isSuccess() || !contentType.contains("json")) {
+                Napier.w("HTTP_PROBE_REJECTED reason=invalid_status_or_content_type status=${response.status.value} contentType=$contentType", tag = "AbacoPhy-Probe")
                 return Result.failure(IllegalStateException("El servidor descubierto no ofrece /api/v1/info en JSON"))
             }
             val payload = Json.parseToJsonElement(response.bodyAsText()).jsonObject
@@ -89,13 +93,17 @@ class ProbeApiConnection(
             val instanceId = payload["instanceId"]?.jsonPrimitive?.contentOrNull
             val apiVersion = payload["apiVersion"]?.jsonPrimitive?.intOrNull
             if (!product.equals("AbacoPhy", ignoreCase = true) || instanceId.isNullOrBlank()) {
+                Napier.w("HTTP_PROBE_REJECTED reason=identity_mismatch product=$product instanceIdPresent=${!instanceId.isNullOrBlank()}", tag = "AbacoPhy-Probe")
                 return Result.failure(IllegalStateException("El servidor no se identifica como una instancia AbacoPhy válida"))
             }
             if (apiVersion != 1) {
+                Napier.w("HTTP_PROBE_REJECTED reason=api_version expected=1 actual=$apiVersion", tag = "AbacoPhy-Probe")
                 return Result.failure(IllegalStateException("Versión de API incompatible: " + (apiVersion?.toString() ?: "desconocida") + "; esta APK requiere API 1"))
             }
+            Napier.i("HTTP_PROBE_OK url=$base apiVersion=$apiVersion instanceIdPresent=true", tag = "AbacoPhy-Probe")
             Result.success(base)
         } catch (e: Exception) {
+            Napier.e("HTTP_PROBE_EXCEPTION url=$base/info message=${e.message}", e, tag = "AbacoPhy-Probe")
             Result.failure(IllegalStateException(e.message ?: "No se pudo validar el servidor descubierto", e))
         }
     }
