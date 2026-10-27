@@ -1,130 +1,204 @@
 # Plan de implementación — AbacoPhy Discovery
 
-> Rama: `launcher-app`  
-> Objetivo: migrar desde `launcher → puerto local → Go → navegador` hacia una **instancia AbacoPhy descubrible en la LAN**, conservando compatibilidad y fallback manual.
+> Rama: `launcher-app`
+> Objetivo: migrar desde `launcher → puerto local → Go → navegador` hacia una instancia AbacoPhy descubrible en la LAN, conservando compatibilidad y fallback manual.
 
-## 1. Objetivo
-
-### Actual
+## Arquitectura objetivo
 
 ```text
-Launcher → puerto libre → Go → health → navegador
+Launcher
+  ↓ lifecycle
+Go AbacoPhy Server
+  ├─ HTTP /api/v1/info
+  ├─ HTTP /api/v1/health
+  └─ mDNS _abacophy._tcp.local
+          ↓
+Android POS / otros clientes
+          ↓
+   /api/v1/info
+          ↓
+      pairing
+          ↓
+        auth
+          ↓
+      Business API
 ```
 
-### Objetivo
+### Decisiones centrales
 
-```text
-Launcher → puerto libre → Go → health → mDNS
-                         │
-                         └→ navegador local
-
-Android/cliente → mDNS → host+puerto → /api/v1/info → compatibilidad → pairing → API
-```
-
-**Regla:** el puerto dinámico sigue existiendo, pero deja de ser responsabilidad del usuario o del cliente.
-
----
-
-## 2. Principios
-
-- [ ] No reescribir el launcher actual.
-- [ ] Mantener `SystemPortResolver`, `GoProcessLauncher`, `HttpHealthChecker` y `DesktopBrowserLauncher`.
-- [ ] Mantener `PORT` por compatibilidad.
-- [ ] El servidor Go anuncia el servicio; el launcher gestiona su ciclo de vida.
-- [ ] Discovery no sustituye autenticación.
-- [ ] `/api/v1/info` será el contrato público de identidad/compatibilidad.
-- [ ] `instanceId` será estable entre reinicios.
-- [ ] IP/puerto no serán la identidad lógica.
-- [ ] mDNS será discovery automático.
-- [ ] QR será discovery asistido.
-- [ ] URL manual será último fallback.
-- [ ] No mezclar discovery con lógica de negocio.
+- El puerto dinámico sigue existiendo y es un detalle técnico.
+- `instanceId` es la identidad lógica persistente de la instalación.
+- IP y puerto no identifican una instalación.
+- Discovery no sustituye autenticación.
+- mDNS será el mecanismo automático de descubrimiento.
+- QR será fallback asistido.
+- URL manual seguirá disponible como último fallback.
+- No mezclar discovery con lógica de negocio.
+- El servidor Go será quien publique mDNS; el launcher controla el ciclo de vida.
 
 ---
 
-## 3. Estado actual confirmado
+# Estado de implementación
 
-El launcher ya implementa puerto libre → proceso Go → health → navegador → logs → shutdown.
+| Fase | Estado | Commit / referencia |
+|---|---|---|
+| 1. Identidad persistente | ✅ Hecha | `feat(server): add persistent AbacoPhy instance identity` + inicialización del servidor |
+| 2. `/api/v1/info` discovery metadata | ✅ Hecha | `feat(api): expose discovery metadata` |
+| 3. Host/puerto configurable | ⬜ Pendiente | — |
+| 4. mDNS/DNS-SD en Go | ⬜ Pendiente | — |
+| 5. Integración discovery en launcher | ⬜ Pendiente | — |
+| 6. Dominio discovery en POS | ⬜ Pendiente | — |
+| 7. Android NSD | ⬜ Pendiente | — |
+| 8. Auto-conexión | ⬜ Pendiente | — |
+| 9. Persistencia de instancia confiable | ⬜ Pendiente | — |
+| 10. Modos AUTO/QR/MANUAL | ⬜ Pendiente | — |
+| 11. Pairing y seguridad | ⬜ Pendiente | — |
+| 12. QR fallback | ⬜ Pendiente | — |
+| 13. Compatibilidad de API en POS | ⬜ Pendiente | — |
+| 14. UI de discovery del launcher | ⬜ Pendiente | — |
+| 15. Pruebas de integración | ⬜ Pendiente | — |
 
-El backend Go ya recibe `PORT`, escucha en `:PORT`, expone `/api/v1/health` y `/api/v1/info`, imprime IP LAN y sirve la web estática.
-
-Por tanto, la migración será incremental y no una reescritura.
+**Regla:** una fase solo se marca como hecha cuando su implementación real está en la rama. Diseño aprobado no equivale a implementación.
 
 ---
 
-# 4. Fase 1 — Identidad persistente de instancia
+# Fase 1 — Identidad persistente de instancia ✅
 
 ## Objetivo
 
-Cada instalación debe tener una identidad independiente del IP y puerto.
+Cada instalación tiene una identidad independiente del IP y del puerto.
 
-## Implementación
-
-Crear:
+## Implementado
 
 ```text
 internal/identity/
 ├── identity.go
-└── persistence.go
+└── identity_test.go
 ```
 
-Modelo:
-
-```go
-type InstanceIdentity struct {
-    InstanceID string `json:"instanceId"`
-    Name       string `json:"name"`
-}
-```
-
-Persistir en:
+Persistencia:
 
 ```text
 ABACOPHY_DATA/instance.json
 ```
 
-Primera ejecución: generar UUID y guardar. Siguientes ejecuciones: reutilizarlo.
+Modelo actual:
+
+```go
+type Instance struct {
+    InstanceID string `json:"instanceId"`
+}
+```
+
+Características:
+
+- Generación criptográficamente aleatoria de 128 bits.
+- Persistencia entre reinicios.
+- No depende del puerto.
+- No depende de la IP.
+- Una identidad existente inválida produce error en vez de generar otra silenciosamente.
+- Escritura mediante archivo temporal para evitar identidades parcialmente escritas.
+- El servidor Go carga la identidad antes del bootstrap.
+
+## Pruebas implementadas
+
+- Generación inicial.
+- Persistencia entre llamadas/reinicios.
+- Existencia de `instance.json`.
+- Rechazo de identidad existente inválida.
 
 ## Aceptación
 
-- [ ] Dos instalaciones generan IDs distintos.
-- [ ] Reinicio conserva el ID.
-- [ ] Cambiar puerto no cambia el ID.
-- [ ] Cambiar IP no cambia el ID.
+- [x] Dos instalaciones pueden tener IDs independientes.
+- [x] Reinicio conserva el ID.
+- [x] Cambiar puerto no cambia el ID.
+- [x] Cambiar IP no cambia el ID.
 
 ---
 
-# 5. Fase 2 — Evolucionar `/api/v1/info`
+# Fase 2 — Evolucionar `/api/v1/info` ✅
 
-Mantener compatibilidad con los campos actuales y añadir identidad/compatibilidad.
+## Objetivo
 
-Contrato objetivo:
+Convertir `/api/v1/info` en el contrato público de identidad y compatibilidad de AbacoPhy sin romper los clientes existentes.
+
+## Implementado
+
+Se añadió una capa de enriquecimiento sobre el endpoint existente:
+
+```text
+internal/api/discovery.go
+internal/api/discovery_test.go
+```
+
+El endpoint mantiene sus campos legacy y añade:
 
 ```json
 {
   "product": "AbacoPhy",
-  "name": "AbacoPhy Oficina",
-  "instanceId": "8f31a4d2-...",
+  "name": "ÁbacoPhy",
+  "instanceId": "...",
   "version": "0.1.0",
   "apiVersion": 1,
   "capabilities": ["web", "pos", "offline", "sync"],
-  "pairingRequired": true
+  "pairingRequired": false
 }
 ```
 
-No exponer contraseñas, tokens, usuarios, tenants privados ni datos de negocio.
+### Compatibilidad
+
+Los campos existentes de `/api/v1/info` no se eliminan.
+
+El cliente puede empezar a utilizar únicamente:
+
+```text
+product
+instanceId
+version
+apiVersion
+capabilities
+pairingRequired
+```
+
+sin depender de módulos, roles o detalles internos del negocio.
+
+### Pairing
+
+`pairingRequired` permanece actualmente en `false` porque el mecanismo de pairing todavía no existe. Se cambiará durante la Fase 11, no antes.
+
+### Seguridad
+
+No se exponen:
+
+- contraseñas;
+- tokens;
+- usuarios;
+- credenciales;
+- tenants privados;
+- información contable;
+- inventario;
+- datos de negocio.
+
+## Pruebas implementadas
+
+- `/api/v1/info` conserva metadata legacy.
+- `product` presente.
+- `instanceId` presente.
+- `apiVersion` presente.
+- `pairingRequired` presente.
+- Las demás rutas no son interceptadas por la capa discovery.
 
 ## Aceptación
 
-- [ ] `/api/v1/info` continúa funcionando.
-- [ ] Devuelve `instanceId` estable.
-- [ ] Devuelve `apiVersion`.
-- [ ] Devuelve capacidades.
-- [ ] No devuelve información sensible.
+- [x] `/api/v1/info` continúa funcionando.
+- [x] Devuelve `instanceId` estable.
+- [x] Devuelve `apiVersion`.
+- [x] Devuelve capacidades.
+- [x] No devuelve información sensible nueva.
 
 ---
 
-# 6. Fase 3 — Separar host y puerto
+# Fase 3 — Separar host y puerto ⬜
 
 Formalizar:
 
@@ -139,24 +213,25 @@ Compatibilidad:
 ABACOPHY_PORT → PORT → 8090
 ```
 
-Host por defecto para discovery LAN:
+Default LAN previsto:
 
 ```text
 0.0.0.0
 ```
 
-Debe existir posibilidad de restringir a localhost cuando se quiera.
+Debe existir una opción para restringir el servidor a localhost.
 
 ## Aceptación
 
 - [ ] Launcher continúa funcionando.
 - [ ] `PORT` continúa funcionando.
-- [ ] Go puede escuchar LAN.
-- [ ] Se puede desactivar exposición LAN.
+- [ ] `ABACOPHY_PORT` funciona.
+- [ ] `ABACOPHY_HOST` funciona.
+- [ ] Puede desactivarse la exposición LAN.
 
 ---
 
-# 7. Fase 4 — mDNS / DNS-SD
+# Fase 4 — mDNS / DNS-SD ⬜
 
 Servicio:
 
@@ -164,45 +239,34 @@ Servicio:
 _abacophy._tcp.local
 ```
 
-Ejemplo:
+Nombre de ejemplo:
 
 ```text
 AbacoPhy Oficina._abacophy._tcp.local
 ```
 
-Anunciar:
+Metadatos TXT previstos:
 
 ```text
-host
-port
-```
-
-y TXT mínimo:
-
-```text
-id=8f31a4d2...
+id=<instanceId>
 name=AbacoPhy Oficina
 version=0.1.0
 api=1
 web=1
-pairing=1
+pairing=0|1
 ```
 
-## Reglas
+Reglas:
 
-- [ ] Nunca poner secretos en TXT.
-- [ ] No usar TXT como única fuente de verdad.
-- [ ] Resolver servicio y confirmar con `/api/v1/info`.
-- [ ] Publicar cuando HTTP esté listo.
-- [ ] Retirar anuncio al terminar.
-
-## Aceptación
-
-Otro equipo de la misma LAN debe descubrir nombre, host y puerto sin configuración manual.
+- [ ] Nunca publicar secretos en TXT.
+- [ ] TXT no es fuente única de verdad.
+- [ ] Resolver servicio y confirmar mediante `/api/v1/info`.
+- [ ] Publicar solo después de que HTTP esté listo.
+- [ ] Retirar anuncio al cerrar el servidor.
 
 ---
 
-# 8. Fase 5 — Integración con launcher
+# Fase 5 — Integración con launcher ⬜
 
 Mantener:
 
@@ -216,7 +280,9 @@ Evolucionar a:
 ResolvePort → LaunchGo → Health → Discovery ready → Browser
 ```
 
-Añadir estado:
+El launcher será lifecycle manager, no propietario de la lógica mDNS.
+
+Estados futuros:
 
 ```text
 ✓ Servidor iniciado
@@ -224,33 +290,17 @@ Añadir estado:
 ✓ Discovery activo
 ```
 
-El launcher no será el responsable principal de mDNS: Go es el servicio descubrible.
-
 ---
 
-# 9. Fase 6 — Dominio de discovery en `posapps`
+# Fase 6 — Dominio discovery en `posapps` ⬜
 
-Crear feature independiente:
+Crear:
 
 ```text
 posapps/shared/src/commonMain/kotlin/com/elitec/com/feature/server_discovery/
 ```
 
-Propuesta:
-
-```text
-server_discovery/
-├── domain/
-│   ├── models/AbacoPhyInstance.kt
-│   ├── repositories/AbacoPhyDiscoveryRepository.kt
-│   └── usecases/DiscoverAbacoPhyServers.kt
-├── data/
-│   ├── mdns/
-│   └── api/
-└── ui/
-```
-
-Modelo:
+Modelo previsto:
 
 ```kotlin
 data class AbacoPhyInstance(
@@ -267,20 +317,20 @@ data class AbacoPhyInstance(
 }
 ```
 
+Discovery debe permanecer independiente de identidad/login/business modules.
+
 ---
 
-# 10. Fase 7 — Android NSD
+# Fase 7 — Android NSD ⬜
 
-Usar `NsdManager`.
+Usar `NsdManager`:
 
 ```text
-POS
- ↓
 NsdManager
  ↓
 _abacophy._tcp
  ↓
-resolve service
+resolve
  ↓
 host + port
  ↓
@@ -289,21 +339,17 @@ GET /api/v1/info
 validar
 ```
 
-El `baseUrl` no se confiará únicamente en TXT.
-
-## Aceptación
-
-Android descubre una instancia AbacoPhy en la misma LAN sin introducir IP/puerto.
+El POS no confiará únicamente en TXT.
 
 ---
 
-# 11. Fase 8 — Conexión automática
+# Fase 8 — Conexión automática ⬜
 
 ### Cero servidores
 
 ```text
 No encontrado
- → buscar nuevamente
+ → reintentar
  → QR
  → URL manual
 ```
@@ -311,22 +357,22 @@ No encontrado
 ### Un servidor compatible
 
 ```text
-descubierto → validado → conectar automáticamente
+descubierto → /info → compatible → conectar
 ```
 
-### Varios
+### Varios servidores
 
-Mostrar selector de instancias.
+Mostrar selector.
 
 ### Incompatible
 
-Mostrar API requerida/encontrada y rechazar conexión.
+Mostrar versión/API requerida y rechazar conexión.
 
 ---
 
-# 12. Fase 9 — Servidor conocido
+# Fase 9 — Instancia confiable ⬜
 
-Guardar por `instanceId`, no por IP.
+Persistir por `instanceId`, no por IP.
 
 ```kotlin
 data class TrustedAbacoPhy(
@@ -338,13 +384,11 @@ data class TrustedAbacoPhy(
 )
 ```
 
-Si el IP cambia, el cliente debe reconocer la misma instalación.
+Cambio de IP no debe convertir una instalación conocida en una instalación nueva.
 
 ---
 
-# 13. Fase 10 — Modos de conexión
-
-No eliminar inmediatamente la URL manual.
+# Fase 10 — Modos de conexión ⬜
 
 ```text
 AUTO_DISCOVERY
@@ -352,61 +396,65 @@ QR
 MANUAL
 ```
 
-Por defecto:
+Default:
 
 ```text
 AUTO_DISCOVERY
 ```
 
-Configuración:
-
-```text
-Servidor AbacoPhy
-
-● Detectar automáticamente
-○ Escanear QR
-○ Dirección manual
-```
+La URL manual no se elimina durante la migración.
 
 ---
 
-# 14. Fase 11 — Pairing y seguridad
+# Fase 11 — Pairing y seguridad ⬜
 
-Discovery solo significa: **existe un servidor**.
+Discovery significa únicamente:
+
+> Existe un servidor AbacoPhy en esta red.
 
 Flujo:
 
 ```text
-Discovery → /api/v1/info → Pairing → dispositivo confiable → Auth → API
+Discovery
+ ↓
+/info
+ ↓
+Pairing
+ ↓
+dispositivo confiable
+ ↓
+Auth
+ ↓
+Business API
 ```
 
-## Requisitos
+Requisitos:
 
 - [ ] Pairing explícito para dispositivos nuevos.
-- [ ] Nunca enviar credenciales por mDNS.
-- [ ] TXT no concede autorización.
+- [ ] No enviar credenciales por mDNS.
+- [ ] TXT nunca concede autorización.
 - [ ] Mantener login existente.
-- [ ] Permitir revocación futura de dispositivos.
+- [ ] Revocación futura de dispositivos.
+
+Al completarse esta fase, `pairingRequired` podrá pasar a `true` cuando corresponda.
 
 ---
 
-# 15. Fase 12 — QR fallback
-
-El desktop podrá mostrar un QR de conexión.
+# Fase 12 — QR fallback ⬜
 
 Payload conceptual:
 
 ```json
 {
   "scheme": "abacophy",
-  "instance": "8f31a4d2-...",
+  "instance": "...",
   "host": "192.168.1.50",
   "port": 18473,
   "api": 1
 }
 ```
 
-No incluir credenciales ni tokens permanentes.
+Nunca incluir credenciales ni tokens permanentes.
 
 Jerarquía:
 
@@ -418,51 +466,48 @@ URL → manual
 
 ---
 
-# 16. Fase 13 — Compatibilidad de API
+# Fase 13 — Compatibilidad de API ⬜
 
-Definir en el POS:
+POS:
 
 ```text
 SUPPORTED_API_VERSION = 1
 ```
 
-Validación:
+Validación inicial:
 
 ```text
 server.apiVersion == supported
 ```
 
-Si no coincide: rechazar con mensaje de actualización.
+Después podrá evolucionarse a rangos de compatibilidad.
 
 ---
 
-# 17. Fase 14 — UI del launcher
+# Fase 14 — UI del launcher ⬜
 
-Mantener la pantalla actual de tareas/consola.
-
-Añadir:
+Añadir a la pantalla existente:
 
 ```text
 AbacoPhy Oficina
 
-Estado
-  ● Servidor activo
-  ● Discovery activo
+● Servidor activo
+● Discovery activo
 
 Red
-  192.168.x.x
+192.168.x.x
 
 [ Abrir aplicación ]
 [ Mostrar QR ]
 ```
 
-Más adelante puede mostrarse cantidad de clientes conectados.
+No sustituir inicialmente la UI de tareas/logs existente.
 
 ---
 
-# 18. Fase 15 — Pruebas
+# Fase 15 — Pruebas de integración ⬜
 
-| Escenario | Resultado |
+| Escenario | Resultado esperado |
 |---|---|
 | Launcher inicia Go | Web disponible |
 | Go inicia | mDNS aparece |
@@ -481,10 +526,10 @@ Más adelante puede mostrarse cantidad de clientes conectados.
 
 ---
 
-# 19. Orden de commits
+# Orden de commits
 
-1. `feat(server): add persistent AbacoPhy instance identity`
-2. `feat(api): expose discovery metadata`
+1. `feat(server): add persistent AbacoPhy instance identity` ✅
+2. `feat(api): expose discovery metadata` ✅
 3. `feat(server): add configurable bind host`
 4. `feat(discovery): advertise AbacoPhy through mdns`
 5. `feat(launcher): expose discovery status`
@@ -498,38 +543,38 @@ Más adelante puede mostrarse cantidad de clientes conectados.
 
 ---
 
-# 20. Orden técnico
+# Orden técnico
 
 ```text
-1. Go identity
+1. Go identity                    ✅
    ↓
-2. /api/v1/info
+2. /api/v1/info                  ✅
    ↓
-3. host + port configuration
+3. host + port configuration     ⬜
    ↓
-4. mDNS advertisement
+4. mDNS advertisement            ⬜
    ↓
-5. launcher integration
+5. launcher integration          ⬜
    ↓
-6. Android NSD
+6. Android NSD                   ⬜
    ↓
-7. automatic connection
+7. automatic connection          ⬜
    ↓
-8. persistent instance recognition
+8. persistent instance trust     ⬜
    ↓
-9. pairing
+9. pairing                       ⬜
    ↓
-10. QR fallback
+10. QR fallback                  ⬜
 ```
 
-**No comenzar por Android antes de estabilizar el contrato de servidor.**
+**No comenzar Android NSD antes de estabilizar el contrato de servidor.**
 
 ---
 
-# 21. MVP Discovery — aceptación
+# MVP Discovery — aceptación global
 
-- [ ] `instanceId` persistente.
-- [ ] `/api/v1/info` devuelve identidad y `apiVersion`.
+- [x] `instanceId` persistente.
+- [x] `/api/v1/info` devuelve identidad y `apiVersion`.
 - [ ] Go anuncia `_abacophy._tcp.local`.
 - [ ] Launcher continúa sin regresiones.
 - [ ] Android descubre automáticamente.
@@ -541,33 +586,7 @@ Más adelante puede mostrarse cantidad de clientes conectados.
 
 ---
 
-# 22. Migración completa — aceptación
-
-```text
-ABACOPHY DESKTOP
-      ↓
-arranca servidor
-      ↓
-publica identidad
-      ↓
-mDNS
-      ↓
-Android / otros clientes
-      ↓
-/api/v1/info
-      ↓
-pairing
-      ↓
-auth
-      ↓
-Business API
-```
-
-El usuario final no necesita conocer puerto, IP actual, ubicación del binario ni URL manual.
-
----
-
-# 23. Fuera de esta migración
+# Fuera de esta migración
 
 No modificar como parte de Discovery:
 
@@ -588,49 +607,11 @@ Discovery será una capa de conectividad previa a la API.
 
 ---
 
-# 24. Arquitectura final
-
-```text
-                 ABACOPHY ECOSYSTEM
-
-        ┌──────────────────────────────┐
-        │ Desktop Launcher             │
-        │ lifecycle / runtime          │
-        └──────────────┬───────────────┘
-                       ↓
-        ┌──────────────────────────────┐
-        │ Go AbacoPhy Server           │
-        │ HTTP API                     │
-        │ /api/v1/info                 │
-        │ /api/v1/health               │
-        │ mDNS _abacophy._tcp          │
-        └──────────────┬───────────────┘
-                       │
-                  LAN Discovery
-                       │
-             ┌─────────┴─────────┐
-             ↓                   ↓
-        Android POS        Otro cliente
-          NSD              Discovery
-             │                   │
-             └─────────┬─────────┘
-                       ↓
-                  /api/v1/info
-                       ↓
-                    pairing
-                       ↓
-                     auth
-                       ↓
-                  Business API
-```
-
----
-
-# 25. Decisión central
+# Decisión central
 
 > **El puerto es una propiedad técnica del servidor; `instanceId` es la identidad lógica de la instalación.**
 
-El launcher actual no se desecha: se convierte en el **host/lifecycle manager**. Go se convierte en el **servicio descubrible**. POS se convierte en un **cliente que descubre y negocia conexión**.
+El launcher actual no se desecha: será el **host/lifecycle manager**. Go será el **servicio descubrible**. POS será el **cliente que descubre y negocia la conexión**.
 
 ---
 
@@ -638,8 +619,8 @@ El launcher actual no se desecha: se convierte en el **host/lifecycle manager**.
 
 - [x] Arquitectura propuesta.
 - [x] Estado actual contrastado con `launcher-app`.
-- [ ] Fase 1 — Instance identity.
-- [ ] Fase 2 — Discovery metadata.
+- [x] Fase 1 — Instance identity.
+- [x] Fase 2 — Discovery metadata.
 - [ ] Fase 3 — Host/port configuration.
 - [ ] Fase 4 — mDNS.
 - [ ] Fase 5 — Launcher integration.
@@ -653,5 +634,3 @@ El launcher actual no se desecha: se convierte en el **host/lifecycle manager**.
 - [ ] Fase 13 — API compatibility.
 - [ ] Fase 14 — Launcher UI.
 - [ ] Fase 15 — Integration tests.
-
-**Documento de planificación. Las fases `[ ]` no implican implementación realizada.**
