@@ -1,6 +1,7 @@
 package com.elitec.com.feature.catalog.ui.components
 
 
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
@@ -65,7 +66,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.elitec.com.feature.catalog.domain.entities.Product
-import com.gursimar.composive.responsive.theme.AppTheme
 import java.text.NumberFormat
 
 /* ------------------------------------------------------------------ */
@@ -78,8 +78,8 @@ fun ProductItemBox(
     product: Product,
     modifier: Modifier = Modifier
 ) {
-    val colors = AppTheme.materialColors
-    val typography = AppTheme.materialTypography
+    val colors = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
 
     // --- Estado ---
     var expanded by remember { mutableStateOf(false) }
@@ -237,7 +237,7 @@ fun ProductItemBox(
 
 @Composable
 private fun CodeBadge(code: String) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -253,7 +253,7 @@ private fun CodeBadge(code: String) {
         Spacer(Modifier.size(4.dp))
         Text(
             text = code,
-            style = AppTheme.materialTypography.labelMedium,
+            style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Medium,
             color = colors.onSurfaceVariant,
             maxLines = 1,
@@ -284,7 +284,7 @@ private fun InfoChip(
         Spacer(Modifier.size(6.dp))
         Text(
             text = text,
-            style = AppTheme.materialTypography.labelMedium,
+            style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Medium,
             color = contentColor,
             maxLines = 1,
@@ -302,7 +302,7 @@ private data class Accent(val container: Color, val content: Color)
 /** Color estable por categoría (misma categoría = mismo color), tomado del tema. */
 @Composable
 private fun categoryAccent(category: String): Accent {
-    val c = AppTheme.materialColors
+    val c = MaterialTheme.colorScheme
     return when (category.hashCode().mod(3)) {
         0 -> Accent(c.primaryContainer, c.onPrimaryContainer)
         1 -> Accent(c.secondaryContainer, c.onSecondaryContainer)

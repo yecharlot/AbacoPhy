@@ -1,5 +1,8 @@
 package com.elitec.com.infraestructure.ui.navigation
 
+import com.elitec.com.infraestructure.ui.responsive.AppDeviceLayout
+import com.elitec.com.infraestructure.ui.responsive.rememberAppDeviceLayout
+import com.elitec.com.infraestructure.ui.theme.AbacoDimensions
 import com.elitec.com.feature.settings.ui.screens.SettingsScreen
 
 import abacopos.shared.generated.resources.Res
@@ -83,12 +86,6 @@ import com.elitec.com.infraestructure.ui.components.SyncIndicatorUi
 import com.elitec.com.infraestructure.ui.components.handleClick
 import com.elitec.com.infraestructure.ui.components.toSyncKind
 import com.elitec.com.infraestructure.ui.screen.MainScreen
-import com.elitec.com.infraestructure.ui.uiModels.NavButton
-import com.gursimar.composive.responsive.core.DeviceConfiguration
-import com.gursimar.composive.responsive.core.rememberDeviceConfiguration
-import com.gursimar.composive.responsive.theme.AppTheme
-import com.slapps.cupertino.adaptive.AdaptiveTopAppBar
-import com.slapps.cupertino.adaptive.ExperimentalAdaptiveApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
@@ -232,7 +229,7 @@ fun HomeNavHost(
                     horizontalArrangement = Arrangement.spacedBy(gap),
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(if (dense) 8.dp else AppTheme.dimensions.cardSpacing),
+                        .padding(if (dense) 8.dp else AbacoDimensions.cardSpacing),
                 ) {
                     AppNavRail(
                         destinations = destinations,
@@ -285,7 +282,7 @@ private fun CompactTopBar(
     userName: String,
     onLogoutClick: () -> Unit,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     var menuOpen by remember { mutableStateOf(false) }
 
     Row(

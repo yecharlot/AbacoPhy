@@ -2,6 +2,7 @@ package com.elitec.com
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -16,11 +17,6 @@ import com.elitec.com.infraestructure.settings.AppSettingsRepository
 import com.elitec.com.infraestructure.settings.AppThemePreference
 import com.elitec.com.infraestructure.ui.appThemeConfig.AbacoMaterialExpressiveTheme
 import com.elitec.com.infraestructure.ui.navigation.AppNavHost
-import com.elitec.com.infraestructure.ui.theme.abacoDarkColorScheme
-import com.elitec.com.infraestructure.ui.theme.abacoLightColorScheme
-import com.gursimar.composive.responsive.configuration.responsiveConfiguration
-import com.gursimar.composive.responsive.theme.AppTheme
-import com.gursimar.composive.responsive.theme.ComposiveTheme
 import org.koin.compose.koinInject
 
 @Composable
@@ -39,21 +35,11 @@ fun App() {
     }
 
     AbacoMaterialExpressiveTheme(isDarkTheme = dark) {
-        ComposiveTheme(
-            configuration = responsiveConfiguration {
-                withCustomMaterialColors(
-                    light = abacoLightColorScheme(),
-                    dark = abacoDarkColorScheme(),
-                )
-                withMaterialTheme()
-            },
+        Surface(
+            color = MaterialTheme.colorScheme.background,
+            modifier = Modifier.fillMaxSize(),
         ) {
-            Surface(
-                color = AppTheme.materialColors.background,
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                AppNavHost()
-            }
+            AppNavHost()
         }
     }
 }

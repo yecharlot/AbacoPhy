@@ -1,5 +1,7 @@
 package com.elitec.com.feature.pos.ui.components
 
+import com.elitec.com.infraestructure.ui.responsive.AppDeviceLayout
+import com.elitec.com.infraestructure.ui.responsive.rememberAppDeviceLayout
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
@@ -54,7 +56,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.elitec.com.feature.pos.ui.models.LocalStock
 import com.elitec.com.feature.pos.ui.uiStates.StockStates
-import com.gursimar.composive.responsive.theme.AppTheme
 import kotlin.math.roundToLong
 
 /*
@@ -73,8 +74,8 @@ fun StockCard(
     loading: Boolean = false,
     listHeight: Dp = Dp.Unspecified,
 ) {
-    val deviceConfig = rememberDeviceConfiguration()
-    val colors = AppTheme.materialColors
+    val deviceConfig = rememberAppDeviceLayout()
+    val colors = MaterialTheme.colorScheme
 
     // El color de acento transiciona suavemente si cambia el estado
     val accent by animateColorAsState(
@@ -110,7 +111,7 @@ fun StockCard(
         when (deviceConfig) {
 
             // Tarjeta a todo el ancho: el estado cabe en la cabecera, junto al título.
-            DeviceConfiguration.MOBILE_PORTRAIT -> StockCardVertical(
+            AppDeviceLayout.MobilePortrait -> StockCardVertical(
                 data = data,
                 padding = 14.dp,
                 iconBoxSize = 40.dp,
@@ -121,13 +122,13 @@ fun StockCard(
             )
 
             // Poca altura: información a la izquierda y lista a la derecha.
-            DeviceConfiguration.MOBILE_LANDSCAPE -> StockCardSideBySide(
+            AppDeviceLayout.MobileLandscape -> StockCardSideBySide(
                 data = data,
                 listHeight = listHeight.orDefault(120.dp),
             )
 
             // Tarjetas medianas: el estado baja a la fila del contador para liberar el título.
-            DeviceConfiguration.TABLET_PORTRAIT -> StockCardVertical(
+            AppDeviceLayout.TabletPortrait -> StockCardVertical(
                 data = data,
                 padding = 16.dp,
                 iconBoxSize = 44.dp,
@@ -138,7 +139,7 @@ fun StockCard(
             )
 
             // Normalmente 3 tarjetas en fila + barra lateral: el ancho es el más justo.
-            DeviceConfiguration.TABLET_LANDSCAPE -> StockCardVertical(
+            AppDeviceLayout.TabletLandscape -> StockCardVertical(
                 data = data,
                 padding = 16.dp,
                 iconBoxSize = 44.dp,
@@ -149,7 +150,7 @@ fun StockCard(
             )
 
             // Más aire y más altura para la lista.
-            DeviceConfiguration.DESKTOP -> StockCardVertical(
+            AppDeviceLayout.Desktop -> StockCardVertical(
                 data = data,
                 padding = 20.dp,
                 iconBoxSize = 48.dp,
@@ -375,7 +376,7 @@ private fun StockCardContainer(
 ) {
     Card(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp, hoveredElevation = 6.dp),
-        colors = CardDefaults.cardColors(containerColor = AppTheme.materialColors.surfaceContainer),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         border = BorderStroke(1.dp, accent.copy(alpha = 0.18f)),
         shape = RoundedCornerShape(24.dp),
         modifier = modifier,
@@ -423,7 +424,7 @@ private fun StockTitleBlock(
     titleLines: Int,
     modifier: Modifier = Modifier,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     Column(modifier) {
         Text(
             text = title,
@@ -474,7 +475,7 @@ private fun StockCounter(count: Int, accent: Color) {
         Text(
             text = if (count == 1) "producto" else "productos",
             style = MaterialTheme.typography.labelMedium,
-            color = AppTheme.materialColors.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             modifier = Modifier.padding(bottom = 6.dp),
         )
@@ -522,7 +523,7 @@ private fun StockListPanel(
     showAvatar: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
 
     Box(
         modifier = modifier.background(colors.surfaceContainerLow, RoundedCornerShape(18.dp)),
@@ -578,7 +579,7 @@ private fun StockRow(
     showAvatar: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
 
     Row(
         modifier = modifier
@@ -648,7 +649,7 @@ private fun StockRow(
 /** Filas "esqueleto" con pulso mientras carga. */
 @Composable
 private fun SkeletonRows() {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     val pulse by rememberInfiniteTransition(label = "skeleton").animateFloat(
         initialValue = 0.35f,
         targetValue = 0.85f,
