@@ -13,6 +13,11 @@ import com.elitec.com.infraestructure.ui.appThemeConfig.AbacoMaterialExpressiveT
 import com.elitec.com.infraestructure.ui.util.getAppLogoPainter
 
 fun main() {
+    // JmDNS on Windows can fail configuring multicast on dual-stack sockets
+    // with "Invalid argument: setsockopt". Set this before Koin or any
+    // networking code initializes the JVM networking stack. Desktop only.
+    System.setProperty("java.net.preferIPv4Stack", "true")
+
     initKoin()
     application {
         val windowState = rememberWindowState(
@@ -31,4 +36,3 @@ fun main() {
         }
     }
 }
-
