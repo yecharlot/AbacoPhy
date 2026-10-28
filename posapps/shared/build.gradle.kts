@@ -36,6 +36,10 @@ kotlin {
     }
 
     sourceSets {
+        // Descubrimiento mDNS para Desktop/JVM. Android conserva su implementación NSD nativa.
+        jvmMain.dependencies {
+            implementation("org.jmdns:jmdns:3.5.10")
+        }
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
