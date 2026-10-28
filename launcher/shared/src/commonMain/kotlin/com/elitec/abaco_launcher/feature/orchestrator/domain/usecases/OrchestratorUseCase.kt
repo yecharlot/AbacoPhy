@@ -10,7 +10,7 @@ import com.elitec.abaco_launcher.feature.orchestrator.domain.repositories.PortRe
 
 /**
  * Secuencia: puerto libre → proceso Go → health → navegador.
- * F4: detecta crash del hijo, timeout de health mata proceso, errores con path visible.
+ * El puerto reutiliza la última asignación operativa cuando está disponible.
  */
 class OrchestratorUseCase(
     private val portResolver: PortResolver,
@@ -69,7 +69,7 @@ class OrchestratorUseCase(
             emit()
             onLog(
                 if (preferredPort != null) "Usando puerto configurado: $preferredPort…"
-                else "Resolviendo puerto libre en 127.0.0.1…",
+                else "Intentando reutilizar el último puerto operativo…",
             )
             port = try {
                 portResolver.resolvePort(preferredPort)
@@ -85,7 +85,7 @@ class OrchestratorUseCase(
             updateStep(
                 "port",
                 TaskStepStatus.Success,
-                if (preferredPort != null) "Puerto: $port (configurado)" else "Puerto: $port (sistema)",
+                if (preferredPort != null) "Puerto: $port (configurado)" else "Puerto: $port (reutilizado o nuevo)",
             )
             emit()
             onLog("✅ Puerto resuelto: $port")
@@ -139,12 +139,15 @@ class OrchestratorUseCase(
                         "Se detendrá el proceso hijo.",
                 )
             }
+
+            // Solo después de health OK consideramos el puerto como último puerto válido.
+            portResolver.rememberPort(port!!)
             updateStep("health", TaskStepStatus.Success, "API listo")
             updateStep("discovery", TaskStepStatus.Running, "Esperando confirmación del anuncio mDNS")
             val ips = lanIpResolver()
             lanUrls = ips.map { "http://$it:$port" }
             emit(backendRunning = true)
-            onLog("✅ Health OK")
+            onLog("✅ Health OK · puerto $port guardado para el próximo arranque")
             onLog("🌐 URL Local:      $baseUrl/")
             onLog("🔎 Discovery esperado: _abacophy._tcp.local; esperando confirmación del backend")
             if (lanUrls.isNotEmpty()) {
