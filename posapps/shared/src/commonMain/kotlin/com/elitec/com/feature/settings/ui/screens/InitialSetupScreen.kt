@@ -70,7 +70,8 @@ fun InitialSetupScreen(
     val inProgress = state.phase == SetupConnectionPhase.SEARCHING ||
         state.phase == SetupConnectionPhase.CONNECTING
 
-    LaunchedEffect(Unit) { viewModel.searchServers(onConfigured) }
+    // First try the persisted last-known URL/port. mDNS is only the fallback.
+    LaunchedEffect(Unit) { viewModel.connectUsingCacheOrDiscover(onConfigured) }
 
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -79,7 +80,7 @@ fun InitialSetupScreen(
     ) {
         Text("Conectar con AbacoPhy", style = MaterialTheme.typography.headlineSmall)
         Text(
-            "Encontraremos el servidor, comprobaremos la conexión y te avisaremos cuando esté listo.",
+            "Recuperaremos el último servidor conocido y solo buscaremos en la red si es necesario.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
