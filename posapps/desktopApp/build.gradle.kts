@@ -18,6 +18,8 @@ dependencies {
 compose.desktop {
     application {
         mainClass = "com.elitec.com.MainKt"
+        // Required on affected Windows/JDK 21 setups for IPv4 multicast sockets.
+        jvmArgs += listOf("-Djava.net.preferIPv4Stack=true")
 
         buildTypes.release.proguard {
             configurationFiles.from(project.file("compose-desktop.pro"))
