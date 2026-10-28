@@ -35,22 +35,30 @@ data class InitialSetupUiState(
     val statusTitle: String = "Preparado para buscar",
     val statusDetail: String = "Buscaremos servidores AbacoPhy disponibles en tu red local.",
 )
- 
+
 class InitialSetupViewModel(
     private val settings: AppSettingsRepository,
     private val apiConfig: ApiConfig,
     private val probe: ProbeApiConnection,
 ) : ViewModel() {
     private val discovery = PlatformServerDiscovery()
+
+    companion object {
+        private const val HEALTH_MAX_ATTEMPTS = 3 // intento inicial + 2 reintentos
+        private const val HEALTH_RETRY_DELAY_MS = 750L
+    }
+
     private val _state = MutableStateFlow(
         InitialSetupUiState(urlInput = apiConfig.baseUrl.ifBlank { settings.getBaseUrl().orEmpty() }),
     )
     val state: StateFlow<InitialSetupUiState> = _state.asStateFlow()
 
     /**
-     * Política de arranque POS:
-     * 1. intenta el último servidor conocido (la URL persistida contiene host/IP y puerto),
-     * 2. solo si falla, vuelve a la política normal de discovery mDNS.
+     * Bootstrap antes del login:
+     * 1. intenta el último servidor conocido;
+     * 2. comprueba /health hasta 3 veces (inicial + 2 reintentos);
+     * 3. si sigue sin responder, inicia discovery mDNS;
+     * 4. solo abre login cuando health + identidad/API están validados.
      */
     fun connectUsingCacheOrDiscover(onConfigured: () -> Unit) {
         if (_state.value.discovering || _state.value.testing) {
@@ -68,7 +76,7 @@ class InitialSetupViewModel(
         }
 
         viewModelScope.launch {
-            Napier.i("CACHE_TRY url=$cachedUrl", tag = "AbacoPhy-Setup")
+            Napier.i("BOOTSTRAP_CACHE_START url=$cachedUrl", tag = "AbacoPhy-Setup")
             _state.update {
                 it.copy(
                     testing = true,
@@ -76,46 +84,89 @@ class InitialSetupViewModel(
                     error = null,
                     successMessage = null,
                     phase = SetupConnectionPhase.CONNECTING,
-                    statusTitle = "Probando el último servidor",
-                    statusDetail = "Intentando reutilizar la última dirección conocida (${cachedUrl.substringAfterLast("://")})…",
+                    statusTitle = "Comprobando el servidor",
+                    statusDetail = "Verificando que el último servidor conocido está disponible…",
                 )
             }
 
-            probe.execute(cachedUrl).fold(
-                onSuccess = { normalized ->
-                    Napier.i("CACHE_HIT url=$normalized", tag = "AbacoPhy-Setup")
-                    settings.setBaseUrl(normalized)
-                    apiConfig.update(normalized)
+            var healthResult: Result<String> = Result.failure(IllegalStateException("No se ha intentado health"))
+            for (attempt in 1..HEALTH_MAX_ATTEMPTS) {
+                if (attempt > 1) {
                     _state.update {
                         it.copy(
-                            testing = false,
-                            urlInput = normalized,
-                            successMessage = "Conexión recuperada · último servidor conocido",
-                            discoveredServers = emptyList(),
-                            phase = SetupConnectionPhase.READY,
-                            statusTitle = "¡AbacoPhy está listo!",
-                            statusDetail = "Servidor recuperado sin buscar en la red. Abriendo el inicio de sesión…",
+                            statusTitle = "Reintentando conexión ($attempt/$HEALTH_MAX_ATTEMPTS)",
+                            statusDetail = "El servidor no respondió. Volviendo a comprobar su estado…",
                         )
                     }
-                    delay(1_000)
-                    onConfigured()
-                },
-                onFailure = { e ->
-                    Napier.w(
-                        "CACHE_MISS url=$cachedUrl reason=${e.message}",
-                        tag = "AbacoPhy-Setup",
+                    delay(HEALTH_RETRY_DELAY_MS)
+                } else {
+                    _state.update {
+                        it.copy(
+                            statusTitle = "Comprobando servidor (1/$HEALTH_MAX_ATTEMPTS)",
+                            statusDetail = "Consultando /health antes de abrir el inicio de sesión…",
+                        )
+                    }
+                }
+
+                healthResult = probe.checkHealth(cachedUrl)
+                if (healthResult.isSuccess) {
+                    Napier.i("BOOTSTRAP_HEALTH_OK attempt=$attempt url=$cachedUrl", tag = "AbacoPhy-Setup")
+                    break
+                }
+
+                Napier.w(
+                    "BOOTSTRAP_HEALTH_FAIL attempt=$attempt/$HEALTH_MAX_ATTEMPTS url=$cachedUrl reason=${healthResult.exceptionOrNull()?.message}",
+                    tag = "AbacoPhy-Setup",
+                )
+            }
+
+            if (healthResult.isSuccess) {
+                val normalized = healthResult.getOrThrow()
+                _state.update {
+                    it.copy(
+                        statusTitle = "Servidor disponible",
+                        statusDetail = "Health correcto. Verificando identidad y versión de la API…",
                     )
-                    _state.update {
-                        it.copy(
-                            testing = false,
-                            phase = SetupConnectionPhase.SEARCHING,
-                            statusTitle = "Servidor anterior no disponible",
-                            statusDetail = "No respondió en el último puerto conocido. Buscando servidores en la red…",
+                }
+
+                probe.validateDiscovered(normalized).fold(
+                    onSuccess = { readyUrl ->
+                        configureReady(
+                            normalized = readyUrl,
+                            message = "Conexión recuperada · último servidor conocido",
+                            detail = "Servidor saludable y API AbacoPhy verificada. Abriendo el inicio de sesión…",
+                            onConfigured = onConfigured,
                         )
-                    }
-                    searchServers(onConfigured)
-                },
-            )
+                    },
+                    onFailure = { e ->
+                        Napier.w(
+                            "BOOTSTRAP_CACHE_INVALID url=$normalized reason=${e.message}; starting discovery",
+                            tag = "AbacoPhy-Setup",
+                        )
+                        _state.update {
+                            it.copy(
+                                testing = false,
+                                phase = SetupConnectionPhase.SEARCHING,
+                                statusTitle = "Servidor no compatible",
+                                statusDetail = "El servidor responde, pero no corresponde a una API AbacoPhy compatible. Buscando otra instancia…",
+                            )
+                        }
+                        searchServers(onConfigured)
+                    },
+                )
+                return@launch
+            }
+
+            Napier.w("BOOTSTRAP_HEALTH_EXHAUSTED url=$cachedUrl; starting discovery", tag = "AbacoPhy-Setup")
+            _state.update {
+                it.copy(
+                    testing = false,
+                    phase = SetupConnectionPhase.SEARCHING,
+                    statusTitle = "Servidor anterior no disponible",
+                    statusDetail = "Fallaron 2 reintentos. Buscando servidores AbacoPhy en la red…",
+                )
+            }
+            searchServers(onConfigured)
         }
     }
 
@@ -175,20 +226,16 @@ class InitialSetupViewModel(
                         statusDetail = "${candidate.name} · ${candidate.host}:${candidate.port}",
                     )
                 }
-                Napier.i(
-                    "SERVER_FOUND name=${candidate.name} url=${candidate.baseUrl}",
-                    tag = "AbacoPhy-Setup",
-                )
-                // Keep the discovered state visible before showing the connection attempt.
+                Napier.i("SERVER_FOUND name=${candidate.name} url=${candidate.baseUrl}", tag = "AbacoPhy-Setup")
                 delay(500)
                 _state.update {
                     it.copy(
                         phase = SetupConnectionPhase.CONNECTING,
-                        statusTitle = "Intentando conexión",
-                        statusDetail = "Contactando con ${candidate.name} y verificando la API…",
+                        statusTitle = "Comprobando servidor encontrado",
+                        statusDetail = "Verificando /health e identidad de ${candidate.name}…",
                     )
                 }
-                val result = probe.validateDiscovered(candidate.baseUrl)
+                val result = probe.validateServerReady(candidate.baseUrl)
                 if (result.isSuccess) {
                     Napier.i("CANDIDATE_ACCEPTED name=${candidate.name} url=${candidate.baseUrl}", tag = "AbacoPhy-Setup")
                     compatible += candidate
@@ -203,7 +250,7 @@ class InitialSetupViewModel(
             Napier.i("SEARCH_FINISHED rawCandidates=${candidates.size} compatible=${compatible.size}", tag = "AbacoPhy-Setup")
             when (compatible.size) {
                 0 -> failSetup(
-                    "Encontramos un servicio, pero no pudimos conectar con una API AbacoPhy válida. Compruebe la red y vuelva a intentarlo.",
+                    "Encontramos servicios, pero ninguno pasó la comprobación de health y API AbacoPhy. Compruebe la red y vuelva a intentarlo.",
                 )
                 1 -> selectServer(compatible.first(), onConfigured)
                 else -> _state.update {
@@ -234,32 +281,22 @@ class InitialSetupViewModel(
                     statusDetail = "${server.name} · ${server.host}:${server.port}",
                 )
             }
-            // Let the user see which server was selected before testing it.
             delay(500)
             _state.update {
                 it.copy(
                     phase = SetupConnectionPhase.CONNECTING,
-                    statusTitle = "Intentando conexión",
-                    statusDetail = "Verificando que el servidor responde correctamente…",
+                    statusTitle = "Comprobando servidor",
+                    statusDetail = "Verificando /health antes de abrir el inicio de sesión…",
                 )
             }
-            probe.validateDiscovered(server.baseUrl).fold(
+            probe.validateServerReady(server.baseUrl).fold(
                 onSuccess = { normalized ->
-                    settings.setBaseUrl(normalized)
-                    apiConfig.update(normalized)
-                    _state.update {
-                        it.copy(
-                            urlInput = normalized,
-                            successMessage = "Conexión correcta · ${server.name}",
-                            discoveredServers = emptyList(),
-                            phase = SetupConnectionPhase.READY,
-                            statusTitle = "¡AbacoPhy está listo!",
-                            statusDetail = "Conexión verificada. Abriendo el inicio de sesión…",
-                        )
-                    }
-                    delay(1_000)
-                    _state.update { it.copy(testing = false) }
-                    onConfigured()
+                    configureReady(
+                        normalized = normalized,
+                        message = "Conexión correcta · ${server.name}",
+                        detail = "Servidor saludable y API verificada. Abriendo el inicio de sesión…",
+                        onConfigured = onConfigured,
+                    )
                 },
                 onFailure = { e ->
                     val message = e.message ?: "El servidor dejó de responder. Puede reintentar o introducir la URL manualmente."
@@ -269,7 +306,7 @@ class InitialSetupViewModel(
                             error = message,
                             phase = SetupConnectionPhase.FAILED,
                             statusTitle = "No se pudo conectar",
-                            statusDetail = "El servidor fue encontrado, pero no respondió correctamente.",
+                            statusDetail = "El servidor fue encontrado, pero no pasó la comprobación de disponibilidad.",
                         )
                     }
                 },
@@ -286,27 +323,18 @@ class InitialSetupViewModel(
                     error = null,
                     successMessage = null,
                     phase = SetupConnectionPhase.CONNECTING,
-                    statusTitle = "Intentando conexión",
-                    statusDetail = "Probando la URL introducida y verificando la API…",
+                    statusTitle = "Comprobando servidor",
+                    statusDetail = "Verificando /health y la API antes de abrir el inicio de sesión…",
                 )
             }
             probe.execute(raw).fold(
                 onSuccess = { normalized ->
-                    settings.setBaseUrl(normalized)
-                    apiConfig.update(normalized)
-                    _state.update {
-                        it.copy(
-                            successMessage = "Conexión correcta · $normalized",
-                            urlInput = normalized,
-                            discoveredServers = emptyList(),
-                            phase = SetupConnectionPhase.READY,
-                            statusTitle = "¡AbacoPhy está listo!",
-                            statusDetail = "Conexión verificada. Abriendo el inicio de sesión…",
-                        )
-                    }
-                    delay(1_000)
-                    _state.update { it.copy(testing = false) }
-                    onConfigured()
+                    configureReady(
+                        normalized = normalized,
+                        message = "Conexión correcta · $normalized",
+                        detail = "Servidor saludable y API verificada. Abriendo el inicio de sesión…",
+                        onConfigured = onConfigured,
+                    )
                 },
                 onFailure = { e ->
                     val message = e.message ?: "No se pudo validar el servidor. La URL no se guardó."
@@ -321,6 +349,31 @@ class InitialSetupViewModel(
                     }
                 },
             )
+        }
+    }
+
+    private fun configureReady(
+        normalized: String,
+        message: String,
+        detail: String,
+        onConfigured: () -> Unit,
+    ) {
+        settings.setBaseUrl(normalized)
+        apiConfig.update(normalized)
+        _state.update {
+            it.copy(
+                testing = false,
+                urlInput = normalized,
+                successMessage = message,
+                discoveredServers = emptyList(),
+                phase = SetupConnectionPhase.READY,
+                statusTitle = "¡AbacoPhy está listo!",
+                statusDetail = detail,
+            )
+        }
+        viewModelScope.launch {
+            delay(1_000)
+            onConfigured()
         }
     }
 
