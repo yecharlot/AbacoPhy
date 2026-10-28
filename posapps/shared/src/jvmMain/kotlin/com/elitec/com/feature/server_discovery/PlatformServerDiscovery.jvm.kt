@@ -21,7 +21,7 @@ import javax.jmdns.JmDNS
 actual class PlatformServerDiscovery actual constructor() {
     actual suspend fun discover(timeoutMillis: Long): List<DiscoveredServer> =
         withContext(Dispatchers.IO) {
-            val timeout = timeoutMillis.coerceIn(MIN_TIMEOUT_MS, MAX_TIMEOUT_MS).toInt()
+            val timeout = timeoutMillis.coerceIn(MIN_TIMEOUT_MS, MAX_TIMEOUT_MS)
             val candidates = linkedMapOf<String, DiscoveredServer>()
             val interfaces = runCatching {
                 Collections.list(NetworkInterface.getNetworkInterfaces())
