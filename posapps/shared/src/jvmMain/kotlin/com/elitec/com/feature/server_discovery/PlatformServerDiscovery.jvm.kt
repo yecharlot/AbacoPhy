@@ -11,12 +11,11 @@ import javax.jmdns.JmDNS
 /**
  * Descubrimiento mDNS exclusivo de Desktop/JVM.
  *
- * Se crea JmDNS sobre una dirección IPv4 concreta en lugar de usar
- * JmDNS.create() sin interfaz: en Windows, la selección automática puede
- * fallar en adaptadores virtuales/IPv6 con "Invalid argument: setsockopt".
+ * Solo intenta interfaces IPv4 que el sistema operativo declara aptas para
+ * multicast. Esto evita abrir JmDNS sobre adaptadores virtuales/VPN que
+ * fallan al configurar el socket multicast en Windows.
  *
- * Igual que Android, aquí solo se descubren candidatos. El ViewModel común
- * sigue validando /health y /info antes de configurar la URL o abrir el login.
+ * El ViewModel común sigue validando /health y /info; Android no se modifica.
  */
 actual class PlatformServerDiscovery actual constructor() {
     actual suspend fun discover(timeoutMillis: Long): List<DiscoveredServer> =
@@ -26,8 +25,11 @@ actual class PlatformServerDiscovery actual constructor() {
             val interfaces = runCatching {
                 Collections.list(NetworkInterface.getNetworkInterfaces())
                     .filter { networkInterface ->
-                        runCatching { networkInterface.isUp && !networkInterface.isLoopback }
-                            .getOrDefault(false)
+                        runCatching {
+                            networkInterface.isUp &&
+                                !networkInterface.isLoopback &&
+                                networkInterface.supportsMulticast()
+                        }.getOrDefault(false)
                     }
                     .flatMap { networkInterface ->
                         Collections.list(networkInterface.inetAddresses)
@@ -42,7 +44,7 @@ actual class PlatformServerDiscovery actual constructor() {
             }.getOrDefault(emptyList())
 
             if (interfaces.isEmpty()) {
-                Napier.w("DISCOVERY_NO_IPV4_INTERFACE", tag = TAG)
+                Napier.w("DISCOVERY_NO_MULTICAST_IPV4_INTERFACE", tag = TAG)
                 return@withContext emptyList()
             }
 
@@ -66,9 +68,6 @@ actual class PlatformServerDiscovery actual constructor() {
                             }
                     }
                 } catch (e: Exception) {
-                    // Una interfaz (VPN, Hyper-V, adaptador virtual) puede no
-                    // admitir multicast. Se intenta la siguiente sin bloquear
-                    // la configuración manual ni el resto del descubrimiento.
                     Napier.w(
                         "DISCOVERY_INTERFACE_FAILED address=${address.hostAddress} type=${e::class.simpleName} message=${e.message}",
                         e,
