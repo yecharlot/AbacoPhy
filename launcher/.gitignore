@@ -17,3 +17,10 @@ captures
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
+
+# F2 runtime artifacts (rebuild with scripts/build-runtime.sh)
+runtime/bin/abacophy
+runtime/bin/abacophy.exe
+runtime/static/**
+!runtime/static/README.md
+!runtime/bin/README.md

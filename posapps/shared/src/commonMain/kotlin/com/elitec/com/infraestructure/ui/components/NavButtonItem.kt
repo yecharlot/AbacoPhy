@@ -1,5 +1,6 @@
 package com.elitec.com.infraestructure.ui.components
 
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -37,7 +38,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.elitec.com.infraestructure.ui.uiModels.NavButton
-import com.gursimar.composive.responsive.theme.AppTheme
 
 @Composable
 fun NavButtonItem(
@@ -47,7 +47,7 @@ fun NavButtonItem(
     modifier: Modifier = Modifier,
     navButton: NavButton,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
@@ -131,7 +131,7 @@ fun NavButtonItem(
             Text(
                 text = navButton.text,
                 color = content,
-                style = AppTheme.materialTypography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

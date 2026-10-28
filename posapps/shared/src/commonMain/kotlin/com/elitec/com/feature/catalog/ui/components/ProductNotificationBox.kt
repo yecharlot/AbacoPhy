@@ -1,5 +1,7 @@
 package com.elitec.com.feature.catalog.ui.components
 
+import com.elitec.com.infraestructure.ui.theme.AbacoDimensions
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -25,7 +27,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.elitec.com.feature.catalog.ui.uiStates.CatalogChargingUiState
-import com.gursimar.composive.responsive.theme.AppTheme
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -36,8 +37,8 @@ fun ProductNotificationBox(
 
     val (backgroundColor, textColor) = when (chargingUiState) {
         is CatalogChargingUiState.Idle -> Color.Transparent to Color.Transparent
-        is CatalogChargingUiState.Loading -> AppTheme.materialColors.tertiary to AppTheme.materialColors.onTertiary
-        is CatalogChargingUiState.ErrorLoading -> AppTheme.materialColors.errorContainer to AppTheme.materialColors.onErrorContainer
+        is CatalogChargingUiState.Loading -> MaterialTheme.colorScheme.tertiary to MaterialTheme.colorScheme.onTertiary
+        is CatalogChargingUiState.ErrorLoading -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
         is CatalogChargingUiState.CatalogCharged ->  Color(0xFF549058) to Color(0xFFFFFFFF)
     }
 
@@ -56,10 +57,10 @@ fun ProductNotificationBox(
             shadowElevation = animateElevationAsDp
         ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(AppTheme.dimensions.contentPaddingSmall),
+                horizontalArrangement = Arrangement.spacedBy(AbacoDimensions.contentPaddingSmall),
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(
-                    AppTheme.dimensions.cardPadding
+                    AbacoDimensions.cardPadding
                 )
             ) {
                 AnimatedVisibility(
@@ -98,7 +99,7 @@ fun ProductNotificationBox(
                 }
                 Text(
                     text = getChargingProductStateMessage(chargingUiState) ?: "",
-                    style = AppTheme.materialTypography.labelMedium,
+                    style = MaterialTheme.typography.labelMedium,
                     color = animatedTextColor
                 )
             }

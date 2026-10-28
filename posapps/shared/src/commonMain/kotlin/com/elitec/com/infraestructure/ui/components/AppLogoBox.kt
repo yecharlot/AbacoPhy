@@ -1,5 +1,8 @@
 package com.elitec.com.infraestructure.ui.components
 
+import com.elitec.com.infraestructure.ui.responsive.AppDeviceLayout
+import com.elitec.com.infraestructure.ui.responsive.rememberAppDeviceLayout
+import androidx.compose.material3.MaterialTheme
 import abacopos.shared.generated.resources.Res
 import abacopos.shared.generated.resources.abacus_color_icon
 import androidx.compose.foundation.Image
@@ -21,9 +24,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.gursimar.composive.responsive.core.DeviceConfiguration
-import com.gursimar.composive.responsive.core.rememberDeviceConfiguration
-import com.gursimar.composive.responsive.theme.AppTheme
 import org.jetbrains.compose.resources.painterResource
 
 
@@ -34,11 +34,11 @@ fun AppLogoBox(
     elementSeparation: Dp,
     modifier: Modifier = Modifier,
 ) {
-    val colors = AppTheme.materialColors
-    val horizontal = when (rememberDeviceConfiguration()) {
-        DeviceConfiguration.MOBILE_PORTRAIT,
-        DeviceConfiguration.TABLET_LANDSCAPE,
-        DeviceConfiguration.DESKTOP -> true
+    val colors = MaterialTheme.colorScheme
+    val horizontal = when (rememberAppDeviceLayout()) {
+        AppDeviceLayout.MobilePortrait,
+        AppDeviceLayout.TabletLandscape,
+        AppDeviceLayout.Desktop -> true
         else -> false
     }
 
@@ -62,7 +62,7 @@ fun AppLogoBox(
         Column {
             Text(
                 text = "AbacoPhy",
-                style = AppTheme.materialTypography.titleLarge,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = colors.onSurface,
             )
@@ -78,7 +78,7 @@ fun AppLogoBox(
                 )
                 Text(
                     text = userName,
-                    style = AppTheme.materialTypography.labelSmall,
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = colors.onSurface.copy(alpha = 0.8f),
                     maxLines = 1,

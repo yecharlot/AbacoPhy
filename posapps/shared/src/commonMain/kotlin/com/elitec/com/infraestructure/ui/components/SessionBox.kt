@@ -1,5 +1,6 @@
 package com.elitec.com.infraestructure.ui.components
 
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
@@ -10,7 +11,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.gursimar.composive.responsive.theme.AppTheme
 
 @Composable
 fun SessionBox(
@@ -29,7 +29,7 @@ fun SessionBox(
         )
         Text(
             text = sessionName,
-            style = AppTheme.materialTypography.labelSmall
+            style = MaterialTheme.typography.labelSmall
         )
     }
 }
