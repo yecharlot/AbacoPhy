@@ -47,6 +47,78 @@ class InitialSetupViewModel(
     )
     val state: StateFlow<InitialSetupUiState> = _state.asStateFlow()
 
+    /**
+     * Política de arranque POS:
+     * 1. intenta el último servidor conocido (la URL persistida contiene host/IP y puerto),
+     * 2. solo si falla, vuelve a la política normal de discovery mDNS.
+     */
+    fun connectUsingCacheOrDiscover(onConfigured: () -> Unit) {
+        if (_state.value.discovering || _state.value.testing) {
+            Napier.w("CACHE_CONNECT_IGNORED already busy", tag = "AbacoPhy-Setup")
+            return
+        }
+
+        val cachedUrl = settings.getBaseUrl()?.trim().orEmpty()
+            .ifBlank { apiConfig.baseUrl.trim() }
+
+        if (cachedUrl.isBlank()) {
+            Napier.i("CACHE_MISS reason=no_saved_url", tag = "AbacoPhy-Setup")
+            searchServers(onConfigured)
+            return
+        }
+
+        viewModelScope.launch {
+            Napier.i("CACHE_TRY url=$cachedUrl", tag = "AbacoPhy-Setup")
+            _state.update {
+                it.copy(
+                    testing = true,
+                    discovering = false,
+                    error = null,
+                    successMessage = null,
+                    phase = SetupConnectionPhase.CONNECTING,
+                    statusTitle = "Probando el último servidor",
+                    statusDetail = "Intentando reutilizar la última dirección conocida (${cachedUrl.substringAfterLast("://")})…",
+                )
+            }
+
+            probe.execute(cachedUrl).fold(
+                onSuccess = { normalized ->
+                    Napier.i("CACHE_HIT url=$normalized", tag = "AbacoPhy-Setup")
+                    settings.setBaseUrl(normalized)
+                    apiConfig.update(normalized)
+                    _state.update {
+                        it.copy(
+                            testing = false,
+                            urlInput = normalized,
+                            successMessage = "Conexión recuperada · último servidor conocido",
+                            discoveredServers = emptyList(),
+                            phase = SetupConnectionPhase.READY,
+                            statusTitle = "¡AbacoPhy está listo!",
+                            statusDetail = "Servidor recuperado sin buscar en la red. Abriendo el inicio de sesión…",
+                        )
+                    }
+                    delay(1_000)
+                    onConfigured()
+                },
+                onFailure = { e ->
+                    Napier.w(
+                        "CACHE_MISS url=$cachedUrl reason=${e.message}",
+                        tag = "AbacoPhy-Setup",
+                    )
+                    _state.update {
+                        it.copy(
+                            testing = false,
+                            phase = SetupConnectionPhase.SEARCHING,
+                            statusTitle = "Servidor anterior no disponible",
+                            statusDetail = "No respondió en el último puerto conocido. Buscando servidores en la red…",
+                        )
+                    }
+                    searchServers(onConfigured)
+                },
+            )
+        }
+    }
+
     fun onUrlChange(value: String) {
         _state.update {
             it.copy(
