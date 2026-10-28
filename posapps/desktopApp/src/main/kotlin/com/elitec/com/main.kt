@@ -18,16 +18,12 @@ import com.elitec.com.infraestructure.ui.util.getAppLogoPainter
 fun main() {
     initKoin()
     application {
-        var closeApp by remember { mutableStateOf(false) }
-        var minimized by remember { mutableStateOf(false) }
-        var showMaximized by remember { mutableStateOf(false) }
-
-        var windowState = rememberWindowState(
-            position = WindowPosition.Aligned(Alignment.Center) ,
-            isMinimized = false,
-            size = DpSize(width = 350.dp, height = 450.dp)
+        val windowState = rememberWindowState(
+            position = WindowPosition.Aligned(Alignment.Center),
+            size = DpSize(width = 960.dp, height = 720.dp),
         )
         Window(
+            state = windowState,
             icon = getAppLogoPainter(),
             onCloseRequest = ::exitApplication,
             title = "ÁbacoPOS",
