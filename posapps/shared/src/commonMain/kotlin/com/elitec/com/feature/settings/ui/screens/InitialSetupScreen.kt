@@ -84,9 +84,13 @@ fun InitialSetupScreen(
         state.phase == SetupConnectionPhase.CONNECTING
 
     // La comprobación ocurre antes de crear la sesión y mostrar Login.
-    LaunchedEffect(Unit) {
-        if (splashMode) viewModel.connectUsingCacheOrDiscover(onConfigured)
-        else viewModel.connectUsingCacheOrDiscover(onConfigured)
+    LaunchedEffect(splashMode) {
+        if (splashMode) {
+            viewModel.connectUsingCacheOrDiscover(onConfigured)
+        } else {
+            // Reconfiguración explícita: no saltar directamente a la URL guardada.
+            showManualUrl = true
+        }
     }
 
     Column(
@@ -207,7 +211,7 @@ fun InitialSetupScreen(
         }
 
         // En modo splash los controles solo aparecen cuando hace falta intervención.
-        if (!splashMode || failed) {
+        if (!splashMode || failed || state.discoveredServers.isNotEmpty()) {
             Button(
                 onClick = { viewModel.connectUsingCacheOrDiscover(onConfigured) },
                 enabled = !busy,
