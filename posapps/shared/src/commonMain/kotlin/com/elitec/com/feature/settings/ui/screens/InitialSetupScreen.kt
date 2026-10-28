@@ -5,6 +5,7 @@ import abacopos.shared.generated.resources.abacus_color_icon
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,14 +14,21 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -77,214 +85,348 @@ fun InitialSetupScreen(
         SetupConnectionPhase.CONNECTING -> "↔"
         SetupConnectionPhase.READY -> "✓"
         SetupConnectionPhase.FAILED -> "!"
-        SetupConnectionPhase.IDLE -> "●"
+        SetupConnectionPhase.IDLE -> "•"
     }
     val inProgress = state.phase == SetupConnectionPhase.SEARCHING ||
         state.phase == SetupConnectionPhase.SERVER_FOUND ||
         state.phase == SetupConnectionPhase.CONNECTING
 
-    // La comprobación ocurre antes de crear la sesión y mostrar Login.
     LaunchedEffect(splashMode) {
         if (splashMode) {
             viewModel.connectUsingCacheOrDiscover(onConfigured)
         } else {
-            // Reconfiguración explícita: no saltar directamente a la URL guardada.
             showManualUrl = true
         }
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                Brush.radialGradient(
+                Brush.verticalGradient(
                     colors = listOf(
-                        AbacoColors.Cyan.copy(alpha = if (splashMode) 0.12f else 0.05f),
+                        AbacoColors.Cyan.copy(alpha = if (splashMode) 0.10f else 0.04f),
+                        MaterialTheme.colorScheme.background,
                         MaterialTheme.colorScheme.background,
                     ),
                 ),
-            )
-            .padding(if (splashMode) 24.dp else 24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
+            ),
+        contentAlignment = Alignment.Center,
     ) {
-        if (splashMode) {
-            Image(
-                painter = painterResource(Res.drawable.abacus_color_icon),
-                contentDescription = "Logotipo de Ábaco POS",
-                modifier = Modifier.size(94.dp),
-                contentScale = ContentScale.Fit,
-            )
-            Spacer(Modifier.height(12.dp))
-            Text(
-                "Ábaco POS",
-                style = MaterialTheme.typography.headlineMedium,
-                color = AbacoColors.Cyan,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                "Preparando el punto de venta",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp, bottom = 22.dp),
-            )
-        } else {
-            Text("Conectar con AbacoPhy", style = MaterialTheme.typography.headlineSmall)
-            Text(
-                "Recuperaremos el último servidor conocido y solo buscaremos en la red si es necesario.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
-            )
-        }
-
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
-            colors = CardDefaults.cardColors(containerColor = statusContainer),
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 560.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
-            Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
+            if (splashMode) {
+                Surface(
+                    modifier = Modifier.size(92.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 4.dp,
+                    shadowElevation = 3.dp,
                 ) {
-                    Text(
-                        text = statusSymbol,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = statusForeground,
-                        modifier = Modifier.padding(end = 14.dp),
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            state.statusTitle,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = statusForeground,
-                        )
-                        Text(
-                            state.statusDetail,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = statusForeground,
-                            modifier = Modifier.padding(top = 5.dp),
-                        )
-                    }
-                }
-                if (inProgress) {
-                    LinearProgressIndicator(
-                        modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                    Image(
+                        painter = painterResource(Res.drawable.abacus_color_icon),
+                        contentDescription = "Logotipo de Ábaco POS",
+                        modifier = Modifier.padding(14.dp),
+                        contentScale = ContentScale.Fit,
                     )
                 }
-            }
-        }
-
-        if (splashMode && !failed && state.phase != SetupConnectionPhase.READY) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                BootstrapStep(
-                    icon = "①",
-                    title = "Recuperar servidor",
-                    detail = "Primero probamos la última dirección guardada.",
-                    active = state.statusTitle.contains("último", ignoreCase = true) ||
-                        state.statusTitle.contains("servidor", ignoreCase = true),
-                )
-                BootstrapStep(
-                    icon = "②",
-                    title = "Verificar disponibilidad",
-                    detail = "Comprobamos /health y la compatibilidad de la API.",
-                    active = state.phase == SetupConnectionPhase.CONNECTING,
-                )
-                BootstrapStep(
-                    icon = "③",
-                    title = "Buscar en la red",
-                    detail = "Si no responde, localizamos otra instancia automáticamente.",
-                    active = state.phase == SetupConnectionPhase.SEARCHING,
-                )
-            }
-            Spacer(Modifier.height(16.dp))
-            Text(
-                "No cierres la aplicación. Esto suele tardar unos segundos; si el servidor no está disponible, te mostraremos cómo continuar.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        // En modo splash los controles solo aparecen cuando hace falta intervención.
-        if (!splashMode || failed || state.discoveredServers.isNotEmpty()) {
-            Button(
-                onClick = { viewModel.connectUsingCacheOrDiscover(onConfigured) },
-                enabled = !busy,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (busy) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp).padding(end = 4.dp),
-                        strokeWidth = 2.dp,
-                    )
-                }
-                Text(if (busy) "Comprobando conexión…" else "Reintentar conexión automática")
-            }
-
-            if (state.discoveredServers.isNotEmpty()) {
+                Spacer(Modifier.height(18.dp))
                 Text(
-                    "Servidores encontrados",
+                    "Ábaco POS",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = AbacoColors.Cyan,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    "Preparando tu punto de venta",
                     style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(top = 18.dp, bottom = 8.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp, bottom = 24.dp),
                 )
-                state.discoveredServers.forEach { server ->
-                    Button(
-                        onClick = { viewModel.selectServer(server, onConfigured) },
-                        enabled = !busy,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+            } else {
+                Text(
+                    "Conectar con AbacoPhy",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    "Configura el servidor de tu red. Validaremos la conexión antes de continuar.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 20.dp),
+                )
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = statusContainer),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
-                        Text("▣  ${server.name} · ${server.host}:${server.port}")
+                        Surface(
+                            shape = CircleShape,
+                            color = statusForeground.copy(alpha = 0.10f),
+                            modifier = Modifier.size(48.dp),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                if (inProgress) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(24.dp),
+                                        strokeWidth = 2.5.dp,
+                                        color = statusForeground,
+                                    )
+                                } else {
+                                    Text(
+                                        statusSymbol,
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = statusForeground,
+                                    )
+                                }
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                state.statusTitle,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = statusForeground,
+                            )
+                            Text(
+                                state.statusDetail,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = statusForeground.copy(alpha = 0.90f),
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
+                    }
+                    if (inProgress) {
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = statusForeground,
+                            trackColor = statusForeground.copy(alpha = 0.12f),
+                        )
+                    }
+                    state.successMessage?.let { message ->
+                        Text(
+                            message,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = statusForeground,
+                            fontWeight = FontWeight.Medium,
+                        )
                     }
                 }
             }
 
-            state.error?.let {
+            if (splashMode && !failed && state.phase != SetupConnectionPhase.READY) {
+                Spacer(Modifier.height(20.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+                    ),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp),
+                    ) {
+                        Text(
+                            "QUÉ ESTAMOS HACIENDO",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        BootstrapStep(
+                            number = "1",
+                            title = "Recuperar servidor",
+                            detail = "Probamos la última dirección guardada.",
+                            active = state.phase == SetupConnectionPhase.CONNECTING &&
+                                state.statusTitle.contains("servidor", ignoreCase = true),
+                            complete = state.phase == SetupConnectionPhase.SEARCHING ||
+                                state.phase == SetupConnectionPhase.SERVER_FOUND ||
+                                state.phase == SetupConnectionPhase.READY,
+                        )
+                        BootstrapStep(
+                            number = "2",
+                            title = "Verificar conexión",
+                            detail = "Comprobamos disponibilidad e identidad de la API.",
+                            active = state.phase == SetupConnectionPhase.CONNECTING &&
+                                (state.statusTitle.contains("health", ignoreCase = true) ||
+                                    state.statusTitle.contains("disponible", ignoreCase = true) ||
+                                    state.statusTitle.contains("encontrado", ignoreCase = true)),
+                            complete = state.phase == SetupConnectionPhase.READY,
+                        )
+                        BootstrapStep(
+                            number = "3",
+                            title = "Buscar en la red local",
+                            detail = "Si el servidor guardado no responde, buscamos otra instancia.",
+                            active = state.phase == SetupConnectionPhase.SEARCHING,
+                            complete = false,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
                 Text(
-                    it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 12.dp).fillMaxWidth(),
-                )
-            }
-
-            TextButton(
-                onClick = { showManualUrl = !showManualUrl },
-                modifier = Modifier.padding(top = 12.dp),
-            ) {
-                Text(if (showManualUrl) "Ocultar configuración manual" else "⚙  Cambiar o introducir URL")
-            }
-
-            if (showManualUrl) {
-                Text(
-                    "Úsalo si cambió la IP/puerto o la red bloquea el descubrimiento automático.",
+                    "Puedes dejar esta pantalla abierta. Si no logramos conectar, te ofreceremos otras opciones.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 8.dp),
                 )
-                OutlinedTextField(
-                    value = state.urlInput,
-                    onValueChange = viewModel::onUrlChange,
-                    label = { Text("URL base de la API") },
-                    placeholder = { Text("http://192.168.x.x:8090/api/v1") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !busy,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Uri,
-                        imeAction = ImeAction.Done,
-                    ),
-                )
+            }
+
+            if (!splashMode || failed || state.discoveredServers.isNotEmpty()) {
+                Spacer(Modifier.height(18.dp))
                 Button(
-                    onClick = { viewModel.testAndSave(onConfigured) },
-                    enabled = !busy && state.urlInput.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    onClick = { viewModel.connectUsingCacheOrDiscover(onConfigured) },
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(16.dp),
                 ) {
-                    Text(if (state.testing) "Conectando…" else "Probar URL y conectar")
+                    if (busy) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                        Spacer(Modifier.size(10.dp))
+                    }
+                    Text(
+                        if (busy) "Comprobando conexión…" else "Reintentar conexión automática",
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+
+                if (state.discoveredServers.isNotEmpty()) {
+                    Spacer(Modifier.height(20.dp))
+                    Text(
+                        "Servidores disponibles",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    )
+                    state.discoveredServers.forEach { server ->
+                        OutlinedButton(
+                            onClick = { viewModel.selectServer(server, onConfigured) },
+                            enabled = !busy,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            shape = RoundedCornerShape(14.dp),
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                horizontalAlignment = Alignment.Start,
+                            ) {
+                                Text(server.name, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "${server.host}:${server.port}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                state.error?.let { message ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                        ),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            Text(
+                                "!",
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                message,
+                                modifier = Modifier.weight(1f),
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                }
+
+                TextButton(
+                    onClick = { showManualUrl = !showManualUrl },
+                    modifier = Modifier.padding(top = 8.dp),
+                ) {
+                    Text(
+                        if (showManualUrl) "Ocultar configuración manual"
+                        else "Introducir dirección manualmente",
+                    )
+                }
+
+                if (showManualUrl) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                        ),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Text(
+                                "Dirección del servidor",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                "Úsalo si conoces la IP del equipo donde se ejecuta AbacoPhy o si el descubrimiento automático está bloqueado.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            OutlinedTextField(
+                                value = state.urlInput,
+                                onValueChange = viewModel::onUrlChange,
+                                label = { Text("URL base de la API") },
+                                placeholder = { Text("http://192.168.1.10:8090/api/v1") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !busy,
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Uri,
+                                    imeAction = ImeAction.Done,
+                                ),
+                                shape = RoundedCornerShape(14.dp),
+                            )
+                            Button(
+                                onClick = { viewModel.testAndSave(onConfigured) },
+                                enabled = !busy && state.urlInput.isNotBlank(),
+                                modifier = Modifier.fillMaxWidth().height(50.dp),
+                                shape = RoundedCornerShape(14.dp),
+                            ) {
+                                Text(
+                                    if (state.testing) "Validando dirección…" else "Validar y conectar",
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -293,27 +435,44 @@ fun InitialSetupScreen(
 
 @Composable
 private fun BootstrapStep(
-    icon: String,
+    number: String,
     title: String,
     detail: String,
     active: Boolean,
+    complete: Boolean,
 ) {
     Row(
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text(
-            text = if (active) "●" else icon,
-            color = if (active) AbacoColors.Cyan else MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-        )
-        Column {
+        Surface(
+            shape = CircleShape,
+            color = when {
+                complete -> MaterialTheme.colorScheme.primary
+                active -> AbacoColors.Cyan.copy(alpha = 0.16f)
+                else -> MaterialTheme.colorScheme.surfaceVariant
+            },
+            modifier = Modifier.size(30.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    if (complete) "✓" else number,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = when {
+                        complete -> MaterialTheme.colorScheme.onPrimary
+                        active -> AbacoColors.Cyan
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+        }
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 title,
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                fontWeight = if (active || complete) FontWeight.SemiBold else FontWeight.Medium,
             )
             Text(
                 detail,
