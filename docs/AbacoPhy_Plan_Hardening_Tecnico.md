@@ -44,12 +44,12 @@ Esta puntuación procede de una primera revisión estática del repositorio. No 
 ## A1. Credenciales de bootstrap
 - [ ] Localizar credenciales por defecto.
 - [x] Eliminar contraseñas administrativas visibles en logs/consola.
-- [x] Eliminar contraseñas reutilizables del código y documentación activa.
+- [x] Eliminar contraseñas reutilizables del código y documentación activa, incluida la creación de nuevos tenants.
 - [x] Diseñar bootstrap de primera ejecución con secretos aleatorios o variables de entorno protegidas.
 - [x] Obligar a cambiar la credencial inicial antes de permitir operaciones autenticadas.
 - [x] Invalidar las demás sesiones al cambiar la contraseña y eliminar el archivo temporal cuando no queden cuentas pendientes.
 - [ ] Verificar una instalación nueva y la migración de una instalación existente (pruebas añadidas; ejecución pendiente).
-- [x] Añadir pruebas automáticas para bootstrap, rotación y bloqueo por cambio obligatorio.
+- [x] Añadir pruebas automáticas para bootstrap, rotación, creación de tenants y bloqueo por cambio obligatorio.
 
 **Criterio de cierre:** ninguna credencial administrativa conocida funciona; el primer acceso obliga a cambiarla. Estado actual: implementación realizada; pruebas automatizadas aún no ejecutadas en este entorno.
 

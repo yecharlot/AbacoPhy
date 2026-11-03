@@ -1451,8 +1451,9 @@ func (s *Server) handleMasterCreateTenant(w http.ResponseWriter, r *http.Request
 	if body.AdminUser == "" {
 		body.AdminUser = "admin"
 	}
-	if body.AdminPass == "" {
-		body.AdminPass = "admin123"
+	if strings.TrimSpace(body.AdminPass) != "" {
+		writeJSON(w, 400, map[string]string{"error": "admin_pass ya no se acepta; las credenciales temporales se generan de forma segura"})
+		return
 	}
 	for _, t := range s.Store.ListTenants() {
 		if strings.EqualFold(t.Slug, body.Slug) {
@@ -1461,28 +1462,37 @@ func (s *Server) handleMasterCreateTenant(w http.ResponseWriter, r *http.Request
 		}
 	}
 	snap := domain.BootstrapTenant(body.Name, body.Slug, body.Currency)
-	hash, err := auth.HashPassword(body.AdminPass)
-	if err != nil {
-		writeJSON(w, 500, map[string]string{"error": "hash failed"})
-		return
+	if snap.Tenant.Settings == nil { snap.Tenant.Settings = map[string]string{} }
+	credentials := make([]bootstrapCredential, 0, len(snap.Users))
+	for _, user := range snap.Users {
+		if user.Username == "admin" {
+			user.Username = body.AdminUser
+		}
+		if user.Role == domain.RoleMaster {
+			user.Role = domain.RoleAdmin
+			user.Username = body.AdminUser + "-owner"
+			user.DisplayName = "Owner"
+		}
+		if err := assignGeneratedInitialPassword(user, snap.Tenant.Slug, &credentials); err != nil {
+			writeJSON(w, 500, map[string]string{"error": "no se pudieron generar las credenciales temporales"})
+			return
+		}
 	}
-	for _, u := range snap.Users {
-		if u.Username == "admin" {
-			u.Username = body.AdminUser
-			u.PasswordHash = hash
-		}
-		if u.Role == domain.RoleMaster {
-			u.PasswordHash = hash
-			u.Role = domain.RoleAdmin
-			u.Username = body.AdminUser + "-owner"
-			u.DisplayName = "Owner"
-		}
+	snap.Tenant.Settings[bootstrapCredentialMarker] = "1"
+	if err := appendBootstrapCredentials(s.Store, credentials); err != nil {
+		writeJSON(w, 500, map[string]string{"error": "no se pudieron guardar las credenciales temporales"})
+		return
 	}
 	if err := s.Store.Put(snap); err != nil {
 		writeJSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, 201, map[string]any{"tenant": snap.Tenant, "admin_user": body.AdminUser})
+	writeJSON(w, 201, map[string]any{
+		"tenant": snap.Tenant,
+		"admin_user": body.AdminUser,
+		"credentials_delivery": "bootstrap-credentials.txt",
+		"must_change_password": true,
+	})
 }
 
 
@@ -1669,6 +1679,45 @@ func persistBootstrapCredentials(st *store.Store, credentials []bootstrapCredent
 	if err := file.Close(); err != nil { return err }
 	if err := os.Chmod(path, 0600); err != nil { return fmt.Errorf("restringir permisos del archivo de credenciales: %w", err) }
 	log.Printf("EVENT=security.bootstrap_credentials_created file=%q accounts=%d secrets_not_logged=true", path, len(credentials))
+	return nil
+}
+
+func assignGeneratedInitialPassword(user *domain.User, tenantSlug string, credentials *[]bootstrapCredential) error {
+	password, err := newBootstrapPassword()
+	if err != nil { return err }
+	hash, err := auth.HashPassword(password)
+	if err != nil { return err }
+	user.PasswordHash = hash
+	user.MustChangePassword = true
+	user.UpdatedAt = time.Now().UTC()
+	*credentials = append(*credentials, bootstrapCredential{Tenant: tenantSlug, Username: user.Username, Password: password})
+	return nil
+}
+
+func appendBootstrapCredentials(st *store.Store, credentials []bootstrapCredential) error {
+	if len(credentials) == 0 { return nil }
+	if err := os.MkdirAll(st.DataDir(), 0700); err != nil { return err }
+	path := filepath.Join(st.DataDir(), "bootstrap-credentials.txt")
+	_, statErr := os.Stat(path)
+	isNew := os.IsNotExist(statErr)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	if err != nil { return err }
+	if isNew {
+		if _, err := fmt.Fprintf(file, "ABACOPHY — CREDENCIALES TEMPORALES DE PRIMER ACCESO\nGenerado: %s\n\n", time.Now().UTC().Format(time.RFC3339)); err != nil {
+			_ = file.Close()
+			return err
+		}
+	}
+	for _, credential := range credentials {
+		if _, err := fmt.Fprintf(file, "Tenant: %s\nUsername: %s\nPassword: %s\n\n", credential.Tenant, credential.Username, credential.Password); err != nil {
+			_ = file.Close()
+			return err
+		}
+	}
+	if err := file.Sync(); err != nil { _ = file.Close(); return err }
+	if err := file.Close(); err != nil { return err }
+	if err := os.Chmod(path, 0600); err != nil { return err }
+	log.Printf("EVENT=security.bootstrap_credentials_appended file=%q accounts=%d secrets_not_logged=true", path, len(credentials))
 	return nil
 }
 

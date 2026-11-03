@@ -130,6 +130,44 @@ func TestInitialPasswordChangeBlocksAPIUntilCompleted(t *testing.T) {
 	}
 }
 
+func TestMasterCreateTenantGeneratesIndependentTemporaryPasswords(t *testing.T) {
+	t.Setenv("ABACOPHY_BOOTSTRAP_MASTER_PASSWORD", "")
+	t.Setenv("ABACOPHY_BOOTSTRAP_ADMIN_PASSWORD", "")
+	dataDir := t.TempDir()
+	st := store.New(dataDir)
+	if err := EnsureBootstrap(st); err != nil { t.Fatal(err) }
+	initial := st.Get(st.ListTenants()[0].ID)
+	master := userByName(initial, "master")
+	master.MustChangePassword = false
+	master.PasswordHash, _ = auth.HashPassword("master-test-private-password")
+	if err := st.Put(initial); err != nil { t.Fatal(err) }
+	token, _, err := auth.Login(st, "master", "master-test-private-password")
+	if err != nil { t.Fatal(err) }
+
+	handler := NewServer(st, t.TempDir()).Handler()
+	body := `{"name":"Secure Business","slug":"secure-business","admin_user":"secure-admin"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/master/tenants/create", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token.Token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated { t.Fatalf("create tenant status = %d body=%s", rec.Code, rec.Body.String()) }
+
+	var created *domain.StoreSnapshot
+	for _, tenant := range st.ListTenants() {
+		if tenant.Slug == "secure-business" { created = st.Get(tenant.ID); break }
+	}
+	if created == nil { t.Fatal("created tenant not found") }
+	first := userByName(created, "secure-admin")
+	second := userByName(created, "secure-admin-owner")
+	if first == nil || second == nil || !first.MustChangePassword || !second.MustChangePassword {
+		t.Fatal("both new tenant administrator accounts must require password change")
+	}
+	firstPassword := readBootstrapPassword(t, dataDir, "secure-admin")
+	secondPassword := readBootstrapPassword(t, dataDir, "secure-admin-owner")
+	if firstPassword == secondPassword { t.Fatal("new tenant admin accounts must not share a temporary password") }
+}
+
 func userByName(snap *domain.StoreSnapshot, username string) *domain.User {
 	if snap == nil { return nil }
 	for _, user := range snap.Users {
