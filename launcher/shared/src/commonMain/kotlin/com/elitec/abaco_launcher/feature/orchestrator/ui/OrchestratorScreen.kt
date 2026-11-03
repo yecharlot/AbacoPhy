@@ -335,7 +335,10 @@ fun OrchestratorScreen(
                         compact = compact,
                         portText = portText,
                         networkScope = networkScope,
-                        onNetworkScopeChange = { selected ->\n                            networkScope = selected\n                            onNetworkScopeChange(selected)\n                        },
+                        onNetworkScopeChange = { selected ->
+                            networkScope = selected
+                            onNetworkScopeChange(selected)
+                        },
                         onPortChange = { portText = it.filter { ch -> ch.isDigit() }.take(5) },
                         canStop = canStop,
                         canOpenBrowser = canOpenBrowser,
