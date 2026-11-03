@@ -147,11 +147,6 @@ private enum class RunStatus(val label: String, val color: Color, val icon: Imag
     Stopped("Detenido", Ide.Subtle, Icons.Rounded.PowerSettingsNew),
 }
 
-private val bootstrapCredentials = listOf(
-    "master" to "AbacoPhy#Master1",
-    "admin" to "admin123",
-)
-
 // ════════════════════════════════════════════════════════════════════════════
 //  Pantalla principal
 // ════════════════════════════════════════════════════════════════════════════
@@ -595,7 +590,7 @@ private fun SidePanel(
 
                 CardVisibility(state.backendRunning) { DiscoveryCard(state) }
                 CardVisibility(state.backendRunning) { AddressCard(state) }
-                CardVisibility(state.backendRunning) { CredentialsCard() }
+                CardVisibility(state.backendRunning) { BootstrapInfoCard() }
                 CardVisibility(state.lastError != null) { ErrorCard(state.lastError.orEmpty()) }
             }
             VerticalScrollbar(
@@ -701,7 +696,7 @@ private fun AddressCard(state: OrchestratorState) {
         Modifier.fillMaxWidth().ideCard(Ide.Surface2.copy(alpha = 0.5f), Ide.Blue.copy(alpha = 0.25f)).padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        SectionLabel(Icons.Rounded.Router, "DIRECCIONES (0.0.0.0)")
+        SectionLabel(Icons.Rounded.Router, "DIRECCIONES DEL SERVIDOR")
         Spacer(Modifier.height(4.dp))
         state.baseUrl?.let { AddressRow(Icons.Rounded.Computer, "Local", "$it/", Ide.Fg) }
         state.lanUrls.forEach { AddressRow(Icons.Rounded.Router, "Red", "$it/", Ide.Green) }
@@ -727,42 +722,17 @@ private fun AddressRow(icon: ImageVector, label: String, url: String, color: Col
 }
 
 @Composable
-private fun CredentialsCard() {
-    var reveal by remember { mutableStateOf(false) }
+private fun BootstrapInfoCard() {
     Column(
         Modifier.fillMaxWidth().ideCard(Ide.Surface2.copy(alpha = 0.5f), Ide.Green.copy(alpha = 0.25f)).padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        SectionLabel(Icons.Rounded.Key, "ACCESO INICIAL") {
-            IdeIconButton(
-                icon = if (reveal) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                description = if (reveal) "Ocultar contraseñas" else "Mostrar contraseñas",
-                onClick = { reveal = !reveal },
-            )
-        }
-        bootstrapCredentials.forEach { (user, pass) ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Rounded.Person, null, tint = Ide.Subtle, modifier = Modifier.size(13.dp))
-                Text(user, fontSize = 11.sp, fontFamily = Ide.Mono, color = Ide.Blue, fontWeight = FontWeight.Bold)
-                Icon(Icons.Rounded.Lock, null, tint = Ide.Subtle, modifier = Modifier.size(11.dp))
-                AnimatedContent(
-                    targetState = reveal,
-                    transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(100)) },
-                    label = "pass",
-                    modifier = Modifier.weight(1f),
-                ) { shown ->
-                    Text(
-                        if (shown) pass else "•".repeat(8),
-                        fontSize = 11.sp,
-                        fontFamily = Ide.Mono,
-                        color = Ide.Purple,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                CopyButton("Copiar contraseña") { pass }
-            }
-        }
+        SectionLabel(Icons.Rounded.Key, "ACCESO INICIAL")
+        Text(
+            "Las credenciales temporales se generan en el primer arranque y se guardan en bootstrap-credentials.txt dentro del directorio ABACOPHY_DATA. El Launcher no muestra ni registra contraseñas.",
+            fontSize = 11.sp,
+            color = Ide.Subtle,
+        )
     }
 }
 
