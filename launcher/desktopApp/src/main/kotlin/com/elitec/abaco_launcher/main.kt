@@ -13,7 +13,8 @@ import com.elitec.abaco_launcher.feature.orchestrator.di.OrchestratorModule
 import com.elitec.abaco_launcher.infrastructure.lifecycle.ProcessShutdown
 import com.elitec.abaco_launcher.infrastructure.lifecycle.SingleInstanceLock
 import com.elitec.abaco_launcher.infrastructure.config.LauncherPaths
-import javax.swing.JOptionPane\nimport java.util.prefs.Preferences
+import javax.swing.JOptionPane
+import java.util.prefs.Preferences
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.loadImageBitmap
