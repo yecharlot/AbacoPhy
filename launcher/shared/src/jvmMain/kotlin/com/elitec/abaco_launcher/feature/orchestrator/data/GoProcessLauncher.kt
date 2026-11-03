@@ -46,6 +46,7 @@ class GoProcessLauncher : BackendProcess {
         dataDir: String,
         staticDir: String,
         binaryPath: String,
+        networkScope: String,
         onLog: (String) -> Unit,
     ) {
         stop()
@@ -81,6 +82,12 @@ class GoProcessLauncher : BackendProcess {
         env[LauncherPaths.ENV_PORT] = port.toString()
         env[LauncherPaths.ENV_DATA] = dataDir
         env[LauncherPaths.ENV_STATIC] = staticDir
+
+        val scope = networkScope.uppercase()
+        require(scope == "LOCAL" || scope == "LAN") { "Scope de red no válido: $networkScope" }
+        env["ABACOPHY_BIND_MODE"] = scope
+        env["ABACOPHY_HOST"] = if (scope == "LAN") "0.0.0.0" else "127.0.0.1"
+        onLog("[${ts()}][INFO]   Scope de red=$scope")
 
         onLog("[${ts()}][INFO] Lanzando ${binary.absolutePath}")
         onLog("[${ts()}][INFO]   PORT=$port")
