@@ -70,9 +70,10 @@ fun main() = application {
         state = windowState,
     ) {
         App(
-            onRun = { preferredPort, onState, onLog ->
+            onRun = { preferredPort, networkScope, onState, onLog ->
                 useCase.run(
                     preferredPort = preferredPort,
+                    networkScope = networkScope,
                     onState = onState,
                     onLog = { line ->
                         persistLauncherLog(line)
