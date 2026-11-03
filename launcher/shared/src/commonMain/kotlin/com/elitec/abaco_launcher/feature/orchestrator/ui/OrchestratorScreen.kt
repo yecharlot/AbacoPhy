@@ -155,6 +155,7 @@ private enum class RunStatus(val label: String, val color: Color, val icon: Imag
 fun OrchestratorScreen(
     onRun: suspend (
         preferredPort: Int?,
+        networkScope: String,
         onState: (OrchestratorState) -> Unit,
         onLog: (String) -> Unit,
     ) -> OrchestratorState,
@@ -178,6 +179,7 @@ fun OrchestratorScreen(
     var logLines by remember { mutableStateOf(listOf<LogLine>()) }
     var busy by remember { mutableStateOf(false) }
     var portText by remember { mutableStateOf("") }
+    var networkScope by remember { mutableStateOf("LOCAL") }
     var query by remember { mutableStateOf("") }
     var enabledLevels by remember { mutableStateOf(LogLevel.values().toSet()) }
     val scope = rememberCoroutineScope()
@@ -262,7 +264,7 @@ fun OrchestratorScreen(
         scope.launch {
             try {
                 val preferred = parsePreferredPort()
-                val result = onRun(preferred, { s -> state = s }, { raw -> handleRawLog(raw) })
+                val result = onRun(preferred, networkScope, { s -> state = s }, { raw -> handleRawLog(raw) })
                 state = result.copy(
                     discoveryActive = state.discoveryActive,
                     connectedClients = state.connectedClients,
@@ -330,6 +332,8 @@ fun OrchestratorScreen(
                         busy = busy,
                         compact = compact,
                         portText = portText,
+                        networkScope = networkScope,
+                        onNetworkScopeChange = { networkScope = it },
                         onPortChange = { portText = it.filter { ch -> ch.isDigit() }.take(5) },
                         canStop = canStop,
                         canOpenBrowser = canOpenBrowser,
@@ -528,6 +532,8 @@ private fun SidePanel(
     busy: Boolean,
     compact: Boolean,
     portText: String,
+    networkScope: String,
+    onNetworkScopeChange: (String) -> Unit,
     onPortChange: (String) -> Unit,
     canStop: Boolean,
     canOpenBrowser: Boolean,
@@ -565,6 +571,35 @@ private fun SidePanel(
                     "Vacío = puerto libre automático",
                     fontSize = 10.sp,
                     color = Ide.Subtle.copy(alpha = 0.7f),
+                )
+
+                Spacer(Modifier.height(4.dp))
+                Text("ALCANCE DEL SERVIDOR", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Ide.Subtle, letterSpacing = 0.7.sp)
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).background(Ide.Surface2).padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    listOf("LOCAL" to "Solo este equipo", "LAN" to "Red local").forEach { (value, label) ->
+                        val selected = networkScope == value
+                        Column(
+                            Modifier.weight(1f)
+                                .clip(RoundedCornerShape(7.dp))
+                                .background(if (selected) Ide.Blue.copy(alpha = 0.2f) else Color.Transparent)
+                                .clickable(enabled = !busy && !state.backendRunning) { onNetworkScopeChange(value) }
+                                .padding(horizontal = 7.dp, vertical = 9.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(3.dp),
+                        ) {
+                            Text(value, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (selected) Ide.Blue else Ide.Fg)
+                            Text(label, fontSize = 9.sp, color = Ide.Subtle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+                Text(
+                    if (networkScope == "LAN") "Permite conexiones desde otros dispositivos de tu red. El firewall del equipo sigue aplicándose."
+                    else "El servidor solo aceptará conexiones desde este equipo.",
+                    fontSize = 10.sp,
+                    color = if (networkScope == "LAN") Ide.Yellow else Ide.Subtle,
                 )
 
                 Spacer(Modifier.height(4.dp))
