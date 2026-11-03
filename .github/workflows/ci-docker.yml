@@ -5,6 +5,7 @@ on:
     branches:
       - "**"
     paths:
+      - ".github/workflows/ci-docker.yml"
       - "Dockerfile"
       - "webapp/**"
       - "static/**"
@@ -16,6 +17,7 @@ on:
     branches:
       - "**"
     paths:
+      - ".github/workflows/ci-docker.yml"
       - "Dockerfile"
       - "webapp/**"
       - "static/**"
