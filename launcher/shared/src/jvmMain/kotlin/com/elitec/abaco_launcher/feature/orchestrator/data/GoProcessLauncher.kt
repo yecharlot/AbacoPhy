@@ -13,8 +13,25 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 
 /**
+ * Clasifica líneas del binario Go.
+ *
+ * El package `log` de Go escribe por defecto a **stderr**. Eso no implica error:
+ * presence, EVENT=http.request, auth.login, etc. son INFO operativos.
+ */
+internal fun classifyGoLogLine(raw: String): String {
+    val line = raw.trim()
+    val upper = line.uppercase()
+    if (upper.contains("FATAL") || upper.contains("PANIC")) return "ERROR"
+    // Palabra ERROR de nivel (evita falsos positivos raros en paths)
+    if (Regex("""\bERROR\b""").containsMatchIn(upper)) return "ERROR"
+    if (upper.contains("WARN") || upper.contains("WARNING")) return "WARN"
+    if (upper.contains("DEBUG") || upper.contains("TRACE")) return "DEBUG"
+    return "INFO"
+}
+
+/**
  * Lanza `abacophy` vía [ProcessBuilder], reenvía logs y detiene sin zombies.
- * Cada línea se prefija con timestamp HH:mm:ss y el stream de origen.
+ * Cada línea se prefija con timestamp HH:mm:ss y nivel derivado del **contenido**.
  */
 class GoProcessLauncher : BackendProcess {
     private val processRef = AtomicReference<Process?>(null)
@@ -80,23 +97,15 @@ class GoProcessLauncher : BackendProcess {
         }
         processRef.set(process)
 
-        fun pump(stream: java.io.InputStream, prefix: String) {
-            thread(name = "abacophy-$prefix", isDaemon = true) {
+        fun pump(stream: java.io.InputStream, streamName: String) {
+            thread(name = "abacophy-$streamName", isDaemon = true) {
                 try {
                     BufferedReader(InputStreamReader(stream)).use { reader ->
                         var line: String?
                         while (reader.readLine().also { line = it } != null) {
                             val raw = line ?: continue
-                            // Detectar nivel desde el texto del proceso Go
-                            val level = when {
-                                raw.contains("WARN", ignoreCase = true) ||
-                                    raw.contains("WARNING", ignoreCase = true) -> "WARN"
-                                raw.contains("ERROR", ignoreCase = true) ||
-                                    raw.contains("FATAL", ignoreCase = true) ||
-                                    prefix == "err" -> "ERROR"
-                                raw.contains("DEBUG", ignoreCase = true) -> "DEBUG"
-                                else -> "INFO"
-                            }
+                            // stderr de Go ≠ ERROR; solo el texto de la línea decide el nivel
+                            val level = classifyGoLogLine(raw)
                             onLog("[${ts()}][$level] $raw")
                         }
                     }
