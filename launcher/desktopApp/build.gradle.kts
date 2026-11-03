@@ -59,9 +59,11 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
 
+            modules("java.net.http")
+
             // —— Identidad del producto (Control Panel, MSI, menú) ——
             packageName = "AbacoLauncher"
-            packageVersion = "0.1.4"
+            packageVersion = "0.1.5"
             description = "Orquestador ÁbacoPhy — backend local y consola de arranque"
             vendor = "Elitec"
             copyright = "© 2026 Elitec. Todos los derechos reservados."
