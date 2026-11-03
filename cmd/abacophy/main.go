@@ -20,15 +20,57 @@ import (
 	"github.com/yecharlot/AbacoPhy/internal/store"
 )
 
-const defaultHost = "0.0.0.0"
+const defaultHost = "127.0.0.1"
 const defaultPort = "8090"
 
-// resolveBindAddress keeps the legacy PORT variable working while allowing
-// deployments to configure the bind host and port independently.
-func resolveBindAddress(getenv func(string) string) (host, port, address string) {
-	host = strings.TrimSpace(getenv("ABACOPHY_HOST"))
-	if host == "" {
-		host = defaultHost
+const (
+	bindModeLocal      = "LOCAL"
+	bindModeLAN        = "LAN"
+	bindModeProduction = "PRODUCTION"
+)
+
+// resolveBindAddress makes network exposure an explicit deployment decision.
+// LOCAL is the safe default. LAN and PRODUCTION require an explicit mode.
+func resolveBindAddress(getenv func(string) string) (mode, host, port, address string, err error) {
+	mode = strings.ToUpper(strings.TrimSpace(getenv("ABACOPHY_BIND_MODE")))
+	if mode == "" {
+		mode = bindModeLocal
+	}
+
+	configuredHost := strings.TrimSpace(getenv("ABACOPHY_HOST"))
+	switch mode {
+	case bindModeLocal:
+		host = configuredHost
+		if host == "" {
+			host = defaultHost
+		}
+		ip := net.ParseIP(host)
+		if host != "localhost" && (ip == nil || !ip.IsLoopback()) {
+			return "", "", "", "", fmt.Errorf("LOCAL solo permite una dirección loopback; ABACOPHY_HOST=%q", host)
+		}
+	case bindModeLAN:
+		host = configuredHost
+		if host == "" {
+			host = "0.0.0.0"
+		}
+		if host != "0.0.0.0" && host != "::" {
+			ip := net.ParseIP(host)
+			if ip == nil || ip.IsLoopback() || ip.IsUnspecified() {
+				return "", "", "", "", fmt.Errorf("LAN requiere una IP de interfaz o wildcard; ABACOPHY_HOST=%q", host)
+			}
+		}
+	case bindModeProduction:
+		if configuredHost == "" {
+			return "", "", "", "", fmt.Errorf("PRODUCTION requiere definir ABACOPHY_HOST explícitamente (por ejemplo 127.0.0.1 detrás de un reverse proxy local)")
+		}
+		host = configuredHost
+		if host != "0.0.0.0" && host != "::" {
+			if net.ParseIP(host) == nil {
+				return "", "", "", "", fmt.Errorf("PRODUCTION requiere ABACOPHY_HOST como IP literal; recibido %q", host)
+			}
+		}
+	default:
+		return "", "", "", "", fmt.Errorf("ABACOPHY_BIND_MODE inválido %q: usa LOCAL, LAN o PRODUCTION", mode)
 	}
 
 	port = strings.TrimSpace(getenv("ABACOPHY_PORT"))
@@ -39,13 +81,16 @@ func resolveBindAddress(getenv func(string) string) (host, port, address string)
 		port = defaultPort
 	}
 
-	return host, port, net.JoinHostPort(host, port)
+	return mode, host, port, net.JoinHostPort(host, port), nil
 }
 
 func main() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
-	host, portSetting, addr := resolveBindAddress(os.Getenv)
-	log.Printf("EVENT=server.start host=%q port_setting=%q bind=%q", host, portSetting, addr)
+	mode, host, portSetting, addr, err := resolveBindAddress(os.Getenv)
+	if err != nil {
+		log.Fatalf("configuración de red inválida: %v", err)
+	}
+	log.Printf("EVENT=server.start bind_mode=%q host=%q port_setting=%q bind=%q", mode, host, portSetting, addr)
 
 	dataDir := os.Getenv("ABACOPHY_DATA")
 	if dataDir == "" {
@@ -107,7 +152,7 @@ func main() {
 	}()
 
 	fmt.Printf("ÁbacoPhy listening on %s\n", listener.Addr().String())
-	if isWildcardHost(host) {
+	if mode == bindModeLAN && isWildcardHost(host) {
 		fmt.Printf("  App (Local):  http://localhost:%d/\n", actualPort)
 		if ifaces, err := net.Interfaces(); err == nil {
 			for _, iface := range ifaces {
@@ -133,7 +178,7 @@ func main() {
 	fmt.Printf("  API:          http://localhost:%d/api/v1/info\n", actualPort)
 
 	var mdnsServer interface{ Shutdown() }
-	if discovery.ShouldAdvertise(host) {
+	if mode == bindModeLAN && discovery.ShouldAdvertise(host) {
 		log.Printf("EVENT=discovery.register_start service=%s domain=local. port=%d", discovery.ServiceType, actualPort)
 		mdnsServer, err = discovery.Advertise(discovery.Config{
 			InstanceID:      instance.InstanceID,
@@ -154,8 +199,10 @@ func main() {
 			fmt.Printf("  Discovery:    _abacophy._tcp.local (port %d)\n", actualPort)
 		}
 	} else {
-		log.Printf("EVENT=discovery.disabled host=%q reason=local_only_bind", host)
-		log.Printf("mDNS discovery disabled for local-only bind host %q", host)
+		reason := "bind_mode_not_lan"
+		if mode == bindModeLOCAL { reason = "local_only_bind" }
+		log.Printf("EVENT=discovery.disabled bind_mode=%q host=%q reason=%s", mode, host, reason)
+		log.Printf("mDNS discovery disabled for bind mode %s", mode)
 	}
 
 	stop := make(chan os.Signal, 1)
