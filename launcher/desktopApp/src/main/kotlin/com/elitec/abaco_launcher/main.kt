@@ -13,13 +13,13 @@ import com.elitec.abaco_launcher.feature.orchestrator.di.OrchestratorModule
 import com.elitec.abaco_launcher.infrastructure.lifecycle.ProcessShutdown
 import com.elitec.abaco_launcher.infrastructure.lifecycle.SingleInstanceLock
 import com.elitec.abaco_launcher.infrastructure.config.LauncherPaths
-import javax.swing.JOptionPane
+import javax.swing.JOptionPane\nimport java.util.prefs.Preferences
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.loadImageBitmap
 import androidx.compose.ui.res.useResource
 
-private val launcherLogLock = Any()
+private object LauncherPreferenceNode\n\nprivate val launcherPreferences = Preferences.userNodeForPackage(LauncherPreferenceNode::class.java)\nprivate const val NETWORK_SCOPE_KEY = "networkScope"\n\nprivate fun loadNetworkScope(): String =\n    launcherPreferences.get(NETWORK_SCOPE_KEY, "LOCAL")\n        .uppercase()\n        .takeIf { it == "LOCAL" || it == "LAN" } ?: "LOCAL"\n\nprivate fun saveNetworkScope(value: String) {\n    val normalized = value.uppercase().takeIf { it == "LOCAL" || it == "LAN" } ?: "LOCAL"\n    runCatching {\n        launcherPreferences.put(NETWORK_SCOPE_KEY, normalized)\n        launcherPreferences.flush()\n    }.onFailure { persistLauncherLog("No se pudo guardar el alcance de red: ${it.message}") }\n}\n\nprivate val launcherLogLock = Any()
 private val launcherLogTimestamp = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
 
 private fun persistLauncherLog(line: String) {
@@ -83,6 +83,8 @@ fun main() = application {
             },
             onStop = { useCase.stopBackend() },
             onOpenBrowser = { url -> browser.open(url) },
+            initialNetworkScope = loadNetworkScope(),
+            onNetworkScopeChange = ::saveNetworkScope,
         )
     }
 }
