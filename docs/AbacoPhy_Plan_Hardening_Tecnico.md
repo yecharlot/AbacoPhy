@@ -8,12 +8,21 @@
 
 **Puntuación inicial: 52/100 — 🟠 Hardening necesario**
 
-**Puntuación actual: 55/100 — 🟠 Hardening en curso.** A1 ya pasó CI Go y CI Webapp (typecheck, pruebas unitarias y build de producción). La validación de instalación/migración sobre datos operativos y el build final de Docker/Launcher queda pendiente.
+**Puntuación actual: 55/100 — 🟠 Hardening en curso.** A1 pasó CI Go (vet, build y pruebas) y CI Webapp (typecheck, Vitest y build de producción). Sigue pendiente la validación operativa de instalación/migración y la comprobación final de los empaquetados Docker/Launcher.
 
-Esta puntuación procede de una primera revisión estática del repositorio. No es una certificación ni un pentest.
+Esta puntuación procede de una revisión estática y de pruebas automatizadas del repositorio. No es una certificación ni un pentest.
+
+### Ajuste del puntaje tras A1
+
+| Dimensión | Línea base | Actual | Motivo |
+|---|---:|---:|---|
+| Autenticación | 70/100 | 78/100 | Eliminadas claves bootstrap reutilizables; rotación legacy, cambio inicial obligatorio y revocación de sesiones paralelas |
+| Seguridad global | 52/100 | 55/100 | Reducción ponderada del riesgo alto H-01; las demás dimensiones permanecen sin cambios |
+
+El puntaje es una evaluación interna de hardening, no una certificación. Se volverá a recalcular tras la validación operativa y al cerrar cada hallazgo.
 
 ### Prioridades
-- [x] Eliminar credenciales administrativas conocidas o impresas (A1 implementado; validación pendiente).
+- [x] Eliminar credenciales administrativas conocidas o impresas (A1 implementado; CI correcto; validación operativa pendiente).
 - [ ] Definir política segura de bind de red.
 - [ ] Preparar HTTPS/TLS.
 - [ ] Sustituir CORS `*` por política explícita.
@@ -42,7 +51,7 @@ Esta puntuación procede de una primera revisión estática del repositorio. No 
 # 2. FASE A — Contención de riesgos altos
 
 ## A1. Credenciales de bootstrap
-- [ ] Localizar credenciales por defecto.
+- [x] Localizar credenciales por defecto y rutas de creación de tenants.
 - [x] Eliminar contraseñas administrativas visibles en logs/consola.
 - [x] Eliminar contraseñas reutilizables del código y documentación activa, incluida la creación de nuevos tenants.
 - [x] Diseñar bootstrap de primera ejecución con secretos aleatorios o variables de entorno protegidas.
@@ -52,9 +61,9 @@ Esta puntuación procede de una primera revisión estática del repositorio. No 
 - [ ] Validar el primer arranque y la migración con un directorio de datos operativo real.
 - [x] Añadir pruebas automáticas para bootstrap, rotación, creación de tenants y bloqueo por cambio obligatorio (CI Go: success).
 - [x] Validar el frontend forzado de cambio de contraseña (CI Webapp: check, Vitest y build: success).
-- [x] Integrar el build web en la imagen Docker y en el empaquetado Windows/Linux del Launcher.
+- [x] Integrar el build web en la imagen Docker y en el empaquetado Windows/Linux del Launcher (ejecución de empaquetados pendiente).
 
-**Criterio de cierre:** ninguna credencial administrativa conocida funciona; el primer acceso obliga a cambiarla. Estado actual: implementación realizada; pruebas automatizadas aún no ejecutadas en este entorno.
+**Criterio de cierre:** ninguna credencial administrativa conocida funciona; el primer acceso obliga a cambiarla. Estado actual: implementación y pruebas automatizadas correctas; falta comprobar el flujo en una instancia operativa con datos reales.
 
 ## A2. Bind de red
 Definir:
@@ -445,7 +454,7 @@ Ruta:
 | Fecha | Cambio | Responsable | Resultado |
 |---|---|---|---|
 | 2026-11-03 | Auditoría inicial | — | 52/100 |
-| 2026-11-03 | A1: credenciales aleatorias, rotación legacy, creación de tenants y cambio obligatorio | CI Go + CI Webapp correctos; Docker/Launcher integran frontend | 55/100; validación operativa pendiente |
+| 2026-11-03 | A1: credenciales aleatorias, rotación legacy, creación de tenants y cambio obligatorio | CI Go + CI Webapp correctos; build Docker/Launcher actualizado | 55/100; validación operativa pendiente |
 
 ## Registro de excepciones
 
@@ -457,7 +466,7 @@ Ruta:
 
 | ID | Hallazgo | Severidad | Estado | Commit |
 |---|---|---|---|---|
-| H-01 | Credenciales bootstrap | Alta | Implementado; CI correcto; validación operativa pendiente | security-hardening |
+| H-01 | Credenciales bootstrap | Alta | Implementado; CI Go/Webapp correctos; validación operativa pendiente | security-hardening |
 | H-02 | Bind de red | Alta | Pendiente | |
 | H-03 | TLS | Alta | Pendiente | |
 | H-04 | CORS | Alta | Pendiente | |
