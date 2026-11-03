@@ -200,7 +200,7 @@ func main() {
 		}
 	} else {
 		reason := "bind_mode_not_lan"
-		if mode == bindModeLOCAL { reason = "local_only_bind" }
+		if mode == bindModeLocal { reason = "local_only_bind" }
 		log.Printf("EVENT=discovery.disabled bind_mode=%q host=%q reason=%s", mode, host, reason)
 		log.Printf("mDNS discovery disabled for bind mode %s", mode)
 	}
