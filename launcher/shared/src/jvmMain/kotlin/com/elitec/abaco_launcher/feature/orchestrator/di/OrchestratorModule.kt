@@ -32,8 +32,6 @@ object OrchestratorModule {
             },
             healthTimeoutMs = healthTimeoutMs,
             lanIpResolver = {
-                // LOCAL is the backend default. Only calculate/share LAN URLs when LAN was explicitly selected.
-                if (!System.getenv("ABACOPHY_BIND_MODE").equals("LAN", ignoreCase = true)) return@OrchestratorUseCase emptyList()
                 val ips = mutableListOf<String>()
                 try {
                     val interfaces = java.net.NetworkInterface.getNetworkInterfaces()
