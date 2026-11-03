@@ -74,9 +74,9 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 - [x] `PRODUCTION` requiere modo y `ABACOPHY_HOST` explícitos; wildcard permitido solo por configuración explícita para contenedores protegidos por la plataforma.
 - [x] mDNS solo se anuncia en modo `LAN`.
 - [x] Validar/rechazar combinaciones inseguras y modos desconocidos.
-- [x] Documentar variables, precedencia de puertos y ejemplos de despliegue.
+- [x] Documentar variables, precedencia de puertos y ejemplos de despliegue. El Launcher configura el scope desde su interfaz; PRODUCTION queda reservado al despliegue/servicio administrado.
 - [x] Registrar modo, host y dirección real de escucha.
-- [ ] Integrar selección LAN/LOCAL en la interfaz del Launcher o documentar/validar la configuración heredada.
+- [x] Integrar selector LOCAL/LAN en la interfaz del Launcher; el scope se pasa directamente al proceso hijo y no depende de variables heredadas.
 - [ ] Ejecutar pruebas de conectividad desde otro equipo y verificar firewall/VPN.
 - [ ] Validar despliegues Docker/producción con la configuración explícita.
 
