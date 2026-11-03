@@ -1,6 +1,8 @@
 package api
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -109,7 +111,7 @@ func (s *Server) Handler() http.Handler {
 
 	s.registerOpsRoutes(mux)
 	mux.HandleFunc("/api/v1/presence", s.handlePresence)
-	return withPresence(s, withCORS(mux))
+	return withPresence(s, withCORS(s.requireInitialPasswordChange(mux)))
 }
 
 func withCORS(next http.Handler) http.Handler {
@@ -297,6 +299,7 @@ func publicUser(snap *domain.StoreSnapshot, u *domain.User) map[string]any {
 		"id": u.ID, "username": u.Username, "display_name": u.DisplayName,
 		"role": u.Role, "tenant_id": u.TenantID, "active": u.Active,
 		"modules": u.Modules,
+		"must_change_password": u.MustChangePassword,
 		// La relación operativo-laboral se guarda en Employee.metadata.
 		// Se proyecta aquí como metadata de sesión para que los clientes
 		// autenticados puedan resolver su PDV sin acceder a /payroll/employees.
@@ -1544,95 +1547,167 @@ func (s *Server) servePWA(w http.ResponseWriter, r *http.Request) {
 
 // EnsureBootstrap crea tenant + master si no hay datos.
 // Si ya hay tenants pero las claves están vacías (bug json:"-" antiguo), las repara.
+const bootstrapCredentialMarker = "bootstrap_credentials_v1"
+
+type bootstrapCredential struct {
+	Tenant string
+	Username string
+	Password string
+}
+
+// EnsureBootstrap crea cuentas iniciales sin contraseñas predeterminadas reutilizables.
+// En la primera ejecución sobre datos antiguos rota una sola vez todas las cuentas master/admin.
 func EnsureBootstrap(st *store.Store) error {
+	if st == nil { return fmt.Errorf("store requerido") }
 	tenants := st.ListTenants()
+	credentials := make([]bootstrapCredential, 0)
+
 	if len(tenants) == 0 {
 		snap := domain.BootstrapTenant("Negocio Demo ÁbacoPhy", "demo", "CUP")
-		hash, err := auth.HashPassword("AbacoPhy#Master1")
-		if err != nil {
-			return err
-		}
-		ah, err := auth.HashPassword("admin123")
-		if err != nil {
-			return err
-		}
-		for _, u := range snap.Users {
-			if u.Username == "admin" {
-				u.PasswordHash = ah
-			} else {
-				u.PasswordHash = hash
+		if snap.Tenant.Settings == nil { snap.Tenant.Settings = map[string]string{} }
+		for _, user := range snap.Users {
+			if user != nil {
+				if err := assignInitialPassword(user, snap.Tenant.Slug, &credentials); err != nil { return err }
 			}
 		}
+		snap.Tenant.Settings[bootstrapCredentialMarker] = "1"
+		if err := persistBootstrapCredentials(st, credentials); err != nil { return err }
 		return st.Put(snap)
 	}
-	// Reparar hashes vacíos en tenants existentes
-	for _, t := range tenants {
-		snap := st.Get(t.ID)
-		if snap == nil {
-			continue
-		}
+
+	changedSnapshots := make([]*domain.StoreSnapshot, 0, len(tenants))
+	for _, tenant := range tenants {
+		snap := st.Get(tenant.ID)
+		if snap == nil { continue }
 		changed := false
-		for _, u := range snap.Users {
-			if u == nil {
-				continue
-			}
-			if u.TenantID != snap.Tenant.ID && snap.Tenant.ID != "" {
-				u.TenantID = snap.Tenant.ID
+		if snap.Tenant.Settings == nil { snap.Tenant.Settings = map[string]string{}; changed = true }
+
+		if snap.Tenant.Settings[bootstrapCredentialMarker] != "1" {
+			for _, user := range snap.Users {
+				if user == nil || (user.Role != domain.RoleMaster && user.Role != domain.RoleAdmin) { continue }
+				if err := assignInitialPassword(user, snap.Tenant.Slug, &credentials); err != nil { return err }
+				st.RevokeUserTokens(user.ID)
 				changed = true
 			}
-			if u.PasswordHash != "" {
-				continue
-			}
-			var pw string
-			switch u.Username {
-			case "master":
-				pw = "AbacoPhy#Master1"
-			case "admin":
-				pw = "admin123"
-			default:
-				pw = "cambiar123"
-			}
-			h, err := auth.HashPassword(pw)
-			if err != nil {
-				return err
-			}
-			u.PasswordHash = h
+			snap.Tenant.Settings[bootstrapCredentialMarker] = "1"
 			changed = true
+		}
+
+		for _, user := range snap.Users {
+			if user == nil { continue }
+			if user.TenantID != snap.Tenant.ID && snap.Tenant.ID != "" { user.TenantID = snap.Tenant.ID; changed = true }
+			if user.PasswordHash == "" {
+				if err := assignInitialPassword(user, snap.Tenant.Slug, &credentials); err != nil { return err }
+				st.RevokeUserTokens(user.ID)
+				changed = true
+			}
+			if user.Modules == nil { user.Modules = auth.DefaultModulesForRole(user.Role); changed = true }
 		}
 		if snap.Tenant.EnabledModules == nil || len(snap.Tenant.EnabledModules) == 0 {
 			snap.Tenant.EnabledModules = domain.DefaultEnabledModules()
 			changed = true
 		} else {
-			// Completar claves faltantes (mapas antiguos incompletos no deben bloquear módulos)
-			def := domain.DefaultEnabledModules()
-			for k, v := range def {
-				if _, ok := snap.Tenant.EnabledModules[k]; !ok {
-					snap.Tenant.EnabledModules[k] = v
-					changed = true
+			for key, enabled := range domain.DefaultEnabledModules() {
+				if _, ok := snap.Tenant.EnabledModules[key]; !ok { snap.Tenant.EnabledModules[key] = enabled; changed = true }
+			}
+		}
+		if snap.MeasureUnits == nil || len(snap.MeasureUnits) == 0 { snap.MeasureUnits = domain.DefaultMeasureUnits(snap.Tenant.ID); changed = true }
+		if snap.PriceSheets == nil { snap.PriceSheets = map[string]*domain.PriceSheet{}; changed = true }
+		if changed { changedSnapshots = append(changedSnapshots, snap) }
+	}
+	if err := persistBootstrapCredentials(st, credentials); err != nil { return err }
+	for _, snap := range changedSnapshots {
+		if err := st.Put(snap); err != nil { return err }
+	}
+	return nil
+}
+
+func assignInitialPassword(user *domain.User, tenantSlug string, credentials *[]bootstrapCredential) error {
+	envName := ""
+	switch user.Role {
+	case domain.RoleMaster: envName = "ABACOPHY_BOOTSTRAP_MASTER_PASSWORD"
+	case domain.RoleAdmin: envName = "ABACOPHY_BOOTSTRAP_ADMIN_PASSWORD"
+	}
+	password := ""
+	generated := false
+	if envName != "" { password = strings.TrimSpace(os.Getenv(envName)) }
+	if password == "" {
+		value, err := newBootstrapPassword()
+		if err != nil { return err }
+		password, generated = value, true
+	} else if len(password) < 12 {
+		return fmt.Errorf("%s debe contener al menos 12 caracteres", envName)
+	}
+	hash, err := auth.HashPassword(password)
+	if err != nil { return err }
+	user.PasswordHash = hash
+	user.MustChangePassword = true
+	user.UpdatedAt = time.Now().UTC()
+	if generated {
+		*credentials = append(*credentials, bootstrapCredential{Tenant: tenantSlug, Username: user.Username, Password: password})
+	}
+	return nil
+}
+
+func newBootstrapPassword() (string, error) {
+	random := make([]byte, 32)
+	if _, err := rand.Read(random); err != nil { return "", fmt.Errorf("generación de credencial temporal: %w", err) }
+	return base64.RawURLEncoding.EncodeToString(random), nil
+}
+
+func persistBootstrapCredentials(st *store.Store, credentials []bootstrapCredential) error {
+	if len(credentials) == 0 { return nil }
+	if err := os.MkdirAll(st.DataDir(), 0700); err != nil { return fmt.Errorf("crear directorio de credenciales: %w", err) }
+	path := filepath.Join(st.DataDir(), "bootstrap-credentials.txt")
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+	if err != nil { return fmt.Errorf("crear archivo de credenciales temporales: %w", err) }
+	if _, err := fmt.Fprintf(file, "ABACOPHY — CREDENCIALES TEMPORALES DE PRIMER ACCESO\nGenerado: %s\n\n", time.Now().UTC().Format(time.RFC3339)); err != nil { _ = file.Close(); return err }
+	for _, credential := range credentials {
+		if _, err := fmt.Fprintf(file, "Tenant: %s\nUsername: %s\nPassword: %s\n\n", credential.Tenant, credential.Username, credential.Password); err != nil { _ = file.Close(); return err }
+	}
+	if err := file.Sync(); err != nil { _ = file.Close(); return err }
+	if err := file.Close(); err != nil { return err }
+	if err := os.Chmod(path, 0600); err != nil { return fmt.Errorf("restringir permisos del archivo de credenciales: %w", err) }
+	log.Printf("EVENT=security.bootstrap_credentials_created file=%q accounts=%d secrets_not_logged=true", path, len(credentials))
+	return nil
+}
+
+func (s *Server) requireInitialPasswordChange(next http.Handler) http.Handler {
+	allowed := map[string]bool{
+		"/api/v1/info": true, "/api/v1/health": true, "/api/v1/events": true,
+		"/api/v1/auth/login": true, "/api/v1/auth/me": true,
+		"/api/v1/auth/password": true, "/api/v1/auth/logout": true,
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodOptions || !strings.HasPrefix(r.URL.Path, "/api/") || allowed[r.URL.Path] {
+			next.ServeHTTP(w, r); return
+		}
+		sess, err := s.sess(r)
+		if err == nil && sess != nil {
+			if snap := s.Store.Get(sess.TenantID); snap != nil {
+				if user := snap.Users[sess.UserID]; user != nil && user.MustChangePassword {
+					writeJSON(w, http.StatusForbidden, map[string]any{
+						"error": "Debe cambiar su contraseña inicial antes de continuar",
+						"code": "password_change_required",
+						"must_change_password": true,
+					})
+					return
 				}
 			}
 		}
-		if snap.MeasureUnits == nil || len(snap.MeasureUnits) == 0 {
-			snap.MeasureUnits = domain.DefaultMeasureUnits(snap.Tenant.ID)
-			changed = true
-		}
-		for _, u := range snap.Users {
-			if u != nil && u.Modules == nil {
-				u.Modules = auth.DefaultModulesForRole(u.Role)
-				changed = true
-			}
-		}
-		if snap.PriceSheets == nil {
-			snap.PriceSheets = map[string]*domain.PriceSheet{}
-			changed = true
-		}
-		if changed {
-			if err := st.Put(snap); err != nil {
-				return err
-			}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func cleanupBootstrapCredentials(st *store.Store) {
+	for _, tenantID := range st.ListTenantIDs() {
+		snap := st.Get(tenantID)
+		if snap == nil { continue }
+		for _, user := range snap.Users {
+			if user != nil && user.MustChangePassword { return }
 		}
 	}
-	return nil
+	_ = os.Remove(filepath.Join(st.DataDir(), "bootstrap-credentials.txt"))
 }
 
 // Note: static assets are also served from main via FileServer fallback if needed.

@@ -162,6 +162,8 @@ func (s *Store) ListTenants() []domain.Tenant {
 	return out
 }
 
+func (s *Store) DataDir() string { return s.dataDir }
+
 func (s *Store) tokensPath() string {
 	return filepath.Join(s.dataDir, "tokens.json")
 }
@@ -242,6 +244,19 @@ func (s *Store) RevokeUserTokens(userID string) int {
 	if n > 0 {
 		s.persistTokensLocked()
 	}
+	return n
+}
+
+// RevokeUserTokensExcept invalida las sesiones de un usuario salvo el token actual.
+func (s *Store) RevokeUserTokensExcept(userID, keepToken string) int {
+	if userID == "" { return 0 }
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for token, sess := range s.tokens {
+		if token != keepToken && sess != nil && sess.UserID == userID { delete(s.tokens, token); n++ }
+	}
+	if n > 0 { s.persistTokensLocked() }
 	return n
 }
 
@@ -358,6 +373,7 @@ func (s *Store) ResetAll() error {
 	s.tenants = make(map[string]*domain.StoreSnapshot)
 	s.tokens = make(map[string]*domain.TokenSession)
 	_ = os.Remove(s.tokensPath())
+	_ = os.Remove(filepath.Join(s.dataDir, "bootstrap-credentials.txt"))
 	dir := filepath.Join(s.dataDir, "tenants")
 	entries, _ := os.ReadDir(dir)
 	for _, e := range entries {

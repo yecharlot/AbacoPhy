@@ -956,7 +956,7 @@ func (s *Server) handleMasterReset(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"error": "debe enviar confirm=REINICIAR"})
 		return
 	}
-	// Reinicio a estado inicial: nuevo tenant demo, mismas claves master/admin
+	// Reinicio a estado inicial: genera credenciales temporales nuevas y exige cambiarlas
 	if err := s.Store.ResetAll(); err != nil {
 		// fallback: borrar tenants en memoria y bootstrap
 		writeJSON(w, 500, map[string]string{"error": err.Error()})
@@ -993,10 +993,6 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"error": "json invalido"})
 		return
 	}
-	if len(body.NewPassword) < 6 {
-		writeJSON(w, 400, map[string]string{"error": "la nueva contraseña debe tener al menos 6 caracteres"})
-		return
-	}
 	snap := s.Store.Get(sess.TenantID)
 	if snap == nil {
 		writeJSON(w, 404, map[string]string{"error": "tenant no encontrado"})
@@ -1005,6 +1001,18 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	actor := snap.Users[sess.UserID]
 	if actor == nil {
 		writeJSON(w, 401, map[string]string{"error": "usuario no encontrado"})
+		return
+	}
+	minimumLength := 6
+	if actor.MustChangePassword {
+		minimumLength = 12
+		if body.Username != "" && body.Username != actor.Username {
+			writeJSON(w, 403, map[string]string{"error": "debe completar primero el cambio de su propia contraseña"})
+			return
+		}
+	}
+	if len(body.NewPassword) < minimumLength {
+		writeJSON(w, 400, map[string]string{"error": fmt.Sprintf("la nueva contraseña debe tener al menos %d caracteres", minimumLength)})
 		return
 	}
 	if !auth.CheckPassword(actor.PasswordHash, body.CurrentPassword) {
@@ -1057,10 +1065,16 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	target.PasswordHash = hash
+	target.MustChangePassword = target.ID != actor.ID
 	target.UpdatedAt = time.Now().UTC()
 	detail := "Cambio de contraseña del usuario " + target.Username + " por " + actor.Username
 	s.audit(snap, sess, "auth.password_change", detail, target.ID)
-	_ = s.Store.Put(snap)
+	if err := s.Store.Put(snap); err != nil {
+		writeJSON(w, 500, map[string]string{"error": "no se pudo guardar la nueva contraseña"})
+		return
+	}
+	if target.ID == actor.ID { s.Store.RevokeUserTokensExcept(target.ID, sess.Token) } else { s.Store.RevokeUserTokens(target.ID) }
+	cleanupBootstrapCredentials(s.Store)
 	writeJSON(w, 200, map[string]any{"ok": true, "username": target.Username})
 }
 

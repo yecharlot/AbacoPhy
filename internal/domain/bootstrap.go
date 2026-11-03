@@ -58,8 +58,8 @@ func DefaultAccounts(tenantID string) map[string]*Account {
 	return m
 }
 
-// BootstrapTenant crea negocio demo + usuario master.
-// Master por defecto: usuario master / contraseña AbacoPhy#Master1
+// BootstrapTenant crea el negocio demo y las cuentas administrativas vacías.
+// EnsureBootstrap asigna credenciales aleatorias temporales y exige su cambio.
 func BootstrapTenant(name, slug, currency string) *StoreSnapshot {
 	now := time.Now().UTC()
 	tid := uuid.NewString()

@@ -131,8 +131,6 @@ func main() {
 	}
 	fmt.Printf("  ANS alias:    http://localhost:%d/w/abacophy.app.ans\n", actualPort)
 	fmt.Printf("  API:          http://localhost:%d/api/v1/info\n", actualPort)
-	fmt.Println("  Master:       master / AbacoPhy#Master1")
-	fmt.Println("  Admin:        admin / admin123")
 
 	var mdnsServer interface{ Shutdown() }
 	if discovery.ShouldAdvertise(host) {

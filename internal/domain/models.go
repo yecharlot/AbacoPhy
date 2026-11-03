@@ -53,8 +53,9 @@ type User struct {
 	Username     string    `json:"username"`
 	DisplayName  string    `json:"display_name"`
 	Role         string    `json:"role"`
-	PasswordHash string    `json:"password_hash,omitempty"`
-	PinHash      string    `json:"pin_hash,omitempty"`
+	PasswordHash       string    `json:"password_hash,omitempty"`
+	PinHash            string    `json:"pin_hash,omitempty"`
+	MustChangePassword bool      `json:"must_change_password,omitempty"`
 	// Modules: permisos explícitos por módulo. Si es nil, se usan los del rol.
 	// true concede (incluso fuera del rol); false revoca aunque el rol lo tenga.
 	Modules      map[string]bool `json:"modules,omitempty"`
