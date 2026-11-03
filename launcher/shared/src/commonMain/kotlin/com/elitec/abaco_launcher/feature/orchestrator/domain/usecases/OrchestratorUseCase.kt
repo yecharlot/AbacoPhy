@@ -149,7 +149,11 @@ class OrchestratorUseCase(
             emit(backendRunning = true)
             onLog("✅ Health OK · puerto $port guardado para el próximo arranque")
             onLog("🌐 URL Local:      $baseUrl/")
-            onLog("🔎 Discovery esperado: _abacophy._tcp.local; esperando confirmación del backend")
+            if (lanUrls.isNotEmpty()) {
+                onLog("🔎 Discovery esperado: _abacophy._tcp.local; esperando confirmación del backend")
+            } else {
+                onLog("🔒 Acceso remoto desactivado: el backend está configurado en modo LOCAL o no hay interfaces LAN disponibles.")
+            }
             if (lanUrls.isNotEmpty()) {
                 lanUrls.forEach { u ->
                     onLog("🌐 URL Red (LAN):  $u/")
