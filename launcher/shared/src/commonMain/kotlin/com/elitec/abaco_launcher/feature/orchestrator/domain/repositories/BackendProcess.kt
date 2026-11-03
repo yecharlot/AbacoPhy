@@ -13,6 +13,7 @@ interface BackendProcess {
         dataDir: String,
         staticDir: String,
         binaryPath: String,
+        networkScope: String,
         onLog: (String) -> Unit = {},
     )
 
