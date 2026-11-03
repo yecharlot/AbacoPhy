@@ -33,6 +33,7 @@ class OrchestratorUseCase(
 
     suspend fun run(
         preferredPort: Int? = null,
+        networkScope: String = "LOCAL",
         onState: (OrchestratorState) -> Unit = {},
         onLog: (String) -> Unit = {},
     ): OrchestratorState {
@@ -102,6 +103,7 @@ class OrchestratorUseCase(
                 dataDir = data,
                 staticDir = staticPath,
                 binaryPath = bin,
+                networkScope = networkScope,
                 onLog = onLog,
             )
             if (!backendProcess.isAlive()) {
@@ -144,15 +146,16 @@ class OrchestratorUseCase(
             portResolver.rememberPort(port!!)
             updateStep("health", TaskStepStatus.Success, "API listo")
             updateStep("discovery", TaskStepStatus.Running, "Esperando confirmación del anuncio mDNS")
-            val ips = lanIpResolver()
+            val ips = if (networkScope.equals("LAN", ignoreCase = true)) lanIpResolver() else emptyList()
             lanUrls = ips.map { "http://$it:$port" }
             emit(backendRunning = true)
             onLog("✅ Health OK · puerto $port guardado para el próximo arranque")
+            onLog("🔐 Scope de red: $networkScope")
             onLog("🌐 URL Local:      $baseUrl/")
             if (lanUrls.isNotEmpty()) {
                 onLog("🔎 Discovery esperado: _abacophy._tcp.local; esperando confirmación del backend")
             } else {
-                onLog("🔒 Acceso remoto desactivado: el backend está configurado en modo LOCAL o no hay interfaces LAN disponibles.")
+                onLog("🔒 Acceso remoto desactivado: se seleccionó el scope LOCAL o no hay interfaces LAN disponibles.")
             }
             if (lanUrls.isNotEmpty()) {
                 lanUrls.forEach { u ->
