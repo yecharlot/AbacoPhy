@@ -155,10 +155,7 @@ class OrchestratorUseCase(
                     onLog("🌐 URL Red (LAN):  $u/")
                 }
             }
-            onLog("— Credenciales bootstrap (datos nuevos) —")
-            onLog("  master / AbacoPhy#Master1")
-            onLog("  admin  / admin123")
-            onLog("Si no entras: borra ABACOPHY_DATA o usa esos usuarios en un data dir limpio.")
+            onLog("Las credenciales temporales de primer acceso se guardan en bootstrap-credentials.txt dentro de ABACOPHY_DATA.")
 
             // 4. Browser
             updateStep("browser", TaskStepStatus.Running)
