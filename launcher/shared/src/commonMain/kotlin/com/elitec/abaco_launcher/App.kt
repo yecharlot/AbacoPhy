@@ -40,6 +40,7 @@ private val AbacoColorScheme = darkColorScheme(
 fun App(
     onRun: suspend (
         preferredPort: Int?,
+        networkScope: String,
         onState: (OrchestratorState) -> Unit,
         onLog: (String) -> Unit,
     ) -> OrchestratorState = { _, _, _ -> OrchestratorState() },
