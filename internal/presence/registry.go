@@ -42,10 +42,19 @@ func NewRegistry() *Registry {
 	return &Registry{clients: make(map[string]*Client)}
 }
 
+// TouchResult describe el efecto del Touch para logging visible.
+type TouchResult struct {
+	Created         bool
+	SessionAttached bool // pasó de sin sesión a con sesión
+	Key             string
+	OnlineCount     int
+}
+
 // Touch actualiza o crea la ficha del cliente. key estable = instance_id o anon:ip.
-func (r *Registry) Touch(c Client) (created bool) {
+func (r *Registry) Touch(c Client) TouchResult {
+	res := TouchResult{}
 	if r == nil {
-		return false
+		return res
 	}
 	key := strings.TrimSpace(c.InstanceID)
 	if key == "" {
@@ -55,6 +64,7 @@ func (r *Registry) Touch(c Client) (created bool) {
 		}
 		c.InstanceID = key
 	}
+	res.Key = key
 	now := time.Now().UTC()
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -64,8 +74,11 @@ func (r *Registry) Touch(c Client) (created bool) {
 		c.LastSeen = now
 		cp := c
 		r.clients[key] = &cp
-		return true
+		res.Created = true
+		res.OnlineCount = r.countLocked(now)
+		return res
 	}
+	wasSession := existing.HasSession
 	existing.LastSeen = now
 	if c.Platform != "" {
 		existing.Platform = c.Platform
@@ -90,8 +103,23 @@ func (r *Registry) Touch(c Client) (created bool) {
 		if c.Username != "" {
 			existing.Username = c.Username
 		}
+		if !wasSession {
+			res.SessionAttached = true
+		}
 	}
-	return false
+	res.OnlineCount = r.countLocked(now)
+	return res
+}
+
+func (r *Registry) countLocked(now time.Time) int {
+	cutoff := now.Add(-OnlineTTL)
+	n := 0
+	for _, c := range r.clients {
+		if !c.LastSeen.Before(cutoff) {
+			n++
+		}
+	}
+	return n
 }
 
 // AttachSession marca usuario autenticado sobre un instance_id (o anon:ip).
@@ -124,6 +152,19 @@ func (r *Registry) AttachSession(instanceID, remoteIP, userID, username string) 
 	}
 }
 
+// CountOnline número de clientes dentro del TTL.
+func (r *Registry) CountOnline(now time.Time) int {
+	if r == nil {
+		return 0
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.countLocked(now)
+}
+
 // ListOnline devuelve clientes vistos en OnlineTTL.
 func (r *Registry) ListOnline(now time.Time) []Client {
 	if r == nil {
@@ -144,6 +185,55 @@ func (r *Registry) ListOnline(now time.Time) []Client {
 		out = append(out, *c)
 	}
 	return out
+}
+
+// SummaryLine texto único para consola del orquestador.
+func (r *Registry) SummaryLine(now time.Time) string {
+	list := r.ListOnline(now)
+	if len(list) == 0 {
+		return "presence: online=0"
+	}
+	parts := make([]string, 0, len(list))
+	for _, c := range list {
+		label := c.Platform
+		if label == "" {
+			label = "?"
+		}
+		id := c.InstanceID
+		if len(id) > 12 {
+			id = id[:8] + "…"
+		}
+		user := "sin-sesión"
+		if c.HasSession && c.Username != "" {
+			user = c.Username
+		} else if c.HasSession {
+			user = "sesión"
+		}
+		parts = append(parts, label+"|"+id+"@"+c.RemoteIP+"("+user+")")
+	}
+	return "presence: online=" + itoa(len(list)) + " → " + strings.Join(parts, " · ")
+}
+
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var b [16]byte
+	i := len(b)
+	for n > 0 {
+		i--
+		b[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(b[i:])
+}
+
+// ShouldTrackPath evita ruido de estáticos/PWA; solo API y health/info.
+func ShouldTrackPath(path string) bool {
+	if strings.HasPrefix(path, "/api/") {
+		return true
+	}
+	return false
 }
 
 // ClientIP extrae IP de RemoteAddr / X-Forwarded-For (primer hop).

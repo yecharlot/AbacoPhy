@@ -39,7 +39,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/info", s.handleInfo)
 	mux.HandleFunc("/api/v1/events", s.handleEvents)
 	mux.HandleFunc("/api/v1/health", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, 200, map[string]any{"ok": true, "app": "ÁbacoPhy", "ts": time.Now().UTC()})
+		n := 0
+		if s.Presence != nil {
+			n = s.Presence.CountOnline(time.Now().UTC())
+		}
+		writeJSON(w, 200, map[string]any{
+			"ok": true, "app": "ÁbacoPhy", "ts": time.Now().UTC(),
+			"online_clients": n,
+		})
 	})
 
 	// Auth
@@ -121,7 +128,7 @@ func withCORS(next http.Handler) http.Handler {
 
 func withPresence(s *Server, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodOptions && s != nil && s.Presence != nil {
+		if r.Method != http.MethodOptions && s != nil && s.Presence != nil && presence.ShouldTrackPath(r.URL.Path) {
 			uid, uname := "", ""
 			hasSess := false
 			if sess, err := s.sess(r); err == nil && sess != nil {
@@ -134,10 +141,15 @@ func withPresence(s *Server, next http.Handler) http.Handler {
 				}
 			}
 			snap := presence.SnapshotFromRequest(r, uid, uname, hasSess)
-			created := s.Presence.Touch(snap)
-			if created {
-				log.Printf("presence: new client id=%s platform=%s ip=%s path=%s session=%v user=%s",
-					snap.InstanceID, snap.Platform, snap.RemoteIP, snap.LastPath, hasSess, uname)
+			res := s.Presence.Touch(snap)
+			if res.Created {
+				log.Printf("presence: +NUEVO id=%s platform=%s ip=%s path=%s session=%v user=%s | %s",
+					snap.InstanceID, snap.Platform, snap.RemoteIP, snap.LastPath, hasSess, uname,
+					s.Presence.SummaryLine(time.Now().UTC()))
+			} else if res.SessionAttached {
+				log.Printf("presence: +SESIÓN id=%s user=%s ip=%s | %s",
+					snap.InstanceID, uname, snap.RemoteIP,
+					s.Presence.SummaryLine(time.Now().UTC()))
 			}
 		}
 		next.ServeHTTP(w, r)
@@ -203,6 +215,10 @@ func (s *Server) gateOp(sess *domain.TokenSession, view, method string) error {
 }
 
 func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
+	n := 0
+	if s.Presence != nil {
+		n = s.Presence.CountOnline(time.Now().UTC())
+	}
 	writeJSON(w, 200, map[string]any{
 		"name":        "ÁbacoPhy",
 		"version":     "0.1.0",
@@ -210,6 +226,7 @@ func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 		"api":         "REST /api/v1",
 		"persistence": []string{"local", "cid", "durable_object_optional"},
 		"offline":     true,
+		"online_clients": n,
 		"modules":     []string{"ingresos", "gastos", "inventario", "nomina", "facturacion", "cuentas", "productos", "almacen", "unidades", "recepcion", "vendedor", "fichas_costo"},
 		"roles":       []string{domain.RoleMaster, domain.RoleAdmin, domain.RoleContador, domain.RoleEconomico, domain.RoleVendedor, domain.RoleAlmacenero, domain.RoleOperador, domain.RoleReadonly},
 	})
@@ -255,7 +272,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		s.audit(snap, tok, "auth.login", detail, user.ID)
 		_ = s.Store.Put(snap)
 	}
-	log.Printf("auth.login user=%s role=%s client=%s app=%s ip=%s", user.Username, user.Role, clientID, platform, ip)
+	if s.Presence != nil {
+		log.Printf("auth.login user=%s role=%s client=%s app=%s ip=%s | %s",
+			user.Username, user.Role, clientID, platform, ip, s.Presence.SummaryLine(time.Now().UTC()))
+	} else {
+		log.Printf("auth.login user=%s role=%s client=%s app=%s ip=%s", user.Username, user.Role, clientID, platform, ip)
+	}
 	writeJSON(w, 200, map[string]any{
 		"token":      tok.Token,
 		"expires_at": tok.ExpiresAt,

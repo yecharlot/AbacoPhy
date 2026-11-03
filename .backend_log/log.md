@@ -36,3 +36,11 @@ Registrar terminales que hablan con el API **con o sin mDNS**, identificando ins
 - `internal/presence/registry.go`
 - `internal/api/server.go`, `presence_handlers.go`
 - `posapps/.../AppSettingsRepository*.kt`, `getHttpClient.kt`, `infraModule.kt`
+
+## 2026-11-03 — Presence: visibilidad
+
+- Logs solo en +NUEVO / +SESIÓN + resumen `presence: online=N → …`
+- Login imprime el resumen completo de clientes online
+- `/api/v1/health` y `/api/v1/info` incluyen `online_clients`
+- Solo se trackean rutas `/api/*` (no estáticos)
+- `GET /api/v1/presence` sigue siendo el detalle (admin/master)
