@@ -28,12 +28,50 @@ Body: `{ "current_password": "...", "new_password": "...", "username": "opcional
 
 Tras un reinicio de fábrica (master), vuelven las claves de LOGIN.md.
 
-## 2. Local (Linux / Debian / GNOME) — ya lo usas
+## 2. Modos de exposición de red (A2)
+
+El backend usa `ABACOPHY_BIND_MODE` para decidir explícitamente dónde escucha:
+
+| Modo | Valor | Host predeterminado | Comportamiento |
+|---|---|---|---|
+| Local | `LOCAL` (predeterminado) | `127.0.0.1` | Solo conexiones del propio equipo; mDNS desactivado |
+| Red local | `LAN` | `0.0.0.0` | Acceso por interfaces de red y anuncio mDNS |
+| Producción | `PRODUCTION` | Sin valor predeterminado | Requiere `ABACOPHY_HOST` explícito; configurar reverse proxy/firewall |
+
+Variables:
+- `ABACOPHY_BIND_MODE`: `LOCAL`, `LAN` o `PRODUCTION`.
+- `ABACOPHY_HOST`: IP de escucha. En `LOCAL` solo acepta loopback; en `LAN` acepta una IP de interfaz o wildcard; en `PRODUCTION` es obligatoria y puede ser loopback detrás de un proxy local o wildcard explícito dentro de un contenedor protegido por su plataforma.
+- `ABACOPHY_PORT`: puerto explícito; si no está definido, se conserva compatibilidad con `PORT`; predeterminado `8090`.
+
+Ejemplos PowerShell:
+
+```powershell
+# Solo este equipo (seguro por defecto)
+$env:ABACOPHY_BIND_MODE = "LOCAL"
+Remove-Item Env:ABACOPHY_HOST -ErrorAction SilentlyContinue
+.abacophy.exe
+
+# Compartir en la red local (decisión explícita)
+$env:ABACOPHY_BIND_MODE = "LAN"
+$env:ABACOPHY_HOST = "0.0.0.0"
+.abacophy.exe
+
+# Producción detrás de reverse proxy en el mismo host
+$env:ABACOPHY_BIND_MODE = "PRODUCTION"
+$env:ABACOPHY_HOST = "127.0.0.1"
+$env:ABACOPHY_PORT = "8090"
+.abacophy.exe
+```
+
+En producción, el proxy debe terminar TLS/HTTPS y el firewall debe limitar el acceso al backend. El modo `PRODUCTION` no instala ni configura TLS por sí mismo. No publicar el puerto del backend directamente a Internet.
+
+El Launcher hereda las variables de entorno del proceso que lo inicia. Para habilitar acceso LAN desde el Launcher, establece `ABACOPHY_BIND_MODE=LAN` antes de abrirlo. En modo `LOCAL`, las direcciones LAN y mDNS no estarán disponibles.
+
+## 3. Local (Linux / Debian / GNOME)
 
 ```bash
-go run ./cmd/prisma-tec   # o
 go run ./cmd/abacophy
-# Abre http://localhost:8080 (o el PORT definido)
+# Abre http://127.0.0.1:8090
 ```
 
 Datos en `ABACOPHY_DATA` o `./abacophy_data`.
