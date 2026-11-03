@@ -46,12 +46,16 @@ fun App(
     ) -> OrchestratorState = { _, _, _, _ -> OrchestratorState() },
     onStop: () -> Unit = {},
     onOpenBrowser: (String) -> Unit = {},
+    initialNetworkScope: String = "LOCAL",
+    onNetworkScopeChange: (String) -> Unit = {},
 ) {
     MaterialTheme(colorScheme = AbacoColorScheme) {
         OrchestratorScreen(
             onRun = onRun,
             onStop = onStop,
             onOpenBrowser = onOpenBrowser,
+            initialNetworkScope = initialNetworkScope,
+            onNetworkScopeChange = onNetworkScopeChange,
         )
     }
 }
