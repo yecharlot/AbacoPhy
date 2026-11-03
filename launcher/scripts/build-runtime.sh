@@ -23,7 +23,7 @@ Uso: $(basename "$0") [opciones]
   --windows        Cross-compile Windows amd64 (.exe)
   --darwin         Cross-compile macOS amd64
   --arch ARCH      GOARCH (default: amd64)
-  --web            Intenta npm run build en webapp y usa web/dist si existe
+  --web            Instala, valida y compila webapp; superpone web/dist sobre static/
   --skip-go        Solo copia estáticos
   -h, --help       Esta ayuda
 
@@ -83,36 +83,32 @@ else
 fi
 
 # --- Static assets ---
-# Preferencia: static/ del monorepo (servido por Go en producción Docker).
-# Opcional: web/dist tras build de webapp.
-STATIC_SRC="$REPO_ROOT/static"
-
 if [[ "$BUILD_WEB" -eq 1 ]]; then
   if [[ -d "$REPO_ROOT/webapp" ]] && command -v npm >/dev/null 2>&1; then
-    echo "==> Building webapp (npm run build)"
-    (cd "$REPO_ROOT/webapp" && npm run build)
+    echo "==> Installing and validating webapp dependencies"
+    (cd "$REPO_ROOT/webapp" && npm ci && npm run check && npm test && npm run build)
   else
-    echo "WARN: --web pedido pero no hay webapp/npm; se usa static/ del repo"
+    echo "ERROR: --web requiere webapp/ y npm disponibles" >&2
+    exit 1
   fi
-  if [[ -d "$REPO_ROOT/web/dist" ]] && [[ -f "$REPO_ROOT/web/dist/index.html" ]]; then
-    STATIC_SRC="$REPO_ROOT/web/dist"
-    echo "==> Usando web/dist como estáticos"
+  if [[ ! -f "$REPO_ROOT/web/dist/index.html" ]]; then
+    echo "ERROR: webapp build no generó web/dist/index.html" >&2
+    exit 1
   fi
 fi
 
-if [[ ! -d "$STATIC_SRC" ]]; then
-  echo "ERROR: no existe fuente de estáticos: $STATIC_SRC" >&2
+if [[ ! -d "$REPO_ROOT/static" ]]; then
+  echo "ERROR: no existe static/ en el repositorio" >&2
   exit 1
 fi
 
-echo "==> Copiando estáticos: $STATIC_SRC → $OUT_STATIC"
-# Limpia contenido previo salvo README
+echo "==> Copiando estáticos base: static/ → $OUT_STATIC"
 find "$OUT_STATIC" -mindepth 1 ! -name 'README.md' -exec rm -rf {} + 2>/dev/null || true
-# rsync if available, else cp
-if command -v rsync >/dev/null 2>&1; then
-  rsync -a --delete --exclude 'README.md' "$STATIC_SRC"/ "$OUT_STATIC"/
-else
-  cp -a "$STATIC_SRC"/. "$OUT_STATIC"/
+cp -a "$REPO_ROOT/static"/. "$OUT_STATIC"/
+
+if [[ "$BUILD_WEB" -eq 1 ]]; then
+  echo "==> Superponiendo web/dist para incluir la pantalla de cambio inicial"
+  cp -a "$REPO_ROOT/web/dist"/. "$OUT_STATIC"/
 fi
 
 echo "==> Runtime listo:"

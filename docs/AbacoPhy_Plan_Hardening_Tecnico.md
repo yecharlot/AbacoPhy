@@ -8,7 +8,7 @@
 
 **Puntuación inicial: 52/100 — 🟠 Hardening necesario**
 
-**Puntuación actual provisional: 55/100 — 🟠 Hardening en curso.** El incremento de +3 puntos refleja la implementación de A1 en código y documentación; queda pendiente ejecutar las pruebas automatizadas y validar una instalación/migración real para confirmar la puntuación.
+**Puntuación actual: 55/100 — 🟠 Hardening en curso.** A1 ya pasó CI Go y CI Webapp (typecheck, pruebas unitarias y build de producción). La validación de instalación/migración sobre datos operativos y el build final de Docker/Launcher queda pendiente.
 
 Esta puntuación procede de una primera revisión estática del repositorio. No es una certificación ni un pentest.
 
@@ -48,8 +48,11 @@ Esta puntuación procede de una primera revisión estática del repositorio. No 
 - [x] Diseñar bootstrap de primera ejecución con secretos aleatorios o variables de entorno protegidas.
 - [x] Obligar a cambiar la credencial inicial antes de permitir operaciones autenticadas.
 - [x] Invalidar las demás sesiones al cambiar la contraseña y eliminar el archivo temporal cuando no queden cuentas pendientes.
-- [ ] Verificar una instalación nueva y la migración de una instalación existente (pruebas añadidas; ejecución pendiente).
-- [x] Añadir pruebas automáticas para bootstrap, rotación, creación de tenants y bloqueo por cambio obligatorio.
+- [x] Verificar por pruebas automatizadas el bootstrap nuevo, la rotación legacy y el bloqueo hasta el cambio inicial (CI Go: success).
+- [ ] Validar el primer arranque y la migración con un directorio de datos operativo real.
+- [x] Añadir pruebas automáticas para bootstrap, rotación, creación de tenants y bloqueo por cambio obligatorio (CI Go: success).
+- [x] Validar el frontend forzado de cambio de contraseña (CI Webapp: check, Vitest y build: success).
+- [x] Integrar el build web en la imagen Docker y en el empaquetado Windows/Linux del Launcher.
 
 **Criterio de cierre:** ninguna credencial administrativa conocida funciona; el primer acceso obliga a cambiarla. Estado actual: implementación realizada; pruebas automatizadas aún no ejecutadas en este entorno.
 
@@ -430,7 +433,7 @@ La puntuación es un indicador interno, no una certificación.
 # 18. Resultado esperado
 
 **Línea base:** 52/100 — 🟠 Hardening necesario  
-**Actual provisional:** 55/100 — 🟠 Hardening en curso (A1 implementado; pruebas pendientes)  
+**Actual:** 55/100 — 🟠 Hardening en curso (A1 validado por CI; verificación operativa pendiente)  
 **Objetivo:** ≥90/100 — 🟢 Buena postura técnica
 
 Ruta:
@@ -442,7 +445,7 @@ Ruta:
 | Fecha | Cambio | Responsable | Resultado |
 |---|---|---|---|
 | 2026-11-03 | Auditoría inicial | — | 52/100 |
-| 2026-11-03 | A1: credenciales aleatorias, rotación de cuentas legacy y cambio obligatorio | Implementación en rama security-hardening | 55/100 provisional; pruebas pendientes |
+| 2026-11-03 | A1: credenciales aleatorias, rotación legacy, creación de tenants y cambio obligatorio | CI Go + CI Webapp correctos; Docker/Launcher integran frontend | 55/100; validación operativa pendiente |
 
 ## Registro de excepciones
 
@@ -454,7 +457,7 @@ Ruta:
 
 | ID | Hallazgo | Severidad | Estado | Commit |
 |---|---|---|---|---|
-| H-01 | Credenciales bootstrap | Alta | Implementado; validación pendiente | security-hardening |
+| H-01 | Credenciales bootstrap | Alta | Implementado; CI correcto; validación operativa pendiente | security-hardening |
 | H-02 | Bind de red | Alta | Pendiente | |
 | H-03 | TLS | Alta | Pendiente | |
 | H-04 | CORS | Alta | Pendiente | |
