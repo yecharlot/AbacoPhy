@@ -1,0 +1,39 @@
+name: CI Docker Image
+
+on:
+  push:
+    branches:
+      - "**"
+    paths:
+      - "Dockerfile"
+      - "webapp/**"
+      - "static/**"
+      - "cmd/**"
+      - "internal/**"
+      - "go.mod"
+      - "go.sum"
+  pull_request:
+    branches:
+      - "**"
+    paths:
+      - "Dockerfile"
+      - "webapp/**"
+      - "static/**"
+      - "cmd/**"
+      - "internal/**"
+      - "go.mod"
+      - "go.sum"
+
+concurrency:
+  group: ci-docker-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker-build:
+    name: Build production Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build image (no push)
+        run: docker build --pull --tag abacophy:ci .
