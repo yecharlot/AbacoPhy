@@ -150,12 +150,12 @@ class OrchestratorUseCase(
             lanUrls = ips.map { "http://$it:$port" }
             emit(backendRunning = true)
             onLog("✅ Health OK · puerto $port guardado para el próximo arranque")
-            onLog("🔐 Scope de red: $networkScope")
+            onLog(if (networkScope.equals("LAN", ignoreCase = true)) "🔐 Alcance: LOCAL + LAN (localhost y red local)" else "🔐 Alcance: solo LOCAL (localhost)")
             onLog("🌐 URL Local:      $baseUrl/")
             if (lanUrls.isNotEmpty()) {
                 onLog("🔎 Discovery esperado: _abacophy._tcp.local; esperando confirmación del backend")
             } else {
-                onLog("🔒 Acceso remoto desactivado: se seleccionó el scope LOCAL o no hay interfaces LAN disponibles.")
+                onLog(if (networkScope.equals("LAN", ignoreCase = true)) "⚠️ No se detectaron direcciones LAN para mostrar; localhost sigue disponible y el backend escucha en todas las interfaces." else "🔒 Acceso desde otros equipos desactivado; localhost sigue disponible.")
             }
             if (lanUrls.isNotEmpty()) {
                 lanUrls.forEach { u ->
