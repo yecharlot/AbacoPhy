@@ -224,10 +224,21 @@ fun OrchestratorScreen(
                 )
             }
 
+            raw.contains("EVENT=discovery.disabled") -> {
+                val localOnly = raw.contains("local_only_bind") || raw.contains("bind_mode=\\"LOCAL\\"")
+                state = state.copy(
+                    discoveryActive = false,
+                    steps = state.steps.map {
+                        if (it.id == "discovery") it.copy(
+                            status = if (localOnly) TaskStepStatus.Success else TaskStepStatus.Failed,
+                            detail = if (localOnly) "Desactivado: servidor solo local" else "mDNS desactivado para este modo",
+                        ) else it
+                    },
+                )
+            }
+
             raw.contains("mDNS discovery unavailable", ignoreCase = true) ||
-                    raw.contains("discovery disabled", ignoreCase = true) ||
-                    raw.contains("EVENT=discovery.register_failed") ||
-                    raw.contains("EVENT=discovery.disabled") -> {
+                    raw.contains("EVENT=discovery.register_failed") -> {
                 state = state.copy(
                     discoveryActive = false,
                     steps = state.steps.map {
