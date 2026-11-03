@@ -17,9 +17,10 @@ describe('CreateTenant', () => {
             .rejects.toThrow('El nombre del negocio es obligatorio');
     });
 
-    it('rechaza contraseña de admin < 6 caracteres (vacía sí es opcional)', async () => {
-        const repo = mockOf<MasterRepository>({ createTenant: vi.fn() });
-        await expect(new CreateTenant(repo).execute({ name: 'X', adminPass: '123' }))
-            .rejects.toThrow('La contraseña del administrador debe tener al menos 6 caracteres');
+    it('crea el negocio sin recibir una contraseña administrativa del cliente', async () => {
+        const tenant = { id: 't3', slug: 'x', name: 'X', currency: 'CUP', active: true, createdAt: '2026-11-03' };
+        const repo = mockOf<MasterRepository>({ createTenant: vi.fn().mockResolvedValue(tenant) });
+        await expect(new CreateTenant(repo).execute({ name: 'X' })).resolves.toEqual(tenant);
+        expect(repo.createTenant).toHaveBeenCalledWith({ name: 'X' });
     });
 });
