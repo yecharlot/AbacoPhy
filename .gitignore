@@ -1,4 +1,5 @@
 abacophy_data/
+bootstrap-credentials.txt
 *.exe
 *.test
 .DS_Store

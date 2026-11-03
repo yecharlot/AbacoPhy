@@ -1,23 +1,40 @@
-# Acceso a ÁbacoPhy (uso interno)
+# Acceso seguro a ÁbacoPhy
 
-> **Este archivo no se muestra en la aplicación.**  
-> Las pantallas de la PWA no listan usuarios ni contraseñas.
+ÁbacoPhy **no incluye usuarios ni contraseñas administrativas reutilizables** en el código, la documentación ni la salida de consola.
 
-Las claves por defecto existen solo para el **primer arranque** del negocio demo.  
-**Cámbielas de inmediato** en cualquier entorno que no sea de prueba local.
+## Primer arranque
 
----
+En una instalación nueva, el servidor crea las cuentas administrativas `master` y `admin` con contraseñas aleatorias criptográficamente seguras.
 
-## Instancia de demostración (bootstrap)
+- Las credenciales generadas se guardan en `ABACOPHY_DATA/bootstrap-credentials.txt`.
+- Si no se configura `ABACOPHY_DATA`, la ruta predeterminada es `./abacophy_data/bootstrap-credentials.txt`.
+- En sistemas POSIX el archivo se crea con permisos `0600`.
+- El servidor registra únicamente la ruta del archivo y nunca imprime las contraseñas.
+- El operador debe recuperar el archivo por un canal administrativo seguro y entregar las credenciales individualmente.
+- En el primer inicio de sesión, el sistema bloquea el resto de la API hasta que el usuario defina una contraseña privada de al menos 12 caracteres.
 
-| Usuario | Contraseña | Rol | Alcance |
-|---------|------------|-----|---------|
-| `master` | `AbacoPhy#Master1` | master | Mantenimiento de la instancia: listar y crear negocios (tenants). Transparente al usuario final del negocio. |
-| `admin` | `admin123` | admin | Administrador del negocio demo (`slug: demo`). |
+Después de que todos los usuarios pendientes completen el cambio inicial, el archivo temporal se elimina automáticamente.
 
----
+## Credenciales administradas por el despliegue
 
-## Cómo iniciar sesión (API)
+Para entornos donde el operador no pueda recuperar un archivo del sistema, pueden definirse antes del primer arranque:
+
+- `ABACOPHY_BOOTSTRAP_MASTER_PASSWORD`
+- `ABACOPHY_BOOTSTRAP_ADMIN_PASSWORD`
+
+Cada variable debe contener al menos 12 caracteres. Los valores se leen desde el entorno, no se escriben en Git ni se muestran en logs. También se exige el cambio de contraseña en el primer acceso.
+
+No coloque estos valores en `.env` versionados, Dockerfiles, scripts públicos ni documentación.
+
+## Migración de instalaciones existentes
+
+En el primer arranque con esta versión, cada tenant existente rota una sola vez las contraseñas de las cuentas con rol `master` y `admin`, invalida sus sesiones anteriores y marca esas cuentas para cambio obligatorio. Las nuevas credenciales aleatorias se entregan mediante el archivo temporal descrito arriba, salvo que se hayan configurado variables de entorno.
+
+La migración se registra en los ajustes del tenant para no repetir la rotación en cada reinicio.
+
+## API de autenticación
+
+Inicio de sesión:
 
 ```http
 POST /api/v1/auth/login
@@ -29,119 +46,34 @@ Content-Type: application/json
 }
 ```
 
-Respuesta (extracto):
+La respuesta incluye `user.must_change_password`. Mientras sea `true`, las operaciones autenticadas quedan bloqueadas; solo se permiten consultar la sesión, cerrar sesión y cambiar la contraseña.
 
-```json
-{
-  "token": "<token opaco>",
-  "expires_at": "...",
-  "user": {
-    "id": "...",
-    "username": "...",
-    "display_name": "...",
-    "role": "admin",
-    "tenant_id": "..."
-  },
-  "views": ["dashboard", "ingresos", "gastos", ...]
-}
-```
-
-En las peticiones siguientes:
+Cambio obligatorio o voluntario:
 
 ```http
+POST /api/v1/auth/password
 Authorization: Bearer <token>
-```
-
-Cierre de sesión: `POST /api/v1/auth/logout` con el mismo encabezado.
-
----
-
-## Roles (modelo Alset / vistas)
-
-| Rol | Código API | Secciones típicas |
-|-----|------------|-------------------|
-| Master | `master` | Todas + panel master (tenants) |
-| Administrador | `admin` | Negocio, usuarios, cuentas, reportes, operación |
-| Contador | `contador` | Asientos, cuentas, nómina, reportes |
-| Operador | `operador` | Ingresos, gastos, facturas, inventario diario |
-| Solo lectura | `readonly` | Consulta de reportes e inventario |
-
-La lista exacta de vistas permitidas se devuelve en `views` al hacer login y en `GET /api/v1/auth/me`.  
-El servidor rechaza con **403** cualquier ruta fuera del ACL del rol (equivalente a “órgano” de permiso en la filosofía Alset: solo entra quien el token autoriza).
-
----
-
-## Tokens
-
-- Tipo: token opaco aleatorio (no JWT).
-- Vigencia por defecto: **72 horas**.
-- Almacenamiento en el servidor en memoria de sesiones (+ persistencia de negocio en disco/CID/KV).
-- En la PWA se guarda en `localStorage` solo el token, nunca la contraseña.
-
----
-
-## Crear otro negocio (solo master)
-
-```http
-POST /api/v1/master/tenants/create
-Authorization: Bearer <token-master>
 Content-Type: application/json
 
 {
-  "name": "Mi PyME",
-  "slug": "mi-pyme",
-  "currency": "CUP",
-  "admin_user": "admin",
-  "admin_pass": "<clave-segura>"
+  "current_password": "<contraseña actual>",
+  "new_password": "<nueva contraseña>"
 }
 ```
 
-Ese administrador nuevo es el acceso del negocio; el master no debe usarse en el día a día del cliente final.
+Al completar el cambio, el servidor elimina la marca de cambio obligatorio y revoca las demás sesiones del usuario, conservando la sesión que acaba de completar el cambio.
 
----
+## Reinicio de fábrica
 
-## Producción
+`POST /api/v1/master/reset` elimina los datos y sesiones de la instancia y genera credenciales temporales nuevas. No restaura contraseñas conocidas. El archivo temporal vuelve a crearse en el directorio de datos y el primer acceso vuelve a exigir el cambio de contraseña.
 
-URLs de referencia:
+## Roles
 
-- App: https://abacophy.onrender.com  
-- En nodo Alset: https://prisma-tec.onrender.com/w/abacophy.app.ans  
-
-Tras el despliegue, documente aquí (o en un gestor de secretos) las claves **reales** del entorno y elimine o rote las de demostración.
-
-
-## Reinicio de fábrica (solo master)
-
-Desde el panel Master → **Restaurar a estado inicial**, o:
-
-```http
-POST /api/v1/master/reset
-Authorization: Bearer <token-master>
-Content-Type: application/json
-
-{ "confirm": "REINICIAR" }
-```
-
-Tras el reinicio use de nuevo `master` / `AbacoPhy#Master1` y `admin` / `admin123`.
-
-
-## Cambiar contraseñas desde la aplicación
-
-1. Inicie sesión con el usuario cuya clave desea cambiar (o con `admin` / `master`).
-2. Menú **Negocio** → sección **Seguridad · cambiar contraseña**.
-3. Indique la contraseña actual del usuario en sesión y la nueva (mínimo 6 caracteres).
-4. Si es admin/master, el campo **Usuario objetivo** permite restablecer la clave de otro usuario del negocio sin conocer la anterior del objetivo (sí debe conocer la suya propia).
-
-Endpoint: `POST /api/v1/auth/password`
-
-
-## Roles operativos
-
-| Rol | Acceso típico |
-|-----|----------------|
-| vendedor | Vendedor (POS), inicio |
-| almacenero | Almacén, recepción, inventario, nomenclador productos |
-| economico | Contabilidad, informes, nómina, fichas, traza |
-| admin | Todo el negocio + usuarios |
-
-Créelos en **Usuarios** (solo admin/master).
+| Rol | Alcance |
+|---|---|
+| `master` | Mantenimiento de la instancia y gestión de tenants |
+| `admin` | Administración del negocio |
+| `contador` / `economico` | Contabilidad y reportes |
+| `operador` / `vendedor` | Operación diaria |
+| `almacenero` | Almacén y recepción |
+| `readonly` | Consulta sin escritura |

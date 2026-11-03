@@ -8,10 +8,12 @@
 
 **Puntuación inicial: 52/100 — 🟠 Hardening necesario**
 
+**Puntuación actual provisional: 55/100 — 🟠 Hardening en curso.** El incremento de +3 puntos refleja la implementación de A1 en código y documentación; queda pendiente ejecutar las pruebas automatizadas y validar una instalación/migración real para confirmar la puntuación.
+
 Esta puntuación procede de una primera revisión estática del repositorio. No es una certificación ni un pentest.
 
 ### Prioridades
-- [ ] Eliminar credenciales administrativas conocidas o impresas.
+- [x] Eliminar credenciales administrativas conocidas o impresas (A1 implementado; validación pendiente).
 - [ ] Definir política segura de bind de red.
 - [ ] Preparar HTTPS/TLS.
 - [ ] Sustituir CORS `*` por política explícita.
@@ -26,7 +28,7 @@ Esta puntuación procede de una primera revisión estática del repositorio. No 
 
 # 1. Reglas de implementación
 
-- [ ] Crear rama `security-hardening`.
+- [x] Crear rama `security-hardening`.
 - [ ] No modificar Android/POS salvo que una tarea lo indique.
 - [ ] No cambiar reglas de negocio durante el hardening.
 - [ ] Mantener la arquitectura de permisos existente salvo hallazgo.
@@ -41,15 +43,15 @@ Esta puntuación procede de una primera revisión estática del repositorio. No 
 
 ## A1. Credenciales de bootstrap
 - [ ] Localizar credenciales por defecto.
-- [ ] Eliminar contraseñas administrativas visibles en logs.
-- [ ] Eliminar contraseñas reales del código/documentación de producción.
-- [ ] Diseñar bootstrap de primera ejecución.
-- [ ] Obligar a cambiar la credencial inicial.
-- [ ] Invalidar la credencial temporal después del primer cambio.
-- [ ] Verificar que una instalación nueva no conserve credenciales conocidas.
-- [ ] Añadir prueba automática.
+- [x] Eliminar contraseñas administrativas visibles en logs/consola.
+- [x] Eliminar contraseñas reutilizables del código y documentación activa.
+- [x] Diseñar bootstrap de primera ejecución con secretos aleatorios o variables de entorno protegidas.
+- [x] Obligar a cambiar la credencial inicial antes de permitir operaciones autenticadas.
+- [x] Invalidar las demás sesiones al cambiar la contraseña y eliminar el archivo temporal cuando no queden cuentas pendientes.
+- [ ] Verificar una instalación nueva y la migración de una instalación existente (pruebas añadidas; ejecución pendiente).
+- [x] Añadir pruebas automáticas para bootstrap, rotación y bloqueo por cambio obligatorio.
 
-**Terminado:** ninguna credencial administrativa conocida funciona en producción.
+**Criterio de cierre:** ninguna credencial administrativa conocida funciona; el primer acceso obliga a cambiarla. Estado actual: implementación realizada; pruebas automatizadas aún no ejecutadas en este entorno.
 
 ## A2. Bind de red
 Definir:
@@ -427,7 +429,8 @@ La puntuación es un indicador interno, no una certificación.
 
 # 18. Resultado esperado
 
-**Actual:** 52/100 — 🟠 Hardening necesario  
+**Línea base:** 52/100 — 🟠 Hardening necesario  
+**Actual provisional:** 55/100 — 🟠 Hardening en curso (A1 implementado; pruebas pendientes)  
 **Objetivo:** ≥90/100 — 🟢 Buena postura técnica
 
 Ruta:
@@ -439,7 +442,7 @@ Ruta:
 | Fecha | Cambio | Responsable | Resultado |
 |---|---|---|---|
 | 2026-11-03 | Auditoría inicial | — | 52/100 |
-| | | | |
+| 2026-11-03 | A1: credenciales aleatorias, rotación de cuentas legacy y cambio obligatorio | Implementación en rama security-hardening | 55/100 provisional; pruebas pendientes |
 
 ## Registro de excepciones
 
@@ -451,7 +454,7 @@ Ruta:
 
 | ID | Hallazgo | Severidad | Estado | Commit |
 |---|---|---|---|---|
-| H-01 | Credenciales bootstrap | Alta | Pendiente | |
+| H-01 | Credenciales bootstrap | Alta | Implementado; validación pendiente | security-hardening |
 | H-02 | Bind de red | Alta | Pendiente | |
 | H-03 | TLS | Alta | Pendiente | |
 | H-04 | CORS | Alta | Pendiente | |

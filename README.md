@@ -49,7 +49,7 @@ Con rol administrador (o superior): pestaña **Negocio** → nombre, moneda, tel
 | **operador** | Personal de mostrador | Ingresos, gastos, facturas, inventario |
 | **readonly** | Consulta | Ver reportes e inventario sin modificar |
 
-El login devuelve `views`. Cada petición comprueba esa lista. Detalle: **[API.md](API.md)**. Credenciales de arranque: **[LOGIN.md](LOGIN.md)**.
+El login devuelve `views`. Cada petición comprueba esa lista. El primer acceso administrativo exige establecer una contraseña privada. Detalle: **[API.md](API.md)** y **[LOGIN.md](LOGIN.md)**.
 
 ## Contabilidad: partida doble
 
@@ -113,4 +113,4 @@ API.md  LOGIN.md  README.md
 
 ## Seguridad
 
-No publique claves reales en el repositorio. Use LOGIN.md solo en entornos controlados y rote las claves de demostración en producción.
+No existen contraseñas administrativas predeterminadas. Las credenciales iniciales se generan aleatoriamente, se entregan por un archivo temporal protegido fuera del repositorio y se invalidan al completar el cambio obligatorio. Consulte [LOGIN.md](LOGIN.md).
