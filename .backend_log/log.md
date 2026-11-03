@@ -12,3 +12,27 @@
 
 ### Nota operativa
 Contraseña temporal al crear empleado / reset en UI: **`123456`**.
+
+## 2026-11-03 — Presence: clientes conectados (header POS)
+
+### Objetivo
+Registrar terminales que hablan con el API **con o sin mDNS**, identificando instalación y sesión.
+
+### Headers
+- `X-AbacoPhy-Client-Id` — UUID estable del dispositivo/instalación
+- `X-AbacoPhy-Client` — `pos-desktop` | `pos-android` | otros
+
+### Backend
+- `internal/presence/registry.go` — mapa en memoria, TTL 5 min
+- Middleware `withPresence` en todas las rutas (excepto OPTIONS)
+- Login enriquece audit + log stdout con client/ip/app
+- `GET /api/v1/presence` — lista online (roles admin/master)
+
+### POS
+- `AppSettingsRepository.getOrCreateClientInstanceId()`
+- HttpClient DefaultRequest envía ambos headers
+
+### Ficheros
+- `internal/presence/registry.go`
+- `internal/api/server.go`, `presence_handlers.go`
+- `posapps/.../AppSettingsRepository*.kt`, `getHttpClient.kt`, `infraModule.kt`

@@ -5,6 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.elitec.com.feature.server_discovery.DiscoveredServer
 import com.elitec.com.feature.server_discovery.PlatformServerDiscovery
 import com.elitec.com.feature.settings.domain.ProbeApiConnection
+import com.elitec.com.feature.settings.domain.diagnostics.ConnectionDiagnosis
+import com.elitec.com.feature.settings.domain.diagnostics.DiagnosisKind
+import com.elitec.com.feature.settings.domain.diagnostics.LocalNetworkDiagnostics
 import com.elitec.com.infraestructure.network.ApiConfig
 import com.elitec.com.infraestructure.settings.AppSettingsRepository
 import io.github.aakira.napier.Napier
@@ -34,6 +37,11 @@ data class InitialSetupUiState(
     val phase: SetupConnectionPhase = SetupConnectionPhase.IDLE,
     val statusTitle: String = "Preparado para buscar",
     val statusDetail: String = "Buscaremos servidores AbacoPhy disponibles en tu red local.",
+    /** Desktop: título del diagnóstico (firewall / VPN / backend caído). */
+    val diagnosisTitle: String? = null,
+    val diagnosisDetail: String? = null,
+    val diagnosisSteps: List<String> = emptyList(),
+    val diagnosisKind: DiagnosisKind = DiagnosisKind.NotApplicable,
 )
 
 class InitialSetupViewModel(
@@ -42,6 +50,7 @@ class InitialSetupViewModel(
     private val probe: ProbeApiConnection,
 ) : ViewModel() {
     private val discovery = PlatformServerDiscovery()
+    private val networkDiagnostics = LocalNetworkDiagnostics()
 
     companion object {
         private const val HEALTH_MAX_ATTEMPTS = 3 // intento inicial + 2 reintentos
@@ -171,14 +180,24 @@ class InitialSetupViewModel(
     }
 
     fun onUrlChange(value: String) {
+        // Solo actualiza el texto. NO cambiar phase a IDLE:
+        // en splashMode el formulario manual depende de phase==FAILED;
+        // si se pasa a IDLE desaparecen "Validar y conectar" y la edición.
         _state.update {
             it.copy(
                 urlInput = value,
                 error = null,
                 successMessage = null,
-                phase = SetupConnectionPhase.IDLE,
-                statusTitle = "URL lista para probar",
-                statusDetail = "Comprueba que la dirección corresponde al servidor AbacoPhy.",
+                statusTitle = when (it.phase) {
+                    SetupConnectionPhase.FAILED -> it.statusTitle
+                    else -> "URL lista para probar"
+                },
+                statusDetail = when (it.phase) {
+                    SetupConnectionPhase.FAILED ->
+                        "Edite la URL y pulse «Validar y conectar» (no se guarda hasta comprobar health)."
+                    else ->
+                        "Comprueba que la dirección corresponde al servidor AbacoPhy."
+                },
             )
         }
     }
@@ -345,8 +364,13 @@ class InitialSetupViewModel(
                             phase = SetupConnectionPhase.FAILED,
                             statusTitle = "No se pudo conectar",
                             statusDetail = "Revisa la URL, la red y que el servidor siga activo.",
+                            diagnosisTitle = null,
+                            diagnosisDetail = null,
+                            diagnosisSteps = emptyList(),
+                            diagnosisKind = DiagnosisKind.NotApplicable,
                         )
                     }
+                    runDesktopDiagnostics(extraMessage = message)
                 },
             )
         }
@@ -386,7 +410,68 @@ class InitialSetupViewModel(
                 phase = SetupConnectionPhase.FAILED,
                 statusTitle = "No se pudo conectar",
                 statusDetail = "No fue posible establecer una conexión válida con AbacoPhy.",
+                diagnosisTitle = null,
+                diagnosisDetail = null,
+                diagnosisSteps = emptyList(),
+                diagnosisKind = DiagnosisKind.NotApplicable,
             )
         }
+        runDesktopDiagnostics(extraMessage = message)
+    }
+
+    /**
+     * Solo Desktop rellena diagnosis*; Android deja NotApplicable (sin ruido en UI).
+     */
+    private fun runDesktopDiagnostics(extraMessage: String? = null) {
+        viewModelScope.launch {
+            val ports = linkedSetOf<Int>()
+            ports += 8090
+            extractPort(_state.value.urlInput)?.let { ports += it }
+            _state.value.discoveredServers.forEach { ports += it.port }
+
+            val diagnosis = runCatching {
+                networkDiagnostics.diagnose(ports.toList())
+            }.getOrElse {
+                Napier.e("DIAG_THROW message=${it.message}", it, tag = "AbacoPhy-Setup")
+                ConnectionDiagnosis(kind = DiagnosisKind.Unknown)
+            }
+
+            if (diagnosis.kind == DiagnosisKind.NotApplicable) return@launch
+
+            Napier.i(
+                "DIAG_RESULT kind=${diagnosis.kind} loopback=${diagnosis.loopbackHealthOk} lan=${diagnosis.lanHealthOk}",
+                tag = "AbacoPhy-Setup",
+            )
+
+            _state.update {
+                it.copy(
+                    diagnosisTitle = diagnosis.title.ifBlank { null },
+                    diagnosisDetail = diagnosis.detail.ifBlank { null },
+                    diagnosisSteps = diagnosis.steps,
+                    diagnosisKind = diagnosis.kind,
+                    urlInput = when {
+                        !diagnosis.suggestedBaseUrl.isNullOrBlank() && it.urlInput.isBlank() ->
+                            diagnosis.suggestedBaseUrl
+                        !diagnosis.suggestedBaseUrl.isNullOrBlank() &&
+                            diagnosis.kind == DiagnosisKind.LikelyFirewall ->
+                            diagnosis.suggestedBaseUrl
+                        !diagnosis.suggestedBaseUrl.isNullOrBlank() &&
+                            diagnosis.kind == DiagnosisKind.LoopbackOkUseLocalhost ->
+                            diagnosis.suggestedBaseUrl
+                        else -> it.urlInput
+                    },
+                    statusTitle = diagnosis.title.ifBlank { it.statusTitle },
+                    statusDetail = listOfNotNull(
+                        extraMessage?.takeIf { m -> m.isNotBlank() },
+                        diagnosis.detail.takeIf { d -> d.isNotBlank() },
+                    ).distinct().joinToString(" · ").ifBlank { it.statusDetail },
+                )
+            }
+        }
+    }
+
+    private fun extractPort(url: String): Int? {
+        val m = Regex(""":(\d{2,5})(?:/|$)""").find(url.trim()) ?: return null
+        return m.groupValues[1].toIntOrNull()?.takeIf { it in 1..65535 }
     }
 }

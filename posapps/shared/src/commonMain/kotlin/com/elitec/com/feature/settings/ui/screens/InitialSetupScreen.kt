@@ -63,6 +63,13 @@ fun InitialSetupScreen(
     val busy = state.testing || state.discovering
     val failed = state.phase == SetupConnectionPhase.FAILED
 
+    // Una vez en fallo o modo manual, no ocultar el formulario al editar la URL.
+    LaunchedEffect(failed, splashMode) {
+        if (failed || !splashMode) {
+            showManualUrl = true
+        }
+    }
+
     val statusContainer = when (state.phase) {
         SetupConnectionPhase.READY -> MaterialTheme.colorScheme.primaryContainer
         SetupConnectionPhase.FAILED -> MaterialTheme.colorScheme.errorContainer
@@ -233,7 +240,47 @@ fun InitialSetupScreen(
                 }
             }
 
-            if (splashMode && !failed && state.phase != SetupConnectionPhase.READY) {
+            if (failed && state.diagnosisSteps.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
+                    ),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(
+                            state.diagnosisTitle ?: "Diagnóstico de red",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        state.diagnosisDetail?.takeIf { it.isNotBlank() }?.let { detail ->
+                            Text(
+                                detail,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        state.diagnosisSteps.forEachIndexed { index, step ->
+                            Text(
+                                "${index + 1}. $step",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Text(
+                            "Si hay VPN activa y no conecta, pruébela desactivada.",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
+            if (splashMode && !failed && !showManualUrl && state.phase != SetupConnectionPhase.READY) {
                 Spacer(Modifier.height(20.dp))
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -289,7 +336,7 @@ fun InitialSetupScreen(
                 )
             }
 
-            if (!splashMode || failed || state.discoveredServers.isNotEmpty()) {
+            if (!splashMode || failed || showManualUrl || state.discoveredServers.isNotEmpty()) {
                 Spacer(Modifier.height(18.dp))
                 Button(
                     onClick = { viewModel.connectUsingCacheOrDiscover(onConfigured) },
