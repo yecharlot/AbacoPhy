@@ -65,6 +65,8 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 
 **Criterio de cierre:** ninguna credencial administrativa conocida funciona; el primer acceso obliga a cambiarla. Estado actual: implementación y pruebas automatizadas correctas; falta comprobar el flujo en una instancia operativa con datos reales.
 
+**Nota sobre historial:** no se reescribió el historial Git. Los valores expuestos en commits anteriores deben tratarse como comprometidos; la migración invalida las contraseñas activas de los roles `master` y `admin` al iniciar esta versión.
+
 ## A2. Bind de red
 Definir:
 - [ ] `LOCAL`: `127.0.0.1`.

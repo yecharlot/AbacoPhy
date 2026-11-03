@@ -28,7 +28,9 @@ No coloque estos valores en `.env` versionados, Dockerfiles, scripts públicos n
 
 ## Migración de instalaciones existentes
 
-En el primer arranque con esta versión, cada tenant existente rota una sola vez las contraseñas de las cuentas con rol `master` y `admin`, invalida sus sesiones anteriores y marca esas cuentas para cambio obligatorio. Las nuevas credenciales aleatorias se entregan mediante el archivo temporal descrito arriba, salvo que se hayan configurado variables de entorno.
+Antes de actualizar una instalación operativa, realiza una copia de seguridad completa de `ABACOPHY_DATA` y confirma que puedes acceder al directorio de datos del servidor para recuperar el archivo temporal.
+
+En el primer arranque con esta versión, cada tenant existente rota una sola vez las contraseñas de las cuentas con rol `master` y `admin`, invalida sus sesiones anteriores y marca esas cuentas para cambio obligatorio. Las nuevas credenciales aleatorias se entregan mediante el archivo temporal descrito arriba. Las variables de entorno de bootstrap solo se aplican a una instalación nueva, no a esta migración.
 
 La migración se registra en los ajustes del tenant para no repetir la rotación en cada reinicio. La creación posterior de un negocio desde el panel master también genera credenciales independientes para sus cuentas administrativas y las añade al mismo archivo temporal protegido; ya no acepta una contraseña administrativa predefinida.
 
