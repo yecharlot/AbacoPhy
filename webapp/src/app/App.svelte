@@ -28,6 +28,7 @@
   import { createMasterModule } from '../features/master/di';
   import { RESET_CONFIRMATION } from '../infrastructure/ui/dev';
   import LoginScreen from '../features/identity/ui/screens/LoginScreen.svelte';
+  import ForcePasswordChangeScreen from '../features/identity/ui/screens/ForcePasswordChangeScreen.svelte';
   import TenantScreen from '../features/tenant/ui/screens/TenantScreen.svelte';
   import CatalogScreen from '../features/catalog/ui/screens/CatalogScreen.svelte';
   import DashboardScreen from '../features/accounting/ui/screens/DashboardScreen.svelte';
@@ -247,6 +248,12 @@
     }
   }
 
+  async function handleForcedPasswordChange(currentPassword: string, newPassword: string) {
+    await sessionStore.changePassword(currentPassword, newPassword);
+    await sessionStore.refreshMe();
+    showToast('Contraseña actualizada. Acceso habilitado.');
+  }
+
   async function handleLogout() {
     await sessionStore.logout();
     loginAttempted = false;
@@ -256,7 +263,9 @@
   }
 </script>
 
-{#if isAuthenticated && sessionState.session}
+{#if isAuthenticated && sessionState.session?.user?.mustChangePassword}
+  <ForcePasswordChangeScreen onSubmit={handleForcedPasswordChange} />
+{:else if isAuthenticated && sessionState.session}
   <AppShell
     {navItems}
     {activeId}

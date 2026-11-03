@@ -17,6 +17,7 @@ export type LoginResponseDto = {
     display_name?: string;
     role: string;
     tenant_id: string;
+    must_change_password?: boolean;
   };
   views?: string[];
   modules?: Record<string, boolean>;
@@ -32,6 +33,7 @@ export type MeResponseDto = {
     display_name?: string;
     role: string;
     tenant_id: string;
+    must_change_password?: boolean;
   };
   tenant?: {
     id?: string;

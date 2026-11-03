@@ -19,6 +19,7 @@ function mapUser(u: LoginResponseDto['user'] | MeResponseDto['user'] | null | un
     displayName: u.display_name ?? u.username ?? '',
     role: u.role ?? '',
     tenantId: u.tenant_id ?? '',
+    mustChangePassword: !!u.must_change_password,
     metadata: normalizeMetadataField(u),
   };
 }
