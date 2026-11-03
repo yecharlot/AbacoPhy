@@ -19,7 +19,24 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.loadImageBitmap
 import androidx.compose.ui.res.useResource
 
-private object LauncherPreferenceNode\n\nprivate val launcherPreferences = Preferences.userNodeForPackage(LauncherPreferenceNode::class.java)\nprivate const val NETWORK_SCOPE_KEY = "networkScope"\n\nprivate fun loadNetworkScope(): String =\n    launcherPreferences.get(NETWORK_SCOPE_KEY, "LOCAL")\n        .uppercase()\n        .takeIf { it == "LOCAL" || it == "LAN" } ?: "LOCAL"\n\nprivate fun saveNetworkScope(value: String) {\n    val normalized = value.uppercase().takeIf { it == "LOCAL" || it == "LAN" } ?: "LOCAL"\n    runCatching {\n        launcherPreferences.put(NETWORK_SCOPE_KEY, normalized)\n        launcherPreferences.flush()\n    }.onFailure { persistLauncherLog("No se pudo guardar el alcance de red: ${it.message}") }\n}\n\nprivate val launcherLogLock = Any()
+private object LauncherPreferenceNode
+
+private val launcherPreferences = Preferences.userNodeForPackage(LauncherPreferenceNode::class.java)
+private const val NETWORK_SCOPE_KEY = "networkScope"
+
+private fun loadNetworkScope(): String =
+    launcherPreferences.get(NETWORK_SCOPE_KEY, "LOCAL")
+        .uppercase()
+        .takeIf { it == "LOCAL" || it == "LAN" } ?: "LOCAL"
+
+private fun saveNetworkScope(value: String) {
+    val normalized = value.uppercase().takeIf { it == "LOCAL" || it == "LAN" } ?: "LOCAL"
+    runCatching {
+        launcherPreferences.put(NETWORK_SCOPE_KEY, normalized)
+        launcherPreferences.flush()
+    }.onFailure { persistLauncherLog("No se pudo guardar el alcance de red: ${it.message}") }
+}
+private val launcherLogLock = Any()
 private val launcherLogTimestamp = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
 
 private fun persistLauncherLog(line: String) {
