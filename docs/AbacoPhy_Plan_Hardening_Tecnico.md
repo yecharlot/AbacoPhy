@@ -8,7 +8,7 @@
 
 **Puntuación inicial: 52/100 — 🟠 Hardening necesario**
 
-**Puntuación actual: 55/100 — 🟠 Hardening en curso.** A1 pasó CI Go (vet, build y pruebas), CI Webapp (typecheck, Vitest y build de producción) y CI Docker (imagen de producción construida). CI Launcher Desktop también compiló correctamente. Sigue pendiente ejecutar los scripts de empaquetado runtime del Launcher y validar la migración sobre datos operativos.
+**Puntuación actual: 55/100 — 🟠 Hardening en curso.** A1 fue validado operativamente. A2 tiene implementación inicial en backend y documentación, pero sigue pendiente la validación de Launcher/red y CI. A1 pasó CI Go (vet, build y pruebas), CI Webapp (typecheck, Vitest y build de producción) y CI Docker (imagen de producción construida). CI Launcher Desktop también compiló correctamente. Sigue pendiente ejecutar los scripts de empaquetado runtime del Launcher y validar la migración sobre datos operativos.
 
 Esta puntuación procede de una revisión estática y de pruebas automatizadas del repositorio. No es una certificación ni un pentest.
 
@@ -17,13 +17,13 @@ Esta puntuación procede de una revisión estática y de pruebas automatizadas d
 | Dimensión | Línea base | Actual | Motivo |
 |---|---:|---:|---|
 | Autenticación | 70/100 | 78/100 | Eliminadas claves bootstrap reutilizables; rotación legacy, cambio inicial obligatorio y revocación de sesiones paralelas |
-| Seguridad global | 52/100 | 55/100 | Reducción ponderada del riesgo alto H-01; las demás dimensiones permanecen sin cambios |
+| Seguridad global | 52/100 | 55/100 | A1 validado; A2 implementado parcialmente y pendiente de pruebas operativas, por lo que aún no se acredita aumento de puntuación |
 
 El puntaje es una evaluación interna de hardening, no una certificación. Se volverá a recalcular tras la validación operativa y al cerrar cada hallazgo.
 
 ### Prioridades
 - [x] Eliminar credenciales administrativas conocidas o impresas (A1 implementado; CI correcto; validación operativa pendiente).
-- [ ] Definir política segura de bind de red.
+- [x] Definir política segura de bind de red (implementación y pruebas automatizadas en curso; validación de Launcher/operación pendiente).
 - [ ] Preparar HTTPS/TLS.
 - [ ] Sustituir CORS `*` por política explícita.
 - [ ] Reducir duración de sesiones.
@@ -68,15 +68,19 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 **Nota sobre historial:** no se reescribió el historial Git. Los valores expuestos en commits anteriores deben tratarse como comprometidos; la migración invalida las contraseñas activas de los roles `master` y `admin` al iniciar esta versión.
 
 ## A2. Bind de red
-Definir:
-- [ ] `LOCAL`: `127.0.0.1`.
-- [ ] `LAN`: interfaz/IP configurada.
-- [ ] `PRODUCTION`: exposición controlada detrás de reverse proxy/firewall.
-- [ ] Documentar comportamiento por defecto.
-- [ ] Mostrar interfaz escuchando en logs.
-- [ ] Probar puertos desde otra máquina.
 
-**Terminado:** la exposición de red es una decisión explícita.
+- [x] `LOCAL` como modo predeterminado y escucha en `127.0.0.1`.
+- [x] `LAN` requiere selección explícita y admite IP de interfaz o wildcard configurado.
+- [x] `PRODUCTION` requiere modo y `ABACOPHY_HOST` explícitos; wildcard permitido solo por configuración explícita para contenedores protegidos por la plataforma.
+- [x] mDNS solo se anuncia en modo `LAN`.
+- [x] Validar/rechazar combinaciones inseguras y modos desconocidos.
+- [x] Documentar variables, precedencia de puertos y ejemplos de despliegue.
+- [x] Registrar modo, host y dirección real de escucha.
+- [ ] Integrar selección LAN/LOCAL en la interfaz del Launcher o documentar/validar la configuración heredada.
+- [ ] Ejecutar pruebas de conectividad desde otro equipo y verificar firewall/VPN.
+- [ ] Validar despliegues Docker/producción con la configuración explícita.
+
+**Terminado:** la exposición de red es una decisión explícita y el backend local no acepta conexiones LAN por defecto.
 
 ## A3. TLS / HTTPS
 - [ ] Definir `HTTPS reverse proxy → Abaco`.
@@ -456,7 +460,8 @@ Ruta:
 | Fecha | Cambio | Responsable | Resultado |
 |---|---|---|---|
 | 2026-11-03 | Auditoría inicial | — | 52/100 |
-| 2026-11-03 | A1: credenciales aleatorias, rotación legacy, creación de tenants y cambio obligatorio | CI Go, Webapp y Docker correctos; CI Launcher Desktop correcto | 55/100; scripts runtime y validación operativa pendientes |
+| 2026-11-03 | A1: credenciales aleatorias, rotación legacy, creación de tenants y cambio obligatorio | Validado operativamente por el usuario; revisar referencias antiguas residuales en Launcher | 55/100 |
+| 2026-11-03 | A2: modos LOCAL/LAN/PRODUCTION, bind seguro y mDNS condicionado | Implementación inicial backend/documentación; CI y validación operativa pendientes | 55/100 sin incremento hasta completar validación |
 
 ## Registro de excepciones
 
@@ -469,7 +474,7 @@ Ruta:
 | ID | Hallazgo | Severidad | Estado | Commit |
 |---|---|---|---|---|
 | H-01 | Credenciales bootstrap | Alta | CI Go/Webapp/Docker y compilación Launcher correctos; validación operativa pendiente | security-hardening |
-| H-02 | Bind de red | Alta | Pendiente | |
+| H-02 | Bind de red | Alta | Implementación inicial en backend; pendiente Launcher, CI y prueba LAN/LOCAL/PRODUCTION | |
 | H-03 | TLS | Alta | Pendiente | |
 | H-04 | CORS | Alta | Pendiente | |
 | H-05 | Sesiones | Alta | Pendiente | |
