@@ -584,7 +584,7 @@ private fun SidePanel(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).background(Ide.Surface2).padding(3.dp),
                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
-                    listOf("LOCAL" to "Solo este equipo", "LAN" to "Red local").forEach { (value, label) ->
+                    listOf("LOCAL" to "Solo este equipo", "LAN" to "Local + LAN").forEach { (value, label) ->
                         val selected = networkScope == value
                         Column(
                             Modifier.weight(1f)
@@ -601,8 +601,8 @@ private fun SidePanel(
                     }
                 }
                 Text(
-                    if (networkScope == "LAN") "Permite conexiones desde otros dispositivos de tu red. El firewall del equipo sigue aplicándose."
-                    else "El servidor solo aceptará conexiones desde este equipo.",
+                    if (networkScope == "LAN") "Disponible en localhost para el POS de esta PC y desde otros dispositivos de la red. El firewall sigue aplicándose."
+                    else "Disponible únicamente en localhost; los demás equipos no podrán conectarse.",
                     fontSize = 10.sp,
                     color = if (networkScope == "LAN") Ide.Yellow else Ide.Subtle,
                 )
