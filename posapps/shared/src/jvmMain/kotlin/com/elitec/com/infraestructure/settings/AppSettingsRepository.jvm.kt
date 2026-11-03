@@ -1,6 +1,7 @@
 package com.elitec.com.infraestructure.settings
 
 import com.elitec.com.infraestructure.network.ApiConfig
+import java.util.UUID
 import java.util.prefs.Preferences
 
 class JvmAppSettingsRepository : AppSettingsRepository {
@@ -44,8 +45,21 @@ class JvmAppSettingsRepository : AppSettingsRepository {
         prefs.flush()
     }
 
+    override fun getOrCreateClientInstanceId(): String {
+        val existing = prefs.get(KEY_CLIENT_ID, null)?.trim().orEmpty()
+        if (existing.isNotEmpty()) return existing
+        val id = UUID.randomUUID().toString()
+        prefs.put(KEY_CLIENT_ID, id)
+        prefs.flush()
+        return id
+    }
+
+    override fun getClientPlatform(): String = "pos-desktop"
+
     companion object {
+
         private const val KEY_BASE_URL = "base_url"
+        private const val KEY_CLIENT_ID = "client_instance_id"
         private const val KEY_THEME = "theme"
 
         private val LEGACY_DESKTOP_URLS = setOf(
