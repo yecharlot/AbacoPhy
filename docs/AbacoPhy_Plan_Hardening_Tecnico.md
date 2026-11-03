@@ -8,7 +8,7 @@
 
 **Puntuación inicial: 52/100 — 🟠 Hardening necesario**
 
-**Puntuación actual: 55/100 — 🟠 Hardening en curso.** A1 pasó CI Go (vet, build y pruebas) y CI Webapp (typecheck, Vitest y build de producción). Sigue pendiente la validación operativa de instalación/migración y la comprobación final de los empaquetados Docker/Launcher.
+**Puntuación actual: 55/100 — 🟠 Hardening en curso.** A1 pasó CI Go (vet, build y pruebas), CI Webapp (typecheck, Vitest y build de producción) y CI Docker (imagen de producción construida). CI Launcher Desktop también compiló correctamente. Sigue pendiente ejecutar los scripts de empaquetado runtime del Launcher y validar la migración sobre datos operativos.
 
 Esta puntuación procede de una revisión estática y de pruebas automatizadas del repositorio. No es una certificación ni un pentest.
 
@@ -61,7 +61,7 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 - [ ] Validar el primer arranque y la migración con un directorio de datos operativo real.
 - [x] Añadir pruebas automáticas para bootstrap, rotación, creación de tenants y bloqueo por cambio obligatorio (CI Go: success).
 - [x] Validar el frontend forzado de cambio de contraseña (CI Webapp: check, Vitest y build: success).
-- [x] Integrar el build web en la imagen Docker y en el empaquetado Windows/Linux del Launcher (ejecución de empaquetados pendiente).
+- [x] Integrar el build web en la imagen Docker y en el empaquetado Windows/Linux del Launcher. CI Docker: success; CI Launcher Desktop: success. La ejecución de los scripts `build-runtime.ps1/.sh` queda pendiente.
 
 **Criterio de cierre:** ninguna credencial administrativa conocida funciona; el primer acceso obliga a cambiarla. Estado actual: implementación y pruebas automatizadas correctas; falta comprobar el flujo en una instancia operativa con datos reales.
 
@@ -456,7 +456,7 @@ Ruta:
 | Fecha | Cambio | Responsable | Resultado |
 |---|---|---|---|
 | 2026-11-03 | Auditoría inicial | — | 52/100 |
-| 2026-11-03 | A1: credenciales aleatorias, rotación legacy, creación de tenants y cambio obligatorio | CI Go + CI Webapp correctos; build Docker/Launcher actualizado | 55/100; validación operativa pendiente |
+| 2026-11-03 | A1: credenciales aleatorias, rotación legacy, creación de tenants y cambio obligatorio | CI Go, Webapp y Docker correctos; CI Launcher Desktop correcto | 55/100; scripts runtime y validación operativa pendientes |
 
 ## Registro de excepciones
 
@@ -468,7 +468,7 @@ Ruta:
 
 | ID | Hallazgo | Severidad | Estado | Commit |
 |---|---|---|---|---|
-| H-01 | Credenciales bootstrap | Alta | Implementado; CI Go/Webapp correctos; validación operativa pendiente | security-hardening |
+| H-01 | Credenciales bootstrap | Alta | CI Go/Webapp/Docker y compilación Launcher correctos; validación operativa pendiente | security-hardening |
 | H-02 | Bind de red | Alta | Pendiente | |
 | H-03 | TLS | Alta | Pendiente | |
 | H-04 | CORS | Alta | Pendiente | |
