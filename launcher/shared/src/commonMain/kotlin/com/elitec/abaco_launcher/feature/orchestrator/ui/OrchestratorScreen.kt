@@ -161,6 +161,8 @@ fun OrchestratorScreen(
     ) -> OrchestratorState,
     onStop: () -> Unit,
     onOpenBrowser: (url: String) -> Unit,
+    initialNetworkScope: String = "LOCAL",
+    onNetworkScopeChange: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var state by remember {
@@ -179,7 +181,7 @@ fun OrchestratorScreen(
     var logLines by remember { mutableStateOf(listOf<LogLine>()) }
     var busy by remember { mutableStateOf(false) }
     var portText by remember { mutableStateOf("") }
-    var networkScope by remember { mutableStateOf("LOCAL") }
+    var networkScope by remember { mutableStateOf(initialNetworkScope) }
     var query by remember { mutableStateOf("") }
     var enabledLevels by remember { mutableStateOf(LogLevel.values().toSet()) }
     val scope = rememberCoroutineScope()
@@ -333,7 +335,7 @@ fun OrchestratorScreen(
                         compact = compact,
                         portText = portText,
                         networkScope = networkScope,
-                        onNetworkScopeChange = { networkScope = it },
+                        onNetworkScopeChange = { selected ->\n                            networkScope = selected\n                            onNetworkScopeChange(selected)\n                        },
                         onPortChange = { portText = it.filter { ch -> ch.isDigit() }.take(5) },
                         canStop = canStop,
                         canOpenBrowser = canOpenBrowser,
