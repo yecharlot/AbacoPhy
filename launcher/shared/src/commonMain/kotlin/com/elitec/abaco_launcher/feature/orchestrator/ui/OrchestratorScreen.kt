@@ -229,7 +229,7 @@ fun OrchestratorScreen(
             }
 
             raw.contains("EVENT=discovery.disabled") -> {
-                val localOnly = raw.contains("local_only_bind") || raw.contains("bind_mode=\\"LOCAL\\"")
+                val localOnly = raw.contains("local_only_bind") || raw.contains("bind_mode=\"LOCAL\"")
                 state = state.copy(
                     discoveryActive = false,
                     steps = state.steps.map {
