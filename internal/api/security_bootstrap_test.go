@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -49,7 +50,7 @@ func TestEnsureBootstrapCreatesRandomForcedCredentials(t *testing.T) {
 	}
 	info, err := os.Stat(filepath.Join(dataDir, "bootstrap-credentials.txt"))
 	if err != nil { t.Fatal(err) }
-	if info.Mode().Perm() != 0600 { t.Fatalf("bootstrap file permissions = %04o, want 0600", info.Mode().Perm()) }
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0600 { t.Fatalf("bootstrap file permissions = %04o, want 0600", info.Mode().Perm()) }
 	if _, user, err := auth.Login(st, "master", masterPassword); err != nil || user == nil || !user.MustChangePassword {
 		t.Fatalf("temporary master login should succeed and require password change: user=%v err=%v", user, err)
 	}

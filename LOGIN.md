@@ -22,7 +22,7 @@ Para entornos donde el operador no pueda recuperar un archivo del sistema, puede
 - `ABACOPHY_BOOTSTRAP_MASTER_PASSWORD`
 - `ABACOPHY_BOOTSTRAP_ADMIN_PASSWORD`
 
-Cada variable debe contener al menos 12 caracteres. Los valores se leen desde el entorno, no se escriben en Git ni se muestran en logs. También se exige el cambio de contraseña en el primer acceso.
+Cada variable debe contener al menos 12 caracteres. Estas variables solo se aplican a las cuentas creadas durante el primer bootstrap de una instalación nueva. Los valores se leen desde el entorno, no se escriben en Git ni se muestran en logs. También se exige el cambio de contraseña en el primer acceso. En migraciones y en la creación posterior de negocios se generan contraseñas aleatorias independientes y se entregan mediante el archivo protegido.
 
 No coloque estos valores en `.env` versionados, Dockerfiles, scripts públicos ni documentación.
 

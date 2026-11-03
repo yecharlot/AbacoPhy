@@ -1595,7 +1595,7 @@ func EnsureBootstrap(st *store.Store) error {
 		if snap.Tenant.Settings[bootstrapCredentialMarker] != "1" {
 			for _, user := range snap.Users {
 				if user == nil || (user.Role != domain.RoleMaster && user.Role != domain.RoleAdmin) { continue }
-				if err := assignInitialPassword(user, snap.Tenant.Slug, &credentials); err != nil { return err }
+				if err := assignGeneratedInitialPassword(user, snap.Tenant.Slug, &credentials); err != nil { return err }
 				st.RevokeUserTokens(user.ID)
 				changed = true
 			}
@@ -1607,7 +1607,7 @@ func EnsureBootstrap(st *store.Store) error {
 			if user == nil { continue }
 			if user.TenantID != snap.Tenant.ID && snap.Tenant.ID != "" { user.TenantID = snap.Tenant.ID; changed = true }
 			if user.PasswordHash == "" {
-				if err := assignInitialPassword(user, snap.Tenant.Slug, &credentials); err != nil { return err }
+				if err := assignGeneratedInitialPassword(user, snap.Tenant.Slug, &credentials); err != nil { return err }
 				st.RevokeUserTokens(user.ID)
 				changed = true
 			}
@@ -1723,7 +1723,7 @@ func appendBootstrapCredentials(st *store.Store, credentials []bootstrapCredenti
 
 func (s *Server) requireInitialPasswordChange(next http.Handler) http.Handler {
 	allowed := map[string]bool{
-		"/api/v1/info": true, "/api/v1/health": true, "/api/v1/events": true,
+		"/api/v1/info": true, "/api/v1/health": true,
 		"/api/v1/auth/login": true, "/api/v1/auth/me": true,
 		"/api/v1/auth/password": true, "/api/v1/auth/logout": true,
 	}
