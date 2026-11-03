@@ -23,7 +23,6 @@ export function createTenantInputToDto(input: CreateTenantInput): Record<string,
   if (input.slug) body.slug = input.slug;
   if (input.currency) body.currency = input.currency;
   if (input.adminUser) body.admin_user = input.adminUser;
-  if (input.adminPass) body.admin_pass = input.adminPass;
   return body;
 }
 

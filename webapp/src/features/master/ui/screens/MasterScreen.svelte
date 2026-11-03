@@ -12,7 +12,7 @@
   let tenantSlug = '';
   let tenantCurrency = 'CUP';
   let adminUser = '';
-  let adminPass = '';
+
   let resetConfirm = '';
   let formError = '';
 
@@ -48,12 +48,10 @@
         slug: tenantSlug.trim() || undefined,
         currency: tenantCurrency.trim() || undefined,
         adminUser: adminUser.trim() || undefined,
-        adminPass: adminPass || undefined,
       });
       tenantName = '';
       tenantSlug = '';
       adminUser = '';
-      adminPass = '';
     } catch {
       /* error en el estado del store */
     }
@@ -163,11 +161,11 @@
         <Input id="tenant-slug" label="Slug" bind:value={tenantSlug} placeholder="mi-negocio" />
         <Input id="tenant-currency" label="Moneda" bind:value={tenantCurrency} placeholder="CUP" />
         <Input id="tenant-admin" label="Usuario administrador" bind:value={adminUser} placeholder="admin" />
-        <Input id="tenant-pass" label="Contraseña" type="password" bind:value={adminPass} placeholder="mínimo 6" />
       </div>
       {#if formError}
         <p class="err">{formError}</p>
       {/if}
+      <p class="muted">Las cuentas administrativas recibirán contraseñas temporales independientes. El operador debe recuperarlas en <code>bootstrap-credentials.txt</code> dentro del directorio de datos del servidor; cada cuenta tendrá que cambiarlas en su primer acceso.</p>
       <Button type="submit" disabled={state.saving}>
         {state.saving ? 'Creando…' : 'Crear negocio'}
       </Button>

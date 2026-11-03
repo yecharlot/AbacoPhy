@@ -117,7 +117,7 @@ export function createMasterStore(deps: Deps) {
       set({ saving: true, error: null, notice: null });
       try {
         const tenant = await deps.createTenant.execute(input);
-        set({ saving: false, notice: `Negocio «${tenant.name}» creado` });
+        set({ saving: false, notice: `Negocio «${tenant.name}» creado. Credenciales temporales independientes en bootstrap-credentials.txt; cambio obligatorio en el primer acceso.` });
         await this.loadAll();
       } catch (err) {
         set({ saving: false, error: messageOf(err, 'Error al crear el negocio') });

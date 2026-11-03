@@ -13,5 +13,4 @@ export type CreateTenantInput = {
   slug?: string;
   currency?: string;
   adminUser?: string;
-  adminPass?: string;
 };
