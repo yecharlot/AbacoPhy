@@ -7,26 +7,14 @@
 - PWA instalable en móvil
 - Shell Electron para escritorio
 
-## 1. Contraseñas por defecto
+## 1. Credenciales iniciales
 
-Documentadas en **LOGIN.md** (no se muestran en la UI):
+No existen contraseñas bootstrap predeterminadas ni reutilizables. En el primer arranque, AbacoPhy genera credenciales aleatorias y las guarda temporalmente en `bootstrap-credentials.txt`, dentro de `ABACOPHY_DATA`. El primer acceso obliga a cambiar la contraseña. El archivo temporal se elimina cuando todas las cuentas iniciales han completado el cambio.
 
-| Usuario | Clave inicial |
-|---------|----------------|
-| `master` | `AbacoPhy#Master1` |
-| `admin` | `admin123` |
+No publiques, copies a logs ni compartas ese archivo. Restringe el acceso al directorio de datos y conserva una copia protegida antes de actualizar instalaciones existentes.
 
-**Dónde cambiarlas en la app**
-
-1. Inicia sesión.
-2. Menú lateral → **Negocio**.
-3. Bloque **Seguridad · cambiar contraseña**.
-4. Admin/master puede indicar otro usuario del negocio para restablecer su clave.
-
-API: `POST /api/v1/auth/password`  
+API para cambio de contraseña: `POST /api/v1/auth/password`  
 Body: `{ "current_password": "...", "new_password": "...", "username": "opcional" }`
-
-Tras un reinicio de fábrica (master), vuelven las claves de LOGIN.md.
 
 ## 2. Modos de exposición de red (A2)
 
