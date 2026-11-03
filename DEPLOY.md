@@ -53,7 +53,7 @@ $env:ABACOPHY_PORT = "8090"
 
 En producción, el proxy debe terminar TLS/HTTPS y el firewall debe limitar el acceso al backend. El modo `PRODUCTION` no instala ni configura TLS por sí mismo. No publicar el puerto del backend directamente a Internet.
 
-El Launcher hereda las variables de entorno del proceso que lo inicia. Para habilitar acceso LAN desde el Launcher, establece `ABACOPHY_BIND_MODE=LAN` antes de abrirlo. En modo `LOCAL`, las direcciones LAN y mDNS no estarán disponibles.
+**Launcher de escritorio:** el usuario elige `Solo este equipo (LOCAL)` o `Red local (LAN)` en el panel de configuración antes de pulsar Iniciar. La selección se transmite directamente al proceso backend; no hay que configurar variables de entorno ni abrir el Launcher desde una terminal. LOCAL es la selección predeterminada. LAN anuncia mDNS y permite conexiones desde la red local, sujeto al firewall del sistema. `PRODUCTION` no es un scope del Launcher: se reserva para despliegues administrados como Docker o un servicio detrás de reverse proxy.
 
 ## 3. Local (Linux / Debian / GNOME)
 
