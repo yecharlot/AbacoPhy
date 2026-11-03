@@ -29,8 +29,6 @@ materialIconsExtended = "1.7.3"
 # Lotties
 compottie= "2.3.2"
 kotlinx_datetime_ext = "1.4.0"
-# UI Adaptative
-composive = "1.0.2"
 # typecheck
 arrow = "2.2.3"
 # persistence
@@ -89,8 +87,6 @@ kotlinx_datetime_ext = { module = "com.raedghazal:kotlinx_datetime_ext", version
 compottie-core = { module = "io.github.alexzhirkevich:compottie", version.ref = "compottie" }
 compottie-dot = { module = "io.github.alexzhirkevich:compottie-dot", version.ref = "compottie" }
 compottie-resources = { module = "io.github.alexzhirkevich:compottie-resources", version.ref = "compottie" }
-# Adaptative UI
-composive-ui = { module = "io.github.gursimarsingh12:composive-responsive-adaptive", version.ref = "composive" }
 # typecheck
 arrow-core = { module = "io.arrow-kt:arrow-core", version.ref = "arrow" }
 arrow-fx-coroutines = { module = "io.arrow-kt:arrow-fx-coroutines", version.ref = "arrow" }

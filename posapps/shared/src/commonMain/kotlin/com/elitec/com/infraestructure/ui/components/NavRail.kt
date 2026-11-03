@@ -1,5 +1,6 @@
 package com.elitec.com.infraestructure.ui.components
 
+import com.elitec.com.infraestructure.ui.theme.AbacoDimensions
 import abacopos.shared.generated.resources.Res
 import abacopos.shared.generated.resources.abacus_color_icon
 import androidx.compose.animation.AnimatedContent
@@ -86,7 +87,6 @@ import com.elitec.com.feature.pos.data.sync.OutboxSyncWorker
 import com.elitec.com.infraestructure.ui.navigation.InternalRoute
 import com.elitec.com.infraestructure.ui.navigation.NavDestinationUi
 import com.elitec.com.infraestructure.ui.uiModels.NavButton
-import com.gursimar.composive.responsive.theme.AppTheme
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 import kotlin.time.Duration.Companion.milliseconds
@@ -113,7 +113,7 @@ fun AppNavRail(
 
     onToggleExpanded: (() -> Unit)? = null,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
 
     // Entrada una sola vez; cambiar de compacto a expandido NO la repite.
     val entered = remember { MutableTransitionState(false).apply { targetState = true } }
@@ -148,7 +148,7 @@ fun AppNavRail(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(if (expanded) AppTheme.dimensions.cardSpacing else 8.dp),
+                        .padding(if (expanded) AbacoDimensions.cardSpacing else 8.dp),
                     verticalArrangement = Arrangement.spacedBy(if (dense) 4.dp else 12.dp),
                     horizontalAlignment = if (expanded) Alignment.Start else Alignment.CenterHorizontally,
                 ) {
@@ -257,7 +257,7 @@ private fun RailItem(
     dense: Boolean,
     onClick: () -> Unit,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     val pill by animateColorAsState(
         if (selected) colors.primary.copy(alpha = 0.18f) else Color.Transparent,
         tween(200), label = "railPill",
@@ -304,7 +304,7 @@ private fun CompactTopBar(
     onSyncClick: () -> Unit,          // SYNC
     onLogoutClick: () -> Unit,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     var menuOpen by remember { mutableStateOf(false) }
 
     Row(
@@ -425,7 +425,7 @@ private data class SyncVisual(
 
 @Composable
 private fun syncVisual(ui: SyncIndicatorUi): SyncVisual {
-    val c = AppTheme.materialColors
+    val c = MaterialTheme.colorScheme
     return when (ui.kind) {
         SyncKind.ONLINE ->
             if (ui.pending > 0) SyncVisual(Icons.Rounded.CloudSync, c.primary, "En línea", "Toca para sincronizar")
@@ -493,7 +493,7 @@ fun SyncStatusChip(
     modifier: Modifier = Modifier,
     size: Dp = 44.dp,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     val visual = syncVisual(ui)
     val tint by animateColorAsState(visual.color, tween(250), label = "syncChipTint")
 
@@ -535,7 +535,7 @@ fun SyncStatusCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     val visual = syncVisual(ui)
     val tint by animateColorAsState(visual.color, tween(250), label = "syncCardTint")
 

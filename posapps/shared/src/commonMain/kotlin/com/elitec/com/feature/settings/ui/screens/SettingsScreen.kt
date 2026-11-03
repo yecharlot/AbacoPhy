@@ -79,7 +79,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.elitec.com.feature.settings.ui.viewmodel.SettingsViewModel
 import com.elitec.com.infraestructure.settings.AppThemePreference
-import com.gursimar.composive.responsive.theme.AppTheme
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -170,7 +169,7 @@ private fun SettingsEntrance(
 
 @Composable
 private fun SettingsHeader() {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -211,7 +210,7 @@ private fun SettingsCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -302,7 +301,7 @@ private fun ThemeOption(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(18.dp)
 
     val container by animateColorAsState(
@@ -359,7 +358,7 @@ private fun ServerCard(
     onUrlChange: (String) -> Unit,
     onSubmit: () -> Unit,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     val focusManager = LocalFocusManager.current
     val canSubmit = !testing && urlInput.isNotBlank()
 
@@ -474,7 +473,7 @@ private fun ServerCard(
 /** Servidor activo, con indicador de estado. */
 @Composable
 private fun ActiveServerRow(activeUrl: String) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     val hasUrl = activeUrl.isNotBlank()
     val accent by animateColorAsState(
         if (hasUrl) colors.primary else colors.onSurfaceVariant,

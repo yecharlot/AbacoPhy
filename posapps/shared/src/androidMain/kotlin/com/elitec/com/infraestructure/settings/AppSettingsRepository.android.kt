@@ -1,6 +1,7 @@
 package com.elitec.com.infraestructure.settings
 
 import android.content.Context
+import java.util.UUID
 import com.elitec.com.infraestructure.network.ApiConfig
 
 class AndroidAppSettingsRepository(
@@ -32,9 +33,21 @@ class AndroidAppSettingsRepository(
         prefs.edit().putString(KEY_THEME, theme.name).apply()
     }
 
+    override fun getOrCreateClientInstanceId(): String {
+        val existing = prefs.getString(KEY_CLIENT_ID, null)?.trim().orEmpty()
+        if (existing.isNotEmpty()) return existing
+        val id = UUID.randomUUID().toString()
+        prefs.edit().putString(KEY_CLIENT_ID, id).apply()
+        return id
+    }
+
+    override fun getClientPlatform(): String = "pos-android"
+
     companion object {
+
         private const val PREFS = "abaco_pos_settings"
         private const val KEY_BASE_URL = "base_url"
+        private const val KEY_CLIENT_ID = "client_instance_id"
         private const val KEY_THEME = "theme"
     }
 }

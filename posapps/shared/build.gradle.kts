@@ -36,6 +36,10 @@ kotlin {
     }
 
     sourceSets {
+        // Descubrimiento mDNS para Desktop/JVM. Android conserva su implementación NSD nativa.
+        jvmMain.dependencies {
+            implementation("org.jmdns:jmdns:3.5.10")
+        }
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
@@ -75,7 +79,6 @@ kotlin {
             implementation(libs.compottie.dot)
             implementation(libs.compottie.resources)
             // adaptative ui
-            implementation(libs.composive.ui)
             // validation
             implementation(libs.arrow.core)
             implementation(libs.arrow.fx.coroutines)
@@ -100,28 +103,6 @@ dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
     add("kspAndroid", libs.androidx.room3.compiler)
     add("kspJvm", libs.androidx.room3.compiler)
-}
-
-
-compose.desktop {
-    application {
-        mainClass = "MainKt"
-        nativeDistributions {
-            targetFormats(TargetFormat.Msi)
-            packageName = "AbacoPos"
-            packageVersion = "0.1.1"
-            description = "Application for Abaco POS"
-            copyright = "© 2026 elitec. All rights reserved."
-            vendor = "Elitec"
-            appResourcesRootDir.set(project.layout.projectDirectory.dir("resources"))
-           // licenseFile.set(project.file("LICENSE.txt"))
-        }
-        buildTypes.release.proguard {
-            configurationFiles.from(project.file("compose-desktop.pro"))
-            obfuscate.set(true)
-            optimize.set(false)
-        }
-    }
 }
 
 room3 {

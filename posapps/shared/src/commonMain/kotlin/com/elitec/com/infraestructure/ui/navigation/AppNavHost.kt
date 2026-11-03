@@ -17,17 +17,16 @@ import com.elitec.com.feature.identity.ui.screens.SplashScreen
 import com.elitec.com.feature.identity.ui.viewmodel.HomeSessionViewModel
 import com.elitec.com.feature.identity.ui.viewmodel.SessionViewModel
 import com.elitec.com.feature.settings.ui.screens.InitialSetupScreen
-import com.elitec.com.infraestructure.network.ApiConfig
 import com.elitec.com.infraestructure.network.ServerConnectivityGuard
 import com.elitec.com.infraestructure.network.ServerConnectivityState
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
- * 1. Sin URL → InitialSetup (solo guarda tras health OK)
- * 2. Con URL → Splash / Login / Home
- * 3. Diálogo de servidor **bloqueante** solo cuando la política lo exige
- *    (ver [ServerConnectivityGuard] / offline-first POS).
+ * Arranque seguro:
+ * 1. Splash de bootstrap: comprueba el servidor antes de crear/restaurar la sesión.
+ * 2. Solo con health + identidad/API válidos se entra al flujo Login/Home.
+ * 3. Si no conecta, el splash muestra diagnóstico y opciones para reintentar/cambiar URL.
  *
  * En sesión activa + backend caído (transporte): no se muestra el modal;
  * el rail «Sin conexión» + outbox mantienen la operatividad.
@@ -36,15 +35,16 @@ import org.koin.compose.viewmodel.koinViewModel
 fun AppNavHost(
     modifier: Modifier = Modifier,
 ) {
-    val apiConfig: ApiConfig = koinInject()
     val connectivity: ServerConnectivityGuard = koinInject()
-    var serverConfigured by remember { mutableStateOf(apiConfig.hasBaseUrl()) }
+    // Se valida en cada arranque, aunque exista una URL guardada.
+    var serverConfigured by remember { mutableStateOf(false) }
     var forceReconfigureUrl by remember { mutableStateOf(false) }
 
     val reachability by connectivity.state.collectAsStateWithLifecycle()
 
     if (!serverConfigured || forceReconfigureUrl) {
         InitialSetupScreen(
+            splashMode = !forceReconfigureUrl,
             onConfigured = {
                 forceReconfigureUrl = false
                 serverConfigured = true
@@ -124,6 +124,7 @@ fun AppNavHost(
                             connectivity.dismiss()
                             if (!sessionActive || unreachable.suggestUpdateUrl) {
                                 forceReconfigureUrl = true
+                                serverConfigured = true
                             }
                         },
                     ) {

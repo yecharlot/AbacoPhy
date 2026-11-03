@@ -1,5 +1,8 @@
 package com.elitec.com.feature.pos.ui.components
 
+import com.elitec.com.infraestructure.ui.responsive.AppDeviceLayout
+import com.elitec.com.infraestructure.ui.responsive.rememberAppDeviceLayout
+import com.elitec.com.infraestructure.ui.theme.AbacoDimensions
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -103,8 +106,6 @@ import com.elitec.com.feature.catalog.domain.entities.effectiveUnitPrice
 import com.elitec.com.feature.pos.domain.entities.CreateSaleInput
 import com.elitec.com.feature.pos.domain.entities.CreateSaleLineInput
 import com.elitec.com.feature.pos.ui.uiStates.RegisterSaleUiState
-import com.gursimar.composive.responsive.core.rememberDeviceConfiguration
-import com.gursimar.composive.responsive.theme.AppTheme
 import kotlinx.coroutines.delay
 import kotlin.math.min
 import kotlin.math.roundToLong
@@ -133,8 +134,8 @@ fun NewSaleForm(
     onClearRegisterState: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val deviceConfiguration = rememberDeviceConfiguration()
-    val colors = AppTheme.materialColors
+    val deviceConfiguration = rememberAppDeviceLayout()
+    val colors = MaterialTheme.colorScheme
 
     // ---------- Estado ----------
     var search by remember { mutableStateOf("") }
@@ -273,7 +274,7 @@ fun NewSaleForm(
         tonalElevation = 2.dp,
         shadowElevation = 4.dp,
     ) {
-        BoxWithConstraints(Modifier.padding(AppTheme.dimensions.cardPadding)) {
+        BoxWithConstraints(Modifier.padding(AbacoDimensions.cardPadding)) {
 
             // Todo se decide con el espacio REAL del formulario (ya sea una
             // pestaña a pantalla completa o un panel lateral).
@@ -420,7 +421,7 @@ private fun SaleHeader(
     seller: String,
     stacked: Boolean,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
 
     val title: @Composable () -> Unit = {
         Row(
@@ -485,7 +486,7 @@ private fun SaleHeader(
 /** Estado del punto de venta asignado, como chip. */
 @Composable
 private fun UnitChip(assignedUnit: AssignedUnitUiState, modifier: Modifier = Modifier) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     val isProblem = assignedUnit is AssignedUnitUiState.None || assignedUnit is AssignedUnitUiState.Error
 
     val container by animateColorAsState(
@@ -651,7 +652,7 @@ private fun ProductPickItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     val outOfStock = stock <= 0
     val price = product.effectiveUnitPrice()
 
@@ -831,7 +832,7 @@ private fun TicketPane(
 
 @Composable
 private fun DenseSaleHeader(assignedUnit: AssignedUnitUiState, seller: String) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -861,7 +862,7 @@ private fun TicketLineItem(
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     val qty = line.qty.toDoubleOrNull() ?: 0.0
     val price = line.unitPrice.toDoubleOrNull() ?: 0.0
 
@@ -1013,7 +1014,7 @@ private fun LabeledField(
     content: @Composable () -> Unit,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = AppTheme.materialColors.onSurfaceVariant)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         content()
     }
 }
@@ -1032,7 +1033,7 @@ private fun StepButton(
             .clip(CircleShape)
             .clickable(enabled = enabled, onClick = onClick),
     ) {
-        Icon(icon, description, tint = AppTheme.materialColors.primary, modifier = Modifier.size(18.dp))
+        Icon(icon, description, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
     }
 }
 
@@ -1048,7 +1049,7 @@ private fun NumberField(
     centered: Boolean = false,
     plain: Boolean = false,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(12.dp)
 
     BasicTextField(
@@ -1106,7 +1107,7 @@ private fun SaleFooter(
     canSubmit: Boolean,
     onSubmit: () -> Unit,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
 
     val totalBlock: @Composable (Modifier) -> Unit = { m ->
 
@@ -1245,7 +1246,7 @@ private fun StatusBanner(
 
 @Composable
 private fun SectionTitle(icon: ImageVector, title: String, badge: String? = null) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -1275,7 +1276,7 @@ private fun SectionTitle(icon: ImageVector, title: String, badge: String? = null
 
 @Composable
 private fun EmptyHint(icon: ImageVector, text: String) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     Column(
         modifier = Modifier
             .fillMaxWidth()

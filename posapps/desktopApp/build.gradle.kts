@@ -18,11 +18,35 @@ dependencies {
 compose.desktop {
     application {
         mainClass = "com.elitec.com.MainKt"
+        // Required on affected Windows/JDK 21 setups for IPv4 multicast sockets.
+        jvmArgs += listOf("-Djava.net.preferIPv4Stack=true")
+
+        buildTypes.release.proguard {
+            configurationFiles.from(project.file("compose-desktop.pro"))
+            obfuscate.set(false)
+            optimize.set(false)
+        }
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "com.elitec.com"
-            packageVersion = "1.0.0"
+            targetFormats(TargetFormat.Msi, TargetFormat.Exe)
+            packageName = "AbacoPOS"
+            description = "Compose Multiplatform App"
+            copyright = "© 2026 Elitec. All rights reserved."
+            vendor = "Elitec"
+            packageVersion = "0.1.4"
+
+            appResourcesRootDir.set(project.layout.projectDirectory.dir("resources"))
+            windows {
+                iconFile.set(project.file("icons/icon.ico"))
+
+                // Accesos directos
+                menu = true
+                menuGroup = "ÁbacoPhy"
+                shortcut = true   // escritorio
+
+                // Instalación por usuario (no pide admin en la mayoría de PCs)
+                perUserInstall = true
+            }
         }
     }
 }

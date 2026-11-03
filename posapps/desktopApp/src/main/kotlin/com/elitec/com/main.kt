@@ -1,9 +1,6 @@
 package com.elitec.com
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -16,18 +13,19 @@ import com.elitec.com.infraestructure.ui.appThemeConfig.AbacoMaterialExpressiveT
 import com.elitec.com.infraestructure.ui.util.getAppLogoPainter
 
 fun main() {
+    // JmDNS on Windows can fail configuring multicast on dual-stack sockets
+    // with "Invalid argument: setsockopt". Set this before Koin or any
+    // networking code initializes the JVM networking stack. Desktop only.
+    System.setProperty("java.net.preferIPv4Stack", "true")
+
     initKoin()
     application {
-        var closeApp by remember { mutableStateOf(false) }
-        var minimized by remember { mutableStateOf(false) }
-        var showMaximized by remember { mutableStateOf(false) }
-
-        var windowState = rememberWindowState(
-            position = WindowPosition.Aligned(Alignment.Center) ,
-            isMinimized = false,
-            size = DpSize(width = 350.dp, height = 450.dp)
+        val windowState = rememberWindowState(
+            position = WindowPosition.Aligned(Alignment.Center),
+            size = DpSize(width = 960.dp, height = 720.dp),
         )
         Window(
+            state = windowState,
             icon = getAppLogoPainter(),
             onCloseRequest = ::exitApplication,
             title = "ÁbacoPOS",
@@ -38,4 +36,3 @@ fun main() {
         }
     }
 }
-

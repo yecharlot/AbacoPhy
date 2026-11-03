@@ -52,8 +52,12 @@
   import PermisosScreen from '../features/master/ui/screens/PermisosScreen.svelte';
   import type { SessionState } from '../features/identity/ui/stores/sessionStore';
 
+  const apiBase = import.meta.env.PROD
+    ? '/api/v1'
+    : (import.meta.env.VITE_API_BASE || '/api/v1');
+
   const container = createAppContainer({
-    apiBaseUrl: import.meta.env.VITE_API_BASE ?? '/api/v1',
+    apiBaseUrl: apiBase,
   });
   const { sessionStore } = createIdentityModule(container);
   const { tenantStore } = createTenantModule(container);

@@ -1,5 +1,7 @@
 package com.elitec.com.feature.warehouse.ui.screens
 
+import com.elitec.com.infraestructure.ui.responsive.AppDeviceLayout
+import com.elitec.com.infraestructure.ui.responsive.rememberAppDeviceLayout
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
@@ -85,9 +87,6 @@ import com.elitec.com.feature.pos.ui.models.PosStockUiState
 import com.elitec.com.feature.pos.ui.models.StockItemUi
 import com.elitec.com.feature.pos.ui.uiStates.StockStates
 import com.elitec.com.feature.warehouse.ui.viewmodels.PosStockViewModel
-import com.gursimar.composive.responsive.core.DeviceConfiguration
-import com.gursimar.composive.responsive.core.rememberDeviceConfiguration
-import com.gursimar.composive.responsive.theme.AppTheme
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.roundToLong
@@ -100,22 +99,22 @@ fun PosStockScreen(
     viewModel: PosStockViewModel = koinViewModel(),
 ) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
-    val deviceConfig = rememberDeviceConfiguration()
+    val deviceConfig = rememberAppDeviceLayout()
 
     val ready = assignedUnit as? AssignedUnitUiState.Ready
     LaunchedEffect(ready?.unitId) { viewModel.setUnit(ready?.unitId) }
 
     // Tamaño mínimo de tarjeta -> el grid calcula las columnas según el ancho real
     val gridMinSize = when (deviceConfig) {
-        DeviceConfiguration.MOBILE_PORTRAIT -> 280.dp
-        DeviceConfiguration.MOBILE_LANDSCAPE -> 240.dp
-        DeviceConfiguration.TABLET_PORTRAIT -> 250.dp
-        DeviceConfiguration.TABLET_LANDSCAPE -> 270.dp
-        DeviceConfiguration.DESKTOP -> 300.dp
+        AppDeviceLayout.MobilePortrait -> 280.dp
+        AppDeviceLayout.MobileLandscape -> 240.dp
+        AppDeviceLayout.TabletPortrait -> 250.dp
+        AppDeviceLayout.TabletLandscape -> 270.dp
+        AppDeviceLayout.Desktop -> 300.dp
     }
     val spacing = when (deviceConfig) {
-        DeviceConfiguration.MOBILE_PORTRAIT,
-        DeviceConfiguration.MOBILE_LANDSCAPE -> 8.dp
+        AppDeviceLayout.MobilePortrait,
+        AppDeviceLayout.MobileLandscape -> 8.dp
         else -> 12.dp
     }
 
@@ -142,7 +141,7 @@ fun PosStockScreen(
                 icon = Icons.Rounded.Store,
                 title = "Sin punto de venta asignado",
                 message = "Un administrador debe asociar un punto de venta a tu usuario.",
-                tint = AppTheme.materialColors.error,
+                tint = MaterialTheme.colorScheme.error,
                 modifier = Modifier.weight(1f),
             )
 
@@ -150,7 +149,7 @@ fun PosStockScreen(
                 icon = Icons.Rounded.CloudOff,
                 title = "No se pudo obtener tu punto de venta",
                 message = assignedUnit.message,
-                tint = AppTheme.materialColors.error,
+                tint = MaterialTheme.colorScheme.error,
                 modifier = Modifier.weight(1f),
             )
 
@@ -228,7 +227,7 @@ private fun ReadyBody(
                         message = state.message,
                         actionLabel = "Reintentar",
                         onAction = onRetry,
-                        tint = AppTheme.materialColors.error,
+                        tint = MaterialTheme.colorScheme.error,
                     )
 
                     is PosStockLoadState.Ready -> when {
@@ -265,7 +264,7 @@ private fun StockHeader(
     canRefresh: Boolean,
     onRefresh: () -> Unit,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -345,7 +344,7 @@ private fun StockSummaryRow(summary: PosStockSummary) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        SummaryChip("Total", summary.total, Icons.Rounded.Inventory2, AppTheme.materialColors.onSurfaceVariant)
+        SummaryChip("Total", summary.total, Icons.Rounded.Inventory2, MaterialTheme.colorScheme.onSurfaceVariant)
         SummaryChip("Disponibles", summary.ok, StockStates.OK.icon(), StockStates.OK.accent())
         SummaryChip("Stock bajo", summary.low, StockStates.LOW.icon(), StockStates.LOW.accent())
         SummaryChip("Agotados", summary.out, StockStates.OUT.icon(), StockStates.OUT.accent())
@@ -416,7 +415,7 @@ private fun StockSearchField(query: String, onQueryChange: (String) -> Unit) {
 
 @Composable
 private fun RefreshErrorBanner(error: String?, onRetry: () -> Unit, onDismiss: () -> Unit) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
 
     AnimatedVisibility(
         visible = error != null,
@@ -480,7 +479,7 @@ private fun StockGrid(items: List<StockItemUi>, minSize: Dp, spacing: Dp) {
  */
 @Composable
 private fun StockItemCard(item: StockItemUi, modifier: Modifier = Modifier) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     val accent = item.state.accent()
 
     Surface(
@@ -632,7 +631,7 @@ private fun StockSkeletonGrid(minSize: Dp, spacing: Dp, modifier: Modifier = Mod
 
 @Composable
 private fun SkeletonCard(alpha: Float) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     val bar = colors.surfaceContainerHighest
 
     Surface(
@@ -675,9 +674,9 @@ private fun StatePanel(
     modifier: Modifier = Modifier,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
-    tint: Color = AppTheme.materialColors.onSurfaceVariant,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
 
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(
@@ -724,9 +723,9 @@ private fun StatePanel(
 
 @Composable
 private fun StockStates.accent(): Color = when (this) {
-    StockStates.OUT -> AppTheme.materialColors.error
-    StockStates.LOW -> AppTheme.materialColors.tertiary
-    StockStates.OK -> AppTheme.materialColors.primary
+    StockStates.OUT -> MaterialTheme.colorScheme.error
+    StockStates.LOW -> MaterialTheme.colorScheme.tertiary
+    StockStates.OK -> MaterialTheme.colorScheme.primary
 }
 
 private fun StockStates.icon(): ImageVector = when (this) {

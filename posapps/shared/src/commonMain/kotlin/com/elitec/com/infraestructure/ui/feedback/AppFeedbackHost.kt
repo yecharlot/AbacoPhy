@@ -54,7 +54,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.elitec.com.feature.pos.data.sync.OutboxSyncWorker
-import com.gursimar.composive.responsive.theme.AppTheme
 import kotlinx.coroutines.delay
 
 /**
@@ -154,7 +153,7 @@ private fun FeedbackCard(
     event: AppFeedbackEvent,
     onClick: () -> Unit,
 ) {
-    val colors = AppTheme.materialColors
+    val colors = MaterialTheme.colorScheme
     val (bg, border, accent, icon) = toneVisual(event.tone, colors.primary, colors.error, colors.tertiary)
 
     Surface(

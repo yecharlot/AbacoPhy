@@ -1,5 +1,7 @@
 package com.elitec.com.feature.catalog.ui.screens
 
+import com.elitec.com.infraestructure.ui.responsive.AppDeviceLayout
+import com.elitec.com.infraestructure.ui.responsive.rememberAppDeviceLayout
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -32,8 +34,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.elitec.com.feature.catalog.ui.components.ProductItemBox
 import com.elitec.com.feature.catalog.ui.uiStates.CatalogChargingUiState
 import com.elitec.com.feature.catalog.ui.viewmodel.CatalogViewModel
-import com.gursimar.composive.responsive.core.DeviceConfiguration
-import com.gursimar.composive.responsive.core.rememberDeviceConfiguration
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -45,12 +45,12 @@ fun CatalogScreen(
     val productCatalogList by catalogViewModel.productFlow.collectAsStateWithLifecycle()
     val chargingUiState by catalogViewModel.productChargingUiState.collectAsStateWithLifecycle()
 
-    val deviceConfiguration = rememberDeviceConfiguration()
+    val deviceConfiguration = rememberAppDeviceLayout()
 
     val staggeredGridCellsFixed = when (deviceConfiguration) {
-        DeviceConfiguration.MOBILE_PORTRAIT -> StaggeredGridCells.Fixed(1)
-        DeviceConfiguration.TABLET_PORTRAIT
-            , DeviceConfiguration.MOBILE_LANDSCAPE -> StaggeredGridCells.Fixed(2)
+        AppDeviceLayout.MobilePortrait -> StaggeredGridCells.Fixed(1)
+        AppDeviceLayout.TabletPortrait
+            , AppDeviceLayout.MobileLandscape -> StaggeredGridCells.Fixed(2)
         else -> StaggeredGridCells.Adaptive(minSize = 250.dp)
     }
 
