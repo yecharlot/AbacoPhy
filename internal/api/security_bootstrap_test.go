@@ -55,6 +55,17 @@ func TestEnsureBootstrapCreatesRandomForcedCredentials(t *testing.T) {
 		t.Fatalf("temporary master login should succeed and require password change: user=%v err=%v", user, err)
 	}
 
+	// Repairing a later account with a missing hash must append credentials,
+	// never erase the still-pending initial admin credentials.
+	originalMasterPassword := masterPassword
+	repaired := &domain.User{ID: "repaired-user", TenantID: snap.Tenant.ID, Username: "repaired-user", Role: domain.RoleVendedor, Active: true}
+	snap.Users[repaired.ID] = repaired
+	if err := st.Put(snap); err != nil { t.Fatal(err) }
+	if err := EnsureBootstrap(st); err != nil { t.Fatalf("repair missing user password: %v", err) }
+	if readBootstrapPassword(t, dataDir, "master") != originalMasterPassword {
+		t.Fatal("adding a repaired account must not overwrite credentials still awaiting rotation")
+	}
+
 	before := master.PasswordHash
 	if err := EnsureBootstrap(st); err != nil { t.Fatalf("second EnsureBootstrap: %v", err) }
 	if master.PasswordHash != before { t.Fatal("bootstrap credentials must not rotate again on ordinary restart") }
