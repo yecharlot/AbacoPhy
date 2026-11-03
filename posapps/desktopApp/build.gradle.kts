@@ -33,9 +33,20 @@ compose.desktop {
             description = "Compose Multiplatform App"
             copyright = "© 2026 Elitec. All rights reserved."
             vendor = "Elitec"
-            packageVersion = "0.1.3"
+            packageVersion = "0.1.4"
 
             appResourcesRootDir.set(project.layout.projectDirectory.dir("resources"))
+            windows {
+                iconFile.set(project.file("icons/icon.ico"))
+
+                // Accesos directos
+                menu = true
+                menuGroup = "ÁbacoPhy"
+                shortcut = true   // escritorio
+
+                // Instalación por usuario (no pide admin en la mayoría de PCs)
+                perUserInstall = true
+            }
         }
     }
 }

@@ -14,6 +14,10 @@ import com.elitec.abaco_launcher.infrastructure.lifecycle.ProcessShutdown
 import com.elitec.abaco_launcher.infrastructure.lifecycle.SingleInstanceLock
 import com.elitec.abaco_launcher.infrastructure.config.LauncherPaths
 import javax.swing.JOptionPane
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.res.loadImageBitmap
+import androidx.compose.ui.res.useResource
 
 private val launcherLogLock = Any()
 private val launcherLogTimestamp = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
@@ -28,6 +32,11 @@ private fun persistLauncherLog(line: String) {
         }
     }
 }
+
+
+private fun loadWindowIcon(): Painter? = runCatching {
+    BitmapPainter(useResource("app-icon.png") { loadImageBitmap(it) })
+}.getOrNull()
 
 fun main() = application {
     if (!SingleInstanceLock.tryAcquire()) {
@@ -57,6 +66,7 @@ fun main() = application {
             }
         },
         title = "ÁbacoPhy Orquestador",
+        icon = loadWindowIcon(),
         state = windowState,
     ) {
         App(
