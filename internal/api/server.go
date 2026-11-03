@@ -1667,6 +1667,45 @@ func persistBootstrapCredentials(st *store.Store, credentials []bootstrapCredent
 	return appendBootstrapCredentials(st, credentials)
 }
 
+func assignGeneratedInitialPassword(user *domain.User, tenantSlug string, credentials *[]bootstrapCredential) error {
+	password, err := newBootstrapPassword()
+	if err != nil { return err }
+	hash, err := auth.HashPassword(password)
+	if err != nil { return err }
+	user.PasswordHash = hash
+	user.MustChangePassword = true
+	user.UpdatedAt = time.Now().UTC()
+	*credentials = append(*credentials, bootstrapCredential{Tenant: tenantSlug, Username: user.Username, Password: password})
+	return nil
+}
+
+func appendBootstrapCredentials(st *store.Store, credentials []bootstrapCredential) error {
+	if len(credentials) == 0 { return nil }
+	if err := os.MkdirAll(st.DataDir(), 0700); err != nil { return err }
+	path := filepath.Join(st.DataDir(), "bootstrap-credentials.txt")
+	info, statErr := os.Stat(path)
+	isNew := os.IsNotExist(statErr) || (statErr == nil && info.Size() == 0)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	if err != nil { return err }
+	if isNew {
+		if _, err := fmt.Fprintf(file, "ABACOPHY — CREDENCIALES TEMPORALES DE PRIMER ACCESO\nGenerado: %s\n\n", time.Now().UTC().Format(time.RFC3339)); err != nil {
+			_ = file.Close()
+			return err
+		}
+	}
+	for _, credential := range credentials {
+		if _, err := fmt.Fprintf(file, "Tenant: %s\nUsername: %s\nPassword: %s\n\n", credential.Tenant, credential.Username, credential.Password); err != nil {
+			_ = file.Close()
+			return err
+		}
+	}
+	if err := file.Sync(); err != nil { _ = file.Close(); return err }
+	if err := file.Close(); err != nil { return err }
+	if err := os.Chmod(path, 0600); err != nil { return err }
+	log.Printf("EVENT=security.bootstrap_credentials_appended file=%q accounts=%d secrets_not_logged=true", path, len(credentials))
+	return nil
+}
+
 func (s *Server) requireInitialPasswordChange(next http.Handler) http.Handler {
 	allowed := map[string]bool{
 		"/api/v1/info": true, "/api/v1/health": true,
