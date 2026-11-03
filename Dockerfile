@@ -21,6 +21,9 @@ WORKDIR /app
 COPY --from=build /abacophy /app/abacophy
 COPY --from=build /src/static /app/static
 ENV PORT=10000
+# Explicit production mode: container networking is controlled by the deployment platform.
+ENV ABACOPHY_BIND_MODE=PRODUCTION
+ENV ABACOPHY_HOST=0.0.0.0
 ENV ABACOPHY_STATIC=/app/static
 ENV ABACOPHY_DATA=/app/data
 EXPOSE 10000
