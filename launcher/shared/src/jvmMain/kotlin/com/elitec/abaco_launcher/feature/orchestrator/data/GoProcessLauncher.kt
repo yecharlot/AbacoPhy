@@ -39,10 +39,10 @@ private fun encodeJsonString(value: String): String = buildString {
     value.forEach { ch ->
         when (ch.code) {
             34 -> append("\\\"")
-            92 -> append("\\\\\\\\")
-            10 -> append("\\\\n")
-            13 -> append("\\\\r")
-            9 -> append("\\\\t")
+            92 -> append("\\\\")
+            10 -> append("\\n")
+            13 -> append("\\r")
+            9 -> append("\\t")
             else -> append(ch)
         }
     }
