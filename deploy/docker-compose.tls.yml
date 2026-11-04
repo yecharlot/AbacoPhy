@@ -1,0 +1,55 @@
+services:
+  abacophy:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: abacophy:security-hardening
+    restart: unless-stopped
+    environment:
+      PORT: "10000"
+      ABACOPHY_BIND_MODE: "PRODUCTION"
+      ABACOPHY_HOST: "0.0.0.0"
+      ABACOPHY_STATIC: "/app/static"
+      ABACOPHY_DATA: "/app/data"
+    expose:
+      - "10000"
+    volumes:
+      - abacophy_data:/app/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:10000/api/v1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      ABACOPHY_DOMAIN: ${ABACOPHY_DOMAIN:?Define ABACOPHY_DOMAIN en .env o en el entorno}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      abacophy:
+        condition: service_healthy
+    networks:
+      - edge
+      - backend
+
+networks:
+  edge:
+  backend:
+    internal: true
+
+volumes:
+  abacophy_data:
+  caddy_data:
+  caddy_config:
