@@ -47,6 +47,7 @@ class GoProcessLauncher : BackendProcess {
         staticDir: String,
         binaryPath: String,
         networkScope: String,
+        corsAllowedOrigins: List<String>,
         onLog: (String) -> Unit,
     ) {
         stop()
@@ -87,6 +88,13 @@ class GoProcessLauncher : BackendProcess {
         require(scope == "LOCAL" || scope == "LAN") { "Scope de red no válido: $networkScope" }
         env["ABACOPHY_BIND_MODE"] = scope
         env["ABACOPHY_HOST"] = if (scope == "LAN") "0.0.0.0" else "127.0.0.1"
+        env["ABACOPHY_CORS_ALLOWED_ORIGINS"] = corsAllowedOrigins
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .joinToString(prefix = "[", postfix = "]") { value ->
+                "\\\"${value.replace("\\\\", "\\\\\\\\").replace("\\\"", "\\\\\\\" )}\\\""
+            }
         onLog("[${ts()}][INFO]   Scope de red=$scope")
 
         onLog("[${ts()}][INFO] Lanzando ${binary.absolutePath}")
