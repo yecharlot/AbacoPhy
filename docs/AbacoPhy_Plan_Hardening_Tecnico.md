@@ -24,7 +24,7 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 ### Prioridades
 - [x] Eliminar credenciales administrativas conocidas o impresas (A1 implementado; CI correcto; validación operativa pendiente).
 - [x] Definir política segura de bind de red (implementación y pruebas automatizadas en curso; validación de Launcher/operación pendiente).
-- [ ] Preparar HTTPS/TLS.
+- [x] Definir el alcance de transporte: LOCAL/LAN; HTTPS público fuera de alcance por decisión del proyecto.
 - [ ] Sustituir CORS `*` por política explícita.
 - [ ] Reducir duración de sesiones.
 - [ ] Añadir rate limiting al login.
@@ -86,17 +86,17 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 
 **Terminado:** la exposición de red es una decisión explícita y el backend local no acepta conexiones LAN por defecto.
 
-## A3. TLS / HTTPS
+## A3. Transporte de red / HTTPS
 
-**Implementación de referencia:** [A3 — HTTPS/TLS con Caddy](A3_TLS_HTTPS.md). Se añadieron `deploy/caddy/Caddyfile` y `deploy/docker-compose.tls.yml`. La configuración deja el backend sin puerto publicado y conecta Caddy con AbacoPhy por una red Docker interna. El despliegue en dominio real y las pruebas de certificado siguen pendientes.
+**Decisión de alcance:** [A3 — Transporte de red y alcance de HTTPS](A3_TLS_HTTPS.md). No se utilizará dominio propio ni se desplegará Caddy/ACME. HTTPS público queda fuera del alcance actual; LOCAL y LAN se rigen por A2.
 
-- [x] Definir `HTTPS reverse proxy → Abaco`.
-- [x] Elegir Caddy como reverse proxy inicial.
-- [ ] Configurar y validar certificado válido en un dominio real.
-- [x] Configurar Caddy para redirigir HTTP a HTTPS automáticamente (validación operativa pendiente).
-- [x] Preparar despliegue sin publicar directamente el puerto del backend (validar firewall y exposición externa).
-- [ ] Activar HSTS solamente con HTTPS correctamente establecido y tras revisar subdominios/cookies.
-- [ ] Probar que credenciales/tokens nunca viajen por HTTP en producción.
+- [x] Documentar que LOCAL es el modo recomendado para uso individual.
+- [x] Documentar que LAN solo se admite en una red privada confiable y con firewall limitado.
+- [x] Prohibir la exposición directa del backend HTTP a Internet.
+- [x] Registrar el riesgo de tráfico LAN sin cifrar y el criterio para reabrir la decisión.
+- [ ] Validar operativamente LOCAL, LAN, firewall y ausencia de exposición pública (ver A2).
+
+**Estado:** cerrado por alcance, no por implementación de HTTPS. No aumentar puntuación hasta validar la política de red.
 
 ## A4. CORS
 - [ ] Eliminar `Access-Control-Allow-Origin: *` en producción.
@@ -415,7 +415,7 @@ La puntuación es un indicador interno, no una certificación.
 ### Sprint 1 — Riesgo inmediato
 - [ ] A1 Credenciales
 - [ ] A2 Bind
-- [ ] A3 TLS
+- [x] A3 Alcance de transporte documentado (sin HTTPS público)
 - [ ] A4 CORS
 
 ### Sprint 2 — Identidad
@@ -482,7 +482,7 @@ Ruta:
 |---|---|---|---|---|
 | H-01 | Credenciales bootstrap | Alta | CI Go/Webapp/Docker y compilación Launcher correctos; validación operativa pendiente | security-hardening |
 | H-02 | Bind de red | Alta | Implementación inicial en backend; pendiente Launcher, CI y prueba LAN/LOCAL/PRODUCTION | |
-| H-03 | TLS | Alta | Pendiente | |
+| H-03 | Tráfico LAN HTTP sin cifrar | Media | Riesgo aceptado: LAN solo en red privada confiable; validar A2 | |
 | H-04 | CORS | Alta | Pendiente | |
 | H-05 | Sesiones | Alta | Pendiente | |
 | H-06 | Tokens persistidos | Media | Pendiente | |
