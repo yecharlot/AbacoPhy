@@ -111,7 +111,7 @@ func (s *Server) Handler() http.Handler {
 
 	s.registerOpsRoutes(mux)
 	mux.HandleFunc("/api/v1/presence", s.handlePresence)
-	return withPresence(s, s.requireInitialPasswordChange(mux))
+	return withPresence(s, withCORS(s.requireInitialPasswordChange(mux), corsRulesFromEnv()))
 }
 
 
