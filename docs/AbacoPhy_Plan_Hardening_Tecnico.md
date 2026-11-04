@@ -87,12 +87,15 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 **Terminado:** la exposición de red es una decisión explícita y el backend local no acepta conexiones LAN por defecto.
 
 ## A3. TLS / HTTPS
-- [ ] Definir `HTTPS reverse proxy → Abaco`.
-- [ ] Elegir Caddy, Nginx o Traefik.
-- [ ] Configurar certificado válido.
-- [ ] Redirigir HTTP a HTTPS cuando corresponda.
-- [ ] No exponer directamente el backend a Internet.
-- [ ] Activar HSTS solamente con HTTPS correctamente establecido.
+
+**Implementación de referencia:** [A3 — HTTPS/TLS con Caddy](A3_TLS_HTTPS.md). Se añadieron `deploy/caddy/Caddyfile` y `deploy/docker-compose.tls.yml`. La configuración deja el backend sin puerto publicado y conecta Caddy con AbacoPhy por una red Docker interna. El despliegue en dominio real y las pruebas de certificado siguen pendientes.
+
+- [x] Definir `HTTPS reverse proxy → Abaco`.
+- [x] Elegir Caddy como reverse proxy inicial.
+- [ ] Configurar y validar certificado válido en un dominio real.
+- [x] Configurar Caddy para redirigir HTTP a HTTPS automáticamente (validación operativa pendiente).
+- [x] Preparar despliegue sin publicar directamente el puerto del backend (validar firewall y exposición externa).
+- [ ] Activar HSTS solamente con HTTPS correctamente establecido y tras revisar subdominios/cookies.
 - [ ] Probar que credenciales/tokens nunca viajen por HTTP en producción.
 
 ## A4. CORS
