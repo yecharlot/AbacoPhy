@@ -139,6 +139,7 @@ private fun serializeCorsRuleEntries(entries: List<CorsRuleEntry>): String = bui
 
 private fun isValidCorsRule(raw: String): Boolean {
     val value = raw.trim()
+    if (value == "*") return true
     if (value.isEmpty() || value.contains("://") || value.contains("*") || value.any { it.isWhitespace() }) return false
     val colon = value.lastIndexOf(':')
     val hasPort = colon > 0
@@ -735,7 +736,7 @@ private fun SidePanel(
                         modifier = Modifier.weight(1f),
                         enabled = !busy,
                         singleLine = true,
-                        placeholder = { Text("IP o dominio[:puerto]", fontSize = 11.sp) },
+                        placeholder = { Text("IP, dominio o *", fontSize = 11.sp) },
                         textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontFamily = Ide.Mono, color = Ide.Fg),
                         isError = corsInputError != null,
                     )
@@ -780,7 +781,7 @@ private fun SidePanel(
                     }
                 }
                 Text(
-                    "Admite IP, subred IPv4 (CIDR) o dominio exacto. El puerto es opcional. Los cambios se guardan y se aplican al próximo inicio del backend.",
+                    "Admite IP, subred IPv4 (CIDR), dominio exacto o * (cualquier origen). El puerto es opcional. Los cambios se aplican al próximo inicio del backend.",
                     fontSize = 10.sp, color = Ide.Subtle,
                 )
 
