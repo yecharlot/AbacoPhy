@@ -33,6 +33,22 @@ internal fun classifyGoLogLine(raw: String): String {
  * Lanza `abacophy` vía [ProcessBuilder], reenvía logs y detiene sin zombies.
  * Cada línea se prefija con timestamp HH:mm:ss y nivel derivado del **contenido**.
  */
+
+private fun encodeJsonString(value: String): String = buildString {
+    append('"')
+    value.forEach { ch ->
+        when (ch) {
+            '"' -> append("\\\"")
+            '\\\\' -> append("\\\\\\\\")
+            '\\n' -> append("\\\\n")
+            '\\r' -> append("\\\\r")
+            '\\t' -> append("\\\\t")
+            else -> append(ch)
+        }
+    }
+    append('"')
+}
+
 class GoProcessLauncher : BackendProcess {
     private val processRef = AtomicReference<Process?>(null)
     private val exitCodeRef = AtomicInteger(Int.MIN_VALUE) // MIN = never set
@@ -92,9 +108,7 @@ class GoProcessLauncher : BackendProcess {
             .map { it.trim() }
             .filter { it.isNotEmpty() }
             .distinct()
-            .joinToString(prefix = "[", postfix = "]") { value ->
-                "\\\"${value.replace("\\\\", "\\\\\\\\").replace("\\\"", "\\\\\\\" )}\\\""
-            }
+            .joinToString(prefix = "[", postfix = "]") { encodeJsonString(it) }
         onLog("[${ts()}][INFO]   Scope de red=$scope")
 
         onLog("[${ts()}][INFO] Lanzando ${binary.absolutePath}")
