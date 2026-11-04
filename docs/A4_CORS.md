@@ -1,7 +1,7 @@
 # A4 — Política CORS configurable de AbacoPhy
 
 **Rama:** `security-hardening`  
-**Estado:** implementación inicial de backend y Launcher integrada; CI y validación manual pendientes.
+**Estado:** implementación integrada en backend y Launcher; CI Go, Launcher Desktop y Docker correcto en commit `770cbf5e`; validación manual pendiente.
 
 ## 1. Hallazgo
 
@@ -63,8 +63,9 @@ Se añadieron pruebas para:
 
 ## 6. Validación operativa pendiente
 
-- [ ] Ejecutar CI Go (vet, build y tests).
-- [ ] Ejecutar CI Launcher Desktop.
+- [x] CI Go (vet, build y tests): success, commit `770cbf5e`.
+- [x] CI Launcher Desktop: success, commit `770cbf5e`.
+- [x] CI Docker Image: success, commit `770cbf5e`.
 - [ ] Probar same-origin en LOCAL.
 - [ ] Probar origen permitido por IP exacta.
 - [ ] Probar origen permitido por CIDR con puerto.
@@ -73,4 +74,4 @@ Se añadieron pruebas para:
 - [ ] Confirmar que Vite mantiene su proxy `/api`.
 - [ ] Con `*` activo, verificar preflight y petición real desde orígenes distintos; confirmar que no se habilitan credenciales.
 
-**Puntuación de hardening:** mantener 55/100 hasta completar CI y validación operativa de A2/A4.
+**Puntuación de hardening:** mantener 55/100. CI completado; no aumentar hasta completar validación operativa de A2/A4.
