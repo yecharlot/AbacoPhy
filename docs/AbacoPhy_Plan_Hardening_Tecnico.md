@@ -99,12 +99,19 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 **Estado:** cerrado por alcance, no por implementación de HTTPS. No aumentar puntuación hasta validar la política de red.
 
 ## A4. CORS
-- [ ] Eliminar `Access-Control-Allow-Origin: *` en producción.
-- [ ] Definir orígenes explícitos.
-- [ ] Separar desarrollo/producción.
-- [ ] Revisar métodos y headers permitidos.
-- [ ] Probar preflight.
-- [ ] Verificar rechazo de orígenes no autorizados.
+
+**Decisión:** la webapp y la API se sirven desde el mismo origen en el despliegue integrado. Vite usa proxy `/api` durante desarrollo y Electron carga la URL local del backend. No existe una necesidad confirmada de cliente web cross-origin. Por ello se elimina CORS permisivo en vez de mantener una lista artificial de orígenes.
+
+- [x] Eliminar `Access-Control-Allow-Origin: *`.
+- [x] Eliminar la respuesta global que autorizaba cualquier preflight OPTIONS.
+- [x] Mantener el flujo same-origin de webapp/API y el proxy de desarrollo.
+- [x] Añadir pruebas para comprobar que no se conceden permisos CORS a orígenes externos.
+- [ ] Ejecutar pruebas Go y CI.
+- [ ] Verificar manualmente login, API y PWA en Launcher LOCAL y en modo LAN.
+
+**Importante:** CORS es una política aplicada por navegadores; no sustituye autenticación ni autorización y no bloquea clientes no navegador como curl o aplicaciones nativas. Si en el futuro se separa el frontend en otro origen, se deberá introducir una allowlist exacta y documentada, no un wildcard.
+
+**Estado:** cambio de código y pruebas preparado; validación automatizada pendiente.
 
 # 3. FASE B — Autenticación y sesiones
 
