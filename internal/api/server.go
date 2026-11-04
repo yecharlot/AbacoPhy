@@ -111,20 +111,7 @@ func (s *Server) Handler() http.Handler {
 
 	s.registerOpsRoutes(mux)
 	mux.HandleFunc("/api/v1/presence", s.handlePresence)
-	return withPresence(s, withCORS(s.requireInitialPasswordChange(mux)))
-}
-
-func withCORS(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-AbacoPhy-Client, X-AbacoPhy-Client-Id, X-Offline-Rev")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(204)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+	return withPresence(s, s.requireInitialPasswordChange(mux))
 }
 
 
