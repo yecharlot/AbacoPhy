@@ -21,6 +21,7 @@ type corsRule struct {
 	hasPort bool
 	isIP    bool
 	isCIDR  bool
+	wildcard bool
 }
 
 func parseCORSRules(raw string) ([]corsRule, error) {
@@ -58,6 +59,10 @@ func parseCORSRule(value string) (corsRule, error) {
 			return rule, errors.New("invalid CORS allowlist port")
 		}
 		rule.port, rule.hasPort = port, true
+	}
+	if host == "*" {
+		rule.wildcard = true
+		return rule, nil
 	}
 	if host == "" {
 		return rule, errors.New("missing CORS allowlist host")
@@ -133,7 +138,12 @@ func withCORS(next http.Handler, rules []corsRule) http.Handler {
 		}
 		w.Header().Add("Vary", "Origin")
 		allowed := false
+		allowAll := false
 		for _, rule := range rules {
+			if rule.wildcard {
+				allowed, allowAll = true, true
+				break
+			}
 			if rule.matches(origin) {
 				allowed = true
 				break
@@ -148,7 +158,11 @@ func withCORS(next http.Handler, rules []corsRule) http.Handler {
 			return
 		}
 
-		w.Header().Set("Access-Control-Allow-Origin", origin)
+		if allowAll {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+		} else {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
 		if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-AbacoPhy-Client, X-AbacoPhy-Client-Id, X-Offline-Rev")
