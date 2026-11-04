@@ -76,6 +76,7 @@ import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -156,6 +157,7 @@ fun OrchestratorScreen(
     onRun: suspend (
         preferredPort: Int?,
         networkScope: String,
+        corsAllowedOrigins: List<String>,
         onState: (OrchestratorState) -> Unit,
         onLog: (String) -> Unit,
     ) -> OrchestratorState,
@@ -163,6 +165,8 @@ fun OrchestratorScreen(
     onOpenBrowser: (url: String) -> Unit,
     initialNetworkScope: String = "LOCAL",
     onNetworkScopeChange: (String) -> Unit = {},
+    initialCorsRules: String = "",
+    onCorsRulesChange: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var state by remember {
@@ -182,6 +186,7 @@ fun OrchestratorScreen(
     var busy by remember { mutableStateOf(false) }
     var portText by remember { mutableStateOf("") }
     var networkScope by remember { mutableStateOf(initialNetworkScope) }
+    var corsRulesText by remember { mutableStateOf(initialCorsRules) }
     var query by remember { mutableStateOf("") }
     var enabledLevels by remember { mutableStateOf(LogLevel.values().toSet()) }
     val scope = rememberCoroutineScope()
@@ -266,7 +271,8 @@ fun OrchestratorScreen(
         scope.launch {
             try {
                 val preferred = parsePreferredPort()
-                val result = onRun(preferred, networkScope, { s -> state = s }, { raw -> handleRawLog(raw) })
+                val corsRules = corsRulesText.split(',', ';', '\n').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+                val result = onRun(preferred, networkScope, corsRules, { s -> state = s }, { raw -> handleRawLog(raw) })
                 state = result.copy(
                     discoveryActive = state.discoveryActive,
                     connectedClients = state.connectedClients,
@@ -335,6 +341,8 @@ fun OrchestratorScreen(
                         compact = compact,
                         portText = portText,
                         networkScope = networkScope,
+                        corsRulesText = corsRulesText,
+                        onCorsRulesChange = { value -> corsRulesText = value; onCorsRulesChange(value) },
                         onNetworkScopeChange = { selected ->
                             networkScope = selected
                             onNetworkScopeChange(selected)
@@ -538,6 +546,8 @@ private fun SidePanel(
     compact: Boolean,
     portText: String,
     networkScope: String,
+    corsRulesText: String,
+    onCorsRulesChange: (String) -> Unit,
     onNetworkScopeChange: (String) -> Unit,
     onPortChange: (String) -> Unit,
     canStop: Boolean,
@@ -605,6 +615,25 @@ private fun SidePanel(
                     else "Disponible únicamente en localhost; los demás equipos no podrán conectarse.",
                     fontSize = 10.sp,
                     color = if (networkScope == "LAN") Ide.Yellow else Ide.Subtle,
+                )
+
+                Spacer(Modifier.height(6.dp))
+                Text("ORÍGENES CORS PERMITIDOS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Ide.Subtle, letterSpacing = 0.7.sp)
+                OutlinedTextField(
+                    value = corsRulesText,
+                    onValueChange = onCorsRulesChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !busy && !state.backendRunning,
+                    minLines = 3,
+                    maxLines = 5,
+                    placeholder = { Text("10.10.10.10\n10.10.10.0/24:8080\npanel.empresa.com:8443") },
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontFamily = Ide.Mono, color = Ide.Fg),
+                    label = { Text("Una regla por línea", fontSize = 10.sp) },
+                )
+                Text(
+                    "IP o dominio: cualquier puerto. Añade :puerto para limitarlo. CIDR admite subredes. Vacío = solo mismo origen.",
+                    fontSize = 10.sp,
+                    color = Ide.Subtle,
                 )
 
                 Spacer(Modifier.height(4.dp))
