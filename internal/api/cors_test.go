@@ -61,6 +61,27 @@ func TestParseCORSRulesRejectsInvalidEntries(t *testing.T) {
 	}
 }
 
+func TestWildcardCORSAllowsEveryOrigin(t *testing.T) {
+	rules, err := parseCORSRules(`["*"]`)
+	if err != nil { t.Fatal(err) }
+	if len(rules) != 1 || !rules[0].wildcard || !rules[0].matches("https://anywhere.example:9443") {
+		t.Fatal("wildcard rule must match any origin")
+	}
+	t.Setenv(corsAllowlistEnv, `["*"]`)
+	server := NewServer(store.New(t.TempDir()), t.TempDir())
+	handler := server.Handler()
+	for _, origin := range []string{"https://example.com", "http://localhost:5173", "null"} {
+		req := httptest.NewRequest(http.MethodOptions, "/api/v1/auth/login", nil)
+		req.Header.Set("Origin", origin)
+		req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNoContent { t.Errorf("wildcard preflight for %q: got %d, want 204", origin, rec.Code) }
+		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" { t.Errorf("wildcard ACAO for %q = %q, want *", origin, got) }
+		if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "" { t.Errorf("wildcard must not enable credentials, got %q", got) }
+	}
+}
+
 func TestHandlerUsesConfiguredCORSAllowlist(t *testing.T) {
 	t.Setenv(corsAllowlistEnv, `["10.10.10.0/24:8080"]`)
 	server := NewServer(store.New(t.TempDir()), t.TempDir())
