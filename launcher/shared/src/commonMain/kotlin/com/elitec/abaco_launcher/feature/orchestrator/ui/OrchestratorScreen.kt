@@ -623,7 +623,9 @@ private fun SidePanel(
                     value = corsRulesText,
                     onValueChange = onCorsRulesChange,
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !busy && !state.backendRunning,
+                    // Las reglas se pueden editar con el backend activo; el entorno
+                    // del proceso Go es inmutable y los cambios se aplican al próximo arranque.
+                    enabled = !busy,
                     minLines = 3,
                     maxLines = 5,
                     placeholder = { Text("10.10.10.10\n10.10.10.0/24:8080\npanel.empresa.com:8443") },
@@ -631,7 +633,7 @@ private fun SidePanel(
                     label = { Text("Una regla por línea", fontSize = 10.sp) },
                 )
                 Text(
-                    "IP o dominio: cualquier puerto. Añade :puerto para limitarlo. CIDR admite subredes. Vacío = solo mismo origen.",
+                    "IP o dominio: cualquier puerto. Añade :puerto para limitarlo. CIDR admite subredes. Vacío = solo mismo origen. Los cambios se guardan y se aplican al reiniciar el backend.",
                     fontSize = 10.sp,
                     color = Ide.Subtle,
                 )
