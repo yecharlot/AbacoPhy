@@ -25,7 +25,7 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 - [x] Eliminar credenciales administrativas conocidas o impresas (A1 implementado; CI correcto; validación operativa pendiente).
 - [x] Definir política segura de bind de red (implementación y pruebas automatizadas en curso; validación de Launcher/operación pendiente).
 - [x] Definir el alcance de transporte: LOCAL/LAN; HTTPS público fuera de alcance por decisión del proyecto.
-- [ ] Sustituir CORS `*` por política explícita.
+- [x] Eliminar CORS `*` e incorporar allowlist configurable por IP, CIDR, dominio exacto y puerto; CI y validación manual pendientes.
 - [ ] Reducir duración de sesiones.
 - [ ] Añadir rate limiting al login.
 - [ ] Añadir cabeceras HTTP de seguridad.
