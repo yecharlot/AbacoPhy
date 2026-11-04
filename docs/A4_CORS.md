@@ -1,7 +1,7 @@
 # A4 — Política CORS de AbacoPhy
 
 **Rama:** `security-hardening`  
-**Estado:** implementación preparada; ejecución de pruebas y validación manual pendientes.
+**Estado:** implementación y pruebas automatizadas validadas por CI Go; validación manual de Launcher pendiente.
 
 ## 1. Hallazgo
 
@@ -38,8 +38,7 @@ Si se introduce un frontend web separado, deberá configurarse una allowlist de 
 
 ## 5. Validación pendiente
 
-- [ ] Ejecutar `go test ./...`.
-- [ ] Ejecutar CI Go.
+- [x] Ejecutar pruebas Go mediante CI Go (vet, build y tests: success).
 - [ ] Comprobar login y navegación de la PWA desde Launcher LOCAL.
 - [ ] Comprobar el funcionamiento previsto desde Launcher LAN.
 - [ ] Comprobar que Vite continúa usando su proxy `/api` en desarrollo.
