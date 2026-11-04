@@ -106,12 +106,12 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 - [x] Eliminar la respuesta global que autorizaba cualquier preflight OPTIONS.
 - [x] Mantener el flujo same-origin de webapp/API y el proxy de desarrollo.
 - [x] Añadir pruebas para comprobar que no se conceden permisos CORS a orígenes externos.
-- [ ] Ejecutar pruebas Go y CI.
+- [x] Ejecutar CI Go (vet, build y tests: success en el commit de A4).
 - [ ] Verificar manualmente login, API y PWA en Launcher LOCAL y en modo LAN.
 
 **Importante:** CORS es una política aplicada por navegadores; no sustituye autenticación ni autorización y no bloquea clientes no navegador como curl o aplicaciones nativas. Si en el futuro se separa el frontend en otro origen, se deberá introducir una allowlist exacta y documentada, no un wildcard.
 
-**Estado:** cambio de código y pruebas preparado; validación automatizada pendiente.
+**Estado:** cambio de código y pruebas automatizadas validadas por CI Go; validación manual pendiente.
 
 # 3. FASE B — Autenticación y sesiones
 
