@@ -41,6 +41,7 @@ fun App(
     onRun: suspend (
         preferredPort: Int?,
         networkScope: String,
+        corsAllowedOrigins: List<String>,
         onState: (OrchestratorState) -> Unit,
         onLog: (String) -> Unit,
     ) -> OrchestratorState = { _, _, _, _ -> OrchestratorState() },
@@ -48,6 +49,8 @@ fun App(
     onOpenBrowser: (String) -> Unit = {},
     initialNetworkScope: String = "LOCAL",
     onNetworkScopeChange: (String) -> Unit = {},
+    initialCorsRules: String = "",
+    onCorsRulesChange: (String) -> Unit = {},
 ) {
     MaterialTheme(colorScheme = AbacoColorScheme) {
         OrchestratorScreen(
@@ -56,6 +59,8 @@ fun App(
             onOpenBrowser = onOpenBrowser,
             initialNetworkScope = initialNetworkScope,
             onNetworkScopeChange = onNetworkScopeChange,
+            initialCorsRules = initialCorsRules,
+            onCorsRulesChange = onCorsRulesChange,
         )
     }
 }
