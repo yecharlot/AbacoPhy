@@ -37,18 +37,17 @@ internal fun classifyGoLogLine(raw: String): String {
 private fun encodeJsonString(value: String): String = buildString {
     append('"')
     value.forEach { ch ->
-        when (ch) {
-            '"' -> append("\\\"")
-            '\\\\' -> append("\\\\\\\\")
-            '\\n' -> append("\\\\n")
-            '\\r' -> append("\\\\r")
-            '\\t' -> append("\\\\t")
+        when (ch.code) {
+            34 -> append("\\\"")
+            92 -> append("\\\\\\\\")
+            10 -> append("\\\\n")
+            13 -> append("\\\\r")
+            9 -> append("\\\\t")
             else -> append(ch)
         }
     }
     append('"')
 }
-
 class GoProcessLauncher : BackendProcess {
     private val processRef = AtomicReference<Process?>(null)
     private val exitCodeRef = AtomicInteger(Int.MIN_VALUE) // MIN = never set
