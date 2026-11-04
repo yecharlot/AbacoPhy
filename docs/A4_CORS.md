@@ -11,7 +11,7 @@ La arquitectura integrada sirve la PWA y la API desde el mismo origen. Sin embar
 
 ## 2. Política y sintaxis de reglas
 
-El Launcher permite configurar una lista persistida de reglas. Cada línea representa una regla independiente. Se admiten:
+El Launcher ofrece un gestor visual de reglas: una entrada de una sola línea para introducir IP, subred IPv4 o dominio, un botón **Agregar** y una lista de reglas existentes con acciones **Editar**, **Eliminar** y **Activar/Desactivar**. Cada regla se introduce individualmente. Se admiten:
 
 | Regla | Coincidencia |
 |---|---|
@@ -41,8 +41,10 @@ CORS no es un firewall ni una ACL de red. No bloquea conexiones TCP, clientes na
 
 - `internal/api/cors.go`: parser y matcher para IP, CIDR, dominio exacto y puerto opcional.
 - `internal/api/server.go`: aplica middleware con la configuración `ABACOPHY_CORS_ALLOWED_ORIGINS` (JSON array).
-- Launcher Desktop: guarda el texto de reglas en preferencias del usuario y lo transforma en una lista JSON para el proceso Go.
-- UI: editor multilínea, una regla por línea; admite también separadores coma y punto y coma al iniciar.
+- Launcher Desktop: guarda las reglas y su estado en las preferencias del usuario. El formato persistido versionado conserva cada regla activa o desactivada; las preferencias antiguas en texto multilínea/comas/punto y coma se migran al vuelo como reglas activas.
+- UI: campo de una sola línea con validación básica de IP/CIDR/dominio y puerto; lista individual con edición, eliminación y activación/desactivación.
+- Al iniciar el backend, Launcher envía únicamente las reglas activas como JSON en `ABACOPHY_CORS_ALLOWED_ORIGINS`. Las modificaciones se guardan de inmediato, pero no alteran el entorno del proceso Go que ya está ejecutándose: toman efecto en el siguiente arranque del backend.
+- Desactivar conserva la regla en preferencias, pero la excluye de la lista enviada al backend. Eliminar la retira de las preferencias.
 - Lista vacía por defecto, sin wildcard.
 
 ## 5. Pruebas
@@ -55,7 +57,7 @@ Se añadieron pruebas para:
 - preflight permitido y denegado.
 - lista vacía sin permisos cross-origin.
 
-**Pendiente:** CI Go y CI Launcher Desktop deben confirmar compilación y pruebas. También falta validar en ejecución el guardado de preferencias, arranque del backend y acceso desde un origen permitido y otro denegado.
+**Estado de esta revisión de UI:** cambio implementado en `OrchestratorScreen.kt`; CI Launcher Desktop está ejecutándose para el commit de la interfaz. Aún falta confirmar el resultado del CI y validar en ejecución el guardado/recuperación de estados, arranque del backend y acceso desde un origen permitido y otro denegado.
 
 ## 6. Validación operativa pendiente
 
