@@ -722,7 +722,7 @@ private fun SidePanel(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("ORÍGENES CORS PERMITIDOS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Ide.Subtle, letterSpacing = 0.7.sp)
                     Spacer(Modifier.weight(1f))
-                    Text("\${corsRules.count { it.enabled }} activas / \${corsRules.size}", fontSize = 10.sp, color = Ide.Subtle)
+                    Text("${corsRules.count { it.enabled }} activas / ${corsRules.size}", fontSize = 10.sp, color = Ide.Subtle)
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
