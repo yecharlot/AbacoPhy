@@ -34,6 +34,7 @@ class OrchestratorUseCase(
     suspend fun run(
         preferredPort: Int? = null,
         networkScope: String = "LOCAL",
+        corsAllowedOrigins: List<String> = emptyList(),
         onState: (OrchestratorState) -> Unit = {},
         onLog: (String) -> Unit = {},
     ): OrchestratorState {
@@ -104,6 +105,7 @@ class OrchestratorUseCase(
                 staticDir = staticPath,
                 binaryPath = bin,
                 networkScope = networkScope,
+                corsAllowedOrigins = corsAllowedOrigins,
                 onLog = onLog,
             )
             if (!backendProcess.isAlive()) {
