@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"os"
 	"net/http"
 	"net/netip"
@@ -44,11 +45,8 @@ func parseCORSRules(raw string) ([]corsRule, error) {
 func parseCORSRule(value string) (corsRule, error) {
 	var rule corsRule
 	value = strings.TrimSpace(value)
-	if value == "" || strings.ContainsAny(value, " /?#@") {
-		// '/' is allowed only as the CIDR separator.
-		if value == "" || strings.ContainsAny(strings.Replace(value, "/", "", 1), " /?#@") {
-			return rule, errors.New("invalid CORS allowlist entry")
-		}
+	if value == "" || strings.ContainsAny(value, " ?#@") {
+		return rule, errors.New("invalid CORS allowlist entry")
 	}
 
 	host := value
@@ -57,23 +55,23 @@ func parseCORSRule(value string) (corsRule, error) {
 		portText := value[i+1:]
 		port, err := strconv.Atoi(portText)
 		if err != nil || port < 1 || port > 65535 {
-			return rule, net.InvalidAddrError("invalid CORS allowlist port")
+			return rule, errors.New("invalid CORS allowlist port")
 		}
 		rule.port, rule.hasPort = port, true
 	}
 	if host == "" {
-		return rule, net.InvalidAddrError("missing CORS allowlist host")
+		return rule, errors.New("missing CORS allowlist host")
 	}
 	if prefix, err := netip.ParsePrefix(host); err == nil {
 		if !prefix.Addr().Is4() {
-			return rule, net.InvalidAddrError("only IPv4 CIDR rules are supported")
+			return rule, errors.New("only IPv4 CIDR rules are supported")
 		}
 		rule.prefix, rule.isCIDR = prefix.Masked(), true
 		return rule, nil
 	}
 	if addr, err := netip.ParseAddr(host); err == nil {
 		if !addr.Is4() {
-			return rule, net.InvalidAddrError("only IPv4 address rules are supported")
+			return rule, errors.New("only IPv4 address rules are supported")
 		}
 		rule.prefix, rule.isIP = netip.PrefixFrom(addr, 32), true
 		return rule, nil
@@ -81,15 +79,15 @@ func parseCORSRule(value string) (corsRule, error) {
 	// Exact DNS hostname (no wildcard, scheme, path, or embedded port).
 	host = strings.TrimSuffix(strings.ToLower(host), ".")
 	if len(host) == 0 || len(host) > 253 {
-		return rule, net.InvalidAddrError("invalid CORS hostname")
+		return rule, errors.New("invalid CORS hostname")
 	}
 	for _, label := range strings.Split(host, ".") {
 		if len(label) == 0 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
-			return rule, net.InvalidAddrError("invalid CORS hostname")
+			return rule, errors.New("invalid CORS hostname")
 		}
 		for _, c := range label {
 			if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-') {
-				return rule, net.InvalidAddrError("invalid CORS hostname")
+				return rule, errors.New("invalid CORS hostname")
 			}
 		}
 	}
@@ -165,6 +163,7 @@ func corsRulesFromEnv() []corsRule {
 	rules, err := parseCORSRules(strings.TrimSpace(os.Getenv(corsAllowlistEnv)))
 	if err != nil {
 		// Invalid configuration fails closed: no cross-origin rules are loaded.
+		log.Printf("security.cors.invalid_allowlist error=%q", err.Error())
 		return nil
 	}
 	return rules
