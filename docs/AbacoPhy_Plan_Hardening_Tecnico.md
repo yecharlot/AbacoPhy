@@ -100,18 +100,23 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 
 ## A4. CORS
 
-**Decisión:** la webapp y la API se sirven desde el mismo origen en el despliegue integrado. Vite usa proxy `/api` durante desarrollo y Electron carga la URL local del backend. No existe una necesidad confirmada de cliente web cross-origin. Por ello se elimina CORS permisivo en vez de mantener una lista artificial de orígenes.
+**Decisión:** mantener same-origin como comportamiento predeterminado y ofrecer una allowlist explícita desde el Launcher para instalaciones web cross-origin autorizadas. No usar wildcard.
 
-- [x] Eliminar `Access-Control-Allow-Origin: *`.
-- [x] Eliminar la respuesta global que autorizaba cualquier preflight OPTIONS.
-- [x] Mantener el flujo same-origin de webapp/API y el proxy de desarrollo.
-- [x] Añadir pruebas para comprobar que no se conceden permisos CORS a orígenes externos.
-- [x] Ejecutar CI Go (vet, build y tests: success en el commit de A4).
-- [ ] Verificar manualmente login, API y PWA en Launcher LOCAL y en modo LAN.
+- [x] Eliminar \`Access-Control-Allow-Origin: *\`.
+- [x] Eliminar el preflight global que autorizaba cualquier origen.
+- [x] Añadir reglas por IPv4 exacta, IPv4/CIDR, dominio DNS exacto y puerto opcional.
+- [x] Comparar contra el host y puerto del encabezado \`Origin\`; las reglas no incluyen esquema.
+- [x] Persistir las reglas en preferencias del Launcher.
+- [x] Pasar la configuración al proceso Go mediante \`ABACOPHY_CORS_ALLOWED_ORIGINS\` como JSON array.
+- [x] Mantener lista vacía por defecto y fallo cerrado ante configuración inválida.
+- [x] Añadir pruebas unitarias para reglas, puertos, subredes, dominios y preflight.
+- [x] CI Go: vet, build y tests completados correctamente.
+- [x] CI Launcher Desktop: compilación completada correctamente.
+- [ ] Validar manualmente orígenes permitidos/no permitidos, LOCAL/LAN y proxy Vite.
 
-**Importante:** CORS es una política aplicada por navegadores; no sustituye autenticación ni autorización y no bloquea clientes no navegador como curl o aplicaciones nativas. Si en el futuro se separa el frontend en otro origen, se deberá introducir una allowlist exacta y documentada, no un wildcard.
+CORS es una política del navegador; no sustituye firewall ni autenticación y no restringe clientes nativos o conexiones TCP. LOCAL/LAN y el firewall siguen siendo controles separados.
 
-**Estado:** cambio de código y pruebas automatizadas validadas por CI Go; validación manual pendiente.
+**Estado:** implementación y CI validados; falta validación operativa en Launcher.
 
 # 3. FASE B — Autenticación y sesiones
 
