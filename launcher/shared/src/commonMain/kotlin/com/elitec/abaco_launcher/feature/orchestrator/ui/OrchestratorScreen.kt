@@ -135,7 +135,7 @@ private fun parseCorsRuleEntries(raw: String): List<CorsRuleEntry> {
 private fun serializeCorsRuleEntries(entries: List<CorsRuleEntry>): String = buildString {
     append("v2\n")
     entries.forEach { append(if (it.enabled) "1" else "0").append("|").append(it.value).append("\n") }
-}.trimEnd()
+}
 
 private fun isValidCorsRule(raw: String): Boolean {
     val value = raw.trim()
