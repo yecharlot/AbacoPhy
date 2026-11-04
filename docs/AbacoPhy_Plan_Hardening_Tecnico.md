@@ -69,6 +69,10 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 
 ## A2. Bind de red
 
+**Evidencia y validación operativa:** consultar [A2 — Validación operativa del alcance de red](A2_VALIDACION_RED.md). La revisión estática confirma que el Launcher sobrescribe explícitamente el modo y host del proceso Go y persiste LOCAL/LAN. La prueba entre dos equipos y la comprobación del firewall siguen pendientes.
+
+**Advertencia:** el Launcher configura LAN con `0.0.0.0`, que escucha en todas las interfaces IPv4. Antes de usar LAN debe limitarse el puerto mediante el firewall a una subred privada confiable; no publicar el puerto en Internet.
+
 - [x] `LOCAL` como modo predeterminado y escucha en `127.0.0.1`.
 - [x] `LAN` requiere selección explícita y admite IP de interfaz o wildcard configurado.
 - [x] `PRODUCTION` requiere modo y `ABACOPHY_HOST` explícitos; wildcard permitido solo por configuración explícita para contenedores protegidos por la plataforma.
