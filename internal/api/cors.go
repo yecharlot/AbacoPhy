@@ -2,7 +2,8 @@ package api
 
 import (
 	"encoding/json"
-	"net"
+	"errors"
+	"os"
 	"net/http"
 	"net/netip"
 	"net/url"
@@ -46,7 +47,7 @@ func parseCORSRule(value string) (corsRule, error) {
 	if value == "" || strings.ContainsAny(value, " /?#@") {
 		// '/' is allowed only as the CIDR separator.
 		if value == "" || strings.ContainsAny(strings.Replace(value, "/", "", 1), " /?#@") {
-			return rule, net.InvalidAddrError("invalid CORS allowlist entry")
+			return rule, errors.New("invalid CORS allowlist entry")
 		}
 	}
 
@@ -161,7 +162,7 @@ func withCORS(next http.Handler, rules []corsRule) http.Handler {
 }
 
 func corsRulesFromEnv() []corsRule {
-	rules, err := parseCORSRules(strings.TrimSpace(getenv(corsAllowlistEnv)))
+	rules, err := parseCORSRules(strings.TrimSpace(os.Getenv(corsAllowlistEnv)))
 	if err != nil {
 		// Invalid configuration fails closed: no cross-origin rules are loaded.
 		return nil
