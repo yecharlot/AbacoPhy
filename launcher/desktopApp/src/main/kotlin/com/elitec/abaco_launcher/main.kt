@@ -24,11 +24,21 @@ private object LauncherPreferenceNode
 
 private val launcherPreferences = Preferences.userNodeForPackage(LauncherPreferenceNode::class.java)
 private const val NETWORK_SCOPE_KEY = "networkScope"
+private const val CORS_RULES_KEY = "corsAllowedOrigins"
 
 private fun loadNetworkScope(): String =
     launcherPreferences.get(NETWORK_SCOPE_KEY, "LOCAL")
         .uppercase()
         .takeIf { it == "LOCAL" || it == "LAN" } ?: "LOCAL"
+
+private fun loadCorsRules(): String = launcherPreferences.get(CORS_RULES_KEY, "")
+
+private fun saveCorsRules(value: String) {
+    runCatching {
+        launcherPreferences.put(CORS_RULES_KEY, value)
+        launcherPreferences.flush()
+    }.onFailure { persistLauncherLog("No se pudo guardar la lista CORS: ${it.message}") }
+}
 
 private fun saveNetworkScope(value: String) {
     val normalized = value.uppercase().takeIf { it == "LOCAL" || it == "LAN" } ?: "LOCAL"
@@ -88,10 +98,11 @@ fun main() = application {
         state = windowState,
     ) {
         App(
-            onRun = { preferredPort, networkScope, onState, onLog ->
+            onRun = { preferredPort, networkScope, corsAllowedOrigins, onState, onLog ->
                 useCase.run(
                     preferredPort = preferredPort,
                     networkScope = networkScope,
+                    corsAllowedOrigins = corsAllowedOrigins,
                     onState = onState,
                     onLog = { line ->
                         persistLauncherLog(line)
@@ -103,6 +114,8 @@ fun main() = application {
             onOpenBrowser = { url -> browser.open(url) },
             initialNetworkScope = loadNetworkScope(),
             onNetworkScopeChange = ::saveNetworkScope,
+            initialCorsRules = loadCorsRules(),
+            onCorsRulesChange = ::saveCorsRules,
         )
     }
 }
