@@ -74,6 +74,8 @@ import androidx.compose.material.icons.rounded.WifiTethering
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.OutlinedTextField
@@ -112,6 +114,49 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+
+private data class CorsRuleEntry(val value: String, val enabled: Boolean = true)
+
+private fun parseCorsRuleEntries(raw: String): List<CorsRuleEntry> {
+    if (raw.isBlank()) return emptyList()
+    if (raw.startsWith("v2\n")) {
+        return raw.lineSequence().drop(1).mapNotNull { line ->
+            val separator = line.indexOf("|")
+            if (separator <= 0) null else {
+                val value = line.substring(separator + 1).trim()
+                value.takeIf { it.isNotEmpty() }?.let { CorsRuleEntry(it, line.substring(0, separator) == "1") }
+            }
+        }.distinctBy { it.value.lowercase() }.toList()
+    }
+    return raw.split(",", ";", "\n").map { it.trim() }.filter { it.isNotEmpty() }
+        .distinctBy { it.lowercase() }.map { CorsRuleEntry(it) }
+}
+
+private fun serializeCorsRuleEntries(entries: List<CorsRuleEntry>): String = buildString {
+    append("v2\n")
+    entries.forEach { append(if (it.enabled) "1" else "0").append("|").append(it.value).append("\n") }
+}.trimEnd()
+
+private fun isValidCorsRule(raw: String): Boolean {
+    val value = raw.trim()
+    if (value.isEmpty() || value.contains("://") || value.contains("*") || value.any { it.isWhitespace() }) return false
+    val colon = value.lastIndexOf(':')
+    val hasPort = colon > 0
+    val host = if (hasPort) value.substring(0, colon) else value
+    val port = if (hasPort) value.substring(colon + 1).toIntOrNull() else null
+    if (hasPort && (port == null || port !in 1..65535)) return false
+    val cidr = host.substringAfter("/", "")
+    val ip = host.substringBefore("/")
+    val octets = ip.split(".")
+    val ipv4 = octets.size == 4 && octets.all { it.toIntOrNull()?.let { n -> n in 0..255 } == true }
+    if (ipv4) return cidr.isEmpty() || cidr.toIntOrNull()?.let { it in 0..32 } == true
+    if (cidr.isNotEmpty()) return false
+    val labels = host.split(".")
+    return labels.size >= 2 && host.length <= 253 && labels.all { label ->
+        label.isNotEmpty() && label.length <= 63 && label.first().isLetterOrDigit() &&
+            label.last().isLetterOrDigit() && label.all { it.isLetterOrDigit() || it == '-' }
+    }
+}
 
 private const val MAX_LOG_LINES = 5_000
 private const val COMPACT_BREAKPOINT_DP = 860
@@ -186,7 +231,10 @@ fun OrchestratorScreen(
     var busy by remember { mutableStateOf(false) }
     var portText by remember { mutableStateOf("") }
     var networkScope by remember { mutableStateOf(initialNetworkScope) }
-    var corsRulesText by remember { mutableStateOf(initialCorsRules) }
+    var corsRules by remember { mutableStateOf(parseCorsRuleEntries(initialCorsRules)) }
+    var corsInput by remember { mutableStateOf("") }
+    var editingCorsIndex by remember { mutableStateOf<Int?>(null) }
+    var corsInputError by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
     var enabledLevels by remember { mutableStateOf(LogLevel.values().toSet()) }
     val scope = rememberCoroutineScope()
@@ -271,8 +319,8 @@ fun OrchestratorScreen(
         scope.launch {
             try {
                 val preferred = parsePreferredPort()
-                val corsRules = corsRulesText.split(',', ';', '\n').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
-                val result = onRun(preferred, networkScope, corsRules, { s -> state = s }, { raw -> handleRawLog(raw) })
+                val activeCorsRules = corsRules.filter { it.enabled }.map { it.value }
+                val result = onRun(preferred, networkScope, activeCorsRules, { s -> state = s }, { raw -> handleRawLog(raw) })
                 state = result.copy(
                     discoveryActive = state.discoveryActive,
                     connectedClients = state.connectedClients,
@@ -341,8 +389,53 @@ fun OrchestratorScreen(
                         compact = compact,
                         portText = portText,
                         networkScope = networkScope,
-                        corsRulesText = corsRulesText,
-                        onCorsRulesChange = { value -> corsRulesText = value; onCorsRulesChange(value) },
+                        corsRules = corsRules,
+                        corsInput = corsInput,
+                        editingCorsIndex = editingCorsIndex,
+                        corsInputError = corsInputError,
+                        onCorsInputChange = { corsInput = it; corsInputError = null },
+                        onAddCorsRule = {
+                            val candidate = corsInput.trim()
+                            val duplicate = corsRules.withIndex().any { (i, rule) ->
+                                i != editingCorsIndex && rule.value.equals(candidate, ignoreCase = true)
+                            }
+                            when {
+                                !isValidCorsRule(candidate) -> corsInputError = "Formato no válido. Usa una IP, CIDR o dominio con puerto opcional."
+                                duplicate -> corsInputError = "Esta regla ya está registrada."
+                                editingCorsIndex != null -> {
+                                    val updated = corsRules.toMutableList()
+                                    updated[editingCorsIndex!!] = updated[editingCorsIndex!!].copy(value = candidate)
+                                    corsRules = updated
+                                    onCorsRulesChange(serializeCorsRuleEntries(updated))
+                                    corsInput = ""; editingCorsIndex = null; corsInputError = null
+                                }
+                                else -> {
+                                    val updated = corsRules + CorsRuleEntry(candidate)
+                                    corsRules = updated
+                                    onCorsRulesChange(serializeCorsRuleEntries(updated))
+                                    corsInput = ""; corsInputError = null
+                                }
+                            }
+                        },
+                        onEditCorsRule = { index ->
+                            corsInput = corsRules[index].value
+                            editingCorsIndex = index
+                            corsInputError = null
+                        },
+                        onCancelCorsEdit = { corsInput = ""; editingCorsIndex = null; corsInputError = null },
+                        onToggleCorsRule = { index ->
+                            val updated = corsRules.toMutableList()
+                            updated[index] = updated[index].copy(enabled = !updated[index].enabled)
+                            corsRules = updated
+                            onCorsRulesChange(serializeCorsRuleEntries(updated))
+                        },
+                        onDeleteCorsRule = { index ->
+                            val updated = corsRules.toMutableList().also { it.removeAt(index) }
+                            corsRules = updated
+                            onCorsRulesChange(serializeCorsRuleEntries(updated))
+                            if (editingCorsIndex == index) { corsInput = ""; editingCorsIndex = null }
+                            else if (editingCorsIndex != null && editingCorsIndex!! > index) editingCorsIndex = editingCorsIndex!! - 1
+                        },
                         onNetworkScopeChange = { selected ->
                             networkScope = selected
                             onNetworkScopeChange(selected)
@@ -546,8 +639,16 @@ private fun SidePanel(
     compact: Boolean,
     portText: String,
     networkScope: String,
-    corsRulesText: String,
-    onCorsRulesChange: (String) -> Unit,
+    corsRules: List<CorsRuleEntry>,
+    corsInput: String,
+    editingCorsIndex: Int?,
+    corsInputError: String?,
+    onCorsInputChange: (String) -> Unit,
+    onAddCorsRule: () -> Unit,
+    onEditCorsRule: (Int) -> Unit,
+    onCancelCorsEdit: () -> Unit,
+    onToggleCorsRule: (Int) -> Unit,
+    onDeleteCorsRule: (Int) -> Unit,
     onNetworkScopeChange: (String) -> Unit,
     onPortChange: (String) -> Unit,
     canStop: Boolean,
@@ -618,24 +719,69 @@ private fun SidePanel(
                 )
 
                 Spacer(Modifier.height(6.dp))
-                Text("ORÍGENES CORS PERMITIDOS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Ide.Subtle, letterSpacing = 0.7.sp)
-                OutlinedTextField(
-                    value = corsRulesText,
-                    onValueChange = onCorsRulesChange,
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("ORÍGENES CORS PERMITIDOS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Ide.Subtle, letterSpacing = 0.7.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text("\${corsRules.count { it.enabled }} activas / \${corsRules.size}", fontSize = 10.sp, color = Ide.Subtle)
+                }
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    // Las reglas se pueden editar con el backend activo; el entorno
-                    // del proceso Go es inmutable y los cambios se aplican al próximo arranque.
-                    enabled = !busy,
-                    minLines = 3,
-                    maxLines = 5,
-                    placeholder = { Text("10.10.10.10\n10.10.10.0/24:8080\npanel.empresa.com:8443") },
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontFamily = Ide.Mono, color = Ide.Fg),
-                    label = { Text("Una regla por línea", fontSize = 10.sp) },
-                )
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedTextField(
+                        value = corsInput,
+                        onValueChange = onCorsInputChange,
+                        modifier = Modifier.weight(1f),
+                        enabled = !busy,
+                        singleLine = true,
+                        placeholder = { Text("IP o dominio[:puerto]", fontSize = 11.sp) },
+                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontFamily = Ide.Mono, color = Ide.Fg),
+                        isError = corsInputError != null,
+                    )
+                    Button(onClick = onAddCorsRule, enabled = !busy && corsInput.isNotBlank()) {
+                        Text(if (editingCorsIndex == null) "Agregar" else "Guardar", fontSize = 11.sp)
+                    }
+                }
+                corsInputError?.let { Text(it, fontSize = 10.sp, color = Ide.Red) }
+                if (editingCorsIndex != null) {
+                    TextButton(onClick = onCancelCorsEdit, enabled = !busy) { Text("Cancelar edición", fontSize = 10.sp) }
+                }
+                if (corsRules.isEmpty()) {
+                    Text("No hay reglas adicionales. Solo se aceptará el mismo origen.", fontSize = 10.sp, color = Ide.Subtle)
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        corsRules.forEachIndexed { index, rule ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .ideCard(Ide.Surface2.copy(alpha = 0.55f), Ide.Border)
+                                    .padding(horizontal = 8.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(rule.value, fontSize = 10.sp, fontFamily = Ide.Mono,
+                                        color = if (rule.enabled) Ide.Fg else Ide.Subtle,
+                                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(if (rule.enabled) "Activa" else "Desactivada", fontSize = 9.sp,
+                                        color = if (rule.enabled) Ide.Green else Ide.Subtle)
+                                }
+                                TextButton(onClick = { onToggleCorsRule(index) }, enabled = !busy) {
+                                    Text(if (rule.enabled) "Desactivar" else "Activar", fontSize = 9.sp)
+                                }
+                                TextButton(onClick = { onEditCorsRule(index) }, enabled = !busy) {
+                                    Text("Editar", fontSize = 9.sp)
+                                }
+                                TextButton(onClick = { onDeleteCorsRule(index) }, enabled = !busy) {
+                                    Text("Eliminar", fontSize = 9.sp, color = Ide.Red)
+                                }
+                            }
+                        }
+                    }
+                }
                 Text(
-                    "IP o dominio: cualquier puerto. Añade :puerto para limitarlo. CIDR admite subredes. Vacío = solo mismo origen. Los cambios se guardan y se aplican al reiniciar el backend.",
-                    fontSize = 10.sp,
-                    color = Ide.Subtle,
+                    "Admite IP, subred IPv4 (CIDR) o dominio exacto. El puerto es opcional. Los cambios se guardan y se aplican al próximo inicio del backend.",
+                    fontSize = 10.sp, color = Ide.Subtle,
                 )
 
                 Spacer(Modifier.height(4.dp))
