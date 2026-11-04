@@ -44,7 +44,7 @@ fun App(
         corsAllowedOrigins: List<String>,
         onState: (OrchestratorState) -> Unit,
         onLog: (String) -> Unit,
-    ) -> OrchestratorState = { _, _, _, _ -> OrchestratorState() },
+    ) -> OrchestratorState = { _, _, _, _, _ -> OrchestratorState() },
     onStop: () -> Unit = {},
     onOpenBrowser: (String) -> Unit = {},
     initialNetworkScope: String = "LOCAL",
