@@ -8,7 +8,7 @@
 
 **Puntuación inicial: 52/100 — 🟠 Hardening necesario**
 
-**Puntuación actual: 55/100 — 🟠 Hardening en curso.** A1 fue validado operativamente. A2 tiene implementación inicial en backend y documentación, pero sigue pendiente la validación de Launcher/red y CI. A1 pasó CI Go (vet, build y pruebas), CI Webapp (typecheck, Vitest y build de producción) y CI Docker (imagen de producción construida). CI Launcher Desktop también compiló correctamente. Sigue pendiente ejecutar los scripts de empaquetado runtime del Launcher y validar la migración sobre datos operativos.
+**Puntuación actual: 55/100 — 🟠 Hardening en curso.** A1 fue validado operativamente. A2 tiene implementación inicial en backend y documentación, pero sigue pendiente la validación operativa de Launcher/red. A4 admite reglas específicas y, por decisión explícita, el comodín global `*`. El commit `770cbf5e` pasó CI Go, CI Launcher Desktop y CI Docker. Siguen pendientes las pruebas manuales de A2/A4 y la validación de migración A1 sobre datos operativos.
 
 Esta puntuación procede de una revisión estática y de pruebas automatizadas del repositorio. No es una certificación ni un pentest.
 
@@ -25,7 +25,7 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 - [x] Eliminar credenciales administrativas conocidas o impresas (A1 implementado; CI correcto; validación operativa pendiente).
 - [x] Definir política segura de bind de red (implementación y pruebas automatizadas en curso; validación de Launcher/operación pendiente).
 - [x] Definir el alcance de transporte: LOCAL/LAN; HTTPS público fuera de alcance por decisión del proyecto.
-- [x] Eliminar CORS `*` e incorporar allowlist configurable por IP, CIDR, dominio exacto y puerto; CI y validación manual pendientes.
+- [x] Sustituir CORS abierto por allowlist configurable (IP, CIDR, dominio exacto y puerto), con excepción explícita `*` para instalaciones que necesiten permitir todos los orígenes; CI correcto, validación manual pendiente.
 - [ ] Reducir duración de sesiones.
 - [ ] Añadir rate limiting al login.
 - [ ] Añadir cabeceras HTTP de seguridad.
@@ -100,7 +100,7 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 
 ## A4. CORS
 
-**Decisión:** mantener same-origin como comportamiento predeterminado y ofrecer una allowlist explícita desde el Launcher para instalaciones web cross-origin autorizadas. No usar wildcard.
+**Decisión:** mantener same-origin como comportamiento predeterminado y ofrecer una allowlist explícita desde el Launcher. Se admite `*` solo cuando el administrador lo agrega expresamente y acepta permitir cualquier origen; no se habilitan credenciales CORS.
 
 - [x] Eliminar \`Access-Control-Allow-Origin: *\`.
 - [x] Eliminar el preflight global que autorizaba cualquier origen.
@@ -110,13 +110,14 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 - [x] Pasar la configuración al proceso Go mediante \`ABACOPHY_CORS_ALLOWED_ORIGINS\` como JSON array.
 - [x] Mantener lista vacía por defecto y fallo cerrado ante configuración inválida.
 - [x] Añadir pruebas unitarias para reglas, puertos, subredes, dominios y preflight.
-- [x] CI Go: vet, build y tests completados correctamente.
-- [x] CI Launcher Desktop: compilación completada correctamente.
+- [x] CI Go: vet, build y tests completados correctamente (commit `770cbf5e`).
+- [x] CI Launcher Desktop: compilación completada correctamente (commit `770cbf5e`).
+- [x] CI Docker Image: build completado correctamente (commit `770cbf5e`).
 - [ ] Validar manualmente orígenes permitidos/no permitidos, LOCAL/LAN y proxy Vite.
 
 CORS es una política del navegador; no sustituye firewall ni autenticación y no restringe clientes nativos o conexiones TCP. LOCAL/LAN y el firewall siguen siendo controles separados.
 
-**Estado:** implementación y CI validados; falta validación operativa en Launcher.
+**Estado:** implementación y CI validados; falta validación operativa en Launcher. `*` es una excepción configurable, no el valor predeterminado.
 
 # 3. FASE B — Autenticación y sesiones
 
@@ -480,7 +481,8 @@ Ruta:
 |---|---|---|---|
 | 2026-11-03 | Auditoría inicial | — | 52/100 |
 | 2026-11-03 | A1: credenciales aleatorias, rotación legacy, creación de tenants y cambio obligatorio | Validado operativamente por el usuario; revisar referencias antiguas residuales en Launcher | 55/100 |
-| 2026-11-03 | A2: modos LOCAL/LAN/PRODUCTION, bind seguro y mDNS condicionado | Implementación inicial backend/documentación; CI y validación operativa pendientes | 55/100 sin incremento hasta completar validación |
+| 2026-11-03 | A2: modos LOCAL/LAN/PRODUCTION, bind seguro y mDNS condicionado | Implementación inicial; validación operativa pendiente | 55/100 sin incremento hasta completar validación |
+| 2026-11-04 | A4: gestor CORS con comodín global explícito `*` | CI Go, Launcher Desktop y Docker correctos; pruebas manuales pendientes | 55/100; sin incremento hasta validar A2/A4 |
 
 ## Registro de excepciones
 
@@ -495,7 +497,7 @@ Ruta:
 | H-01 | Credenciales bootstrap | Alta | CI Go/Webapp/Docker y compilación Launcher correctos; validación operativa pendiente | security-hardening |
 | H-02 | Bind de red | Alta | Implementación inicial en backend; pendiente Launcher, CI y prueba LAN/LOCAL/PRODUCTION | |
 | H-03 | Tráfico LAN HTTP sin cifrar | Media | Riesgo aceptado: LAN solo en red privada confiable; validar A2 | |
-| H-04 | CORS | Alta | Pendiente | |
+| H-04 | CORS | Alta | Implementado; CI Go/Launcher/Docker correcto; pruebas manuales pendientes | `770cbf5e` |
 | H-05 | Sesiones | Alta | Pendiente | |
 | H-06 | Tokens persistidos | Media | Pendiente | |
 | H-07 | Rate limiting | Media | Pendiente | |
