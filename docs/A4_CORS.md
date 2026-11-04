@@ -1,52 +1,71 @@
-# A4 — Política CORS de AbacoPhy
+# A4 — Política CORS configurable de AbacoPhy
 
 **Rama:** `security-hardening`  
-**Estado:** implementación y pruebas automatizadas validadas por CI Go; validación manual de Launcher pendiente.
+**Estado:** implementación inicial de backend y Launcher integrada; CI y validación manual pendientes.
 
 ## 1. Hallazgo
 
-El middleware global anterior añadía `Access-Control-Allow-Origin: *` a todas las respuestas y contestaba cualquier solicitud `OPTIONS` con HTTP 204, sin validar el origen, el método solicitado ni los headers.
+El middleware anterior añadía `Access-Control-Allow-Origin: *` a todas las respuestas y contestaba cualquier solicitud `OPTIONS` con HTTP 204, sin validar el origen.
 
-Esto habilitaba lectura cross-origin desde cualquier sitio en navegadores. Aunque no reemplaza la autenticación de la API, ampliaba innecesariamente la superficie de interacción desde sitios externos.
+La arquitectura integrada sirve la PWA y la API desde el mismo origen. Sin embargo, el Launcher no ofrecía una forma de autorizar de manera controlada instalaciones donde una webapp se aloje en otro host, IP o puerto.
 
-## 2. Arquitectura comprobada
+## 2. Política y sintaxis de reglas
 
-Los componentes actuales permiten mantener same-origin:
+El Launcher permite configurar una lista persistida de reglas. Cada línea representa una regla independiente. Se admiten:
 
-- El backend Go sirve la PWA y los recursos de la webapp, además de la API.
-- Vite redirige `/api` al backend mediante su proxy de desarrollo.
-- El shell Electron inicia el backend local y carga la aplicación desde la misma URL HTTP local.
+| Regla | Coincidencia |
+|---|---|
+| `10.10.10.10` | IP exacta, cualquier puerto |
+| `10.10.10.10:8080` | IP exacta, puerto 8080 |
+| `10.10.10.0/24` | Todas las IPv4 de la subred, cualquier puerto |
+| `10.10.10.0/24:8080` | Todas las IPv4 de la subred, puerto 8080 |
+| `panel.empresa.com` | Host DNS exacto, cualquier puerto |
+| `panel.empresa.com:8443` | Host DNS exacto, puerto 8443 |
 
-No se encontró una necesidad confirmada de que un frontend web independiente consuma la API desde otro origen.
+Las reglas no incluyen esquema. Se comparan contra el esquema, host y puerto serializados en la cabecera HTTP `Origin`; la regla de puerto se refiere al puerto del sitio web de origen, no al puerto efímero del cliente.
 
-## 3. Decisión
+Los dominios son coincidencias exactas; no se admiten comodines. Las reglas IP/CIDR actuales soportan IPv4. Los puertos deben estar entre 1 y 65535.
 
-Se elimina el middleware CORS global. AbacoPhy no emite cabeceras `Access-Control-Allow-*` ni autoriza preflights cross-origin.
+## 3. Comportamiento seguro
 
-No se configura una allowlist por ahora porque no hay un origen externo legítimo que necesite acceso. Las solicitudes same-origin continúan funcionando normalmente. Las aplicaciones nativas (por ejemplo, clientes Kotlin/Ktor) no están sujetas a CORS del navegador.
+- Lista vacía: no concede CORS adicional; el flujo same-origin sigue funcionando.
+- Origen permitido: se devuelve `Access-Control-Allow-Origin` con el origen exacto recibido, nunca `*`.
+- Preflight permitido: se responde 204 y se publican únicamente los métodos y headers API previstos.
+- Preflight no permitido: se responde 403 sin cabeceras de autorización CORS.
+- Configuración mal formada: falla cerrada; no se carga ninguna regla.
+- No se habilitan credenciales CORS mediante cookies.
 
-Si se introduce un frontend web separado, deberá configurarse una allowlist de orígenes exactos, métodos y headers estrictamente necesarios. Nunca reintroducir `*` como solución rápida.
+CORS no es un firewall ni una ACL de red. No bloquea conexiones TCP, clientes nativos ni herramientas como curl. La exposición de red sigue controlada por LOCAL/LAN y el firewall.
 
-## 4. Cambios realizados
+## 4. Implementación
 
-- Eliminado `withCORS` de `internal/api/server.go`.
-- El handler ya no envuelve el mux con middleware CORS.
-- Añadido `internal/api/cors_test.go` para verificar:
-  - solicitudes same-origin siguen respondiendo;
-  - un origen externo no recibe `Access-Control-Allow-Origin`;
-  - el preflight cross-origin no recibe permisos CORS.
+- `internal/api/cors.go`: parser y matcher para IP, CIDR, dominio exacto y puerto opcional.
+- `internal/api/server.go`: aplica middleware con la configuración `ABACOPHY_CORS_ALLOWED_ORIGINS` (JSON array).
+- Launcher Desktop: guarda el texto de reglas en preferencias del usuario y lo transforma en una lista JSON para el proceso Go.
+- UI: editor multilínea, una regla por línea; admite también separadores coma y punto y coma al iniciar.
+- Lista vacía por defecto, sin wildcard.
 
-## 5. Validación pendiente
+## 5. Pruebas
 
-- [x] Ejecutar pruebas Go mediante CI Go (vet, build y tests: success).
-- [ ] Comprobar login y navegación de la PWA desde Launcher LOCAL.
-- [ ] Comprobar el funcionamiento previsto desde Launcher LAN.
-- [ ] Comprobar que Vite continúa usando su proxy `/api` en desarrollo.
+Se añadieron pruebas para:
+- IP exacta en cualquier puerto.
+- CIDR con y sin puerto.
+- dominio DNS exacto y rechazo de subdominios.
+- rechazo de reglas inválidas, comodines y formatos con esquema/path.
+- preflight permitido y denegado.
+- lista vacía sin permisos cross-origin.
 
-No se declara A4 validado hasta completar estas pruebas.
+**Pendiente:** CI Go y CI Launcher Desktop deben confirmar compilación y pruebas. También falta validar en ejecución el guardado de preferencias, arranque del backend y acceso desde un origen permitido y otro denegado.
 
-## 6. Límites de CORS
+## 6. Validación operativa pendiente
 
-CORS es una protección aplicada por navegadores. No autentica clientes ni impide que herramientas como curl, scripts o aplicaciones nativas llamen directamente a la API. La autenticación, autorización, validación de entradas y política de red siguen siendo controles independientes.
+- [ ] Ejecutar CI Go (vet, build y tests).
+- [ ] Ejecutar CI Launcher Desktop.
+- [ ] Probar same-origin en LOCAL.
+- [ ] Probar origen permitido por IP exacta.
+- [ ] Probar origen permitido por CIDR con puerto.
+- [ ] Probar dominio exacto y puerto.
+- [ ] Confirmar que origen no incluido y puerto incorrecto no reciben CORS.
+- [ ] Confirmar que Vite mantiene su proxy `/api`.
 
-**Puntuación de hardening:** mantener 55/100 hasta validar el cambio y completar los controles pendientes.
+**Puntuación de hardening:** mantener 55/100 hasta completar CI y validación operativa de A2/A4.
