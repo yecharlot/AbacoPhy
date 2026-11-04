@@ -21,15 +21,17 @@ El Launcher ofrece un gestor visual de reglas: una entrada de una sola línea pa
 | `10.10.10.0/24:8080` | Todas las IPv4 de la subred, puerto 8080 |
 | `panel.empresa.com` | Host DNS exacto, cualquier puerto |
 | `panel.empresa.com:8443` | Host DNS exacto, puerto 8443 |
+| `*` | Cualquier origen, sin restricción de host, esquema o puerto |
 
 Las reglas no incluyen esquema. Se comparan contra el esquema, host y puerto serializados en la cabecera HTTP `Origin`; la regla de puerto se refiere al puerto del sitio web de origen, no al puerto efímero del cliente.
 
-Los dominios son coincidencias exactas; no se admiten comodines. Las reglas IP/CIDR actuales soportan IPv4. Los puertos deben estar entre 1 y 65535.
+Los dominios son coincidencias exactas; no se admiten comodines parciales (`*.empresa.com`). La regla especial `*` sí se admite y autoriza cualquier origen. Las reglas IP/CIDR actuales soportan IPv4. Los puertos deben estar entre 1 y 65535.
 
 ## 3. Comportamiento seguro
 
 - Lista vacía: no concede CORS adicional; el flujo same-origin sigue funcionando.
-- Origen permitido: se devuelve `Access-Control-Allow-Origin` con el origen exacto recibido, nunca `*`.
+- Regla específica: se devuelve `Access-Control-Allow-Origin` con el origen exacto recibido.
+- Regla `*`: se devuelve `Access-Control-Allow-Origin: *` para cualquier origen. No se envía `Access-Control-Allow-Credentials`; por tanto, el navegador no permitirá solicitudes CORS con credenciales/cookies bajo esta regla.
 - Preflight permitido: se responde 204 y se publican únicamente los métodos y headers API previstos.
 - Preflight no permitido: se responde 403 sin cabeceras de autorización CORS.
 - Configuración mal formada: falla cerrada; no se carga ninguna regla.
@@ -45,7 +47,7 @@ CORS no es un firewall ni una ACL de red. No bloquea conexiones TCP, clientes na
 - UI: campo de una sola línea con validación básica de IP/CIDR/dominio y puerto; lista individual con edición, eliminación y activación/desactivación.
 - Al iniciar el backend, Launcher envía únicamente las reglas activas como JSON en `ABACOPHY_CORS_ALLOWED_ORIGINS`. Las modificaciones se guardan de inmediato, pero no alteran el entorno del proceso Go que ya está ejecutándose: toman efecto en el siguiente arranque del backend.
 - Desactivar conserva la regla en preferencias, pero la excluye de la lista enviada al backend. Eliminar la retira de las preferencias.
-- Lista vacía por defecto, sin wildcard.
+- Lista vacía por defecto. `*` debe añadirse expresamente para habilitar todos los orígenes.
 
 ## 5. Pruebas
 
@@ -53,7 +55,7 @@ Se añadieron pruebas para:
 - IP exacta en cualquier puerto.
 - CIDR con y sin puerto.
 - dominio DNS exacto y rechazo de subdominios.
-- rechazo de reglas inválidas, comodines y formatos con esquema/path.
+- rechazo de reglas inválidas, comodines parciales y formatos con esquema/path; aceptación del comodín global `*`.
 - preflight permitido y denegado.
 - lista vacía sin permisos cross-origin.
 
@@ -69,5 +71,6 @@ Se añadieron pruebas para:
 - [ ] Probar dominio exacto y puerto.
 - [ ] Confirmar que origen no incluido y puerto incorrecto no reciben CORS.
 - [ ] Confirmar que Vite mantiene su proxy `/api`.
+- [ ] Con `*` activo, verificar preflight y petición real desde orígenes distintos; confirmar que no se habilitan credenciales.
 
 **Puntuación de hardening:** mantener 55/100 hasta completar CI y validación operativa de A2/A4.
