@@ -101,6 +101,9 @@ func parseCORSRule(value string) (corsRule, error) {
 }
 
 func (rule corsRule) matches(origin string) bool {
+	if rule.wildcard {
+		return origin != ""
+	}
 	u, err := url.Parse(origin)
 	if err != nil || u.Opaque != "" || u.User != nil || u.Host == "" ||
 		(u.Scheme != "http" && u.Scheme != "https") ||
