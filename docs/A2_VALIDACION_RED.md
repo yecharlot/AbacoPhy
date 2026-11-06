@@ -59,19 +59,21 @@ El proceso fue identificado como el backend empaquetado `abacophy.exe` bajo `lau
 | ID | Hallazgo | Estado |
 |---|---|---|
 | A2-E01 | El Launcher pasa LAN y el backend registra host solicitado `0.0.0.0` | Confirmado |
-| A2-E02 | Listener efectivo registrado como `[::]:60565` | Confirmado; falta revisar si se normaliza el log o se controla explícitamente familia/dirección |
+| A2-E02 | Listener efectivo registrado como `[::]:60565` con `net.Listen("tcp", ...)` | Causa identificada; corregido mediante selección explícita `tcp4`/`tcp6`; falta CI y prueba empaquetada |
 | A2-E03 | La detección/impresión de direcciones incluye ProtonVPN | Confirmado; requiere revisar filtro/selección de interfaces |
 | A2-E04 | Firewall de Windows desactivado intencionalmente | Condición del entorno; no modificar |
 | A2-E05 | Acceso desde un segundo equipo en LAN | Pendiente |
 | A2-E06 | Modo LOCAL probado en la instalación empaquetada | Pendiente |
 
-### Siguiente trabajo en el proyecto
+### Implementación posterior a la evidencia
 
-1. Revisar cómo se construye el listener HTTP y por qué el log efectivo muestra `[::]` cuando el host solicitado es `0.0.0.0`.
-2. Revisar el descubrimiento de interfaces y evitar presentar interfaces VPN/públicas como direcciones LAN confiables.
-3. Definir si LAN debe permitir seleccionar una interfaz/IP concreta o si se conserva wildcard con advertencia explícita y configuración de firewall externa.
-4. Probar LOCAL con el Launcher empaquetado y confirmar loopback estricto y mDNS desactivado.
-5. Realizar prueba LAN entre dos equipos cuando el entorno de red disponible lo permita. Registrar el resultado sin confundirlo con una validación de firewall.
+**Completado en código:** `cmd/abacophy/main.go` ahora selecciona explícitamente la familia del socket según el host: `tcp4` para IPv4 (`127.0.0.1`, `0.0.0.0` e IP IPv4 concreta), `tcp6` para IPv6 (`::1`, `::` e IP IPv6), y `tcp` únicamente para el hostname permitido `localhost`. Se añade el evento `EVENT=http.listen_config` para registrar la red elegida antes de abrir el listener. Así, el modo LAN IPv4 ya no depende de que el sistema operativo resuelva `tcp` como IPv4 o IPv6.
+
+**Pendiente:**
+1. Revisar el descubrimiento de interfaces y evitar presentar interfaces VPN/públicas como direcciones LAN confiables.
+2. Definir selección explícita de interfaz/IP para anuncios y mDNS; no inferir que una interfaz es confiable solo por su nombre o por tener una IP privada.
+3. Probar LOCAL con el Launcher empaquetado y confirmar loopback estricto y mDNS desactivado.
+4. Realizar prueba LAN entre dos equipos cuando el entorno de red disponible lo permita. Registrar el resultado sin confundirlo con una validación de firewall.
 
 La activación del firewall del equipo del usuario no forma parte de este plan ni está autorizada por esta validación. En instalaciones de terceros, la restricción del puerto mediante firewall sigue siendo un requisito de despliegue cuando se use LAN.
 ## 4. Prueba operativa LOCAL
@@ -120,7 +122,7 @@ Realizarla únicamente en una red privada confiable y con firewall restrictivo.
 | Log de arranque LOCAL con bind loopback | Pendiente |
 | Health local correcto | Pendiente |
 | Fallo de conexión remota en LOCAL | Pendiente |
-| Log de arranque LAN con bind esperado | Pendiente |
+| Log de arranque LAN con bind IPv4 explícito (`0.0.0.0:<PUERTO>`) y `network="tcp4"` | Pendiente de CI y prueba empaquetada |
 | Health y web accesibles desde segundo equipo LAN | Pendiente |
 | Firewall limita el puerto a la subred confiable | No comprobado; firewall del equipo de prueba desactivado intencionalmente. Requisito de despliegue externo, no cambio solicitado al equipo del usuario |
 | mDNS solo activo en LAN | Pendiente |
