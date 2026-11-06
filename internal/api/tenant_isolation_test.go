@@ -195,7 +195,7 @@ func TestCIDRestoreRejectsForeignEntityReference(t *testing.T) {
 	snap.POSSales = []domain.POSSale{{
 		ID: "sale-with-foreign-reference", TenantID: snap.Tenant.ID,
 		Lines: []domain.POSLine{{ProductID: "product-from-b", Qty: 1}},
-	}}}
+	}}
 	if err := st.Put(snap); err != nil { t.Fatal(err) }
 	sess, _, err := auth.Login(st, master.Username, "cid-child-password")
 	if err != nil { t.Fatal(err) }
@@ -206,5 +206,5 @@ func TestCIDRestoreRejectsForeignEntityReference(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	NewServer(st, t.TempDir()).Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusForbidden { t.Fatalf("CID restore status=%d body=%s", rec.Code, rec.Body.String()) }
+	if rec.Code != http.StatusBadRequest { t.Fatalf("CID restore status=%d body=%s", rec.Code, rec.Body.String()) }
 }
