@@ -203,6 +203,7 @@ fun OrchestratorScreen(
     onRun: suspend (
         preferredPort: Int?,
         networkScope: String,
+        lanInterfaceIp: String,
         corsAllowedOrigins: List<String>,
         onState: (OrchestratorState) -> Unit,
         onLog: (String) -> Unit,
@@ -211,6 +212,8 @@ fun OrchestratorScreen(
     onOpenBrowser: (url: String) -> Unit,
     initialNetworkScope: String = "LOCAL",
     onNetworkScopeChange: (String) -> Unit = {},
+    initialLanInterfaceIp: String = "",
+    onLanInterfaceIpChange: (String) -> Unit = {},
     initialCorsRules: String = "",
     onCorsRulesChange: (String) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -232,6 +235,7 @@ fun OrchestratorScreen(
     var busy by remember { mutableStateOf(false) }
     var portText by remember { mutableStateOf("") }
     var networkScope by remember { mutableStateOf(initialNetworkScope) }
+    var lanInterfaceIp by remember { mutableStateOf(initialLanInterfaceIp) }
     var corsRules by remember { mutableStateOf(parseCorsRuleEntries(initialCorsRules)) }
     var corsInput by remember { mutableStateOf("") }
     var editingCorsIndex by remember { mutableStateOf<Int?>(null) }
@@ -321,7 +325,7 @@ fun OrchestratorScreen(
             try {
                 val preferred = parsePreferredPort()
                 val activeCorsRules = corsRules.filter { it.enabled }.map { it.value }
-                val result = onRun(preferred, networkScope, activeCorsRules, { s -> state = s }, { raw -> handleRawLog(raw) })
+                val result = onRun(preferred, networkScope, lanInterfaceIp, activeCorsRules, { s -> state = s }, { raw -> handleRawLog(raw) })
                 state = result.copy(
                     discoveryActive = state.discoveryActive,
                     connectedClients = state.connectedClients,
@@ -390,6 +394,7 @@ fun OrchestratorScreen(
                         compact = compact,
                         portText = portText,
                         networkScope = networkScope,
+                        lanInterfaceIp = lanInterfaceIp,
                         corsRules = corsRules,
                         corsInput = corsInput,
                         editingCorsIndex = editingCorsIndex,
@@ -440,6 +445,10 @@ fun OrchestratorScreen(
                         onNetworkScopeChange = { selected ->
                             networkScope = selected
                             onNetworkScopeChange(selected)
+                        },
+                        onLanInterfaceIpChange = { selected ->
+                            lanInterfaceIp = selected
+                            onLanInterfaceIpChange(selected)
                         },
                         onPortChange = { portText = it.filter { ch -> ch.isDigit() }.take(5) },
                         canStop = canStop,
@@ -640,6 +649,7 @@ private fun SidePanel(
     compact: Boolean,
     portText: String,
     networkScope: String,
+    lanInterfaceIp: String,
     corsRules: List<CorsRuleEntry>,
     corsInput: String,
     editingCorsIndex: Int?,
@@ -651,6 +661,7 @@ private fun SidePanel(
     onToggleCorsRule: (Int) -> Unit,
     onDeleteCorsRule: (Int) -> Unit,
     onNetworkScopeChange: (String) -> Unit,
+    onLanInterfaceIpChange: (String) -> Unit,
     onPortChange: (String) -> Unit,
     canStop: Boolean,
     canOpenBrowser: Boolean,
@@ -718,6 +729,24 @@ private fun SidePanel(
                     fontSize = 10.sp,
                     color = if (networkScope == "LAN") Ide.Yellow else Ide.Subtle,
                 )
+
+                if (networkScope == "LAN") {
+                    OutlinedTextField(
+                        value = lanInterfaceIp,
+                        onValueChange = onLanInterfaceIpChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !busy && !state.backendRunning,
+                        singleLine = true,
+                        placeholder = { Text("IPv4 de la interfaz LAN (ej. 192.168.1.20)", fontSize = 10.sp) },
+                        label = { Text("Interfaz LAN seleccionada", fontSize = 10.sp) },
+                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontFamily = Ide.Mono, color = Ide.Fg),
+                    )
+                    Text(
+                        "El servidor HTTP y mDNS usarán exclusivamente esta IP. No se selecciona automáticamente Wi-Fi, VPN ni otras interfaces.",
+                        fontSize = 10.sp,
+                        color = Ide.Subtle,
+                    )
+                }
 
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
