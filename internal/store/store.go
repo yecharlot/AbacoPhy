@@ -358,32 +358,16 @@ func (s *Store) FindUserByUsername(username string) (*domain.User, *domain.Store
 	return nil, nil
 }
 
-// ResolveTenant devuelve el snapshot del tenant o, si el id no existe, busca por userID.
-func (s *Store) ResolveTenant(tenantID, userID string) *domain.StoreSnapshot {
+// ResolveTenant devuelve exclusivamente el snapshot identificado por tenantID.
+// userID se conserva en la firma por compatibilidad, pero nunca se usa para
+// descubrir o inferir el tenant: la pertenencia viene de la sesión autenticada.
+func (s *Store) ResolveTenant(tenantID, _ string) *domain.StoreSnapshot {
+	if strings.TrimSpace(tenantID) == "" {
+		return nil
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if tenantID != "" {
-		if snap := s.tenants[tenantID]; snap != nil {
-			return snap
-		}
-	}
-	if userID != "" {
-		for _, snap := range s.tenants {
-			if snap == nil {
-				continue
-			}
-			if u := snap.Users[userID]; u != nil {
-				return snap
-			}
-		}
-	}
-	// último recurso: único tenant
-	if len(s.tenants) == 1 {
-		for _, snap := range s.tenants {
-			return snap
-		}
-	}
-	return nil
+	return s.tenants[tenantID]
 }
 
 

@@ -265,7 +265,7 @@ func (s *Server) handleBackupRestore(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 404, map[string]string{"error": "salva no encontrada en almacén CID"})
 		return
 	}
-	if restored.Tenant.ID != sess.TenantID && sess.Role != domain.RoleMaster {
+	if restored.Tenant.ID != sess.TenantID {
 		writeJSON(w, 403, map[string]string{"error": "la salva no pertenece a este negocio"})
 		return
 	}
@@ -752,7 +752,7 @@ func (s *Server) handleBackupImport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"error": "JSON inválido"})
 		return
 	}
-	if restored.Tenant.ID != "" && restored.Tenant.ID != sess.TenantID && sess.Role != domain.RoleMaster {
+	if restored.Tenant.ID != "" && restored.Tenant.ID != sess.TenantID {
 		writeJSON(w, 403, map[string]string{"error": "la salva pertenece a otro negocio"})
 		return
 	}
@@ -963,9 +963,10 @@ func (s *Server) handleMasterReset(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	// Master o admin del negocio (operación controlada / DEV)
-	if sess.Role != domain.RoleMaster && sess.Role != domain.RoleAdmin {
-		writeJSON(w, 403, map[string]string{"error": "solo master o admin"})
+	// ResetAll elimina TODOS los negocios del servidor; no es una operación
+	// administrativa local del tenant y queda reservada al rol master.
+	if sess.Role != domain.RoleMaster {
+		writeJSON(w, 403, map[string]string{"error": "solo master"})
 		return
 	}
 	var body struct {

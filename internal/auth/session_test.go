@@ -158,3 +158,47 @@ func TestSessionFromRequestRejectsExpiredAndRevokedSessions(t *testing.T) {
 		t.Fatal("session must be rejected after user is deactivated")
 	}
 }
+
+
+func TestLoginRejectsUserAssignedToDifferentTenant(t *testing.T) {
+	st := store.New(t.TempDir())
+	snap := domain.BootstrapTenant("Tenant binding", "tenant-binding", "CUP")
+	user := snap.Users["admin"]
+	if user == nil {
+		for _, candidate := range snap.Users {
+			if candidate != nil && candidate.Role == domain.RoleAdmin { user = candidate; break }
+		}
+	}
+	if user == nil { t.Fatal("bootstrap admin user not found") }
+	user.PasswordHash = mustHashForSessionTest(t, "tenant-binding-password")
+	user.TenantID = "different-tenant"
+	if err := st.Put(snap); err != nil { t.Fatal(err) }
+	if _, _, err := Login(st, user.Username, "tenant-binding-password"); err == nil {
+		t.Fatal("login must reject a user whose TenantID differs from its snapshot")
+	}
+}
+
+func TestSessionFromRequestRejectsCrossTenantUserBinding(t *testing.T) {
+	st := store.New(t.TempDir())
+	snap := domain.BootstrapTenant("Tenant binding", "tenant-binding", "CUP")
+	user := snap.Users["admin"]
+	if user == nil {
+		for _, candidate := range snap.Users {
+			if candidate != nil && candidate.Role == domain.RoleAdmin { user = candidate; break }
+		}
+	}
+	if user == nil { t.Fatal("bootstrap admin user not found") }
+	user.TenantID = "other-tenant"
+	if err := st.Put(snap); err != nil { t.Fatal(err) }
+	sess := &domain.TokenSession{
+		Token: "cross-tenant-session", UserID: user.ID, TenantID: snap.Tenant.ID,
+		Role: user.Role, ExpiresAt: time.Now().UTC().Add(time.Hour),
+	}
+	st.SaveToken(sess)
+	if _, err := SessionFromRequest(st, "Bearer "+sess.Token); err == nil {
+		t.Fatal("session must be rejected when its user belongs to a different tenant")
+	}
+	if st.GetToken(sess.Token) != nil {
+		t.Fatal("invalid cross-tenant session must be revoked")
+	}
+}

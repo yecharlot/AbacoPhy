@@ -268,12 +268,12 @@ func Login(st *store.Store, username, password string) (*domain.TokenSession, *d
 	if !CheckPassword(user.PasswordHash, password) {
 		return nil, nil, ErrInvalidCred
 	}
+	// La pertenencia del usuario debe coincidir con el snapshot que lo autentica.
+	// No reparar ni inferir TenantID durante el login: eso convertiría una
+	// inconsistencia de datos en una sesión válida dentro de otro negocio.
 	tenantID := snap.Tenant.ID
-	if tenantID == "" {
-		tenantID = user.TenantID
-	}
-	if user.TenantID != tenantID {
-		user.TenantID = tenantID
+	if tenantID == "" || user.TenantID == "" || user.TenantID != tenantID {
+		return nil, nil, ErrInvalidCred
 	}
 	epoch := EffectivePermsEpoch(snap, user)
 	now := time.Now().UTC()
@@ -301,12 +301,12 @@ func SessionFromRequest(st *store.Store, authHeader string) (*domain.TokenSessio
 	}
 	// Revalidar usuario activo, rol y epoch de permisos (grants actualizados invalidan sesión).
 	snap := st.Get(sess.TenantID)
-	if snap == nil {
+	if snap == nil || sess.TenantID == "" || snap.Tenant.ID != sess.TenantID || sess.UserID == "" {
 		st.RevokeToken(token)
 		return nil, ErrUnauthorized
 	}
 	user := snap.Users[sess.UserID]
-	if user == nil || !user.Active {
+	if user == nil || !user.Active || user.ID != sess.UserID || user.TenantID != sess.TenantID {
 		st.RevokeToken(token)
 		return nil, ErrUnauthorized
 	}

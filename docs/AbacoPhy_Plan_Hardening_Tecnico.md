@@ -183,13 +183,18 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 **Estado C1:** correcciones y pruebas automatizadas integradas; cierre condicionado a CI del commit final y prueba manual por rol. La política mantiene la personalización de permisos existente, pero el espacio `master` queda reservado y readonly nunca obtiene escritura.
 
 ## C2. Aislamiento de tenants
-- [ ] Revisar endpoints que reciben `tenantID`.
-- [ ] Impedir cambio de tenant manipulando parámetros.
-- [ ] Verificar coherencia `UserID`, `TenantID` y sesión.
-- [ ] Crear pruebas de acceso cruzado.
-- [ ] Revisar endpoints administrativos/globales.
+- [x] Primera auditoría de resolución de tenant: eliminar fallback por `UserID` y por tenant único.
+- [x] Vincular sesión, snapshot y usuario mediante coincidencia exacta de `TenantID` y `UserID`.
+- [x] Rechazar login si el usuario no pertenece al snapshot que lo autentica; no reparar/inferir pertenencia durante login.
+- [x] Impedir que incluso `master` restaure por CID un snapshot de otro tenant en el contexto de su sesión actual.
+- [x] Reservar `master/reset` para `RoleMaster`: el reset elimina todos los tenants y no puede ejecutarlo un admin de negocio.
+- [x] Añadir pruebas unitarias de binding y pruebas API para restore/reset entre tenants.
+- [ ] Auditar todos los endpoints que reciben IDs de entidades y comprobar referencias cruzadas.
+- [ ] Revisar importación local de salvas y validar coherencia de todos los registros hijos antes de persistir.
+- [ ] Revisar endpoints administrativos/globales restantes y operaciones de contraseña master.
+- [ ] Ejecutar pruebas completas de acceso cruzado con dos tenants y usuarios reales.
 
-**Terminado:** un usuario no puede acceder/modificar datos de otro tenant.
+**Estado C2:** primera capa de aislamiento integrada; no declarar cerrado hasta completar auditoría de referencias/IDs, validación de importación y CI.
 
 # 5. FASE D — Hardening HTTP/API
 

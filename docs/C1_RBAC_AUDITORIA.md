@@ -40,7 +40,7 @@
 | `/backups`, `/backups/export`, `/backups/restore`, `/backups/import` | `salvas` + restricciones de rol en importación | gate | gateWrite |
 | `/users`, `/role-permissions` | `usuarios`; master/admin explícitos | gate | gateWrite / master-admin explícito |
 | `/modules` | master explícito | autenticado | solo master |
-| `/master/tenants`, `/master/tenants/create`, `/master/reset` | master; reset conserva la excepción administrativa explícita existente | master | master / admin para reset |
+| `/master/tenants`, `/master/tenants/create`, `/master/reset` | master | master | master; reset elimina todos los tenants |
 | `/presence` | admin/master explícito | admin/master | no mutación |
 | `/theme` | sesión autenticada para lectura; master para escritura | autenticado | master |
 | `/errors` | master explícito | master | master |
@@ -69,5 +69,5 @@ Los endpoints de salud, información, assets y login son públicos por diseño. 
 
 - `/theme` GET conserva lectura para cualquier sesión autenticada porque sirve la personalización visual del negocio; escritura es master-only.
 - `/modules` GET conserva lectura autenticada; cambios son master-only.
-- `/master/reset` conserva la autorización admin/master existente y es una operación destructiva que debe probarse explícitamente antes de producción.
+- `/master/reset` queda reservado a `RoleMaster` porque `Store.ResetAll` elimina todos los tenants y tokens; un admin de negocio no puede ejecutarlo.
 - La matriz no sustituye pruebas manuales con cada rol ni la auditoría de aislamiento multi-tenant C2.
