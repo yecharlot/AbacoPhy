@@ -247,7 +247,6 @@ fun OrchestratorScreen(
                 ?: initialLanInterfaces.firstOrNull()?.interfaceName,
         )
     }
-    var lanMenuExpanded by remember { mutableStateOf(false) }
     var corsRules by remember { mutableStateOf(parseCorsRuleEntries(initialCorsRules)) }
     var corsInput by remember { mutableStateOf("") }
     var editingCorsIndex by remember { mutableStateOf<Int?>(null) }
@@ -700,6 +699,7 @@ private fun SidePanel(
     onOpenBrowser: () -> Unit,
 ) {
     val scroll = rememberScrollState()
+    var lanMenuExpanded by remember { mutableStateOf(false) }
     val done = state.steps.count { it.status == TaskStepStatus.Success }
     val progress by animateFloatAsState(
         if (state.steps.isEmpty()) 0f else done.toFloat() / state.steps.size,
