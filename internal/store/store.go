@@ -173,16 +173,25 @@ func (s *Store) loadTokens() {
 	if err != nil {
 		return
 	}
+	// tokens.json contiene credenciales bearer: restringir permisos también
+	// cuando el archivo proviene de una instalación anterior.
+	_ = os.Chmod(s.tokensPath(), 0600)
 	var m map[string]*domain.TokenSession
 	if json.Unmarshal(b, &m) != nil {
 		return
 	}
-	now := time.Now()
+	now := time.Now().UTC()
+	removedExpired := false
 	for k, t := range m {
-		if t == nil || now.After(t.ExpiresAt) {
+		if t == nil || !now.Before(t.ExpiresAt) {
+			removedExpired = true
 			continue
 		}
 		s.tokens[k] = t
+	}
+	// No conservar sesiones expiradas en disco después de arrancar.
+	if removedExpired {
+		s.persistTokensLocked()
 	}
 }
 
@@ -200,7 +209,31 @@ func (s *Store) persistTokensLocked() {
 	if err != nil {
 		return
 	}
-	_ = os.WriteFile(s.tokensPath(), b, 0600)
+	tmp, err := os.CreateTemp(s.dataDir, ".tokens-*.tmp")
+	if err != nil {
+		return
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if err := tmp.Chmod(0600); err != nil {
+		_ = tmp.Close()
+		return
+	}
+	if _, err := tmp.Write(b); err != nil {
+		_ = tmp.Close()
+		return
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return
+	}
+	if err := tmp.Close(); err != nil {
+		return
+	}
+	if err := os.Rename(tmpName, s.tokensPath()); err != nil {
+		return
+	}
+	_ = os.Chmod(s.tokensPath(), 0600)
 }
 
 func (s *Store) SaveToken(tok *domain.TokenSession) {
@@ -211,10 +244,15 @@ func (s *Store) SaveToken(tok *domain.TokenSession) {
 }
 
 func (s *Store) GetToken(token string) *domain.TokenSession {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	t := s.tokens[token]
-	if t == nil || time.Now().After(t.ExpiresAt) {
+	if t == nil {
+		return nil
+	}
+	if !time.Now().UTC().Before(t.ExpiresAt) {
+		delete(s.tokens, token)
+		s.persistTokensLocked()
 		return nil
 	}
 	return t
