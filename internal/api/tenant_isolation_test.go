@@ -105,3 +105,38 @@ func TestPresenceEndpointListsOnlyRequestingTenant(t *testing.T) {
 		}
 	}
 }
+
+
+func TestRESTReferencesMustBelongToSessionTenant(t *testing.T) {
+	st := store.New(t.TempDir())
+	snap := domain.BootstrapTenant("Primary", "primary", "CUP")
+	master := userByName(snap, "master")
+	if master == nil { t.Fatal("master user missing") }
+	master.MustChangePassword = false
+	master.PasswordHash = mustHashForTenantIsolationTest(t, "rest-reference-password")
+	if err := st.Put(snap); err != nil { t.Fatal(err) }
+	sess, _, err := auth.Login(st, master.Username, "rest-reference-password")
+	if err != nil { t.Fatal(err) }
+	handler := NewServer(st, t.TempDir()).Handler()
+
+	cases := []struct{name, path, body string}{
+		{"foreign account parent", "/api/v1/accounts", `{"code":"A-CHILD","name":"Child","parent_id":"account-from-b"}`},
+		{"foreign entry account", "/api/v1/entries", `{"type":"income","account_id":"account-from-b","amount":10,"description":"test"}`},
+		{"foreign POS product", "/api/v1/pos/sales", `{"lines":[{"product_id":"product-from-b","qty":1,"unit_price":10}]}`},
+		{"foreign POS unit", "/api/v1/pos/sales", `{"unit_id":"unit-from-b","lines":[{"product_id":"product-from-b","qty":1,"unit_price":10}]}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, tc.path, bytes.NewBufferString(tc.body))
+			req.Header.Set("Authorization", "Bearer "+sess.Token)
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusBadRequest { t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String()) }
+			current := st.Get(snap.Tenant.ID)
+			if len(current.Entries) != 0 || len(current.POSSales) != 0 {
+				t.Fatal("rejected cross-tenant reference changed business records")
+			}
+		})
+	}
+}

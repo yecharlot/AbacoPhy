@@ -518,6 +518,10 @@ func (s *Server) handleAccounts(w http.ResponseWriter, r *http.Request) {
 		if body.Type == "" {
 			body.Type = "asset"
 		}
+		if body.ParentID != "" && snap.Accounts[body.ParentID] == nil {
+			writeJSON(w, 400, map[string]string{"error": "cuenta padre no pertenece a este negocio"})
+			return
+		}
 		body.ID = uuid.NewString()
 		body.TenantID = sess.TenantID
 		body.Active = true
@@ -540,6 +544,10 @@ func (s *Server) handleAccounts(w http.ResponseWriter, r *http.Request) {
 		acc := snap.Accounts[body.ID]
 		if acc == nil {
 			writeJSON(w, 404, map[string]string{"error": "cuenta no encontrada"})
+			return
+		}
+		if body.ParentID != "" && (body.ParentID == body.ID || snap.Accounts[body.ParentID] == nil) {
+			writeJSON(w, 400, map[string]string{"error": "cuenta padre no válida para este negocio"})
 			return
 		}
 		if body.Code != "" {
@@ -649,6 +657,10 @@ func (s *Server) handleEntries(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := s.gateWrite(sess, view); err != nil {
 			writeJSON(w, 403, map[string]string{"error": "forbidden"})
+			return
+		}
+		if body.AccountID != "" && snap.Accounts[body.AccountID] == nil {
+			writeJSON(w, 400, map[string]string{"error": "la cuenta del asiento no pertenece a este negocio"})
 			return
 		}
 		body.ID = uuid.NewString()

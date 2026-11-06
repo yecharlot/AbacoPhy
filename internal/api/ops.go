@@ -877,6 +877,46 @@ func (s *Server) handlePOSSales(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 400, map[string]string{"error": "líneas de venta requeridas"})
 			return
 		}
+		// Prevalidar unidad, productos, precios y stock agregado antes de
+		// modificar cantidades: evita referencias ajenas y ventas parciales.
+		if body.UnitID != "" {
+			unit := snap.SalesUnits[body.UnitID]
+			if unit == nil || !unit.Active {
+				writeJSON(w, 400, map[string]string{"error": "unidad de venta no válida o inactiva"})
+				return
+			}
+			body.UnitName = unit.Name
+		}
+		demand := map[string]float64{}
+		for _, line := range body.Lines {
+			product := snap.Products[line.ProductID]
+			if product == nil || line.Qty <= 0 {
+				writeJSON(w, 400, map[string]string{"error": "producto o cantidad inválida"})
+				return
+			}
+			price := line.UnitPrice
+			if price <= 0 { price = product.PriceSale }
+			if price <= 0 {
+				writeJSON(w, 400, map[string]string{"error": "producto sin precio de venta configurado: " + product.Code})
+				return
+			}
+			demand[line.ProductID] += line.Qty
+		}
+		for productID, qty := range demand {
+			if body.UnitID != "" {
+				stock := findUnitStock(snap, body.UnitID, productID)
+				if stock == nil || stock.Qty < qty {
+					writeJSON(w, 400, map[string]string{"error": "stock insuficiente en unidad para " + productID})
+					return
+				}
+			} else {
+				stock := snap.WarehouseStock[productID]
+				if stock == nil || stock.Qty < qty {
+					writeJSON(w, 400, map[string]string{"error": "stock insuficiente en almacén para " + productID})
+					return
+				}
+			}
+		}
 		body.ID = uuid.NewString()
 		body.TenantID = sess.TenantID
 		body.Number = nextCode("VT", &snap.DocCounters.POSSaleSeq)
