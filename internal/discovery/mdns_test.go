@@ -61,3 +61,20 @@ func TestShouldAdvertise(t *testing.T) {
 		}
 	}
 }
+
+
+func TestAdvertiseOnInterfaceRejectsInvalidIPv4(t *testing.T) {
+	cfg := Config{InstanceID: "instance"}
+	for _, ip := range []string{"not-an-ip", "127.0.0.1", "0.0.0.0", "::1"} {
+		if _, err := AdvertiseOnInterface(cfg, 60565, ip); err == nil {
+			t.Errorf("AdvertiseOnInterface(..., %q) expected validation error", ip)
+		}
+	}
+}
+
+func TestAdvertiseOnInterfaceRequiresAssignedAddress(t *testing.T) {
+	_, err := AdvertiseOnInterface(Config{InstanceID: "instance"}, 60565, "192.0.2.123")
+	if err == nil {
+		t.Fatal("expected an error for an IPv4 address not assigned to a local interface")
+	}
+}
