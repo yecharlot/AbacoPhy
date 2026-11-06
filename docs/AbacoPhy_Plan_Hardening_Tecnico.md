@@ -126,13 +126,17 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 # 3. FASE B — Autenticación y sesiones
 
 ## B1. Contraseñas
-- [ ] Mantener bcrypt.
-- [ ] Mínimo recomendado: 12 caracteres.
-- [ ] Permitir passphrases.
-- [ ] Evitar reglas artificiales predecibles.
-- [ ] Nunca registrar contraseñas.
-- [ ] Revisar coste de bcrypt según hardware.
-- [ ] Añadir pruebas.
+- [x] Mantener bcrypt.
+- [x] Mínimo de 12 caracteres Unicode, validado centralmente en backend.
+- [x] Permitir passphrases y espacios significativos.
+- [x] Evitar reglas artificiales predecibles de composición.
+- [x] Rechazar más de 72 bytes UTF-8 (límite bcrypt); nunca truncar silenciosamente.
+- [x] Aplicar la misma política a bootstrap, alta/edición de usuarios y cambio propio/administrativo.
+- [x] No registrar contraseñas; los errores de validación no incluyen el valor recibido.
+- [x] Añadir pruebas unitarias de límites, Unicode y passphrases.
+- [ ] Revisar coste de bcrypt según hardware y ejecutar pruebas CI.
+
+**Estado B1:** implementación y pruebas añadidas; pendiente CI y revisión del coste bcrypt en el hardware objetivo. Las contraseñas ya existentes no se invalidan ni se reescriben automáticamente.
 
 ## B2. Sesiones
 - [ ] Reducir la duración actual de 30 días.
