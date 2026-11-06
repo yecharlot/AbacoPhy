@@ -391,19 +391,12 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 404, map[string]string{"error": "tenant not found"})
 		return
 	}
-	// sanear sesión si el TenantID estaba desfasado
-	if sess.TenantID != snap.Tenant.ID {
-		sess.TenantID = snap.Tenant.ID
-	}
+	// La sesión ya fue validada contra el tenant y el usuario exactos.
+	// No reparar el tenant ni buscar usuarios fuera de la clave canónica.
 	user := snap.Users[sess.UserID]
-	if user == nil {
-		// buscar por id en mapa
-		for _, u := range snap.Users {
-			if u != nil && u.ID == sess.UserID {
-				user = u
-				break
-			}
-		}
+	if user == nil || user.ID != sess.UserID || user.TenantID != sess.TenantID || user.Role != sess.Role {
+		writeJSON(w, 401, map[string]string{"error": "session identity mismatch"})
+		return
 	}
 	umods := map[string]bool(nil)
 	if user != nil {
@@ -1190,9 +1183,12 @@ func (s *Server) handleSyncPush(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 403, map[string]string{"error": "asiento de otro tenant"})
 			return
 		}
-		if e.AccountID != "" && snap.Accounts[e.AccountID] == nil {
-			writeJSON(w, 400, map[string]string{"error": "la cuenta del asiento no pertenece a este negocio"})
-			return
+		if e.AccountID != "" {
+			account := snap.Accounts[e.AccountID]
+			if account == nil || (account.TenantID != "" && account.TenantID != sess.TenantID) {
+				writeJSON(w, 400, map[string]string{"error": "la cuenta del asiento no pertenece a este negocio"})
+				return
+			}
 		}
 	}
 	for _, inv := range body.Invoices {
@@ -1212,14 +1208,20 @@ func (s *Server) handleSyncPush(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 403, map[string]string{"error": "venta de otro tenant"})
 			return
 		}
-		if sale.UnitID != "" && snap.SalesUnits[sale.UnitID] == nil {
-			writeJSON(w, 400, map[string]string{"error": "la unidad de venta no pertenece a este negocio"})
-			return
+		if sale.UnitID != "" {
+			unit := snap.SalesUnits[sale.UnitID]
+			if unit == nil || (unit.TenantID != "" && unit.TenantID != sess.TenantID) {
+				writeJSON(w, 400, map[string]string{"error": "la unidad de venta no pertenece a este negocio"})
+				return
+			}
 		}
 		for _, line := range sale.Lines {
-			if line.ProductID != "" && snap.Products[line.ProductID] == nil {
-				writeJSON(w, 400, map[string]string{"error": "un producto de la venta no pertenece a este negocio"})
-				return
+			if line.ProductID != "" {
+				product := snap.Products[line.ProductID]
+				if product == nil || (product.TenantID != "" && product.TenantID != sess.TenantID) {
+					writeJSON(w, 400, map[string]string{"error": "un producto de la venta no pertenece a este negocio"})
+					return
+				}
 			}
 		}
 	}
