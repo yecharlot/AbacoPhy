@@ -202,3 +202,36 @@ func TestSessionFromRequestRejectsCrossTenantUserBinding(t *testing.T) {
 		t.Fatal("invalid cross-tenant session must be revoked")
 	}
 }
+
+
+func TestLoginDisambiguatesLegacyDuplicateUsernamesByPassword(t *testing.T) {
+	st := store.New(t.TempDir())
+	a := domain.BootstrapTenant("Tenant A", "tenant-a", "CUP")
+	b := domain.BootstrapTenant("Tenant B", "tenant-b", "CUP")
+	passwordA, err := HashPassword("tenant-a-unique-password")
+	if err != nil { t.Fatal(err) }
+	passwordB, err := HashPassword("tenant-b-unique-password")
+	if err != nil { t.Fatal(err) }
+	userA := &domain.User{ID: "user-a", TenantID: a.Tenant.ID, Username: "legacy-shared", Role: domain.RoleVendedor, PasswordHash: passwordA, Active: true}
+	userB := &domain.User{ID: "user-b", TenantID: b.Tenant.ID, Username: "legacy-shared", Role: domain.RoleVendedor, PasswordHash: passwordB, Active: true}
+	a.Users[userA.ID] = userA
+	b.Users[userB.ID] = userB
+	if err := st.Put(a); err != nil { t.Fatal(err) }
+	if err := st.Put(b); err != nil { t.Fatal(err) }
+
+	sessA, gotA, err := Login(st, "legacy-shared", "tenant-a-unique-password")
+	if err != nil { t.Fatal(err) }
+	if gotA.ID != userA.ID || sessA.TenantID != a.Tenant.ID { t.Fatal("tenant A credentials resolved to the wrong tenant") }
+	sessB, gotB, err := Login(st, "legacy-shared", "tenant-b-unique-password")
+	if err != nil { t.Fatal(err) }
+	if gotB.ID != userB.ID || sessB.TenantID != b.Tenant.ID { t.Fatal("tenant B credentials resolved to the wrong tenant") }
+
+	sameHash, err := HashPassword("same-password-for-both")
+	if err != nil { t.Fatal(err) }
+	userA.PasswordHash, userB.PasswordHash = sameHash, sameHash
+	if err := st.Put(a); err != nil { t.Fatal(err) }
+	if err := st.Put(b); err != nil { t.Fatal(err) }
+	if _, _, err := Login(st, "legacy-shared", "same-password-for-both"); err == nil {
+		t.Fatal("identical credentials across tenants must remain ambiguous and be rejected")
+	}
+}

@@ -356,6 +356,31 @@ func (s *Store) UsernameExists(username string) bool {
 	return false
 }
 
+// UserMatch representa una coincidencia de username y su snapshot propietario.
+type UserMatch struct {
+	User *domain.User
+	Snapshot *domain.StoreSnapshot
+}
+
+// FindUsersByUsername devuelve todas las coincidencias globales normalizadas.
+// El login compara la contraseña contra todas y solo acepta una coincidencia activa.
+func (s *Store) FindUsersByUsername(username string) []UserMatch {
+	normalized := strings.ToLower(strings.TrimSpace(username))
+	if normalized == "" { return nil }
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	matches := make([]UserMatch, 0, 1)
+	for _, snap := range s.tenants {
+		if snap == nil { continue }
+		for _, user := range snap.Users {
+			if user != nil && strings.ToLower(strings.TrimSpace(user.Username)) == normalized {
+				matches = append(matches, UserMatch{User: user, Snapshot: snap})
+			}
+		}
+	}
+	return matches
+}
+
 // FindUserByUsername falla cerrado si el nombre está duplicado entre tenants.
 // Elegir arbitrariamente el primer snapshot podía autenticar la identidad equivocada.
 func (s *Store) FindUserByUsername(username string) (*domain.User, *domain.StoreSnapshot) {

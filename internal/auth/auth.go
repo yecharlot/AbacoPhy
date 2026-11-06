@@ -258,14 +258,25 @@ var dummyLoginHash = func() []byte {
 }()
 
 func Login(st *store.Store, username, password string) (*domain.TokenSession, *domain.User, error) {
-	user, snap := st.FindUserByUsername(username)
-	if user == nil || snap == nil || !user.Active {
-		if len(dummyLoginHash) > 0 {
-			_ = bcrypt.CompareHashAndPassword(dummyLoginHash, []byte(password))
+	matches := st.FindUsersByUsername(username)
+	var user *domain.User
+	var snap *domain.StoreSnapshot
+	validMatches := 0
+	for _, candidate := range matches {
+		if candidate.User == nil || candidate.Snapshot == nil { continue }
+		matched := CheckPassword(candidate.User.PasswordHash, password)
+		if candidate.User.Active && matched {
+			validMatches++
+			user, snap = candidate.User, candidate.Snapshot
 		}
-		return nil, nil, ErrInvalidCred
 	}
-	if !CheckPassword(user.PasswordHash, password) {
+	if len(matches) == 0 && len(dummyLoginHash) > 0 {
+		_ = bcrypt.CompareHashAndPassword(dummyLoginHash, []byte(password))
+	}
+	// Si el mismo username/contraseña identifica más de una cuenta, no se
+	// elige arbitrariamente un tenant. Las cuentas legacy con contraseñas
+	// distintas siguen pudiendo autenticarse sin mezclar sus snapshots.
+	if validMatches != 1 || user == nil || snap == nil {
 		return nil, nil, ErrInvalidCred
 	}
 	// La pertenencia del usuario debe coincidir con el snapshot que lo autentica.
