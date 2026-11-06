@@ -511,3 +511,11 @@ Ruta:
 | H-10 | Docker | Media | Pendiente | |
 | H-11 | Permisos filesystem | Baja | Pendiente | |
 | H-12 | Password policy | Baja | Pendiente | |
+
+
+### 2026-11-06 — A2: selección explícita de interfaz (backend)
+
+- `internal/discovery/mdns.go`: `AdvertiseOnInterface` permite limitar el anuncio mDNS a la interfaz que posee una IPv4 seleccionada; utiliza `RegisterProxy` con la IP exacta.
+- `cmd/abacophy/main.go`: valida `ABACOPHY_LAN_INTERFACE_IP`, exige coincidencia con `ABACOPHY_HOST` y admite bind HTTP a esa IPv4 concreta.
+- Tests de validación de IP/interfaz añadidos; CI Go correcto en commit `1a8b857`.
+- Pendiente: conectar la selección a la UI y preferencias del Launcher. No declarar A2 cerrado ni incrementar la puntuación hasta validar el flujo empaquetado y las pruebas operativas.
