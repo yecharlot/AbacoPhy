@@ -21,7 +21,6 @@ class OrchestratorUseCase(
     private val dataDir: () -> String,
     private val staticDir: () -> String,
     private val healthTimeoutMs: Long = 60_000L,
-    private val lanIpResolver: () -> List<String> = { emptyList() },
 ) {
     private val stepDefs = listOf(
         "port" to "Resolver puerto libre",
