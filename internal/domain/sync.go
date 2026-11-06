@@ -101,6 +101,9 @@ func BindSnapshotToTenant(snap *StoreSnapshot, tenantID string) error {
 	for _, v := range snap.CostSheets { if v != nil { if err := bind(&v.TenantID, "ficha de costo"); err != nil { return err } } }
 	for i := range snap.StockLedger { if err := bind(&snap.StockLedger[i].TenantID, "kardex"); err != nil { return err } }
 	for _, v := range snap.JobPositions { if v != nil { if err := bind(&v.TenantID, "cargo"); err != nil { return err } } }
+	for _, v := range snap.MeasureUnits { if v != nil { if err := bind(&v.TenantID, "unidad de medida"); err != nil { return err } } }
+	for _, v := range snap.PriceSheets { if v != nil { if err := bind(&v.TenantID, "ficha de precio"); err != nil { return err } } }
+	for i := range snap.OnlineOrders { if err := bind(&snap.OnlineOrders[i].TenantID, "pedido online"); err != nil { return err } }
 	return nil
 }
 

@@ -36,6 +36,9 @@ Si la relación no coincide, se rechaza la autenticación/autorización. No se c
 - `TestTenantAdminCannotResetAllTenants`
 - `TestSyncPushRejectsForeignReferencesBeforeApplyingBatch`
 - `TestBackupImportRejectsForeignTenantChild`
+- `TestCIDRestoreRejectsForeignTenantChild`
+- `TestLoadCIDRejectsPathTraversal`
+- `TestBindSnapshotToTenantChecksAllTenantScopedModules`
 - `TestPresenceEndpointListsOnlyRequestingTenant`
 - `TestRESTReferencesMustBelongToSessionTenant`
 - `TestFindUserByUsernameRejectsDuplicatesAcrossTenants`
@@ -46,7 +49,8 @@ Si la relación no coincide, se rechaza la autenticación/autorización. No se c
 ## Segunda capa integrada
 
 - Sincronización offline: prevalidación del lote completo antes de mutar el snapshot; rechaza `TenantID` explícitos distintos, cuentas inexistentes/ajenas en asientos y productos/unidades de otro tenant en ventas POS. No se aplica parcialmente un lote que falla en la prevalidación.
-- Importación local: valida estructura y ejecuta `BindSnapshotToTenant`, que rechaza registros hijos con tenant explícito diferente y normaliza `TenantID` vacío de snapshots legacy.
+- Importación local y restauración CID: ambas validan estructura y ejecutan `BindSnapshotToTenant`; rechazan registros hijos con tenant explícito diferente y normalizan `TenantID` vacío de snapshots legacy.
+- Carga CID: se rechazan identificadores con separadores/ruta u otros caracteres no permitidos para impedir path traversal hacia archivos locales.
 - Presencia: cada cliente autenticado se asocia al tenant de su sesión y el endpoint de administración solo lista clientes de ese tenant; el identificador de tenant no se expone en la respuesta.
 - Endpoints REST: cuentas padre y asientos deben referenciar cuentas locales; ventas POS validan unidad, productos, precios y stock agregado antes de modificar existencias. Esto evita aceptar IDs ajenos/inexistentes y evita mutaciones parciales por líneas inválidas.
 - Identidad global: el login no recibe un selector de tenant, por lo que los nombres de usuario deben ser únicos en todo el servidor. `FindUserByUsername` ahora falla cerrado ante duplicados; altas de usuarios y creación de tenants verifican unicidad global. Si no se indica `admin_user`, se deriva uno del slug.
@@ -54,7 +58,7 @@ Si la relación no coincide, se rechaza la autenticación/autorización. No se c
 
 ## Áreas todavía bajo auditoría
 
-1. Importación local de salvas: ampliar validación a integridad referencial completa entre cuentas, empleados, productos, unidades, movimientos, ventas y documentos.
+1. Backups: ampliar integridad referencial completa entre cuentas, empleados, productos, unidades, movimientos, ventas y documentos; validar además hashes/CID del contenido restaurado.
 2. Completar revisión de referencias por ID en endpoints REST: empleados, recepciones, fichas de costo/precio, transferencias, ajustes y documentos.
 3. Endpoints globales: listado/creación de tenants, reset y cambio de contraseña master; la presencia ahora filtra por tenant. Los eventos SSE ya usan canales separados por tenant. Revisar la migración de usernames duplicados preexistentes.
 4. Sincronización offline: tenant del sobre, idempotencia, referencias y eventos deben permanecer dentro del tenant autenticado.

@@ -66,3 +66,16 @@ func TestBindSnapshotToTenantNormalizesLegacyEmptyTenantIDs(t *testing.T) {
 		t.Fatal("legacy records must be bound to the destination tenant")
 	}
 }
+
+
+func TestBindSnapshotToTenantChecksAllTenantScopedModules(t *testing.T) {
+	s := &StoreSnapshot{
+		Tenant: Tenant{ID: "tenant-a"},
+		MeasureUnits: map[string]*MeasureUnit{"unit": {ID: "unit", TenantID: "tenant-a"}},
+		PriceSheets: map[string]*PriceSheet{"price": {ID: "price", TenantID: "tenant-b"}},
+		OnlineOrders: []OnlineOrder{{ID: "order", TenantID: "tenant-a"}},
+	}
+	if err := BindSnapshotToTenant(s, "tenant-a"); err == nil {
+		t.Fatal("foreign price sheet must be rejected during backup binding")
+	}
+}

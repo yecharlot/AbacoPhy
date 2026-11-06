@@ -180,3 +180,27 @@ func TestMasterPasswordChangeRejectsAmbiguousCrossTenantUsername(t *testing.T) {
 		t.Fatal("ambiguous username must remain unresolved")
 	}
 }
+
+
+func TestCIDRestoreRejectsForeignTenantChild(t *testing.T) {
+	st := store.New(t.TempDir())
+	snap := domain.BootstrapTenant("Primary", "primary", "CUP")
+	master := userByName(snap, "master")
+	if master == nil { t.Fatal("master user missing") }
+	master.MustChangePassword = false
+	master.PasswordHash = mustHashForTenantIsolationTest(t, "cid-child-password")
+	snap.Products = map[string]*domain.Product{
+		"foreign-product": {ID: "foreign-product", TenantID: "tenant-b", Name: "Foreign"},
+	}
+	if err := st.Put(snap); err != nil { t.Fatal(err) }
+	sess, _, err := auth.Login(st, master.Username, "cid-child-password")
+	if err != nil { t.Fatal(err) }
+
+	body := `{"cid":"` + snap.RootCID + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/backups/restore", bytes.NewBufferString(body))
+	req.Header.Set("Authorization", "Bearer "+sess.Token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	NewServer(st, t.TempDir()).Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden { t.Fatalf("CID restore status=%d body=%s", rec.Code, rec.Body.String()) }
+}

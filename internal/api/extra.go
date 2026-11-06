@@ -269,6 +269,14 @@ func (s *Server) handleBackupRestore(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 403, map[string]string{"error": "la salva no pertenece a este negocio"})
 		return
 	}
+	if err := domain.ValidateSnapshotStructure(restored); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "estructura de salva inválida"})
+		return
+	}
+	if err := domain.BindSnapshotToTenant(restored, sess.TenantID); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "la salva contiene datos de otro negocio"})
+		return
+	}
 	// preservar backups e historial de auditoría reciente
 	cur := s.Store.Get(sess.TenantID)
 	if cur != nil {

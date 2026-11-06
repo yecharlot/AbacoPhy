@@ -38,3 +38,13 @@ func TestFindUserByUsernameRejectsDuplicatesAcrossTenants(t *testing.T) {
 		t.Fatal("username existence must be checked globally and normalized")
 	}
 }
+
+
+func TestLoadCIDRejectsPathTraversal(t *testing.T) {
+	st := New(t.TempDir())
+	snap := domain.BootstrapTenant("Tenant A", "tenant-a", "CUP")
+	if err := st.Put(snap); err != nil { t.Fatal(err) }
+	if _, err := st.LoadCID("../tenants/" + snap.Tenant.ID); err == nil {
+		t.Fatal("CID loader must reject path traversal")
+	}
+}

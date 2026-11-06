@@ -390,8 +390,13 @@ func (s *Store) ResolveTenant(tenantID, _ string) *domain.StoreSnapshot {
 
 
 func (s *Store) LoadCID(cid string) (*domain.StoreSnapshot, error) {
-	if cid == "" {
-		return nil, fmt.Errorf("cid vacio")
+	if cid == "" || len(cid) > 128 || strings.TrimSpace(cid) != cid {
+		return nil, fmt.Errorf("cid invalido")
+	}
+	for _, r := range cid {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_') {
+			return nil, fmt.Errorf("cid invalido")
+		}
 	}
 	path := filepath.Join(s.dataDir, "cids", cid+".json")
 	b, err := os.ReadFile(path)
