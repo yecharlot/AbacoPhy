@@ -140,16 +140,18 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 **Estado B1:** política implementada y CI Go correcto; pendiente medir el coste bcrypt en el hardware objetivo. CI Go: [ejecución `42249371647`](https://github.com/yecharlot/AbacoPhy/actions/runs/42249371647). Las contraseñas ya existentes no se invalidan ni se reescriben automáticamente.
 
 ## B2. Sesiones
-- [ ] Reducir la duración actual de 30 días.
-- [ ] Definir duración normal.
-- [ ] Definir política especial para administración.
-- [ ] Mantener revocación por cambio de rol.
-- [ ] Mantener revocación por cambio de permisos.
-- [ ] Revocar al desactivar usuario.
-- [ ] Revisar persistencia de `tokens.json`.
-- [ ] Evaluar access token corto + refresh token protegido.
-- [ ] Evaluar cifrado de tokens persistidos.
-- [ ] Añadir pruebas de expiración y revocación.
+- [x] Reducir la duración absoluta de 30 días.
+- [x] Sesión estándar: 12 horas.
+- [x] Sesión privilegiada (admin/master): 4 horas.
+- [x] Mantener revocación por cambio de rol y permisos (epoch + revocación explícita).
+- [x] Revocar sesiones al desactivar un usuario.
+- [x] Revocar sesiones anteriores al cambiar contraseña; conservar solo la sesión actual cuando el propio usuario cambia su clave.
+- [x] Revisar y endurecer persistencia de `tokens.json`: permisos 0600, escritura temporal + reemplazo y limpieza de expiradas al iniciar/consultar.
+- [ ] Evaluar access token corto + refresh token protegido; diferido para no introducir renovación silenciosa sin almacenamiento seguro y sincronización entre clientes.
+- [ ] Evaluar cifrado de tokens persistidos; diferido hasta definir gestión y recuperación de una clave maestra.
+- [x] Añadir pruebas de expiración, persistencia, permisos y revocación.
+
+**Estado B2:** política de expiración absoluta y limpieza de tokens implementadas. Los tokens continúan siendo bearer tokens persistidos localmente; `tokens.json` queda restringido a 0600 en sistemas compatibles. El cifrado en reposo y el esquema access/refresh quedan como decisiones pendientes, no se consideran implementados.
 
 ## B3. Brute force
 - [ ] Rate limiting de login.
@@ -442,7 +444,7 @@ La puntuación es un indicador interno, no una certificación.
 
 ### Sprint 2 — Identidad
 - [x] B1 Passwords
-- [ ] B2 Sesiones
+- [x] B2 Sesiones
 - [ ] B3 Rate limiting
 - [ ] C1 RBAC
 - [ ] C2 Tenant isolation
@@ -494,6 +496,7 @@ Ruta:
 | 2026-11-04 | A4: gestor CORS con comodín global explícito `*` | CI Go, Launcher Desktop y Docker correctos; pruebas manuales pendientes | 55/100; sin incremento hasta validar A2/A4 |
 | 2026-11-06 | A2: bind IPv4 explícito y selección LAN | Launcher ahora persiste una IPv4 elegida; backend escucha solo en esa IP más loopback y limita mDNS a la interfaz propietaria. CI y prueba empaquetada pendientes; firewall del equipo de prueba desactivado intencionalmente y no se modifica | 55/100; implementación integrada, validación operativa pendiente |
 | 2026-11-06 | B1: política uniforme de contraseñas | Validación central en `internal/auth`, aplicada a bootstrap, altas, ediciones y cambios de contraseña; pruebas de límites, Unicode y passphrases. CI Go correcto | Implementación validada por CI; revisión del coste bcrypt pendiente |
+| 2026-11-06 | B2: expiración y revocación de sesiones | Sesiones estándar 12 h y admin/master 4 h; tokens expirados se limpian de memoria/disco; persistencia atómica con permisos 0600; pruebas de expiración, persistencia y revocación añadidas | Implementación pendiente de CI; cifrado en reposo y access/refresh diferidos por falta de gestión de clave y sincronización segura |
 
 ## Registro de excepciones
 
