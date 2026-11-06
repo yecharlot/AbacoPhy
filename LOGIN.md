@@ -79,3 +79,21 @@ Al completar el cambio, el servidor elimina la marca de cambio obligatorio y rev
 | `operador` / `vendedor` | Operación diaria |
 | `almacenero` | Almacén y recepción |
 | `readonly` | Consulta sin escritura |
+
+
+## Política de contraseñas (B1)
+
+Todas las contraseñas nuevas o modificadas —incluidos usuarios normales, cambios propios,
+cambios administrativos y credenciales de bootstrap configuradas por entorno— pasan por
+la misma validación del backend:
+
+- Mínimo de 12 caracteres Unicode.
+- Máximo de 72 bytes UTF-8, límite de bcrypt; se rechaza el exceso y nunca se trunca.
+- Se permiten frases de contraseña y espacios. No se exige una combinación artificial de
+  mayúsculas, minúsculas, números o símbolos.
+- La contraseña no se recorta ni normaliza: los espacios forman parte de su valor.
+- Las contraseñas existentes no se modifican automáticamente; la política se aplica al
+  establecer una contraseña nueva.
+
+El backend valida antes de generar el hash. La interfaz puede anticipar el requisito, pero
+no sustituye esta validación.
