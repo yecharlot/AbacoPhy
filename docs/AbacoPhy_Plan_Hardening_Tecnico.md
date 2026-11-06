@@ -194,6 +194,7 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 - [x] Exigir tenant coherente en referencias de cuenta, producto y unidad; permitir solo referencias locales resueltas en el snapshot (incluidos registros legacy con `TenantID` vacío).
 - [x] Eliminar en `/me` la reparación de `TenantID` y la búsqueda alternativa de usuarios fuera de la clave canónica.
 - [x] Añadir prueba API de lote de sincronización inválido y atomicidad (ninguna operación parcial se persiste).
+- [x] Validar en `Store.Put()` todos los `TenantID` hijos antes de incrementar revisión, calcular CID o persistir; normalizar solo los campos legacy vacíos.
 - [x] Importación local: validar estructura y tenant de registros hijos; rechazar hijos con tenant explícito diferente y normalizar snapshots legacy sin TenantID.
 - [ ] Auditar todos los endpoints REST que reciben IDs de entidades y comprobar referencias cruzadas.
 - [ ] Completar sync con todos los tipos de entidad y probar IDs repetidos/collisions entre tenants.
@@ -204,7 +205,7 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 - [ ] Revisar endpoints administrativos/globales restantes y operaciones de contraseña master.
 - [ ] Ejecutar pruebas completas de acceso cruzado con dos tenants y usuarios reales.
 
-**Estado C2:** aislamiento de sesión, backups, referencias REST iniciales y sync push integrados; no declarar cerrado hasta completar auditoría de referencias/IDs, migración legacy, endpoints globales, CI final y pruebas manuales con dos tenants.
+**Estado C2:** aislamiento de sesión, backups, referencias REST iniciales, sync push y frontera central de persistencia integrados; no declarar cerrado hasta completar auditoría de referencias/IDs, migración legacy, endpoints globales, CI final y pruebas manuales con dos tenants.
 
 # 5. FASE D — Hardening HTTP/API
 

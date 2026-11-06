@@ -48,3 +48,34 @@ func TestLoadCIDRejectsPathTraversal(t *testing.T) {
 		t.Fatal("CID loader must reject path traversal")
 	}
 }
+
+
+func TestStorePutRejectsForeignTenantChildAndBindsLegacyRecords(t *testing.T) {
+	st := New(t.TempDir())
+	snap := domain.BootstrapTenant("Tenant A", "tenant-a", "CUP")
+	var user *domain.User
+	for _, candidate := range snap.Users {
+		if candidate != nil { user = candidate; break }
+	}
+	if user == nil { t.Fatal("bootstrap user missing") }
+
+	originalRev := snap.Rev
+	user.TenantID = "tenant-b"
+	if err := st.Put(snap); err == nil {
+		t.Fatal("Store.Put must reject a child explicitly assigned to another tenant")
+	}
+	if snap.Rev != originalRev {
+		t.Fatal("rejected snapshot must not increment its revision")
+	}
+	if st.Get(snap.Tenant.ID) != nil {
+		t.Fatal("rejected snapshot must not enter the store")
+	}
+
+	user.TenantID = ""
+	if err := st.Put(snap); err != nil {
+		t.Fatalf("legacy empty TenantID should be bound to snapshot tenant: %v", err)
+	}
+	if user.TenantID != snap.Tenant.ID {
+		t.Fatal("legacy child TenantID was not normalized to the snapshot tenant")
+	}
+}

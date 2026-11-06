@@ -81,6 +81,12 @@ func (s *Store) Put(snap *domain.StoreSnapshot) error {
 	if snap == nil || snap.Tenant.ID == "" {
 		return fmt.Errorf("snapshot inválido")
 	}
+	// Defensa central: ninguna ruta puede persistir registros hijos con un
+	// TenantID explícito distinto al del snapshot. Los registros legacy vacíos
+	// se vinculan al tenant raíz antes de calcular CID y persistir.
+	if err := domain.BindSnapshotToTenant(snap, snap.Tenant.ID); err != nil {
+		return fmt.Errorf("snapshot fuera del tenant: %w", err)
+	}
 	snap.UpdatedAt = time.Now().UTC()
 	snap.Rev++
 	// CID sobre payload sin RootCID (estable); luego se re-serializa con CID.

@@ -2,7 +2,7 @@
 
 **Rama:** `security-hardening`  
 **Fase:** C2 — implementación incremental  
-**Estado:** aislamiento de sesión, backup, referencias REST y primera validación de sync integrados; auditoría global y CI de la última iteración pendientes.
+**Estado:** aislamiento de sesión, sync push y validación central de persistencia integrados; auditoría global y CI de la última iteración pendientes.
 
 ## Objetivo y regla de seguridad
 
@@ -71,6 +71,13 @@ Si la relación no coincide, se rechaza la autenticación/autorización. No se c
 ### Pruebas añadidas en esta iteración
 
 - `TestSyncPushRejectsForeignTenantAndReferencesAtomically`
+
+## Tercera iteración — frontera de persistencia
+
+- `Store.Put()` aplica `BindSnapshotToTenant()` antes de incrementar revisión, calcular CID o escribir archivos.
+- Un registro hijo con `TenantID` explícito distinto al del snapshot hace fallar la persistencia, con independencia del endpoint que originó la mutación.
+- Los `TenantID` vacíos de registros legacy se vinculan al tenant raíz antes de persistir; esta normalización ocurre en el límite de escritura y no durante la autenticación.
+- Prueba: `TestStorePutRejectsForeignTenantChildAndBindsLegacyRecords`.
 
 ## Áreas todavía bajo auditoría
 
