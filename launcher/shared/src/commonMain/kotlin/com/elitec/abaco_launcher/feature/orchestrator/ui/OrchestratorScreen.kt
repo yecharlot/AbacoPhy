@@ -73,6 +73,8 @@ import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material.icons.rounded.WifiTethering
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
@@ -104,6 +106,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.elitec.abaco_launcher.feature.orchestrator.domain.models.LanInterfaceOption
 import com.elitec.abaco_launcher.feature.orchestrator.domain.models.LogLevel
 import com.elitec.abaco_launcher.feature.orchestrator.domain.models.LogLine
 import com.elitec.abaco_launcher.feature.orchestrator.domain.models.OrchestratorState
@@ -204,6 +207,7 @@ fun OrchestratorScreen(
         preferredPort: Int?,
         networkScope: String,
         corsAllowedOrigins: List<String>,
+        selectedLanInterfaceName: String?,
         onState: (OrchestratorState) -> Unit,
         onLog: (String) -> Unit,
     ) -> OrchestratorState,
@@ -213,6 +217,10 @@ fun OrchestratorScreen(
     onNetworkScopeChange: (String) -> Unit = {},
     initialCorsRules: String = "",
     onCorsRulesChange: (String) -> Unit = {},
+    initialLanInterfaces: List<LanInterfaceOption> = emptyList(),
+    initialSelectedLanInterfaceName: String? = null,
+    onSelectedLanInterfaceChange: (String) -> Unit = {},
+    onRefreshLanInterfaces: () -> List<LanInterfaceOption> = { emptyList() },
     modifier: Modifier = Modifier,
 ) {
     var state by remember {
@@ -232,6 +240,14 @@ fun OrchestratorScreen(
     var busy by remember { mutableStateOf(false) }
     var portText by remember { mutableStateOf("") }
     var networkScope by remember { mutableStateOf(initialNetworkScope) }
+    var lanInterfaces by remember { mutableStateOf(initialLanInterfaces) }
+    var selectedLanInterfaceName by remember {
+        mutableStateOf(
+            initialSelectedLanInterfaceName?.takeIf { selected -> initialLanInterfaces.any { it.interfaceName == selected } }
+                ?: initialLanInterfaces.firstOrNull()?.interfaceName,
+        )
+    }
+    var lanMenuExpanded by remember { mutableStateOf(false) }
     var corsRules by remember { mutableStateOf(parseCorsRuleEntries(initialCorsRules)) }
     var corsInput by remember { mutableStateOf("") }
     var editingCorsIndex by remember { mutableStateOf<Int?>(null) }
@@ -321,7 +337,14 @@ fun OrchestratorScreen(
             try {
                 val preferred = parsePreferredPort()
                 val activeCorsRules = corsRules.filter { it.enabled }.map { it.value }
-                val result = onRun(preferred, networkScope, activeCorsRules, { s -> state = s }, { raw -> handleRawLog(raw) })
+                val result = onRun(
+                    preferred,
+                    networkScope,
+                    activeCorsRules,
+                    selectedLanInterfaceName,
+                    { s -> state = s },
+                    { raw -> handleRawLog(raw) },
+                )
                 state = result.copy(
                     discoveryActive = state.discoveryActive,
                     connectedClients = state.connectedClients,
@@ -390,6 +413,20 @@ fun OrchestratorScreen(
                         compact = compact,
                         portText = portText,
                         networkScope = networkScope,
+                        lanInterfaces = lanInterfaces,
+                        selectedLanInterfaceName = selectedLanInterfaceName,
+                        onLanInterfaceSelected = { selected ->
+                            selectedLanInterfaceName = selected
+                            onSelectedLanInterfaceChange(selected)
+                        },
+                        onRefreshLanInterfaces = {
+                            val refreshed = onRefreshLanInterfaces()
+                            lanInterfaces = refreshed
+                            if (refreshed.none { it.interfaceName == selectedLanInterfaceName }) {
+                                selectedLanInterfaceName = refreshed.firstOrNull()?.interfaceName
+                                selectedLanInterfaceName?.let(onSelectedLanInterfaceChange)
+                            }
+                        },
                         corsRules = corsRules,
                         corsInput = corsInput,
                         editingCorsIndex = editingCorsIndex,
@@ -640,6 +677,10 @@ private fun SidePanel(
     compact: Boolean,
     portText: String,
     networkScope: String,
+    lanInterfaces: List<LanInterfaceOption>,
+    selectedLanInterfaceName: String?,
+    onLanInterfaceSelected: (String) -> Unit,
+    onRefreshLanInterfaces: () -> Unit,
     corsRules: List<CorsRuleEntry>,
     corsInput: String,
     editingCorsIndex: Int?,
@@ -720,11 +761,69 @@ private fun SidePanel(
                 )
 
                 if (networkScope == "LAN") {
-                    Text(
-                        "Launcher detectará automáticamente la interfaz LAN activa, priorizando Ethernet o Wi-Fi y excluyendo adaptadores VPN y virtuales. No necesitas buscar ni introducir ninguna IP.",
-                        fontSize = 10.sp,
-                        color = Ide.Subtle,
-                    )
+                    val selectedInterface = lanInterfaces.firstOrNull { it.interfaceName == selectedLanInterfaceName }
+                    Text("INTERFAZ DE RED", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Ide.Subtle, letterSpacing = 0.7.sp)
+                    Box(Modifier.fillMaxWidth()) {
+                        TextButton(
+                            onClick = { lanMenuExpanded = true },
+                            enabled = !busy && !state.backendRunning && lanInterfaces.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Column(Modifier.fillMaxWidth()) {
+                                Text(
+                                    selectedInterface?.displayName ?: "No hay interfaces LAN disponibles",
+                                    color = Ide.Fg,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    selectedInterface?.address ?: "Conecta Ethernet o Wi-Fi y actualiza la lista",
+                                    color = Ide.Subtle,
+                                    fontSize = 10.sp,
+                                    fontFamily = Ide.Mono,
+                                )
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = lanMenuExpanded,
+                            onDismissRequest = { lanMenuExpanded = false },
+                        ) {
+                            lanInterfaces.forEach { option ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(option.displayName, fontSize = 12.sp)
+                                            Text(option.address, fontSize = 10.sp, fontFamily = Ide.Mono, color = Ide.Subtle)
+                                        }
+                                    },
+                                    onClick = {
+                                        lanMenuExpanded = false
+                                        onLanInterfaceSelected(option.interfaceName)
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "La IP se detecta automáticamente y puede cambiar por DHCP.",
+                            modifier = Modifier.weight(1f),
+                            fontSize = 9.sp,
+                            color = Ide.Subtle,
+                        )
+                        TextButton(
+                            onClick = onRefreshLanInterfaces,
+                            enabled = !busy && !state.backendRunning,
+                        ) { Text("Actualizar", fontSize = 10.sp) }
+                    }
+                    if (lanInterfaces.isEmpty()) {
+                        Text(
+                            "No se encontraron interfaces IPv4 privadas activas. El modo LAN no podrá iniciarse.",
+                            fontSize = 10.sp,
+                            color = Ide.Yellow,
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(6.dp))

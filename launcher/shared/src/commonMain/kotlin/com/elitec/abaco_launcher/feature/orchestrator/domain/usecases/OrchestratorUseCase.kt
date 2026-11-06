@@ -21,7 +21,7 @@ class OrchestratorUseCase(
     private val dataDir: () -> String,
     private val staticDir: () -> String,
     private val healthTimeoutMs: Long = 60_000L,
-    private val lanIpResolver: () -> String? = { null },
+    private val lanIpResolver: (String?) -> String? = { null },
 ) {
     private val stepDefs = listOf(
         "port" to "Resolver puerto libre",
@@ -35,6 +35,7 @@ class OrchestratorUseCase(
         preferredPort: Int? = null,
         networkScope: String = "LOCAL",
         corsAllowedOrigins: List<String> = emptyList(),
+        selectedLanInterfaceName: String? = null,
         onState: (OrchestratorState) -> Unit = {},
         onLog: (String) -> Unit = {},
     ): OrchestratorState {
@@ -100,11 +101,11 @@ class OrchestratorUseCase(
             val data = dataDir()
             val staticPath = staticDir()
             if (networkScope.equals("LAN", ignoreCase = true)) {
-                lanInterfaceIp = lanIpResolver()?.trim()?.takeIf { it.isNotBlank() }
+                lanInterfaceIp = lanIpResolver(selectedLanInterfaceName)?.trim()?.takeIf { it.isNotBlank() }
                     ?: throw IllegalStateException(
-                        "No se detectó automáticamente una interfaz LAN IPv4 activa. Conecta el equipo a Wi-Fi o Ethernet y vuelve a iniciar.",
+                        "La interfaz LAN seleccionada ya no está disponible o no tiene una IPv4 privada activa. Actualiza la lista y selecciona otra interfaz.",
                     )
-                onLog("🌐 Interfaz LAN detectada automáticamente: $lanInterfaceIp")
+                onLog("🌐 Interfaz LAN seleccionada: $selectedLanInterfaceName · $lanInterfaceIp")
             }
             onLog("Binario esperado: $bin")
             backendProcess.start(

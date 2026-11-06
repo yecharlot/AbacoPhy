@@ -5,6 +5,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
+import com.elitec.abaco_launcher.feature.orchestrator.domain.models.LanInterfaceOption
 import com.elitec.abaco_launcher.feature.orchestrator.domain.models.OrchestratorState
 import com.elitec.abaco_launcher.feature.orchestrator.ui.OrchestratorScreen
 
@@ -42,15 +43,20 @@ fun App(
         preferredPort: Int?,
         networkScope: String,
         corsAllowedOrigins: List<String>,
+        selectedLanInterfaceName: String?,
         onState: (OrchestratorState) -> Unit,
         onLog: (String) -> Unit,
-    ) -> OrchestratorState = { _, _, _, _, _ -> OrchestratorState() },
+    ) -> OrchestratorState = { _, _, _, _, _, _ -> OrchestratorState() },
     onStop: () -> Unit = {},
     onOpenBrowser: (String) -> Unit = {},
     initialNetworkScope: String = "LOCAL",
     onNetworkScopeChange: (String) -> Unit = {},
     initialCorsRules: String = "",
     onCorsRulesChange: (String) -> Unit = {},
+    initialLanInterfaces: List<LanInterfaceOption> = emptyList(),
+    initialSelectedLanInterfaceName: String? = null,
+    onSelectedLanInterfaceChange: (String) -> Unit = {},
+    onRefreshLanInterfaces: () -> List<LanInterfaceOption> = { emptyList() },
 ) {
     MaterialTheme(colorScheme = AbacoColorScheme) {
         OrchestratorScreen(
@@ -61,6 +67,10 @@ fun App(
             onNetworkScopeChange = onNetworkScopeChange,
             initialCorsRules = initialCorsRules,
             onCorsRulesChange = onCorsRulesChange,
+            initialLanInterfaces = initialLanInterfaces,
+            initialSelectedLanInterfaceName = initialSelectedLanInterfaceName,
+            onSelectedLanInterfaceChange = onSelectedLanInterfaceChange,
+            onRefreshLanInterfaces = onRefreshLanInterfaces,
         )
     }
 }

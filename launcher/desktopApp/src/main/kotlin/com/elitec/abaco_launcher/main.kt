@@ -9,7 +9,9 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.elitec.abaco_launcher.feature.orchestrator.data.DesktopBrowserLauncher
+import com.elitec.abaco_launcher.feature.orchestrator.data.SystemLanInterfaceResolver
 import com.elitec.abaco_launcher.feature.orchestrator.di.OrchestratorModule
+import com.elitec.abaco_launcher.feature.orchestrator.domain.models.LanInterfaceOption
 import com.elitec.abaco_launcher.infrastructure.lifecycle.ProcessShutdown
 import com.elitec.abaco_launcher.infrastructure.lifecycle.SingleInstanceLock
 import com.elitec.abaco_launcher.infrastructure.config.LauncherPaths
@@ -25,6 +27,20 @@ private object LauncherPreferenceNode
 private val launcherPreferences = Preferences.userNodeForPackage(LauncherPreferenceNode::class.java)
 private const val NETWORK_SCOPE_KEY = "networkScope"
 private const val CORS_RULES_KEY = "corsAllowedOrigins"
+private const val LAN_INTERFACE_KEY = "lanInterfaceName"
+
+private fun loadSelectedLanInterfaceName(options: List<LanInterfaceOption>): String? {
+    val saved = launcherPreferences.get(LAN_INTERFACE_KEY, "").takeIf { it.isNotBlank() }
+    return saved?.takeIf { name -> options.any { it.interfaceName == name } }
+        ?: options.firstOrNull()?.interfaceName
+}
+
+private fun saveSelectedLanInterfaceName(value: String) {
+    runCatching {
+        launcherPreferences.put(LAN_INTERFACE_KEY, value)
+        launcherPreferences.flush()
+    }.onFailure { persistLauncherLog("No se pudo guardar la interfaz LAN: ${it.message}") }
+}
 
 private fun loadNetworkScope(): String =
     launcherPreferences.get(NETWORK_SCOPE_KEY, "LOCAL")
@@ -79,10 +95,13 @@ fun main() = application {
     }
 
     val useCase = OrchestratorModule.provideUseCase()
+    val lanInterfaceResolver = SystemLanInterfaceResolver()
     ProcessShutdown.register(useCase.backendProcess())
 
     val browser = DesktopBrowserLauncher()
     val windowState = rememberWindowState(size = DpSize(980.dp, 680.dp))
+    val initialLanInterfaces = lanInterfaceResolver.list()
+    val initialSelectedLanInterfaceName = loadSelectedLanInterfaceName(initialLanInterfaces)
 
     Window(
         onCloseRequest = {
@@ -98,11 +117,12 @@ fun main() = application {
         state = windowState,
     ) {
         App(
-            onRun = { preferredPort, networkScope, corsAllowedOrigins, onState, onLog ->
+            onRun = { preferredPort, networkScope, corsAllowedOrigins, selectedLanInterfaceName, onState, onLog ->
                 useCase.run(
                     preferredPort = preferredPort,
                     networkScope = networkScope,
                     corsAllowedOrigins = corsAllowedOrigins,
+                    selectedLanInterfaceName = selectedLanInterfaceName,
                     onState = onState,
                     onLog = { line ->
                         persistLauncherLog(line)
@@ -116,6 +136,10 @@ fun main() = application {
             onNetworkScopeChange = ::saveNetworkScope,
             initialCorsRules = loadCorsRules(),
             onCorsRulesChange = ::saveCorsRules,
+            initialLanInterfaces = initialLanInterfaces,
+            initialSelectedLanInterfaceName = initialSelectedLanInterfaceName,
+            onSelectedLanInterfaceChange = ::saveSelectedLanInterfaceName,
+            onRefreshLanInterfaces = { lanInterfaceResolver.list() },
         )
     }
 }

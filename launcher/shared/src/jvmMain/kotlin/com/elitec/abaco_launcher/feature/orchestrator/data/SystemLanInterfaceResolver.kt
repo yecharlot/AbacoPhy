@@ -1,33 +1,30 @@
 package com.elitec.abaco_launcher.feature.orchestrator.data
 
+import com.elitec.abaco_launcher.feature.orchestrator.domain.models.LanInterfaceOption
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.util.Collections
 
-internal data class LanInterfaceAddress(
-    val interfaceName: String,
-    val address: String,
-)
-
 /**
- * Detecta una interfaz LAN física sin pedir al usuario que conozca su IPv4.
- * Prefiere Ethernet, luego Wi-Fi; excluye VPN, túneles y adaptadores virtuales.
+ * Enumera interfaces IPv4 privadas utilizables para el servidor LAN.
+ * El identificador persistido es el nombre del adaptador, nunca la IP DHCP.
  */
 class SystemLanInterfaceResolver {
-    internal fun resolve(): LanInterfaceAddress? {
+    fun list(): List<LanInterfaceOption> {
         val interfaces = runCatching {
             NetworkInterface.getNetworkInterfaces()?.let { Collections.list(it) }.orEmpty()
-        }.getOrElse { return null }
+        }.getOrElse { return emptyList() }
 
         return interfaces.flatMap { networkInterface ->
             runCatching {
                 val displayName = networkInterface.displayName.orEmpty()
-                val name = listOf(networkInterface.name, displayName).joinToString(" ")
+                val identity = networkInterface.name
+                val searchableName = "$identity $displayName"
                 if (
                     !networkInterface.isUp ||
                     networkInterface.isLoopback ||
                     networkInterface.isVirtual ||
-                    isExcludedLanInterface(name)
+                    isExcludedLanInterface(searchableName)
                 ) {
                     emptyList()
                 } else {
@@ -37,22 +34,30 @@ class SystemLanInterfaceResolver {
                             !address.isAnyLocalAddress &&
                                 !address.isLoopbackAddress &&
                                 !address.isLinkLocalAddress &&
-                                !address.isMulticastAddress
+                                !address.isMulticastAddress &&
+                                isPrivateIpv4(address.hostAddress)
                         }
+                        .take(1)
                         .map { address ->
-                            LanInterfaceAddress(
-                                interfaceName = displayName.ifBlank { networkInterface.name },
+                            LanInterfaceOption(
+                                interfaceName = identity,
+                                displayName = displayName.ifBlank { identity },
                                 address = address.hostAddress,
                             )
                         }
                 }
             }.getOrDefault(emptyList())
-        }.sortedWith(
-            compareBy<LanInterfaceAddress> { lanInterfacePriority(it.interfaceName) }
-                .thenBy { if (isPrivateIpv4(it.address)) 0 else 1 }
-                .thenBy { it.interfaceName.lowercase() },
-        ).firstOrNull()
+        }.distinctBy { "${it.interfaceName}|${it.address}" }
+            .sortedWith(
+                compareBy<LanInterfaceOption> { lanInterfacePriority("${it.interfaceName} ${it.displayName}") }
+                    .thenBy { it.displayName.lowercase() }
+                    .thenBy { it.address },
+            )
     }
+
+    /** Relee la IP actual del adaptador seleccionado; no reutiliza una IP DHCP antigua. */
+    fun resolve(interfaceName: String): LanInterfaceOption? =
+        list().firstOrNull { it.interfaceName == interfaceName }
 }
 
 internal fun isExcludedLanInterface(name: String): Boolean {
@@ -75,7 +80,7 @@ internal fun lanInterfacePriority(name: String): Int {
     }
 }
 
-private fun isPrivateIpv4(raw: String): Boolean {
+internal fun isPrivateIpv4(raw: String): Boolean {
     val parts = raw.split(".").mapNotNull(String::toIntOrNull)
     if (parts.size != 4 || parts.any { it !in 0..255 }) return false
     return parts[0] == 10 ||

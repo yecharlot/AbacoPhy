@@ -15,6 +15,7 @@ object OrchestratorModule {
     fun provideUseCase(
         healthTimeoutMs: Long = 60_000L,
     ): OrchestratorUseCase {
+        val lanResolver = SystemLanInterfaceResolver()
         return OrchestratorUseCase(
             portResolver = SystemPortResolver(),
             backendProcess = GoProcessLauncher(),
@@ -32,7 +33,7 @@ object OrchestratorModule {
                 dir.absolutePath
             },
             healthTimeoutMs = healthTimeoutMs,
-            lanIpResolver = { SystemLanInterfaceResolver().resolve()?.address },
+            lanIpResolver = { interfaceName -> interfaceName?.let { lanResolver.resolve(it)?.address } },
         )
     }
 }

@@ -2,7 +2,7 @@
 
 **Rama:** `security-hardening`  
 **Fecha de revisión:** 2026-11-06  
-**Estado:** revisión estática y arranque real en LAN comprobados; validación LOCAL, conectividad entre equipos y comportamiento por interfaz pendientes.  
+**Estado:** selector de interfaz integrado en código; validación operativa empaquetada y entre equipos pendiente.  
 **Alcance:** Launcher Desktop + backend Go. No modifica Android/POS ni reglas de negocio.
 
 ## 1. Resultado de la revisión estática
@@ -10,7 +10,7 @@
 Se revisaron los siguientes puntos de la implementación:
 
 - `cmd/abacophy/main.go`: `LOCAL` resuelve por defecto a `127.0.0.1`; `LAN` requiere modo explícito y admite IP de interfaz o wildcard; `PRODUCTION` requiere host explícito.
-- `launcher/shared/.../GoProcessLauncher.kt`: el Launcher sobrescribe explícitamente `ABACOPHY_BIND_MODE` y `ABACOPHY_HOST` para el proceso hijo. En LOCAL envía `127.0.0.1`; en LAN envía `0.0.0.0`. También establece `PORT`, `ABACOPHY_DATA` y `ABACOPHY_STATIC`.
+- `launcher/shared/.../GoProcessLauncher.kt`: el Launcher sobrescribe explícitamente `ABACOPHY_BIND_MODE` y `ABACOPHY_HOST`. En LOCAL envía `127.0.0.1`; en LAN envía la IPv4 privada actual de la interfaz seleccionada como `ABACOPHY_HOST` y `ABACOPHY_LAN_INTERFACE_IP`.
 - `launcher/desktopApp/.../main.kt`: LOCAL/LAN se persiste en las preferencias del Launcher; instalaciones sin preferencia usan LOCAL y valores desconocidos se normalizan a LOCAL.
 - `OrchestratorUseCase.kt`: mDNS solo se consulta/anuncia cuando el scope es LAN.
 
@@ -18,7 +18,7 @@ Se revisaron los siguientes puntos de la implementación:
 
 ## 2. Advertencia de seguridad: alcance real de LAN
 
-El Launcher configura LAN con `ABACOPHY_HOST=0.0.0.0`. Esto hace que el backend escuche en todas las interfaces IPv4 disponibles, no exclusivamente en una interfaz Wi-Fi/Ethernet privada. La opción LAN no configura automáticamente el firewall del sistema.
+El Launcher configura LAN con la IPv4 privada de una interfaz elegida en su selector. El backend escucha en esa dirección y en loopback, y limita el anuncio mDNS a la interfaz propietaria de la IP. La opción LAN no configura automáticamente el firewall del sistema.
 
 Por tanto:
 
@@ -27,7 +27,7 @@ Por tanto:
 - No publicar ni redirigir ese puerto desde el router hacia Internet.
 - La presencia de mDNS no constituye control de acceso ni sustituye autenticación, firewall o TLS.
 
-Este comportamiento debe mantenerse visible en la documentación y en la interfaz del Launcher hasta que exista selección explícita de interfaz o un mecanismo de bind más restrictivo.
+El bind por interfaz reduce la exposición accidental, pero no sustituye el firewall ni controles de acceso. No habilitar LAN en redes públicas o no confiables.
 
 ## 3. Evidencia operativa recibida — 2026-11-06
 
@@ -67,11 +67,13 @@ El proceso fue identificado como el backend empaquetado `abacophy.exe` bajo `lau
 
 ### Implementación posterior a la evidencia
 
-**Completado en código:** `cmd/abacophy/main.go` selecciona explícitamente `tcp4` para hosts IPv4 y `tcp6` para IPv6; se registra `EVENT=http.listen_config`. Además, el backend ya admite `ABACOPHY_LAN_INTERFACE_IP`: valida que sea una IPv4 asignada a una interfaz activa, exige que coincida con `ABACOPHY_HOST`, limita la escucha HTTP a esa IP y usa `AdvertiseOnInterface` para publicar mDNS únicamente por la interfaz propietaria de esa IP. La API de mDNS usa `RegisterProxy` para anunciar solo la dirección seleccionada. La integración en la UI/preferencias del Launcher ya está hecha. CI Go, CI Launcher Desktop y CI Docker Image finalizaron correctamente para el commit de código `4988114`. La validación operativa con el binario empaquetado y dos equipos sigue pendiente.
+**Completado en código:** `cmd/abacophy/main.go` selecciona explícitamente `tcp4` para hosts IPv4 y `tcp6` para IPv6; se registra `EVENT=http.listen_config`. Además, el backend ya admite `ABACOPHY_LAN_INTERFACE_IP`: valida que sea una IPv4 asignada a una interfaz activa, exige que coincida con `ABACOPHY_HOST`, limita la escucha HTTP a esa IP y usa `AdvertiseOnInterface` para publicar mDNS únicamente por la interfaz propietaria de esa IP. La API de mDNS usa `RegisterProxy` para anunciar solo la dirección seleccionada. La integración de la selección de interfaz en la UI/preferencias del Launcher queda completada en esta revisión. CI Go, CI Launcher Desktop y CI Docker Image finalizaron correctamente para el commit de código `4988114`. La validación operativa con el binario empaquetado y dos equipos sigue pendiente.
 
 **Implementación integrada; validación operativa pendiente:**
-1. El Launcher presenta un campo persistente para la IPv4 LAN seleccionada y pasa esa dirección como `ABACOPHY_HOST` y `ABACOPHY_LAN_INTERFACE_IP`.
-2. HTTP escucha en la IP seleccionada y, simultáneamente, en `127.0.0.1`; no usa `0.0.0.0` en el flujo normal del Launcher. mDNS se limita a la interfaz que posee la IP seleccionada.
+1. Launcher enumera interfaces IPv4 privadas activas y presenta un selector con nombre del adaptador e IP informativa; el usuario no escribe direcciones IP.
+2. Se persiste el nombre del adaptador, no la IP. En cada inicio se vuelve a resolver su dirección actual para tolerar cambios DHCP.
+3. HTTP escucha en la IP seleccionada y, simultáneamente, en `127.0.0.1`; no usa `0.0.0.0` en el flujo normal del Launcher. mDNS se limita a la interfaz propietaria de la IP seleccionada.
+4. AbacoPOS no configura interfaces: descubre el servicio mDNS y se conecta.
 3. Probar LOCAL con el Launcher empaquetado y confirmar loopback estricto y mDNS desactivado.
 4. Probar LAN desde un segundo equipo y comprobar que no se anuncia ni acepta tráfico por interfaces no seleccionadas. Registrar por separado el estado del firewall del entorno.
 
@@ -94,7 +96,7 @@ La activación del firewall del equipo del usuario no forma parte de este plan n
 
 Realizarla únicamente en una red privada confiable y con firewall restrictivo.
 
-1. En el Launcher seleccionar **LAN**, introducir la IPv4 de la interfaz que se desea autorizar y guardar.
+1. En el Launcher seleccionar **LAN**, elegir la interfaz por su nombre (Ethernet/Wi-Fi) y guardar. La IPv4 aparece como información; no se introduce manualmente.
 2. Reiniciar el backend.
 3. Confirmar:
    - `EVENT=server.start bind_mode="LAN" host="<IP_LAN_SELECCIONADA>"`
@@ -128,7 +130,7 @@ Realizarla únicamente en una red privada confiable y con firewall restrictivo.
 | Health y web accesibles desde segundo equipo LAN | Pendiente |
 | Firewall limita el puerto a la subred confiable | No comprobado; firewall del equipo de prueba desactivado intencionalmente. Requisito de despliegue externo, no cambio solicitado al equipo del usuario |
 | mDNS solo activo en LAN | Pendiente |
-| Preferencia LOCAL/LAN persiste | Pendiente |
+| Preferencia LOCAL/LAN e interfaz seleccionada persisten | Pendiente |
 | Proceso termina y libera el puerto | Pendiente |
 
 ## 8. Criterio de cierre
