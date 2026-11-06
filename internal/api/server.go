@@ -1625,13 +1625,13 @@ func assignInitialPassword(user *domain.User, tenantSlug string, credentials *[]
 	}
 	password := ""
 	generated := false
-	if envName != "" { password = strings.TrimSpace(os.Getenv(envName)) }
-	if password == "" {
+	if envName != "" { password = os.Getenv(envName) }
+	if strings.TrimSpace(password) == "" {
 		value, err := newBootstrapPassword()
 		if err != nil { return err }
 		password, generated = value, true
-	} else if len(password) < 12 {
-		return fmt.Errorf("%s debe contener al menos 12 caracteres", envName)
+	} else if err := auth.ValidatePassword(password); err != nil {
+		return fmt.Errorf("%s: %w", envName, err)
 	}
 	hash, err := auth.HashPassword(password)
 	if err != nil { return err }
