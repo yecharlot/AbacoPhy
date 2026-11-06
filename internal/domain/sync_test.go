@@ -41,3 +41,28 @@ func TestClientOpIDFromMeta(t *testing.T) {
 		t.Fatal()
 	}
 }
+
+
+func TestBindSnapshotToTenantRejectsForeignChild(t *testing.T) {
+	s := &StoreSnapshot{
+		Tenant: Tenant{ID: "tenant-a"},
+		Users: map[string]*User{"u1": {ID: "u1", TenantID: "tenant-a"}},
+		Accounts: map[string]*Account{"a1": {ID: "a1", TenantID: "tenant-b"}},
+	}
+	if err := BindSnapshotToTenant(s, "tenant-a"); err == nil {
+		t.Fatal("snapshot with a child from another tenant must be rejected")
+	}
+}
+
+func TestBindSnapshotToTenantNormalizesLegacyEmptyTenantIDs(t *testing.T) {
+	s := &StoreSnapshot{
+		Tenant: Tenant{ID: "tenant-a"},
+		Users: map[string]*User{"u1": {ID: "u1"}},
+		Accounts: map[string]*Account{"a1": {ID: "a1"}},
+		Entries: []Entry{{ID: "e1"}},
+	}
+	if err := BindSnapshotToTenant(s, "tenant-a"); err != nil { t.Fatal(err) }
+	if s.Users["u1"].TenantID != "tenant-a" || s.Accounts["a1"].TenantID != "tenant-a" || s.Entries[0].TenantID != "tenant-a" {
+		t.Fatal("legacy records must be bound to the destination tenant")
+	}
+}

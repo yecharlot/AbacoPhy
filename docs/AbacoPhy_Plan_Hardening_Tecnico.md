@@ -189,8 +189,10 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 - [x] Impedir que incluso `master` restaure por CID un snapshot de otro tenant en el contexto de su sesión actual.
 - [x] Reservar `master/reset` para `RoleMaster`: el reset elimina todos los tenants y no puede ejecutarlo un admin de negocio.
 - [x] Añadir pruebas unitarias de binding y pruebas API para restore/reset entre tenants.
-- [ ] Auditar todos los endpoints que reciben IDs de entidades y comprobar referencias cruzadas.
-- [ ] Revisar importación local de salvas y validar coherencia de todos los registros hijos antes de persistir.
+- [x] Primera validación de referencias cruzadas en sync push: cuentas, productos y unidades deben existir dentro del snapshot autenticado; el lote se prevalida antes de mutar.
+- [x] Importación local: validar estructura y tenant de registros hijos; rechazar hijos con tenant explícito diferente y normalizar snapshots legacy sin TenantID.
+- [ ] Auditar todos los endpoints REST que reciben IDs de entidades y comprobar referencias cruzadas.
+- [ ] Ampliar integridad referencial de salvas a todas las relaciones entre entidades.
 - [ ] Revisar endpoints administrativos/globales restantes y operaciones de contraseña master.
 - [ ] Ejecutar pruebas completas de acceso cruzado con dos tenants y usuarios reales.
 

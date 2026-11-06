@@ -752,11 +752,14 @@ func (s *Server) handleBackupImport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"error": "JSON inválido"})
 		return
 	}
-	if restored.Tenant.ID != "" && restored.Tenant.ID != sess.TenantID {
-		writeJSON(w, 403, map[string]string{"error": "la salva pertenece a otro negocio"})
+	if err := domain.ValidateSnapshotStructure(&restored); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "estructura de salva inválida"})
 		return
 	}
-	restored.Tenant.ID = sess.TenantID
+	if err := domain.BindSnapshotToTenant(&restored, sess.TenantID); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "la salva contiene datos de otro negocio"})
+		return
+	}
 	s.audit(&restored, sess, "salva.restauracion_local", "Restauración de salva desde archivo local · rev "+strconv.FormatInt(restored.Rev, 10), restored.RootCID)
 	_ = s.Store.Put(&restored)
 	writeJSON(w, 200, map[string]any{"ok": true, "rev": restored.Rev, "root_cid": restored.RootCID})

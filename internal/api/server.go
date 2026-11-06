@@ -1170,6 +1170,46 @@ func (s *Server) handleSyncPush(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 404, map[string]string{"error": "not found"})
 		return
 	}
+	// Prevalidar el lote completo antes de aplicar cualquier mutación.
+	// Los IDs de referencias deben existir dentro del snapshot de la sesión.
+	for _, e := range body.Entries {
+		if e.TenantID != "" && e.TenantID != sess.TenantID {
+			writeJSON(w, 403, map[string]string{"error": "asiento de otro tenant"})
+			return
+		}
+		if e.AccountID != "" && snap.Accounts[e.AccountID] == nil {
+			writeJSON(w, 400, map[string]string{"error": "la cuenta del asiento no pertenece a este negocio"})
+			return
+		}
+	}
+	for _, inv := range body.Invoices {
+		if inv.TenantID != "" && inv.TenantID != sess.TenantID {
+			writeJSON(w, 403, map[string]string{"error": "factura de otro tenant"})
+			return
+		}
+	}
+	for _, item := range body.Inventory {
+		if item.TenantID != "" && item.TenantID != sess.TenantID {
+			writeJSON(w, 403, map[string]string{"error": "inventario de otro tenant"})
+			return
+		}
+	}
+	for _, sale := range body.POSSales {
+		if sale.TenantID != "" && sale.TenantID != sess.TenantID {
+			writeJSON(w, 403, map[string]string{"error": "venta de otro tenant"})
+			return
+		}
+		if sale.UnitID != "" && snap.SalesUnits[sale.UnitID] == nil {
+			writeJSON(w, 400, map[string]string{"error": "la unidad de venta no pertenece a este negocio"})
+			return
+		}
+		for _, line := range sale.Lines {
+			if line.ProductID != "" && snap.Products[line.ProductID] == nil {
+				writeJSON(w, 400, map[string]string{"error": "un producto de la venta no pertenece a este negocio"})
+				return
+			}
+		}
+	}
 	if err := domain.CheckSyncBase(snap.Rev, body.ClientRev, body.Force, snap.RootCID); err != nil {
 		if ce, ok := err.(*domain.SyncConflictError); ok {
 			writeJSON(w, 409, map[string]any{

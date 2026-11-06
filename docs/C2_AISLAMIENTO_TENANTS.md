@@ -35,10 +35,15 @@ Si la relación no coincide, se rechaza la autenticación/autorización. No se c
 - `TestMasterSessionCannotRestoreAnotherTenantSnapshot`
 - `TestTenantAdminCannotResetAllTenants`
 
+## Segunda capa integrada
+
+- Sincronización offline: prevalidación del lote completo antes de mutar el snapshot; rechaza `TenantID` explícitos distintos, cuentas inexistentes/ajenas en asientos y productos/unidades de otro tenant en ventas POS. No se aplica parcialmente un lote que falla en la prevalidación.
+- Importación local: valida estructura y ejecuta `BindSnapshotToTenant`, que rechaza registros hijos con tenant explícito diferente y normaliza `TenantID` vacío de snapshots legacy.
+
 ## Áreas todavía bajo auditoría
 
-1. Importación local de salvas: el tenant ID externo no debe poder reasignar datos de otro tenant; además se debe validar la pertenencia de registros hijos antes de persistir.
-2. Referencias por ID: cuentas, productos, empleados, unidades, recepciones, ventas, transferencias, documentos y relaciones entre ellos.
+1. Importación local de salvas: ampliar validación a integridad referencial completa entre cuentas, empleados, productos, unidades, movimientos, ventas y documentos.
+2. Referencias por ID en todos los endpoints REST (no solo sync): cuentas, productos, empleados, unidades, recepciones, ventas, transferencias, documentos y relaciones entre ellos.
 3. Endpoints globales: listado/creación de tenants, reset, cambio de contraseña de usuarios de otros tenants, presencia y canales de eventos.
 4. Sincronización offline: tenant del sobre, idempotencia, referencias y eventos deben permanecer dentro del tenant autenticado.
 5. Migraciones y snapshots antiguos: validar/reparar datos heredados en un paso controlado de migración, nunca durante el login o una petición ordinaria.

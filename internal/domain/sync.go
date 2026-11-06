@@ -64,6 +64,46 @@ func ValidateSnapshotStructure(snap *StoreSnapshot) error {
 	return nil
 }
 
+
+ 
+// BindSnapshotToTenant valida el ámbito de cada registro y normaliza los
+// TenantID vacíos de snapshots legacy. Nunca reasigna registros que declaran
+// explícitamente pertenecer a otro tenant.
+func BindSnapshotToTenant(snap *StoreSnapshot, tenantID string) error {
+	if snap == nil || strings.TrimSpace(tenantID) == "" {
+		return &SnapshotIntegrityError{Reason: "tenant destino vacío"}
+	}
+	if snap.Tenant.ID != "" && snap.Tenant.ID != tenantID {
+		return &SnapshotIntegrityError{Reason: "el snapshot pertenece a otro tenant"}
+	}
+	snap.Tenant.ID = tenantID
+	bind := func(id *string, kind string) error {
+		if *id != "" && *id != tenantID {
+			return &SnapshotIntegrityError{Reason: kind + " pertenece a otro tenant"}
+		}
+		*id = tenantID
+		return nil
+	}
+	for _, v := range snap.Users { if v != nil { if err := bind(&v.TenantID, "usuario"); err != nil { return err } } }
+	for _, v := range snap.Accounts { if v != nil { if err := bind(&v.TenantID, "cuenta"); err != nil { return err } } }
+	for i := range snap.Entries { if err := bind(&snap.Entries[i].TenantID, "asiento"); err != nil { return err } }
+	for _, v := range snap.Inventory { if v != nil { if err := bind(&v.TenantID, "inventario"); err != nil { return err } } }
+	for i := range snap.InvMoves { if err := bind(&snap.InvMoves[i].TenantID, "movimiento de inventario"); err != nil { return err } }
+	for _, v := range snap.Employees { if v != nil { if err := bind(&v.TenantID, "empleado"); err != nil { return err } } }
+	for i := range snap.Payslips { if err := bind(&snap.Payslips[i].TenantID, "nómina"); err != nil { return err } }
+	for i := range snap.Invoices { if err := bind(&snap.Invoices[i].TenantID, "factura"); err != nil { return err } }
+	for i := range snap.AuditLog { if err := bind(&snap.AuditLog[i].TenantID, "auditoría"); err != nil { return err } }
+	for _, v := range snap.Products { if v != nil { if err := bind(&v.TenantID, "producto"); err != nil { return err } } }
+	for _, v := range snap.SalesUnits { if v != nil { if err := bind(&v.TenantID, "unidad de venta"); err != nil { return err } } }
+	for i := range snap.Receptions { if err := bind(&snap.Receptions[i].TenantID, "recepción"); err != nil { return err } }
+	for i := range snap.Transfers { if err := bind(&snap.Transfers[i].TenantID, "transferencia"); err != nil { return err } }
+	for i := range snap.POSSales { if err := bind(&snap.POSSales[i].TenantID, "venta POS"); err != nil { return err } }
+	for _, v := range snap.CostSheets { if v != nil { if err := bind(&v.TenantID, "ficha de costo"); err != nil { return err } } }
+	for i := range snap.StockLedger { if err := bind(&snap.StockLedger[i].TenantID, "kardex"); err != nil { return err } }
+	for _, v := range snap.JobPositions { if v != nil { if err := bind(&v.TenantID, "cargo"); err != nil { return err } } }
+	return nil
+}
+
 // RememberIdempotent registra client_op_id → serverID; recorta mapa si crece.
 func RememberIdempotent(snap *StoreSnapshot, clientOpID, serverID string) {
 	if snap == nil || clientOpID == "" || serverID == "" {
