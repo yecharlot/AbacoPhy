@@ -1003,16 +1003,12 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "usuario no encontrado"})
 		return
 	}
-	minimumLength := 6
-	if actor.MustChangePassword {
-		minimumLength = 12
-		if body.Username != "" && body.Username != actor.Username {
-			writeJSON(w, 403, map[string]string{"error": "debe completar primero el cambio de su propia contraseña"})
-			return
-		}
+	if actor.MustChangePassword && body.Username != "" && body.Username != actor.Username {
+		writeJSON(w, 403, map[string]string{"error": "debe completar primero el cambio de su propia contraseña"})
+		return
 	}
-	if len(body.NewPassword) < minimumLength {
-		writeJSON(w, 400, map[string]string{"error": fmt.Sprintf("la nueva contraseña debe tener al menos %d caracteres", minimumLength)})
+	if err := auth.ValidatePassword(body.NewPassword); err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
 		return
 	}
 	if !auth.CheckPassword(actor.PasswordHash, body.CurrentPassword) {
