@@ -81,7 +81,7 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 - [x] Documentar variables, precedencia de puertos y ejemplos de despliegue. El Launcher configura el scope desde su interfaz; PRODUCTION queda reservado al despliegue/servicio administrado.
 - [x] Registrar modo, host y dirección real de escucha.
 - [x] Integrar selector LOCAL/LAN en la interfaz del Launcher; el scope se pasa directamente al proceso hijo y no depende de variables heredadas.
-- [ ] Revisar por qué el listener efectivo se registra como `[::]` cuando el host solicitado es `0.0.0.0` y documentar/controlar la familia de direcciones.
+- [x] Evitar ambigüedad de familia del listener: seleccionar `tcp4` para hosts IPv4 y `tcp6` para hosts IPv6; registrar `EVENT=http.listen_config`. Pendiente CI y validación del binario empaquetado.
 - [ ] Revisar la detección de interfaces: no anunciar ProtonVPN como LAN confiable por defecto; definir filtro o selección explícita de interfaz.
 - [ ] Probar LOCAL con el Launcher empaquetado: loopback estricto, health local correcto y mDNS desactivado.
 - [ ] Ejecutar prueba de conectividad LAN desde otro equipo cuando el entorno esté disponible.
