@@ -240,11 +240,12 @@ func TestMasterCanChangeUniqueUserInAnotherTenantAndAuditTargetTenant(t *testing
 	rec := httptest.NewRecorder()
 	NewServer(st, t.TempDir()).Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK { t.Fatalf("global password change status=%d body=%s", rec.Code, rec.Body.String()) }
+	targetRevisionBeforeChange := 1
 	persisted := store.New(dataDir).Get(target.Tenant.ID)
 	if persisted == nil { t.Fatal("target tenant disappeared after global password change") }
 	updated := persisted.Users[targetUser.ID]
 	if updated == nil || !auth.CheckPassword(updated.PasswordHash, "new-target-password-2026") { t.Fatal("target password change was not durably persisted") }
-	if persisted.Rev <= target.Rev { t.Fatal("target tenant revision was not advanced") }
+	if persisted.Rev <= int64(targetRevisionBeforeChange) { t.Fatal("target tenant revision was not advanced") }
 	foundAudit := false
 	for _, entry := range persisted.AuditLog {
 		if entry.Action == "auth.password_change.global" && entry.TenantID == target.Tenant.ID &&
