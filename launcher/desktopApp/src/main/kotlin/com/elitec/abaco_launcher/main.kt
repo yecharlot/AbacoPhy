@@ -24,12 +24,22 @@ private object LauncherPreferenceNode
 
 private val launcherPreferences = Preferences.userNodeForPackage(LauncherPreferenceNode::class.java)
 private const val NETWORK_SCOPE_KEY = "networkScope"
+private const val LAN_INTERFACE_IP_KEY = "lanInterfaceIp"
 private const val CORS_RULES_KEY = "corsAllowedOrigins"
 
 private fun loadNetworkScope(): String =
     launcherPreferences.get(NETWORK_SCOPE_KEY, "LOCAL")
         .uppercase()
         .takeIf { it == "LOCAL" || it == "LAN" } ?: "LOCAL"
+
+private fun loadLanInterfaceIp(): String = launcherPreferences.get(LAN_INTERFACE_IP_KEY, "")
+
+private fun saveLanInterfaceIp(value: String) {
+    runCatching {
+        launcherPreferences.put(LAN_INTERFACE_IP_KEY, value.trim())
+        launcherPreferences.flush()
+    }.onFailure { persistLauncherLog("No se pudo guardar la IP LAN seleccionada: ${it.message}") }
+}
 
 private fun loadCorsRules(): String = launcherPreferences.get(CORS_RULES_KEY, "")
 
@@ -98,10 +108,11 @@ fun main() = application {
         state = windowState,
     ) {
         App(
-            onRun = { preferredPort, networkScope, corsAllowedOrigins, onState, onLog ->
+            onRun = { preferredPort, networkScope, lanInterfaceIp, corsAllowedOrigins, onState, onLog ->
                 useCase.run(
                     preferredPort = preferredPort,
                     networkScope = networkScope,
+                    lanInterfaceIp = lanInterfaceIp,
                     corsAllowedOrigins = corsAllowedOrigins,
                     onState = onState,
                     onLog = { line ->
@@ -114,6 +125,8 @@ fun main() = application {
             onOpenBrowser = { url -> browser.open(url) },
             initialNetworkScope = loadNetworkScope(),
             onNetworkScopeChange = ::saveNetworkScope,
+            initialLanInterfaceIp = loadLanInterfaceIp(),
+            onLanInterfaceIpChange = ::saveLanInterfaceIp,
             initialCorsRules = loadCorsRules(),
             onCorsRulesChange = ::saveCorsRules,
         )
