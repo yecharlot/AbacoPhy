@@ -14,7 +14,7 @@ internal data class LanInterfaceAddress(
  * Prefiere Ethernet, luego Wi-Fi; excluye VPN, túneles y adaptadores virtuales.
  */
 class SystemLanInterfaceResolver {
-    fun resolve(): LanInterfaceAddress? {
+    internal fun resolve(): LanInterfaceAddress? {
         val interfaces = runCatching {
             NetworkInterface.getNetworkInterfaces()?.let { Collections.list(it) }.orEmpty()
         }.getOrElse { return null }
@@ -62,7 +62,7 @@ internal fun isExcludedLanInterface(name: String): Boolean {
         "tap", "tailscale", "zerotier", "hamachi", "virtual",
         "vmware", "vbox", "docker", "wsl", "vethernet",
         "bluetooth", "teredo",
-    ).any(normalized::contains)
+    ).any { token -> normalized.contains(token) }
 }
 
 internal fun lanInterfacePriority(name: String): Int {
