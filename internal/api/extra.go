@@ -76,7 +76,7 @@ func (s *Server) handleCurrencies(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
-	if err := s.gateOp(sess, "monedas", r.Method); err != nil && r.Method != http.MethodGet {
+	if err := s.gateOp(sess, "monedas", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
@@ -572,6 +572,10 @@ func (s *Server) handleReportPDF(w http.ResponseWriter, r *http.Request) {
 	if period == "" {
 		period = "month"
 	}
+	if err := s.gateOp(sess, "cuentas_t", r.Method); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+		return
+	}
 	accountID := r.URL.Query().Get("account_id")
 	data, err := pdf.BuildReportPDF(snap, kind, period, accountID)
 	if err != nil {
@@ -690,6 +694,14 @@ func (s *Server) handleBackupImport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
 		return
 	}
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	if err := s.gateOp(sess, "salvas", r.Method); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso para restaurar"})
+		return
+	}
 	if sess.Role != domain.RoleAdmin && sess.Role != domain.RoleMaster && sess.Role != domain.RoleContador {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso para restaurar"})
 		return
@@ -754,6 +766,14 @@ func (s *Server) handleSyncNotify(w http.ResponseWriter, r *http.Request) {
 	sess, err := s.sess(r)
 	if err != nil {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	if err := s.gateOp(sess, "sync", r.Method); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
 	snap := s.Store.Get(sess.TenantID)
@@ -1170,13 +1190,9 @@ func (s *Server) handleKardex(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
 		return
 	}
-	role := sess.Role
-	if role != domain.RoleAlmacenero && role != domain.RoleContador && role != domain.RoleAdmin &&
-		role != domain.RoleMaster && role != domain.RoleEconomico {
-		if err := s.gateOp(sess, "almacen", r.Method); err != nil {
-			writeJSON(w, 403, map[string]string{"error": "sin permiso"})
-			return
-		}
+	if err := s.gateOp(sess, "almacen", r.Method); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+		return
 	}
 	snap := s.Store.Get(sess.TenantID)
 	if snap == nil {
@@ -1224,7 +1240,7 @@ func (s *Server) handleInventoryAdjust(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 403, map[string]string{"error": "solo almacenero o administración pueden ajustar stock"})
 		return
 	}
-	if err := s.gateOp(sess, "almacen", r.Method); err != nil && sess.Role != domain.RoleAdmin && sess.Role != domain.RoleMaster {
+	if err := s.gateOp(sess, "almacen", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "módulo almacén no disponible"})
 		return
 	}
@@ -1292,6 +1308,10 @@ func (s *Server) handleInventoryReconcile(w http.ResponseWriter, r *http.Request
 		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
 		return
 	}
+	if err := s.gateOp(sess, "almacen", r.Method); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+		return
+	}
 	disc := domain.ReconcileStock(snap)
 	writeJSON(w, 200, map[string]any{
 		"discrepancies": disc,
@@ -1354,6 +1374,10 @@ func (s *Server) handleBalanceSheet(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
 		return
 	}
+	if err := s.gateOp(sess, "reportes", r.Method); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+		return
+	}
 	out := domain.BalanceSheet(snap)
 	out["rev"] = snap.Rev
 	out["root_cid"] = snap.RootCID
@@ -1373,6 +1397,10 @@ func (s *Server) handleLedgerIntegrity(w http.ResponseWriter, r *http.Request) {
 	snap := s.Store.Get(sess.TenantID)
 	if snap == nil {
 		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+		return
+	}
+	if err := s.gateOp(sess, "traza", r.Method); err != nil {
+		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
 	writeJSON(w, 200, domain.LedgerIntegrity(snap))

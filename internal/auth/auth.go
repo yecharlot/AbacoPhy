@@ -103,6 +103,11 @@ func ModuleEnabled(snap *domain.StoreSnapshot, mod string) bool {
 // overrides the built-in ViewACL for the selected role; roles without a
 // persisted policy keep the built-in defaults.
 func CanInTenant(snap *domain.StoreSnapshot, role, view string) bool {
+	// El espacio master es reservado: ninguna política configurable del tenant
+	// puede elevar otro rol a privilegios globales.
+	if view == "master" {
+		return role == domain.RoleMaster
+	}
 	if role == domain.RoleMaster {
 		return true
 	}

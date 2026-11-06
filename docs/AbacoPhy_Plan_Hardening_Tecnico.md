@@ -169,13 +169,18 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 # 4. FASE C — Autorización
 
 ## C1. RBAC
-- [ ] Mantener separación de roles.
-- [ ] Verificar `readonly` en todos los endpoints mutables.
-- [ ] Verificar que el frontend no sea la única barrera.
-- [ ] Auditar endpoints sensibles.
-- [ ] Crear matriz endpoint → rol → operación.
-- [ ] Probar permitido y denegado.
-- [ ] Probar escalada de privilegios.
+- [x] Mantener separación de roles en el backend; el frontend no constituye una barrera de seguridad.
+- [x] Verificar `readonly` en endpoints mutables: `CanMutate` deniega siempre, incluso con grants personalizados.
+- [x] Corregir POST de asientos: exige permiso de escritura y no solo permiso de lectura.
+- [x] Reservar el módulo `master` exclusivamente a `RoleMaster`; las políticas del tenant no pueden concederlo a otros roles.
+- [x] Validar roles en creación y edición de usuarios; `master` no es asignable mediante el endpoint de usuarios y los roles desconocidos se rechazan.
+- [x] Aplicar gates de módulo a endpoints sensibles que antes comprobaban solo sesión o rol: monedas, importación de salvas, notificación de sync, Kardex, reconciliación de inventario, mayor, balance e integridad contable.
+- [x] Aplicar permisos efectivos de rol/usuario/módulo a lectura y entrada física de recepción; eliminar excepciones de admin que ignoraban módulos deshabilitados.
+- [x] Crear matriz endpoint → permiso → operación en `docs/C1_RBAC_AUDITORIA.md`.
+- [x] Añadir pruebas de denegación readonly y de escalada de admin hacia master.
+- [ ] Ejecutar validación manual de matriz con usuarios reales de cada rol y módulos activados/desactivados.
+
+**Estado C1:** correcciones y pruebas automatizadas integradas; cierre condicionado a CI del commit final y prueba manual por rol. La política mantiene la personalización de permisos existente, pero el espacio `master` queda reservado y readonly nunca obtiene escritura.
 
 ## C2. Aislamiento de tenants
 - [ ] Revisar endpoints que reciben `tenantID`.

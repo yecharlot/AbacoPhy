@@ -646,7 +646,7 @@ func (s *Server) handleEntries(w http.ResponseWriter, r *http.Request) {
 		if body.Type == "expense" {
 			view = "gastos"
 		}
-		if err := s.gate(sess, view); err != nil {
+		if err := s.gateWrite(sess, view); err != nil {
 			writeJSON(w, 403, map[string]string{"error": "forbidden"})
 			return
 		}

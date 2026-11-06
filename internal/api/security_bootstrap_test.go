@@ -187,3 +187,51 @@ func userByName(snap *domain.StoreSnapshot, username string) *domain.User {
 	}
 	return nil
 }
+
+func TestReadonlyCannotPostEntriesWithExplicitGrant(t *testing.T) {
+	dataDir := t.TempDir()
+	st := store.New(dataDir)
+	if err := EnsureBootstrap(st); err != nil { t.Fatal(err) }
+	tenant := st.ListTenants()[0]
+	snap := st.Get(tenant.ID)
+	hash, err := auth.HashPassword("readonly-test-password-2026")
+	if err != nil { t.Fatal(err) }
+	user := &domain.User{ID:"readonly-c1", TenantID:tenant.ID, Username:"readonly-c1", Role:domain.RoleReadonly, PasswordHash:hash, Active:true, Modules:map[string]bool{"ingresos":true}}
+	snap.Users[user.ID] = user
+	snap.Tenant.EnabledModules = map[string]bool{"ingresos":true}
+	snap.Tenant.RolePermissions = map[string]map[string]bool{domain.RoleReadonly: {"ingresos":true}}
+	if err := st.Put(snap); err != nil { t.Fatal(err) }
+	token, _, err := auth.Login(st, user.Username, "readonly-test-password-2026")
+	if err != nil { t.Fatal(err) }
+	handler := NewServer(st, t.TempDir()).Handler()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/entries", strings.NewReader(`{"type":"income","amount":100,"description":"forbidden"}`))
+	req.Header.Set("Authorization", "Bearer "+token.Token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden { t.Fatalf("readonly POST status = %d, want 403: %s", rec.Code, rec.Body.String()) }
+	if got := len(st.Get(tenant.ID).Entries); got != 0 { t.Fatalf("readonly POST persisted %d entries", got) }
+}
+
+func TestTenantRolePolicyCannotPromoteAdminToMasterEndpoint(t *testing.T) {
+	dataDir := t.TempDir()
+	st := store.New(dataDir)
+	if err := EnsureBootstrap(st); err != nil { t.Fatal(err) }
+	tenant := st.ListTenants()[0]
+	snap := st.Get(tenant.ID)
+	admin := userByName(snap, "admin")
+	if admin == nil { t.Fatal("bootstrap admin missing") }
+	admin.MustChangePassword = false
+	admin.PasswordHash, _ = auth.HashPassword("admin-c1-test-password-2026")
+	snap.Tenant.EnabledModules = map[string]bool{"master":true}
+	snap.Tenant.RolePermissions = map[string]map[string]bool{domain.RoleAdmin: {"master":true}}
+	if err := st.Put(snap); err != nil { t.Fatal(err) }
+	token, _, err := auth.Login(st, "admin", "admin-c1-test-password-2026")
+	if err != nil { t.Fatal(err) }
+	handler := NewServer(st, t.TempDir()).Handler()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/master/tenants", nil)
+	req.Header.Set("Authorization", "Bearer "+token.Token)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden { t.Fatalf("admin master endpoint status = %d, want 403: %s", rec.Code, rec.Body.String()) }
+}

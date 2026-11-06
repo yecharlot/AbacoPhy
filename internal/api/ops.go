@@ -1330,6 +1330,10 @@ func (s *Server) handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 		}
 		clean := map[string]bool{}
 		for view := range auth.ViewACL {
+			if view == "master" {
+				clean[view] = false
+				continue
+			}
 			if value, ok := body.Permissions[view]; ok {
 				clean[view] = value
 			} else {

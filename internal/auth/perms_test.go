@@ -57,3 +57,23 @@ func TestPermsEpochBump(t *testing.T) {
 	}
 	_ = time.Now()
 }
+
+func TestTenantPolicyCannotGrantMasterToAnotherRole(t *testing.T) {
+	snap := &domain.StoreSnapshot{Tenant: domain.Tenant{ID: "t1", RolePermissions: map[string]map[string]bool{
+		domain.RoleAdmin: {"master": true}, domain.RoleReadonly: {"master": true},
+	}}}
+	if CanInTenant(snap, domain.RoleAdmin, "master") || CanInTenant(snap, domain.RoleReadonly, "master") {
+		t.Fatal("tenant policy must never grant master access to a non-master role")
+	}
+	if !CanInTenant(snap, domain.RoleMaster, "master") { t.Fatal("master must retain master access") }
+}
+
+func TestReadonlyCannotMutateWithExplicitUserGrantOrRolePolicy(t *testing.T) {
+	snap := &domain.StoreSnapshot{Tenant: domain.Tenant{
+		ID: "t1", EnabledModules: map[string]bool{"ingresos": true},
+		RolePermissions: map[string]map[string]bool{domain.RoleReadonly: {"ingresos": true}},
+	}}
+	user := &domain.User{ID: "u1", Role: domain.RoleReadonly, Modules: map[string]bool{"ingresos": true}}
+	if !CanAccessUser(snap, user.Role, "ingresos", user) { t.Fatal("test setup: readonly should have read grant") }
+	if CanMutate(snap, user.Role, "ingresos", user) { t.Fatal("readonly must never mutate, even with explicit grants") }
+}
