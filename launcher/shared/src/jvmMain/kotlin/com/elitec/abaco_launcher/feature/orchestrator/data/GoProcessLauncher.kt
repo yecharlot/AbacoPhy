@@ -62,6 +62,7 @@ class GoProcessLauncher : BackendProcess {
         staticDir: String,
         binaryPath: String,
         networkScope: String,
+        lanInterfaceIp: String,
         corsAllowedOrigins: List<String>,
         onLog: (String) -> Unit,
     ) {
@@ -102,7 +103,17 @@ class GoProcessLauncher : BackendProcess {
         val scope = networkScope.uppercase()
         require(scope == "LOCAL" || scope == "LAN") { "Scope de red no válido: $networkScope" }
         env["ABACOPHY_BIND_MODE"] = scope
-        env["ABACOPHY_HOST"] = if (scope == "LAN") "0.0.0.0" else "127.0.0.1"
+        if (scope == "LAN") {
+            val selectedIp = lanInterfaceIp.trim()
+            require(selectedIp.matches(Regex("""(?:[0-9]{1,3}\\.){3}[0-9]{1,3}"""))) {
+                "Selecciona una IPv4 LAN válida antes de iniciar el servidor"
+            }
+            env["ABACOPHY_HOST"] = selectedIp
+            env["ABACOPHY_LAN_INTERFACE_IP"] = selectedIp
+        } else {
+            env["ABACOPHY_HOST"] = "127.0.0.1"
+            env.remove("ABACOPHY_LAN_INTERFACE_IP")
+        }
         env["ABACOPHY_CORS_ALLOWED_ORIGINS"] = corsAllowedOrigins
             .map { it.trim() }
             .filter { it.isNotEmpty() }
