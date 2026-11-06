@@ -84,6 +84,26 @@ func resolveBindAddress(getenv func(string) string) (mode, host, port, address s
 	return mode, host, port, net.JoinHostPort(host, port), nil
 }
 
+// listenNetworkForHost selects the address family explicitly. In particular,
+// an IPv4 wildcard (0.0.0.0) must not become an IPv6 wildcard ([::]) on
+// platforms where the generic "tcp" network prefers IPv6.
+func listenNetworkForHost(host string) string {
+	if host == "0.0.0.0" {
+		return "tcp4"
+	}
+	if host == "::" {
+		return "tcp6"
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if ip.To4() != nil {
+			return "tcp4"
+		}
+		return "tcp6"
+	}
+	// Preserve resolver behavior for the explicitly permitted "localhost".
+	return "tcp"
+}
+
 func main() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 	mode, host, portSetting, addr, err := resolveBindAddress(os.Getenv)
@@ -134,7 +154,9 @@ func main() {
 		}
 		apiHandler.ServeHTTP(w, r)
 	})
-	listener, err := net.Listen("tcp", addr)
+	network := listenNetworkForHost(host)
+	log.Printf("EVENT=http.listen_config network=%q address=%q", network, addr)
+	listener, err := net.Listen(network, addr)
 	if err != nil {
 		log.Printf("EVENT=http.listen_failed bind=%q error=%q", addr, err.Error())
 		log.Fatal("listen:", err)
