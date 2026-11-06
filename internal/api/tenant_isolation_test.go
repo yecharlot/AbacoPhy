@@ -182,6 +182,77 @@ func TestMasterPasswordChangeRejectsAmbiguousCrossTenantUsername(t *testing.T) {
 }
 
 
+
+func TestEmployeeRESTRejectsForeignUserAndUnitAssignments(t *testing.T) {
+	st := store.New(t.TempDir())
+	snap := domain.BootstrapTenant("Tenant A", "tenant-a", "CUP")
+	master := userByName(snap, "master")
+	if master == nil { t.Fatal("master user missing") }
+	master.MustChangePassword = false
+	master.PasswordHash = mustHashForTenantIsolationTest(t, "employee-assignment-password")
+	if err := st.Put(snap); err != nil { t.Fatal(err) }
+	sess, _, err := auth.Login(st, master.Username, "employee-assignment-password")
+	if err != nil { t.Fatal(err) }
+	handler := NewServer(st, t.TempDir()).Handler()
+	cases := []struct{name, body string}{
+		{"foreign user", `{"name":"Worker","metadata":{"userId":"user-from-tenant-b"}}`},
+		{"foreign unit", `{"name":"Worker","metadata":{"unitIds":["unit-from-tenant-b"]}}`},
+		{"malformed unit ids", `{"name":"Worker","metadata":{"unitIds":[42]}}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/payroll/employees", bytes.NewBufferString(tc.body))
+			req.Header.Set("Authorization", "Bearer "+sess.Token)
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusBadRequest { t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String()) }
+			if len(st.Get(snap.Tenant.ID).Employees) != 0 { t.Fatal("invalid employee assignment was persisted") }
+		})
+	}
+}
+
+func TestMasterCanChangeUniqueUserInAnotherTenantAndAuditTargetTenant(t *testing.T) {
+	dataDir := t.TempDir()
+	st := store.New(dataDir)
+	primary := domain.BootstrapTenant("Primary", "primary", "CUP")
+	master := userByName(primary, "master")
+	if master == nil { t.Fatal("primary master missing") }
+	master.MustChangePassword = false
+	master.PasswordHash = mustHashForTenantIsolationTest(t, "primary-master-password")
+	if err := st.Put(primary); err != nil { t.Fatal(err) }
+	target := domain.BootstrapTenant("Target", "target", "CUP")
+	for _, user := range target.Users {
+		if user == nil { continue }
+		if user.Role == domain.RoleMaster { user.Username = "target-owner" }
+		if user.Role == domain.RoleAdmin { user.Username = "target-admin" }
+	}
+	targetUser := &domain.User{ID: uuid.NewString(), TenantID: target.Tenant.ID, Username: "target-worker",
+		Role: domain.RoleVendedor, PasswordHash: mustHashForTenantIsolationTest(t, "old-target-password"), Active: true}
+	target.Users[targetUser.ID] = targetUser
+	if err := st.Put(target); err != nil { t.Fatal(err) }
+	sess, _, err := auth.Login(st, master.Username, "primary-master-password")
+	if err != nil { t.Fatal(err) }
+	body := `{"username":"target-worker","current_password":"primary-master-password","new_password":"new-target-password-2026"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/password", bytes.NewBufferString(body))
+	req.Header.Set("Authorization", "Bearer "+sess.Token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	NewServer(st, t.TempDir()).Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK { t.Fatalf("global password change status=%d body=%s", rec.Code, rec.Body.String()) }
+	persisted := store.New(dataDir).Get(target.Tenant.ID)
+	if persisted == nil { t.Fatal("target tenant disappeared after global password change") }
+	updated := persisted.Users[targetUser.ID]
+	if updated == nil || !auth.CheckPassword(updated.PasswordHash, "new-target-password-2026") { t.Fatal("target password change was not durably persisted") }
+	if persisted.Rev <= target.Rev { t.Fatal("target tenant revision was not advanced") }
+	foundAudit := false
+	for _, entry := range persisted.AuditLog {
+		if entry.Action == "auth.password_change.global" && entry.TenantID == target.Tenant.ID &&
+			entry.Metadata["actor_tenant_id"] == primary.Tenant.ID && entry.Username == master.Username { foundAudit = true }
+	}
+	if !foundAudit { t.Fatal("global password change must be audited in target tenant without foreign tenant identity") }
+}
+
 func TestCIDRestoreRejectsForeignEntityReference(t *testing.T) {
 	st := store.New(t.TempDir())
 	snap := domain.BootstrapTenant("Primary", "primary", "CUP")

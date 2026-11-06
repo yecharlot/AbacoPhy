@@ -117,6 +117,15 @@ func ValidateSnapshotReferences(snap *StoreSnapshot) error {
 	missing := func(kind, id string) error {
 		return &SnapshotIntegrityError{Reason: kind + " no existe dentro del tenant: " + id}
 	}
+	for id, user := range snap.Users { if user != nil && user.ID != id { return &SnapshotIntegrityError{Reason: "clave/ID de usuario no coincide: " + id} } }
+	for id, account := range snap.Accounts { if account != nil && account.ID != id { return &SnapshotIntegrityError{Reason: "clave/ID de cuenta no coincide: " + id} } }
+	for id, item := range snap.Inventory { if item != nil && item.ID != id { return &SnapshotIntegrityError{Reason: "clave/ID de inventario no coincide: " + id} } }
+	for id, employee := range snap.Employees { if employee != nil && employee.ID != id { return &SnapshotIntegrityError{Reason: "clave/ID de empleado no coincide: " + id} } }
+	for id, product := range snap.Products { if product != nil && product.ID != id { return &SnapshotIntegrityError{Reason: "clave/ID de producto no coincide: " + id} } }
+	for id, unit := range snap.SalesUnits { if unit != nil && unit.ID != id { return &SnapshotIntegrityError{Reason: "clave/ID de unidad de venta no coincide: " + id} } }
+	for id, sheet := range snap.CostSheets { if sheet != nil && (sheet.ProductID != id || sheet.ProductID == "") { return &SnapshotIntegrityError{Reason: "clave/producto de ficha de costo no coincide: " + id} } }
+	for id, position := range snap.JobPositions { if position != nil && position.ID != id { return &SnapshotIntegrityError{Reason: "clave/ID de cargo no coincide: " + id} } }
+	for id, unit := range snap.MeasureUnits { if unit != nil && unit.ID != id { return &SnapshotIntegrityError{Reason: "clave/ID de unidad de medida no coincide: " + id} } }
 	for id, account := range snap.Accounts {
 		if account != nil && account.ParentID != "" {
 			if account.ParentID == id || snap.Accounts[account.ParentID] == nil {
@@ -127,6 +136,9 @@ func ValidateSnapshotReferences(snap *StoreSnapshot) error {
 	for _, entry := range snap.Entries {
 		if entry.AccountID != "" && snap.Accounts[entry.AccountID] == nil {
 			return missing("cuenta del asiento", entry.AccountID)
+		}
+		if entry.Counterpart != "" && snap.Accounts[entry.Counterpart] == nil {
+			return missing("contrapartida del asiento", entry.Counterpart)
 		}
 	}
 	for _, move := range snap.InvMoves {
@@ -216,6 +228,14 @@ func ValidateSnapshotReferences(snap *StoreSnapshot) error {
 			return missing("producto de ficha de precio", sheet.ProductID)
 		}
 	}
+	for productID, stock := range snap.WarehouseStock {
+		if stock != nil {
+			if stock.ProductID != "" && stock.ProductID != productID {
+				return &SnapshotIntegrityError{Reason: "clave/producto de stock de almacén no coincide: " + productID}
+			}
+			if snap.Products[productID] == nil { return missing("producto de stock de almacén", productID) }
+		}
+	}
 	for _, stock := range snap.UnitStocks {
 		if stock.UnitID != "" && snap.SalesUnits[stock.UnitID] == nil {
 			return missing("unidad de stock", stock.UnitID)
@@ -241,6 +261,44 @@ func ValidateSnapshotReferences(snap *StoreSnapshot) error {
 	}
 	return nil
 }
+
+
+ // ValidateEmployeeAssignments valida las referencias operativas de un empleado
+ // antes de que un endpoint modifique el snapshot activo.
+ func ValidateEmployeeAssignments(snap *StoreSnapshot, employeeID string, metadata Metadata) error {
+ 	if snap == nil { return &SnapshotIntegrityError{Reason: "snapshot nulo"} }
+ 	if rawUserID, ok := metadata["userId"]; ok {
+ 		userID, valid := rawUserID.(string)
+ 		if !valid { return &SnapshotIntegrityError{Reason: "userId inválido en empleado: " + employeeID} }
+ 		if strings.TrimSpace(userID) != "" {
+ 			user := snap.Users[userID]
+ 			if user == nil || user.ID != userID || (user.TenantID != "" && user.TenantID != snap.Tenant.ID) {
+ 				return &SnapshotIntegrityError{Reason: "usuario asignado al empleado no existe dentro del tenant: " + userID}
+ 			}
+ 		}
+ 	}
+ 	if rawUnitIDs, ok := metadata["unitIds"]; ok {
+ 		var unitIDs []string
+ 		switch values := rawUnitIDs.(type) {
+ 		case []string: unitIDs = values
+ 		case []any:
+ 			for _, value := range values {
+ 				unitID, valid := value.(string)
+ 				if !valid { return &SnapshotIntegrityError{Reason: "unitIds inválido en empleado: " + employeeID} }
+ 				unitIDs = append(unitIDs, unitID)
+ 			}
+ 		case nil:
+ 		default: return &SnapshotIntegrityError{Reason: "unitIds inválido en empleado: " + employeeID}
+ 		}
+ 		for _, unitID := range unitIDs {
+ 			unit := snap.SalesUnits[unitID]
+ 			if strings.TrimSpace(unitID) == "" || unit == nil || unit.ID != unitID || (unit.TenantID != "" && unit.TenantID != snap.Tenant.ID) {
+ 				return &SnapshotIntegrityError{Reason: "unidad asignada al empleado no existe dentro del tenant: " + unitID}
+ 			}
+ 		}
+ 	}
+ 	return nil
+ }
 
 // RememberIdempotent registra client_op_id → serverID; recorta mapa si crece.
 func RememberIdempotent(snap *StoreSnapshot, clientOpID, serverID string) {

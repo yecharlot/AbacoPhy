@@ -1094,7 +1094,18 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	target.MustChangePassword = target.ID != actor.ID
 	target.UpdatedAt = time.Now().UTC()
 	detail := "Cambio de contraseña del usuario " + target.Username + " por " + actor.Username
-	s.audit(snap, sess, "auth.password_change", detail, target.ID)
+	if snap.Tenant.ID == sess.TenantID {
+		s.audit(snap, sess, "auth.password_change", detail, target.ID)
+	} else {
+		// Una operación global de master se audita en el tenant objetivo, pero
+		// nunca se inserta el TenantID del actor dentro del snapshot ajeno.
+		snap.AuditLog = append(snap.AuditLog, domain.AuditEntry{
+			ID: uuid.NewString(), TenantID: snap.Tenant.ID, Username: actor.Username, Role: sess.Role,
+			Action: "auth.password_change.global", Detail: detail, Ref: target.ID,
+			CreatedAt: time.Now().UTC(),
+			Metadata: domain.Metadata{"actor_tenant_id": sess.TenantID},
+		})
+	}
 	if err := s.Store.Put(snap); err != nil {
 		writeJSON(w, 500, map[string]string{"error": "no se pudo guardar la nueva contraseña"})
 		return

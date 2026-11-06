@@ -2,7 +2,7 @@
 
 **Rama:** `security-hardening`  
 **Fase:** C2 — implementación incremental  
-**Estado:** aislamiento de sesión, sync push y validación central de persistencia integrados; auditoría global y CI de la última iteración pendientes.
+**Estado:** implementación C2 integrada; auditoría REST/global y pruebas de integridad de snapshots incorporadas. El cierre operativo final requiere prueba manual integral con dos tenants y ejecutar la remediación documentada para usernames legacy duplicados.
 
 ## Objetivo y regla de seguridad
 
@@ -94,6 +94,25 @@ Si la relación no coincide, se rechaza la autenticación/autorización. No se c
 3. Endpoints globales: listado/creación de tenants, reset y cambio de contraseña master; la presencia ahora filtra por tenant. Los eventos SSE ya usan canales separados por tenant. Revisar manualmente los usernames duplicados con contraseña repetida.
 4. Sincronización offline: revisar referencias de cada entidad adicional y la semántica de IDs/idempotencia; verificar con dos tenants y lotes mixtos.
 5. Migraciones y snapshots antiguos: validar/reparar datos heredados en un paso controlado de migración, nunca durante el login o una petición ordinaria.
+
+## Quinta iteración — integridad referencial completa del snapshot
+
+- `ValidateSnapshotReferences` valida claves canónicas de mapas para usuarios, cuentas, inventario, empleados, productos, unidades de venta, fichas de costo, cargos y unidades de medida.
+- Se valida `Entry.Counterpart` además de `AccountID`.
+- `WarehouseStock` debe apuntar a un producto local y su clave debe coincidir con `ProductID`.
+- Se mantienen las comprobaciones para nóminas, movimientos, asignaciones de empleados, recepciones, transferencias, POS, fichas, stocks de PDV, Kardex y pedidos online.
+- Prueba: `TestValidateSnapshotReferencesRejectsNonCanonicalIDsAndMissingOperationalRefs`.
+
+## Remediación de usernames legacy duplicados
+
+1. Mantener el login bloqueado para identidades ambiguas; nunca elegir tenant por orden de búsqueda.
+2. Crear y verificar una salva por cada tenant afectado.
+3. Generar un inventario de usernames normalizados duplicados sin exponer hashes ni contraseñas.
+4. El propietario de cada empresa identifica qué cuenta conserva el username original; las demás reciben usernames nuevos confirmados por sus administradores.
+5. Aplicar cambios dentro del tenant correspondiente, revocar sesiones de las cuentas modificadas y registrar cada cambio.
+6. Verificar unicidad global y probar login individual por tenant.
+
+No se renombrarán identidades automáticamente: podría romper usuarios y referencias externas. Mientras no se confirme la remediación, las cuentas duplicadas permanecen bloqueadas de forma segura.
 
 ## Criterio de cierre
 

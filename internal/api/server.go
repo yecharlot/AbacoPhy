@@ -848,6 +848,10 @@ func (s *Server) handleEmployees(w http.ResponseWriter, r *http.Request) {
 		}
 		body.ID = uuid.NewString()
 		body.TenantID = sess.TenantID
+		if err := domain.ValidateEmployeeAssignments(snap, body.ID, body.Metadata); err != nil {
+			writeJSON(w, 400, map[string]string{"error": "asignación de usuario o unidad inválida para este negocio"})
+			return
+		}
 		body.Active = true
 		body.CreatedAt = time.Now().UTC()
 		body.UpdatedAt = body.CreatedAt
@@ -877,6 +881,12 @@ func (s *Server) handleEmployees(w http.ResponseWriter, r *http.Request) {
 		if ex == nil {
 			writeJSON(w, 404, map[string]string{"error": "trabajador no encontrado"})
 			return
+		}
+		if body.Metadata != nil {
+			if err := domain.ValidateEmployeeAssignments(snap, body.ID, body.Metadata); err != nil {
+				writeJSON(w, 400, map[string]string{"error": "asignación de usuario o unidad inválida para este negocio"})
+				return
+			}
 		}
 		if body.Name != "" {
 			ex.Name = body.Name

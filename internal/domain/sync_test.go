@@ -85,6 +85,22 @@ func TestBindSnapshotToTenantChecksAllTenantScopedModules(t *testing.T) {
 }
 
 
+
+func TestValidateSnapshotReferencesRejectsNonCanonicalIDsAndMissingOperationalRefs(t *testing.T) {
+	t.Run("map key mismatch", func(t *testing.T) {
+		s := &StoreSnapshot{Tenant: Tenant{ID: "tenant-a"}, Products: map[string]*Product{"key-a": {ID: "product-b", TenantID: "tenant-a"}}}
+		if err := ValidateSnapshotReferences(s); err == nil { t.Fatal("map key and entity ID mismatch must be rejected") }
+	})
+	t.Run("missing counterpart", func(t *testing.T) {
+		s := &StoreSnapshot{Tenant: Tenant{ID: "tenant-a"}, Accounts: map[string]*Account{"account-a": {ID: "account-a"}}, Entries: []Entry{{ID: "entry-a", Counterpart: "account-from-b"}}}
+		if err := ValidateSnapshotReferences(s); err == nil { t.Fatal("counterpart must resolve inside the same snapshot") }
+	})
+	t.Run("warehouse stock without local product", func(t *testing.T) {
+		s := &StoreSnapshot{Tenant: Tenant{ID: "tenant-a"}, WarehouseStock: map[string]*WarehouseStock{"product-from-b": {ProductID: "product-from-b"}}}
+		if err := ValidateSnapshotReferences(s); err == nil { t.Fatal("warehouse stock must reference a product in the same snapshot") }
+	})
+}
+
 func TestValidateSnapshotReferencesRejectsForeignEmployeeAssignments(t *testing.T) {
 	s := &StoreSnapshot{
 		Tenant: Tenant{ID: "tenant-a"},

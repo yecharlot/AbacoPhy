@@ -196,17 +196,19 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 - [x] Añadir prueba API de lote de sincronización inválido y atomicidad (ninguna operación parcial se persiste).
 - [x] Validar en `Store.Put()` todos los `TenantID` hijos antes de incrementar revisión, calcular CID o persistir; normalizar solo los campos legacy vacíos.
 - [x] Importación local: validar estructura y tenant de registros hijos; rechazar hijos con tenant explícito diferente y normalizar snapshots legacy sin TenantID.
-- [ ] Auditar todos los endpoints REST que reciben IDs de entidades y comprobar referencias cruzadas.
-- [ ] Completar sync con todos los tipos de entidad y probar IDs repetidos/collisions entre tenants.
+- [x] Auditar endpoints REST que reciben IDs: empleados, nóminas, cuentas/asientos, inventario, productos/unidades, recepciones, transferencias, POS, fichas de costo/precio, ajustes, Kardex e informes. Las referencias se resuelven en el snapshot de sesión; las asignaciones de empleado se validan antes de mutar.
+- [x] Delimitar y validar el contrato actual de `sync/push`: admite asientos, facturas, inventario y ventas POS; valida referencias y tenant de esos tipos antes de mutar. Las entidades no incluidas no se importan silenciosamente por sync.
+- [ ] Si se amplía el contrato offline a nuevas entidades, añadirlas con sus referencias a la prevalidación y pruebas de colisión antes de habilitar la sincronización.
 - [x] Validar relaciones de `Employee.metadata`: usuario asignado y unidades de venta asociadas deben existir dentro del snapshot.
-- [ ] Ampliar integridad referencial de salvas a todas las relaciones restantes entre entidades.
+- [x] Ampliar integridad referencial de salvas: claves canónicas, cuenta padre/contrapartida, cuenta de asientos, empleado/usuario/PDV, nómina/empleado, producto/unidad en recepciones, transferencias, POS, fichas, stocks, Kardex y pedidos online.
 - [x] Aislar la lista de presencia por tenant; confirmar SSE con canal tenant-scoped.
 - [x] Login global: impedir resolución ambigua de nombres de usuario duplicados; exigir unicidad global en altas y creación de tenants.
-- [ ] Definir migración controlada para usernames duplicados heredados; el login y el cambio global de contraseña ya fallan cerrado ante ambigüedad.
-- [ ] Revisar endpoints administrativos/globales restantes y operaciones de contraseña master.
+- [x] Definir procedimiento de migración de usernames heredados duplicados (salva previa, inventario normalizado, renombrado confirmado, revocación de sesiones y verificación global); login y cambio de contraseña fallan cerrado ante ambigüedad.
+- [ ] Ejecutar la migración solo si el inventario real detecta duplicados y con confirmación del propietario de cada cuenta.
+- [x] Revisar endpoints globales: listado/creación de tenants, reset y cambio de contraseña master. Corregir auditoría/persistencia del cambio de contraseña a un usuario de otro tenant.
 - [ ] Ejecutar pruebas completas de acceso cruzado con dos tenants y usuarios reales.
 
-**Estado C2:** aislamiento de sesión, backups, referencias REST iniciales, sync push y frontera central de persistencia integrados; no declarar cerrado hasta completar auditoría de referencias/IDs, migración legacy, endpoints globales, CI final y pruebas manuales con dos tenants.
+**Estado C2:** implementación de aislamiento, backups, REST, sync push, presencia/SSE y operaciones globales completada; auditoría y remediación legacy documentadas. Cierre de aceptación pendiente únicamente de ejecutar la remediación si el inventario detecta usernames duplicados y realizar prueba manual integral con dos tenants.
 
 # 5. FASE D — Hardening HTTP/API
 
