@@ -173,16 +173,26 @@ func main() {
 		log.Fatal("listen:", err)
 	}
 	actualPort := listener.Addr().(*net.TCPAddr).Port
-	log.Printf("EVENT=http.listening bind=%q actual_port=%d", listener.Addr().String(), actualPort)
-	httpServer := &http.Server{Handler: handler}
-
-	// Start serving before announcing the service. The listener is already bound,
-	// so clients that discover it can immediately reach the HTTP server.
-	go func() {
-		if err := httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
-			log.Printf("HTTP server: %v", err)
+	listeners := []net.Listener{listener}
+	// In selected-interface LAN mode, keep the desktop's local URL available
+	// without opening the port on every other host interface.
+	if mode == bindModeLAN && lanInterfaceIP != "" {
+		localListener, localErr := net.Listen("tcp4", net.JoinHostPort("127.0.0.1", fmt.Sprint(actualPort)))
+		if localErr != nil {
+			_ = listener.Close()
+			log.Fatalf("could not bind local loopback listener: %v", localErr)
 		}
-	}()
+		listeners = append(listeners, localListener)
+	}
+	httpServer := &http.Server{Handler: handler}
+	for _, activeListener := range listeners {
+		log.Printf("EVENT=http.listening bind=%q actual_port=%d", activeListener.Addr().String(), actualPort)
+		go func(l net.Listener) {
+			if err := httpServer.Serve(l); err != nil && err != http.ErrServerClosed {
+				log.Printf("HTTP server: %v", err)
+			}
+		}(activeListener)
+	}
 
 	fmt.Printf("ÁbacoPhy listening on %s\n", listener.Addr().String())
 	if mode == bindModeLAN {
