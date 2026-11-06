@@ -208,3 +208,44 @@ func TestCIDRestoreRejectsForeignEntityReference(t *testing.T) {
 	NewServer(st, t.TempDir()).Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest { t.Fatalf("CID restore status=%d body=%s", rec.Code, rec.Body.String()) }
 }
+
+
+func TestSyncPushRejectsForeignTenantAndReferencesAtomically(t *testing.T) {
+	st := store.New(t.TempDir())
+	snap := domain.BootstrapTenant("Tenant A", "tenant-a", "CUP")
+	master := userByName(snap, "master")
+	if master == nil { t.Fatal("master user missing") }
+	master.MustChangePassword = false
+	master.PasswordHash = mustHashForTenantIsolationTest(t, "sync-isolation-password")
+	if err := st.Put(snap); err != nil { t.Fatal(err) }
+	sess, _, err := auth.Login(st, master.Username, "sync-isolation-password")
+	if err != nil { t.Fatal(err) }
+	handler := NewServer(st, t.TempDir()).Handler()
+
+	cases := []struct{name, body string}{
+		{"foreign invoice tenant", `{"client_rev":0,"entries":[{"id":"local-entry","type":"income","amount":1}],"invoices":[{"id":"foreign-invoice","tenant_id":"tenant-b"}]}`},
+		{"foreign inventory tenant", `{"client_rev":0,"entries":[{"id":"local-entry","type":"income","amount":1}],"inventory":[{"id":"foreign-item","tenant_id":"tenant-b"}]}`},
+		{"foreign POS sale tenant", `{"client_rev":0,"entries":[{"id":"local-entry","type":"income","amount":1}],"pos_sales":[{"id":"foreign-sale","tenant_id":"tenant-b"}]}`},
+		{"foreign account reference", `{"client_rev":0,"entries":[{"id":"local-entry","type":"income","amount":1},{"id":"bad-entry","account_id":"account-from-b","amount":1}]}`},
+		{"foreign product reference", `{"client_rev":0,"pos_sales":[{"id":"sale","lines":[{"product_id":"product-from-b","qty":1}]}]}`},
+		{"foreign unit reference", `{"client_rev":0,"pos_sales":[{"id":"sale","unit_id":"unit-from-b","lines":[{"product_id":"product-from-b","qty":1}]}]}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			before := st.Get(snap.Tenant.ID).Rev
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/sync/push", bytes.NewBufferString(tc.body))
+			req.Header.Set("Authorization", "Bearer "+sess.Token)
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusBadRequest && rec.Code != http.StatusForbidden {
+				t.Fatalf("expected rejection, status=%d body=%s", rec.Code, rec.Body.String())
+			}
+			current := st.Get(snap.Tenant.ID)
+			if len(current.Entries) != 0 || len(current.Invoices) != 0 || len(current.POSSales) != 0 {
+				t.Fatal("invalid sync batch partially mutated tenant data")
+			}
+			if current.Rev != before { t.Fatal("invalid sync batch changed tenant revision") }
+		})
+	}
+}

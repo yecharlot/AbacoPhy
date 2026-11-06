@@ -190,8 +190,13 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 - [x] Reservar `master/reset` para `RoleMaster`: el reset elimina todos los tenants y no puede ejecutarlo un admin de negocio.
 - [x] Añadir pruebas unitarias de binding y pruebas API para restore/reset entre tenants.
 - [x] Primera validación de referencias cruzadas en sync push: cuentas, productos y unidades deben existir dentro del snapshot autenticado; el lote se prevalida antes de mutar.
+- [x] Validar `TenantID` explícitos de entradas, facturas, inventario y ventas POS recibidos por sync push.
+- [x] Exigir tenant coherente en referencias de cuenta, producto y unidad; permitir solo referencias locales resueltas en el snapshot (incluidos registros legacy con `TenantID` vacío).
+- [x] Eliminar en `/me` la reparación de `TenantID` y la búsqueda alternativa de usuarios fuera de la clave canónica.
+- [x] Añadir prueba API de lote de sincronización inválido y atomicidad (ninguna operación parcial se persiste).
 - [x] Importación local: validar estructura y tenant de registros hijos; rechazar hijos con tenant explícito diferente y normalizar snapshots legacy sin TenantID.
 - [ ] Auditar todos los endpoints REST que reciben IDs de entidades y comprobar referencias cruzadas.
+- [ ] Completar sync con todos los tipos de entidad y probar IDs repetidos/collisions entre tenants.
 - [ ] Ampliar integridad referencial de salvas a todas las relaciones entre entidades.
 - [x] Aislar la lista de presencia por tenant; confirmar SSE con canal tenant-scoped.
 - [x] Login global: impedir resolución ambigua de nombres de usuario duplicados; exigir unicidad global en altas y creación de tenants.
@@ -199,7 +204,7 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 - [ ] Revisar endpoints administrativos/globales restantes y operaciones de contraseña master.
 - [ ] Ejecutar pruebas completas de acceso cruzado con dos tenants y usuarios reales.
 
-**Estado C2:** primera capa de aislamiento integrada; no declarar cerrado hasta completar auditoría de referencias/IDs, validación de importación y CI.
+**Estado C2:** aislamiento de sesión, backups, referencias REST iniciales y sync push integrados; no declarar cerrado hasta completar auditoría de referencias/IDs, migración legacy, endpoints globales, CI final y pruebas manuales con dos tenants.
 
 # 5. FASE D — Hardening HTTP/API
 

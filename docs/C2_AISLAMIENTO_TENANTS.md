@@ -2,7 +2,7 @@
 
 **Rama:** `security-hardening`  
 **Fase:** C2 — implementación incremental  
-**Estado:** primera capa integrada; auditoría global pendiente.
+**Estado:** aislamiento de sesión, backup, referencias REST y primera validación de sync integrados; auditoría global y CI de la última iteración pendientes.
 
 ## Objetivo y regla de seguridad
 
@@ -60,12 +60,24 @@ Si la relación no coincide, se rechaza la autenticación/autorización. No se c
 - Identidad global: el login no recibe un selector de tenant, por lo que las nuevas altas exigen nombres únicos en todo el servidor. El login compara todas las coincidencias legacy y acepta solo una cuenta activa cuya contraseña coincida; si las mismas credenciales identifican más de un tenant, rechaza el acceso. `FindUserByUsername` falla cerrado ante duplicados para operaciones administrativas por nombre. Si no se indica `admin_user`, se deriva uno del slug.
 - Eventos SSE: comprobado que `EventHub.Subscribe(sess.TenantID)` separa los canales por tenant.
 
+## Segunda iteración — sincronización y sesión
+
+- `/me`: eliminada la reparación de `TenantID` y la búsqueda alternativa de usuario por ID. La respuesta exige que la clave del mapa, el ID, el tenant y el rol coincidan con la sesión ya autenticada.
+- Sync push: valida los `TenantID` explícitos de entradas, facturas, inventario y ventas POS antes de aplicar operaciones.
+- Sync push: las referencias de asientos deben existir en el snapshot y no declarar otro tenant; las unidades y productos de ventas POS deben existir en el snapshot y no declarar otro tenant.
+- La prevalidación se ejecuta sobre el lote completo antes de aplicar entradas, facturas, inventario o ventas. Las pruebas verifican que un lote rechazado no persiste operaciones anteriores del mismo lote.
+- Se conserva compatibilidad con registros locales legacy cuyo `TenantID` esté vacío, siempre que la referencia se resuelva dentro del snapshot de la sesión. Un `TenantID` explícito de otro negocio se rechaza.
+
+### Pruebas añadidas en esta iteración
+
+- `TestSyncPushRejectsForeignTenantAndReferencesAtomically`
+
 ## Áreas todavía bajo auditoría
 
 1. Backups: ampliar integridad referencial a las relaciones restantes (incluidos metadatos de empleados y relaciones de auditoría) y validar hashes/CID del contenido restaurado.
 2. Completar revisión de referencias por ID en endpoints REST: empleados, recepciones, fichas de costo/precio, transferencias, ajustes y documentos.
 3. Endpoints globales: listado/creación de tenants, reset y cambio de contraseña master; la presencia ahora filtra por tenant. Los eventos SSE ya usan canales separados por tenant. Revisar manualmente los usernames duplicados con contraseña repetida.
-4. Sincronización offline: tenant del sobre, idempotencia, referencias y eventos deben permanecer dentro del tenant autenticado.
+4. Sincronización offline: revisar referencias de cada entidad adicional y la semántica de IDs/idempotencia; verificar con dos tenants y lotes mixtos.
 5. Migraciones y snapshots antiguos: validar/reparar datos heredados en un paso controlado de migración, nunca durante el login o una petición ordinaria.
 
 ## Criterio de cierre
