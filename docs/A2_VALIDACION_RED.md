@@ -64,6 +64,7 @@ El proceso fue identificado como el backend empaquetado `abacophy.exe` bajo `lau
 | A2-E04 | Firewall de Windows desactivado intencionalmente | Condición del entorno; no modificar |
 | A2-E05 | Acceso desde un segundo equipo en LAN | Pendiente |
 | A2-E06 | Modo LOCAL probado en la instalación empaquetada | Pendiente |
+| A2-E07 | Selector Launcher, persistencia del adaptador y resolución DHCP | Integrado en código; prueba empaquetada pendiente |
 
 ### Implementación posterior a la evidencia
 
@@ -74,8 +75,8 @@ El proceso fue identificado como el backend empaquetado `abacophy.exe` bajo `lau
 2. Se persiste el nombre del adaptador, no la IP. En cada inicio se vuelve a resolver su dirección actual para tolerar cambios DHCP.
 3. HTTP escucha en la IP seleccionada y, simultáneamente, en `127.0.0.1`; no usa `0.0.0.0` en el flujo normal del Launcher. mDNS se limita a la interfaz propietaria de la IP seleccionada.
 4. AbacoPOS no configura interfaces: descubre el servicio mDNS y se conecta.
-3. Probar LOCAL con el Launcher empaquetado y confirmar loopback estricto y mDNS desactivado.
-4. Probar LAN desde un segundo equipo y comprobar que no se anuncia ni acepta tráfico por interfaces no seleccionadas. Registrar por separado el estado del firewall del entorno.
+5. Probar LOCAL con el Launcher empaquetado y confirmar loopback estricto y mDNS desactivado.
+6. Probar LAN desde un segundo equipo y comprobar que no se anuncia ni acepta tráfico por interfaces no seleccionadas. Registrar por separado el estado del firewall del entorno.
 
 La activación del firewall del equipo del usuario no forma parte de este plan ni está autorizada por esta validación. En instalaciones de terceros, la restricción del puerto mediante firewall sigue siendo un requisito de despliegue cuando se use LAN.
 ## 4. Prueba operativa LOCAL
