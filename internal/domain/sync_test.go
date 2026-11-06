@@ -60,9 +60,13 @@ func TestBindSnapshotToTenantNormalizesLegacyEmptyTenantIDs(t *testing.T) {
 		Users: map[string]*User{"u1": {ID: "u1"}},
 		Accounts: map[string]*Account{"a1": {ID: "a1"}},
 		Entries: []Entry{{ID: "e1"}},
+		MeasureUnits: map[string]*MeasureUnit{"unit": {ID: "unit"}},
+		PriceSheets: map[string]*PriceSheet{"price": {ID: "price"}},
+		OnlineOrders: []OnlineOrder{{ID: "order"}},
 	}
 	if err := BindSnapshotToTenant(s, "tenant-a"); err != nil { t.Fatal(err) }
-	if s.Users["u1"].TenantID != "tenant-a" || s.Accounts["a1"].TenantID != "tenant-a" || s.Entries[0].TenantID != "tenant-a" {
+	if s.Users["u1"].TenantID != "tenant-a" || s.Accounts["a1"].TenantID != "tenant-a" || s.Entries[0].TenantID != "tenant-a" ||
+		s.MeasureUnits["unit"].TenantID != "tenant-a" || s.PriceSheets["price"].TenantID != "tenant-a" || s.OnlineOrders[0].TenantID != "tenant-a" {
 		t.Fatal("legacy records must be bound to the destination tenant")
 	}
 }

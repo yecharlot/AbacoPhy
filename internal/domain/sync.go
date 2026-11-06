@@ -107,6 +107,107 @@ func BindSnapshotToTenant(snap *StoreSnapshot, tenantID string) error {
 	return nil
 }
 
+
+ 
+// ValidateSnapshotReferences verifica que las referencias internas de un
+// snapshot resuelvan dentro del mismo tenant. Un ID ajeno o inexistente no
+// puede convertirse en una relación válida por el simple hecho de importar.
+func ValidateSnapshotReferences(snap *StoreSnapshot) error {
+	if snap == nil { return &SnapshotIntegrityError{Reason: "snapshot nulo"} }
+	missing := func(kind, id string) error {
+		return &SnapshotIntegrityError{Reason: kind + " no existe dentro del tenant: " + id}
+	}
+	for id, account := range snap.Accounts {
+		if account != nil && account.ParentID != "" {
+			if account.ParentID == id || snap.Accounts[account.ParentID] == nil {
+				return missing("cuenta padre", account.ParentID)
+			}
+		}
+	}
+	for _, entry := range snap.Entries {
+		if entry.AccountID != "" && snap.Accounts[entry.AccountID] == nil {
+			return missing("cuenta del asiento", entry.AccountID)
+		}
+	}
+	for _, move := range snap.InvMoves {
+		if move.ItemID != "" && snap.Inventory[move.ItemID] == nil {
+			return missing("artículo del movimiento", move.ItemID)
+		}
+	}
+	for _, slip := range snap.Payslips {
+		if slip.EmployeeID != "" && snap.Employees[slip.EmployeeID] == nil {
+			return missing("empleado de nómina", slip.EmployeeID)
+		}
+	}
+	for _, reception := range snap.Receptions {
+		for _, line := range reception.Lines {
+			if line.ProductID != "" && snap.Products[line.ProductID] == nil {
+				return missing("producto de recepción", line.ProductID)
+			}
+		}
+	}
+	for _, transfer := range snap.Transfers {
+		if transfer.UnitID != "" && snap.SalesUnits[transfer.UnitID] == nil {
+			return missing("unidad de transferencia", transfer.UnitID)
+		}
+		for _, line := range transfer.Lines {
+			if line.ProductID != "" && snap.Products[line.ProductID] == nil {
+				return missing("producto de transferencia", line.ProductID)
+			}
+		}
+	}
+	for _, sale := range snap.POSSales {
+		if sale.UnitID != "" && snap.SalesUnits[sale.UnitID] == nil {
+			return missing("unidad de venta", sale.UnitID)
+		}
+		for _, line := range sale.Lines {
+			if line.ProductID != "" && snap.Products[line.ProductID] == nil {
+				return missing("producto de venta", line.ProductID)
+			}
+		}
+	}
+	for _, sheet := range snap.CostSheets {
+		if sheet == nil { continue }
+		if sheet.ProductID != "" && snap.Products[sheet.ProductID] == nil {
+			return missing("producto de ficha de costo", sheet.ProductID)
+		}
+		for _, component := range sheet.Components {
+			if component.ProductID != "" && snap.Products[component.ProductID] == nil {
+				return missing("componente de ficha de costo", component.ProductID)
+			}
+		}
+	}
+	for _, sheet := range snap.PriceSheets {
+		if sheet != nil && sheet.ProductID != "" && snap.Products[sheet.ProductID] == nil {
+			return missing("producto de ficha de precio", sheet.ProductID)
+		}
+	}
+	for _, stock := range snap.UnitStocks {
+		if stock.UnitID != "" && snap.SalesUnits[stock.UnitID] == nil {
+			return missing("unidad de stock", stock.UnitID)
+		}
+		if stock.ProductID != "" && snap.Products[stock.ProductID] == nil {
+			return missing("producto de stock", stock.ProductID)
+		}
+	}
+	for _, movement := range snap.StockLedger {
+		if movement.ProductID != "" && snap.Products[movement.ProductID] == nil {
+			return missing("producto de kardex", movement.ProductID)
+		}
+		if movement.UnitID != "" && snap.SalesUnits[movement.UnitID] == nil {
+			return missing("unidad de kardex", movement.UnitID)
+		}
+	}
+	for _, order := range snap.OnlineOrders {
+		for _, line := range order.Lines {
+			if line.ProductID != "" && snap.Products[line.ProductID] == nil {
+				return missing("producto de pedido online", line.ProductID)
+			}
+		}
+	}
+	return nil
+}
+
 // RememberIdempotent registra client_op_id → serverID; recorta mapa si crece.
 func RememberIdempotent(snap *StoreSnapshot, clientOpID, serverID string) {
 	if snap == nil || clientOpID == "" || serverID == "" {

@@ -182,7 +182,7 @@ func TestMasterPasswordChangeRejectsAmbiguousCrossTenantUsername(t *testing.T) {
 }
 
 
-func TestCIDRestoreRejectsForeignTenantChild(t *testing.T) {
+func TestCIDRestoreRejectsForeignEntityReference(t *testing.T) {
 	st := store.New(t.TempDir())
 	snap := domain.BootstrapTenant("Primary", "primary", "CUP")
 	master := userByName(snap, "master")
@@ -190,8 +190,12 @@ func TestCIDRestoreRejectsForeignTenantChild(t *testing.T) {
 	master.MustChangePassword = false
 	master.PasswordHash = mustHashForTenantIsolationTest(t, "cid-child-password")
 	snap.Products = map[string]*domain.Product{
-		"foreign-product": {ID: "foreign-product", TenantID: "tenant-b", Name: "Foreign"},
+		"local-product": {ID: "local-product", TenantID: snap.Tenant.ID, Name: "Local"},
 	}
+	snap.POSSales = []domain.POSSale{{
+		ID: "sale-with-foreign-reference", TenantID: snap.Tenant.ID,
+		Lines: []domain.POSLine{{ProductID: "product-from-b", Qty: 1}},
+	}}}
 	if err := st.Put(snap); err != nil { t.Fatal(err) }
 	sess, _, err := auth.Login(st, master.Username, "cid-child-password")
 	if err != nil { t.Fatal(err) }

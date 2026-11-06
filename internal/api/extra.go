@@ -277,6 +277,10 @@ func (s *Server) handleBackupRestore(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 403, map[string]string{"error": "la salva contiene datos de otro negocio"})
 		return
 	}
+	if err := domain.ValidateSnapshotReferences(restored); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "la salva contiene referencias inválidas"})
+		return
+	}
 	// preservar backups e historial de auditoría reciente
 	cur := s.Store.Get(sess.TenantID)
 	if cur != nil {
@@ -766,6 +770,10 @@ func (s *Server) handleBackupImport(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := domain.BindSnapshotToTenant(&restored, sess.TenantID); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "la salva contiene datos de otro negocio"})
+		return
+	}
+	if err := domain.ValidateSnapshotReferences(&restored); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "la salva contiene referencias inválidas"})
 		return
 	}
 	s.audit(&restored, sess, "salva.restauracion_local", "Restauración de salva desde archivo local · rev "+strconv.FormatInt(restored.Rev, 10), restored.RootCID)
