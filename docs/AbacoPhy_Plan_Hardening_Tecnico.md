@@ -487,7 +487,7 @@ Ruta:
 | 2026-11-03 | A1: credenciales aleatorias, rotación legacy, creación de tenants y cambio obligatorio | Validado operativamente por el usuario; revisar referencias antiguas residuales en Launcher | 55/100 |
 | 2026-11-03 | A2: modos LOCAL/LAN/PRODUCTION, bind seguro y mDNS condicionado | Implementación inicial; validación operativa pendiente | 55/100 sin incremento hasta completar validación |
 | 2026-11-04 | A4: gestor CORS con comodín global explícito `*` | CI Go, Launcher Desktop y Docker correctos; pruebas manuales pendientes | 55/100; sin incremento hasta validar A2/A4 |
-| 2026-11-06 | A2: evidencia real de arranque LAN en Launcher empaquetado | Host solicitado `0.0.0.0`; listener efectivo `[::]:60565`; interfaces Wi-Fi y ProtonVPN anunciadas. Firewall del equipo de prueba desactivado intencionalmente; no se modifica. Pendientes LOCAL y prueba entre equipos | 55/100; evidencia parcial, sin incremento |
+| 2026-11-06 | A2: bind IPv4 explícito y selección LAN | Launcher ahora persiste una IPv4 elegida; backend escucha solo en esa IP más loopback y limita mDNS a la interfaz propietaria. CI y prueba empaquetada pendientes; firewall del equipo de prueba desactivado intencionalmente y no se modifica | 55/100; implementación integrada, validación operativa pendiente |
 
 ## Registro de excepciones
 
@@ -519,3 +519,12 @@ Ruta:
 - `cmd/abacophy/main.go`: valida `ABACOPHY_LAN_INTERFACE_IP`, exige coincidencia con `ABACOPHY_HOST` y admite bind HTTP a esa IPv4 concreta.
 - Tests de validación de IP/interfaz añadidos; CI Go correcto en commit `1a8b857`.
 - Pendiente: conectar la selección a la UI y preferencias del Launcher. No declarar A2 cerrado ni incrementar la puntuación hasta validar el flujo empaquetado y las pruebas operativas.
+
+
+### 2026-11-06 — A2: integración de selección LAN en Launcher
+
+- UI: campo de IPv4 LAN visible solo en modo LAN.
+- Persistencia: la IP elegida se guarda en las preferencias del Launcher.
+- Proceso Go: LAN pasa la misma IP a `ABACOPHY_HOST` y `ABACOPHY_LAN_INTERFACE_IP`; LOCAL elimina la variable y vuelve a `127.0.0.1`.
+- Backend: crea dos listeners en modo LAN explícito: la IP seleccionada y `127.0.0.1`, ambos en el mismo puerto; mDNS queda limitado a la interfaz seleccionada.
+- Pendiente: CI completa, build empaquetado y pruebas LOCAL/LAN. La puntuación permanece en 55/100.
