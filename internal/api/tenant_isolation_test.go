@@ -231,6 +231,7 @@ func TestMasterCanChangeUniqueUserInAnotherTenantAndAuditTargetTenant(t *testing
 		Role: domain.RoleVendedor, PasswordHash: mustHashForTenantIsolationTest(t, "old-target-password"), Active: true}
 	target.Users[targetUser.ID] = targetUser
 	if err := st.Put(target); err != nil { t.Fatal(err) }
+	targetRevisionBeforeChange := target.Rev
 	sess, _, err := auth.Login(st, master.Username, "primary-master-password")
 	if err != nil { t.Fatal(err) }
 	body := `{"username":"target-worker","current_password":"primary-master-password","new_password":"new-target-password-2026"}`
@@ -240,7 +241,6 @@ func TestMasterCanChangeUniqueUserInAnotherTenantAndAuditTargetTenant(t *testing
 	rec := httptest.NewRecorder()
 	NewServer(st, t.TempDir()).Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK { t.Fatalf("global password change status=%d body=%s", rec.Code, rec.Body.String()) }
-	targetRevisionBeforeChange := 1
 	persisted := store.New(dataDir).Get(target.Tenant.ID)
 	if persisted == nil { t.Fatal("target tenant disappeared after global password change") }
 	updated := persisted.Users[targetUser.ID]
