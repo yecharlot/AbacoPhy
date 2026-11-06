@@ -346,15 +346,12 @@ func (s *Server) handleReceptions(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		// Lectura: económico (módulo recepción) o almacenero (pendientes de entrada)
-		canRead := sess.Role == domain.RoleEconomico || sess.Role == domain.RoleAlmacenero ||
-			sess.Role == domain.RoleAdmin || sess.Role == domain.RoleMaster || sess.Role == domain.RoleContador
-		if !canRead {
-			if err := s.gateOp(sess, "recepcion", r.Method); err != nil {
-				if err2 := s.gateOp(sess, "almacen", r.Method); err2 != nil {
-					writeJSON(w, 403, map[string]string{"error": "sin permiso"})
-					return
-				}
+		// Lectura: recepción (económico) o pendientes de entrada (almacén).
+		// Siempre se evalúan grants del rol, del usuario y módulos habilitados.
+		if err := s.gateOp(sess, "recepcion", r.Method); err != nil {
+			if err2 := s.gateOp(sess, "almacen", r.Method); err2 != nil {
+				writeJSON(w, 403, map[string]string{"error": "sin permiso"})
+				return
 			}
 		}
 		statusFilter := r.URL.Query().Get("status")
@@ -486,10 +483,8 @@ func (s *Server) handleReceptionEnter(w http.ResponseWriter, r *http.Request, se
 		return
 	}
 	if err := s.gateOp(sess, "almacen", r.Method); err != nil {
-		if sess.Role != domain.RoleAdmin && sess.Role != domain.RoleMaster {
-			writeJSON(w, 403, map[string]string{"error": "módulo almacén no disponible"})
-			return
-		}
+		writeJSON(w, 403, map[string]string{"error": "módulo almacén no disponible"})
+		return
 	}
 
 	var req struct {
@@ -1472,7 +1467,20 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 			u.DisplayName = body.DisplayName
 		}
 		roleChanged := false
-		if body.Role != "" && body.Role != domain.RoleMaster && body.Role != u.Role {
+		if body.Role != "" {
+			roleAllowed := false
+			for _, validRole := range auth.ValidRoles() {
+				if validRole == body.Role {
+					roleAllowed = true
+					break
+				}
+			}
+			if !roleAllowed {
+				writeJSON(w, 400, map[string]string{"error": "rol no permitido"})
+				return
+			}
+		}
+		if body.Role != "" && body.Role != u.Role {
 			u.Role = body.Role
 			roleChanged = true
 			// Al cambiar el rol se reasignan los módulos por defecto de ese rol
