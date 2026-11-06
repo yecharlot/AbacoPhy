@@ -527,4 +527,4 @@ Ruta:
 - Persistencia: la IP elegida se guarda en las preferencias del Launcher.
 - Proceso Go: LAN pasa la misma IP a `ABACOPHY_HOST` y `ABACOPHY_LAN_INTERFACE_IP`; LOCAL elimina la variable y vuelve a `127.0.0.1`.
 - Backend: crea dos listeners en modo LAN explícito: la IP seleccionada y `127.0.0.1`, ambos en el mismo puerto; mDNS queda limitado a la interfaz seleccionada.
-- Pendiente: CI completa, build empaquetado y pruebas LOCAL/LAN. La puntuación permanece en 55/100.
+- CI Go, Launcher Desktop y Docker Image: correctos en `4988114`. Pendiente: ejecutar el build empaquetado y pruebas operativas LOCAL/LAN. La puntuación permanece en 55/100.
