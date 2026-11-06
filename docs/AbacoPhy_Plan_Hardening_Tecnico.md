@@ -154,13 +154,17 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 **Estado B2:** política de expiración absoluta y limpieza de tokens implementadas; CI Go (vet, build y tests) correcto en el commit `ccb17d31`. Los tokens continúan siendo bearer tokens persistidos localmente; `tokens.json` queda restringido a 0600 en sistemas compatibles. El cifrado en reposo y el esquema access/refresh quedan como decisiones pendientes, no se consideran implementados. [Ejecución CI Go](https://github.com/yecharlot/AbacoPhy/actions/runs/42254629295).
 
 ## B3. Brute force
-- [ ] Rate limiting de login.
-- [ ] Límite por IP.
-- [ ] Backoff progresivo.
-- [ ] Evitar bloqueo permanente de cuentas.
-- [ ] Registrar intentos de forma segura.
-- [ ] No revelar si un usuario existe.
-- [ ] Probar ataques repetidos.
+- [x] Rate limiting de login en backend.
+- [x] Límite independiente por IP directa y por nombre de usuario normalizado.
+- [x] Backoff progresivo por usuario: desde 1 s, duplicación progresiva y tope de 30 s.
+- [x] Límite por IP: 30 fallos dentro de una ventana móvil de 5 minutos.
+- [x] Ventana de fallos por usuario: 15 minutos; el estado expira y nunca genera bloqueo permanente.
+- [x] Respuesta genérica para credenciales inválidas; HTTP 429 genérico al alcanzar el límite.
+- [x] Registro seguro de fallos: IP y etiqueta hash del usuario; nunca contraseña, token ni nombre de usuario en claro.
+- [x] Ignorar `X-Forwarded-For` para el límite mientras no exista una allowlist de proxies confiables; usar el peer TCP real para impedir spoofing.
+- [x] Estado en memoria acotado temporalmente y sin persistencia de bloqueos entre reinicios.
+- [x] Pruebas de backoff, reset tras login correcto, buckets independientes, expiración y spoofing de IP.
+- [ ] Validar límites detrás de un proxy inverso confiable (si se incorpora ese despliegue) y carga concurrente en hardware objetivo.
 
 # 4. FASE C — Autorización
 
@@ -497,6 +501,7 @@ Ruta:
 | 2026-11-06 | A2: bind IPv4 explícito y selección LAN | Launcher ahora persiste una IPv4 elegida; backend escucha solo en esa IP más loopback y limita mDNS a la interfaz propietaria. CI y prueba empaquetada pendientes; firewall del equipo de prueba desactivado intencionalmente y no se modifica | 55/100; implementación integrada, validación operativa pendiente |
 | 2026-11-06 | B1: política uniforme de contraseñas | Validación central en `internal/auth`, aplicada a bootstrap, altas, ediciones y cambios de contraseña; pruebas de límites, Unicode y passphrases. CI Go correcto | Implementación validada por CI; revisión del coste bcrypt pendiente |
 | 2026-11-06 | B2: expiración y revocación de sesiones | Sesiones estándar 12 h y admin/master 4 h; tokens expirados se limpian de memoria/disco; persistencia atómica con permisos 0600; pruebas de expiración, persistencia y revocación añadidas | CI Go correcto; cifrado en reposo y access/refresh diferidos por falta de gestión de clave y sincronización segura |
+| 2026-11-06 | B3: protección contra fuerza bruta | Límite IP + usuario, backoff progresivo, respuestas genéricas, registro sin secretos y pruebas automatizadas. La IP se toma del peer TCP; X-Forwarded-For no se confía sin proxy explícitamente confiable | Implementación integrada; CI y validación concurrente pendientes |
 
 ## Registro de excepciones
 
@@ -514,7 +519,7 @@ Ruta:
 | H-04 | CORS | Alta | Implementado; CI Go/Launcher/Docker correcto; pruebas manuales pendientes | `770cbf5e` |
 | H-05 | Sesiones | Alta | Pendiente | |
 | H-06 | Tokens persistidos | Media | Pendiente | |
-| H-07 | Rate limiting | Media | Pendiente | |
+| H-07 | Rate limiting | Media | Implementación B3 integrada; pendiente CI y validación operativa | |
 | H-08 | Headers HTTP | Media | Pendiente | |
 | H-09 | Logging | Media | Pendiente | |
 | H-10 | Docker | Media | Pendiente | |

@@ -23,15 +23,16 @@ import (
 )
 
 type Server struct {
-	Store     *store.Store
-	StaticDir string
-	AppAlias  string // abacophy.app.ans
-	Hub       *EventHub
-	Presence  *presence.Registry
+	Store        *store.Store
+	StaticDir    string
+	AppAlias     string // abacophy.app.ans
+	Hub          *EventHub
+	Presence     *presence.Registry
+	loginLimiter *loginAttemptLimiter
 }
 
 func NewServer(st *store.Store, staticDir string) *Server {
-	return &Server{Store: st, StaticDir: staticDir, AppAlias: "abacophy.app.ans", Hub: NewEventHub(), Presence: presence.NewRegistry()}
+	return &Server{Store: st, StaticDir: staticDir, AppAlias: "abacophy.app.ans", Hub: NewEventHub(), Presence: presence.NewRegistry(), loginLimiter: newLoginAttemptLimiter()}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -234,11 +235,25 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"error": "bad json"})
 		return
 	}
+	clientIP := remoteIPFromRequest(r)
+	if s.loginLimiter == nil {
+		s.loginLimiter = newLoginAttemptLimiter()
+	}
+	if retryAfter := s.loginLimiter.retryAfter(clientIP, body.Username, time.Now()); retryAfter > 0 {
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "demasiados intentos; inténtelo más tarde", "code": "login_rate_limited"})
+		return
+	}
+
 	tok, user, err := auth.Login(s.Store, body.Username, body.Password)
 	if err != nil {
+		s.loginLimiter.recordFailure(clientIP, body.Username, time.Now())
+		w.Header().Set("Cache-Control", "no-store")
+		log.Printf("EVENT=auth.login_failed ip=%s username_tag=%s reason=invalid_credentials", clientIP, loginUsernameTag(body.Username))
 		writeJSON(w, 401, map[string]string{"error": "usuario o contraseña incorrectos"})
 		return
 	}
+	s.loginLimiter.recordSuccess(body.Username)
 	clientID := r.Header.Get(presence.HeaderClientID)
 	platform := r.Header.Get(presence.HeaderClientApp)
 	ip := presence.ClientIP(r)
