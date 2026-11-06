@@ -226,9 +226,22 @@ func SessionLifetime(role string) time.Duration {
 	return StandardSessionLifetime
 }
 
+// dummyLoginHash iguala aproximadamente el coste bcrypt cuando el usuario no
+// existe o está inactivo, reduciendo la enumeración por diferencias de tiempo.
+var dummyLoginHash = func() []byte {
+	hash, err := bcrypt.GenerateFromPassword([]byte("abacophy-dummy-login-secret"), bcrypt.DefaultCost)
+	if err != nil {
+		return nil
+	}
+	return hash
+}()
+
 func Login(st *store.Store, username, password string) (*domain.TokenSession, *domain.User, error) {
 	user, snap := st.FindUserByUsername(username)
 	if user == nil || snap == nil || !user.Active {
+		if len(dummyLoginHash) > 0 {
+			_ = bcrypt.CompareHashAndPassword(dummyLoginHash, []byte(password))
+		}
 		return nil, nil, ErrInvalidCred
 	}
 	if !CheckPassword(user.PasswordHash, password) {

@@ -36,6 +36,7 @@ type loginAttemptLimiter struct {
 	mu    sync.Mutex
 	ips   map[string]*loginIPState
 	users map[string]*loginUserState
+	lastCleanup time.Time
 }
 
 func newLoginAttemptLimiter() *loginAttemptLimiter {
@@ -127,6 +128,11 @@ func (l *loginAttemptLimiter) recordSuccess(username string) {
 }
 
 func (l *loginAttemptLimiter) pruneLocked(now time.Time) {
+	// No recorrer miles de entradas en cada login: limpieza periódica.
+	if !l.lastCleanup.IsZero() && now.Sub(l.lastCleanup) < time.Minute {
+		return
+	}
+	l.lastCleanup = now
 	for key, state := range l.ips {
 		if state == nil || now.Sub(state.lastSeen) > loginIPWindow {
 			delete(l.ips, key)
@@ -137,20 +143,28 @@ func (l *loginAttemptLimiter) pruneLocked(now time.Time) {
 			delete(l.users, key)
 		}
 	}
-	// Defensa de memoria ante muchas claves aleatorias. Evita crecimiento ilimitado.
-	if len(l.ips) > loginMaxEntries {
+	// Límite duro de memoria ante una ráfaga de claves nuevas.
+	for len(l.ips) > loginMaxEntries {
+		oldestKey := ""
+		var oldest time.Time
 		for key, state := range l.ips {
-			if state == nil || now.Sub(state.lastSeen) > loginIPWindow/2 {
-				delete(l.ips, key)
+			if state != nil && (oldestKey == "" || state.lastSeen.Before(oldest)) {
+				oldestKey, oldest = key, state.lastSeen
 			}
 		}
+		if oldestKey == "" { break }
+		delete(l.ips, oldestKey)
 	}
-	if len(l.users) > loginMaxEntries {
+	for len(l.users) > loginMaxEntries {
+		oldestKey := ""
+		var oldest time.Time
 		for key, state := range l.users {
-			if state == nil || now.Sub(state.lastSeen) > loginUserWindow/2 {
-				delete(l.users, key)
+			if state != nil && (oldestKey == "" || state.lastSeen.Before(oldest)) {
+				oldestKey, oldest = key, state.lastSeen
 			}
 		}
+		if oldestKey == "" { break }
+		delete(l.users, oldestKey)
 	}
 }
 
