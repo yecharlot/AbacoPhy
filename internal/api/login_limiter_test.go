@@ -63,3 +63,16 @@ func TestLoginLimiterExpiresOldState(t *testing.T) {
 		t.Fatalf("expired state still blocks: %s", got)
 	}
 }
+
+func TestLoginLimiterCapsTrackedKeys(t *testing.T) {
+	limiter := newLoginAttemptLimiter()
+	now := time.Now()
+	for i := 0; i <= loginMaxEntries; i++ {
+		ip := "192.0.2." + string(rune(0x100+i))
+		username := "unique-user-" + string(rune(0x100+i))
+		limiter.recordFailure(ip, username, now)
+	}
+	if len(limiter.ips) > loginMaxEntries || len(limiter.users) > loginMaxEntries {
+		t.Fatalf("limiter maps exceeded hard cap: ips=%d users=%d", len(limiter.ips), len(limiter.users))
+	}
+}

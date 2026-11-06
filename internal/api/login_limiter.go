@@ -87,6 +87,7 @@ func (l *loginAttemptLimiter) recordFailure(ip, username string, now time.Time) 
 	if ipState == nil {
 		ipState = &loginIPState{}
 		l.ips[ip] = ipState
+		l.trimIPCapacityLocked(ip)
 	}
 	cutoff := now.Add(-loginIPWindow)
 	active := ipState.failures[:0]
@@ -106,6 +107,7 @@ func (l *loginAttemptLimiter) recordFailure(ip, username string, now time.Time) 
 	if state == nil || now.Sub(state.windowStart) > loginUserWindow {
 		state = &loginUserState{windowStart: now}
 		l.users[key] = state
+		l.trimUserCapacityLocked(key)
 	}
 	state.failures++
 	state.lastSeen = now
@@ -143,28 +145,20 @@ func (l *loginAttemptLimiter) pruneLocked(now time.Time) {
 			delete(l.users, key)
 		}
 	}
-	// Límite duro de memoria ante una ráfaga de claves nuevas.
-	for len(l.ips) > loginMaxEntries {
-		oldestKey := ""
-		var oldest time.Time
-		for key, state := range l.ips {
-			if state != nil && (oldestKey == "" || state.lastSeen.Before(oldest)) {
-				oldestKey, oldest = key, state.lastSeen
-			}
-		}
-		if oldestKey == "" { break }
-		delete(l.ips, oldestKey)
+
+}
+
+func (l *loginAttemptLimiter) trimIPCapacityLocked(keep string) {
+	if len(l.ips) <= loginMaxEntries { return }
+	for key := range l.ips {
+		if key != keep { delete(l.ips, key); return }
 	}
-	for len(l.users) > loginMaxEntries {
-		oldestKey := ""
-		var oldest time.Time
-		for key, state := range l.users {
-			if state != nil && (oldestKey == "" || state.lastSeen.Before(oldest)) {
-				oldestKey, oldest = key, state.lastSeen
-			}
-		}
-		if oldestKey == "" { break }
-		delete(l.users, oldestKey)
+}
+
+func (l *loginAttemptLimiter) trimUserCapacityLocked(keep string) {
+	if len(l.users) <= loginMaxEntries { return }
+	for key := range l.users {
+		if key != keep { delete(l.users, key); return }
 	}
 }
 
