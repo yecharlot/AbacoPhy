@@ -4,6 +4,7 @@ import com.elitec.abaco_launcher.feature.orchestrator.data.DesktopBrowserLaunche
 import com.elitec.abaco_launcher.feature.orchestrator.data.GoProcessLauncher
 import com.elitec.abaco_launcher.feature.orchestrator.data.HttpHealthChecker
 import com.elitec.abaco_launcher.feature.orchestrator.data.SystemPortResolver
+import com.elitec.abaco_launcher.feature.orchestrator.data.SystemLanInterfaceResolver
 import com.elitec.abaco_launcher.feature.orchestrator.domain.usecases.OrchestratorUseCase
 import com.elitec.abaco_launcher.infrastructure.config.LauncherPaths
 
@@ -31,7 +32,7 @@ object OrchestratorModule {
                 dir.absolutePath
             },
             healthTimeoutMs = healthTimeoutMs,
-
+            lanIpResolver = { SystemLanInterfaceResolver().resolve()?.address },
         )
     }
 }

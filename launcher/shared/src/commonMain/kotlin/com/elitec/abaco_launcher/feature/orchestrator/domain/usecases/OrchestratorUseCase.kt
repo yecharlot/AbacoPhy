@@ -21,6 +21,7 @@ class OrchestratorUseCase(
     private val dataDir: () -> String,
     private val staticDir: () -> String,
     private val healthTimeoutMs: Long = 60_000L,
+    private val lanIpResolver: () -> String? = { null },
 ) {
     private val stepDefs = listOf(
         "port" to "Resolver puerto libre",
@@ -33,7 +34,6 @@ class OrchestratorUseCase(
     suspend fun run(
         preferredPort: Int? = null,
         networkScope: String = "LOCAL",
-        lanInterfaceIp: String = "",
         corsAllowedOrigins: List<String> = emptyList(),
         onState: (OrchestratorState) -> Unit = {},
         onLog: (String) -> Unit = {},
@@ -42,6 +42,7 @@ class OrchestratorUseCase(
         var port: Int? = null
         var baseUrl: String? = null
         var lanUrls: List<String> = emptyList()
+        var lanInterfaceIp = ""
 
         fun emit(
             backendRunning: Boolean = backendProcess.isAlive(),
@@ -98,8 +99,12 @@ class OrchestratorUseCase(
             val bin = binaryPath()
             val data = dataDir()
             val staticPath = staticDir()
-            if (networkScope.equals("LAN", ignoreCase = true) && lanInterfaceIp.isBlank()) {
-                throw IllegalArgumentException("Selecciona una IP de interfaz LAN antes de iniciar")
+            if (networkScope.equals("LAN", ignoreCase = true)) {
+                lanInterfaceIp = lanIpResolver()?.trim()?.takeIf { it.isNotBlank() }
+                    ?: throw IllegalStateException(
+                        "No se detectó automáticamente una interfaz LAN IPv4 activa. Conecta el equipo a Wi-Fi o Ethernet y vuelve a iniciar.",
+                    )
+                onLog("🌐 Interfaz LAN detectada automáticamente: $lanInterfaceIp")
             }
             onLog("Binario esperado: $bin")
             backendProcess.start(
@@ -152,7 +157,7 @@ class OrchestratorUseCase(
             portResolver.rememberPort(port!!)
             updateStep("health", TaskStepStatus.Success, "API listo")
             updateStep("discovery", TaskStepStatus.Running, "Esperando confirmación del anuncio mDNS")
-            val ips = if (networkScope.equals("LAN", ignoreCase = true)) listOf(lanInterfaceIp.trim()) else emptyList()
+            val ips = if (lanInterfaceIp.isNotBlank()) listOf(lanInterfaceIp) else emptyList()
             lanUrls = ips.map { "http://$it:$port" }
             emit(backendRunning = true)
             onLog("✅ Health OK · puerto $port guardado para el próximo arranque")
@@ -161,7 +166,7 @@ class OrchestratorUseCase(
             if (lanUrls.isNotEmpty()) {
                 onLog("🔎 Discovery esperado: _abacophy._tcp.local; esperando confirmación del backend")
             } else {
-                onLog(if (networkScope.equals("LAN", ignoreCase = true)) "⚠️ No se seleccionó una interfaz LAN; solo localhost está disponible." else "🔒 Acceso desde otros equipos desactivado; localhost sigue disponible.")
+                onLog("🔒 Acceso desde otros equipos desactivado; localhost sigue disponible.")
             }
             if (lanUrls.isNotEmpty()) {
                 lanUrls.forEach { u ->
