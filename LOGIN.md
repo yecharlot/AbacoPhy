@@ -97,3 +97,18 @@ la misma validación del backend:
 
 El backend valida antes de generar el hash. La interfaz puede anticipar el requisito, pero
 no sustituye esta validación.
+
+
+## Política de sesiones (B2)
+
+Las sesiones son bearer tokens con expiración absoluta desde el inicio de sesión:
+
+- Usuarios estándar: 12 horas.
+- Roles privilegiados `admin` y `master`: 4 horas.
+- El cierre de sesión revoca el token actual.
+- Los cambios de rol, permisos o estado del usuario invalidan sus sesiones; los cambios de permisos del tenant invalidan sesiones mediante el epoch de permisos.
+- Al cambiar la contraseña, se revocan las demás sesiones del usuario y se conserva únicamente la sesión desde la que se realizó el cambio.
+
+Los tokens se persisten en `tokens.json` con permisos 0600 en sistemas compatibles. La escritura se realiza mediante archivo temporal y reemplazo, y los tokens expirados se depuran al iniciar el Store y al consultarlos.
+
+No existe renovación automática ni refresh token en esta etapa. El cifrado en reposo queda pendiente hasta definir una clave maestra con ciclo de vida y recuperación seguros; no se presenta el permiso del archivo como sustituto del cifrado.
