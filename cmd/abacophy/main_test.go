@@ -90,3 +90,26 @@ func TestIsWildcardHost(t *testing.T) {
 		if isWildcardHost(host) { t.Errorf("isWildcardHost(%q) = true, want false", host) }
 	}
 }
+
+func TestListenNetworkForHostSelectsAddressFamily(t *testing.T) {
+	tests := []struct {
+		host string
+		want string
+	}{
+		{host: "127.0.0.1", want: "tcp4"},
+		{host: "0.0.0.0", want: "tcp4"},
+		{host: "192.168.1.20", want: "tcp4"},
+		{host: "::1", want: "tcp6"},
+		{host: "::", want: "tcp6"},
+		{host: "2001:db8::10", want: "tcp6"},
+		{host: "localhost", want: "tcp"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.host, func(t *testing.T) {
+			if got := listenNetworkForHost(tt.host); got != tt.want {
+				t.Fatalf("listenNetworkForHost(%q) = %q, want %q", tt.host, got, tt.want)
+			}
+		})
+	}
+}
+
