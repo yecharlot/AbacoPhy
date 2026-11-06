@@ -102,11 +102,22 @@ func ModuleEnabled(snap *domain.StoreSnapshot, mod string) bool {
 // CanInTenant resolves the effective role policy. A persisted tenant policy
 // overrides the built-in ViewACL for the selected role; roles without a
 // persisted policy keep the built-in defaults.
-func CanInTenant(snap *domain.StoreSnapshot, role, view string) bool {
-	// El espacio master es reservado: ninguna política configurable del tenant
-	// puede elevar otro rol a privilegios globales.
-	if view == "master" {
+func reservedViewAllowed(role, view string) bool {
+	switch view {
+	case "master":
 		return role == domain.RoleMaster
+	case "usuarios", "tenant":
+		return role == domain.RoleMaster || role == domain.RoleAdmin
+	default:
+		return true
+	}
+}
+
+func CanInTenant(snap *domain.StoreSnapshot, role, view string) bool {
+	// Los espacios administrativos no pueden concederse mediante políticas
+	// configurables del tenant a roles operativos.
+	if !reservedViewAllowed(role, view) {
+		return false
 	}
 	if role == domain.RoleMaster {
 		return true
@@ -154,9 +165,10 @@ func CanAccess(snap *domain.StoreSnapshot, role, view string) bool {
 }
 
 func CanAccessUser(snap *domain.StoreSnapshot, role, view string, user *domain.User) bool {
-	// Ni los grants por usuario ni la política del tenant pueden otorgar master.
-	if view == "master" {
-		return role == domain.RoleMaster
+	// Ni los grants por usuario ni la política del tenant pueden elevar a
+	// privilegios master o administrativos.
+	if !reservedViewAllowed(role, view) {
+		return false
 	}
 	if !ModuleEnabled(snap, view) {
 		return false

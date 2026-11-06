@@ -1325,7 +1325,8 @@ func (s *Server) handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 		}
 		clean := map[string]bool{}
 		for view := range auth.ViewACL {
-			if view == "master" {
+			if (view == "master" && body.Role != domain.RoleMaster) ||
+				((view == "usuarios" || view == "tenant") && body.Role != domain.RoleAdmin && body.Role != domain.RoleMaster) {
 				clean[view] = false
 				continue
 			}

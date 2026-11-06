@@ -51,7 +51,7 @@ Los endpoints de salud, información, assets y login son públicos por diseño. 
 ## Hallazgos corregidos
 
 - `POST /entries` utilizaba `gate` (lectura) en vez de `gateWrite`; ahora readonly no puede registrar asientos aunque tenga grant explícito.
-- `CanInTenant` permitía que un mapa configurable concediera `master` a admin u otro rol; ahora ese permiso solo es verdadero para `RoleMaster`.
+- `CanInTenant` y `CanAccessUser` impedían parcialmente la elevación a `master`, pero un grant explícito por usuario podía saltarse esa restricción. Ahora `master` es exclusivo de `RoleMaster`, y `usuarios`/`tenant` de admin/master; el endpoint de permisos también sanea esos grants.
 - La edición de usuarios aceptaba roles arbitrarios; ahora se valida contra `auth.ValidRoles()`, que excluye master.
 - Endpoints de monedas, importación de salvas, notificación de sincronización, Kardex, reconciliación, mayor, balance e integridad contable ahora aplican gates.
 - Lecturas de recepción y entradas físicas ya no omiten las restricciones de módulo/grants por ser admin o por pertenecer a una lista fija de roles.
