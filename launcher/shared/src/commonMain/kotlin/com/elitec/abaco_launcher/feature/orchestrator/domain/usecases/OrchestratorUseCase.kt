@@ -34,6 +34,7 @@ class OrchestratorUseCase(
     suspend fun run(
         preferredPort: Int? = null,
         networkScope: String = "LOCAL",
+        lanInterfaceIp: String = "",
         corsAllowedOrigins: List<String> = emptyList(),
         onState: (OrchestratorState) -> Unit = {},
         onLog: (String) -> Unit = {},
@@ -98,6 +99,9 @@ class OrchestratorUseCase(
             val bin = binaryPath()
             val data = dataDir()
             val staticPath = staticDir()
+            if (networkScope.equals("LAN", ignoreCase = true) && lanInterfaceIp.isBlank()) {
+                throw IllegalArgumentException("Selecciona una IP de interfaz LAN antes de iniciar")
+            }
             onLog("Binario esperado: $bin")
             backendProcess.start(
                 port = port!!,
@@ -105,6 +109,7 @@ class OrchestratorUseCase(
                 staticDir = staticPath,
                 binaryPath = bin,
                 networkScope = networkScope,
+                lanInterfaceIp = lanInterfaceIp,
                 corsAllowedOrigins = corsAllowedOrigins,
                 onLog = onLog,
             )
@@ -148,7 +153,7 @@ class OrchestratorUseCase(
             portResolver.rememberPort(port!!)
             updateStep("health", TaskStepStatus.Success, "API listo")
             updateStep("discovery", TaskStepStatus.Running, "Esperando confirmación del anuncio mDNS")
-            val ips = if (networkScope.equals("LAN", ignoreCase = true)) lanIpResolver() else emptyList()
+            val ips = if (networkScope.equals("LAN", ignoreCase = true)) listOf(lanInterfaceIp.trim()) else emptyList()
             lanUrls = ips.map { "http://$it:$port" }
             emit(backendRunning = true)
             onLog("✅ Health OK · puerto $port guardado para el próximo arranque")
@@ -157,7 +162,7 @@ class OrchestratorUseCase(
             if (lanUrls.isNotEmpty()) {
                 onLog("🔎 Discovery esperado: _abacophy._tcp.local; esperando confirmación del backend")
             } else {
-                onLog(if (networkScope.equals("LAN", ignoreCase = true)) "⚠️ No se detectaron direcciones LAN para mostrar; localhost sigue disponible y el backend escucha en todas las interfaces." else "🔒 Acceso desde otros equipos desactivado; localhost sigue disponible.")
+                onLog(if (networkScope.equals("LAN", ignoreCase = true)) "⚠️ No se seleccionó una interfaz LAN; solo localhost está disponible." else "🔒 Acceso desde otros equipos desactivado; localhost sigue disponible.")
             }
             if (lanUrls.isNotEmpty()) {
                 lanUrls.forEach { u ->
