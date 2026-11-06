@@ -132,7 +132,7 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 - [x] Evitar reglas artificiales predecibles de composición.
 - [x] Rechazar más de 72 bytes UTF-8 (límite bcrypt); nunca truncar silenciosamente.
 - [x] Aplicar la misma política a bootstrap, alta/edición de usuarios y cambio propio/administrativo.
-- [x] No registrar contraseñas; los errores de validación no incluyen el valor recibido.
+- [x] Los errores de validación y eventos de auditoría de estos flujos no incluyen el valor de la contraseña.
 - [x] Añadir pruebas unitarias de límites, Unicode y passphrases.
 - [ ] Revisar coste de bcrypt según hardware.
 - [x] CI Go: `go vet`, build y tests correctos en commit `b557159e`.
