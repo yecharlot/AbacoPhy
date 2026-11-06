@@ -110,7 +110,18 @@ func main() {
 	if err != nil {
 		log.Fatalf("configuración de red inválida: %v", err)
 	}
-	log.Printf("EVENT=server.start bind_mode=%q host=%q port_setting=%q bind=%q", mode, host, portSetting, addr)
+	lanInterfaceIP := strings.TrimSpace(os.Getenv("ABACOPHY_LAN_INTERFACE_IP"))
+	if lanInterfaceIP != "" {
+		selectedIP := net.ParseIP(lanInterfaceIP)
+		if mode != bindModeLAN || selectedIP == nil || selectedIP.To4() == nil || selectedIP.IsLoopback() || selectedIP.IsUnspecified() {
+			log.Fatalf("ABACOPHY_LAN_INTERFACE_IP inválida para modo LAN: %q", lanInterfaceIP)
+		}
+		if host != selectedIP.String() {
+			log.Fatalf("ABACOPHY_HOST (%q) debe coincidir con ABACOPHY_LAN_INTERFACE_IP (%q)", host, selectedIP.String())
+		}
+		lanInterfaceIP = selectedIP.String()
+	}
+	log.Printf("EVENT=server.start bind_mode=%q host=%q port_setting=%q bind=%q lan_interface_ip=%q", mode, host, portSetting, addr, lanInterfaceIP)
 
 	dataDir := os.Getenv("ABACOPHY_DATA")
 	if dataDir == "" {
@@ -174,24 +185,31 @@ func main() {
 	}()
 
 	fmt.Printf("ÁbacoPhy listening on %s\n", listener.Addr().String())
-	if mode == bindModeLAN && isWildcardHost(host) {
+	if mode == bindModeLAN {
 		fmt.Printf("  App (Local):  http://localhost:%d/\n", actualPort)
-		if ifaces, err := net.Interfaces(); err == nil {
-			for _, iface := range ifaces {
-				if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
-					continue
-				}
-				addrs, err := iface.Addrs()
-				if err != nil {
-					continue
-				}
-				for _, a := range addrs {
-					if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
-						fmt.Printf("  App (LAN IP): http://%s:%d/\n", ipnet.IP.String(), actualPort)
-						log.Printf("EVENT=network.interface_up interface=%q ip=%q", iface.Name, ipnet.IP.String())
+		if lanInterfaceIP != "" {
+			fmt.Printf("  App (LAN IP): http://%s:%d/\n", lanInterfaceIP, actualPort)
+			log.Printf("EVENT=network.interface_selected ip=%q", lanInterfaceIP)
+		} else if isWildcardHost(host) {
+			if ifaces, err := net.Interfaces(); err == nil {
+				for _, iface := range ifaces {
+					if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+						continue
+					}
+					addrs, err := iface.Addrs()
+					if err != nil {
+						continue
+					}
+					for _, a := range addrs {
+						if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
+							fmt.Printf("  App (LAN IP): http://%s:%d/\n", ipnet.IP.String(), actualPort)
+							log.Printf("EVENT=network.interface_up interface=%q ip=%q", iface.Name, ipnet.IP.String())
+						}
 					}
 				}
 			}
+		} else {
+			fmt.Printf("  App (LAN IP): http://%s:%d/\n", host, actualPort)
 		}
 	} else {
 		fmt.Printf("  App:          http://%s/\n", net.JoinHostPort(host, fmt.Sprint(actualPort)))
@@ -202,14 +220,14 @@ func main() {
 	var mdnsServer interface{ Shutdown() }
 	if mode == bindModeLAN && discovery.ShouldAdvertise(host) {
 		log.Printf("EVENT=discovery.register_start service=%s domain=local. port=%d", discovery.ServiceType, actualPort)
-		mdnsServer, err = discovery.Advertise(discovery.Config{
+		mdnsServer, err = discovery.AdvertiseOnInterface(discovery.Config{
 			InstanceID:      instance.InstanceID,
 			Name:            discovery.DefaultServiceName,
 			Version:         discovery.ServerVersion,
 			APIVersion:      discovery.APIVersion,
 			Web:             true,
 			PairingRequired: false,
-		}, actualPort)
+		}, actualPort, lanInterfaceIP)
 		if err != nil {
 			log.Printf("EVENT=discovery.register_failed service=%s port=%d error=%q", discovery.ServiceType, actualPort, err.Error())
 			log.Printf("mDNS discovery unavailable (HTTP server remains active): %v", err)
