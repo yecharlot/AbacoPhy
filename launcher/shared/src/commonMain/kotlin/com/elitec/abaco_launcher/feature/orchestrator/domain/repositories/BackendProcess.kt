@@ -14,6 +14,7 @@ interface BackendProcess {
         staticDir: String,
         binaryPath: String,
         networkScope: String,
+        lanInterfaceIp: String = "",
         corsAllowedOrigins: List<String> = emptyList(),
         onLog: (String) -> Unit = {},
     )
