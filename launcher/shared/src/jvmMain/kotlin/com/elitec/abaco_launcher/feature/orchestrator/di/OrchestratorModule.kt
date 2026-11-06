@@ -31,24 +31,7 @@ object OrchestratorModule {
                 dir.absolutePath
             },
             healthTimeoutMs = healthTimeoutMs,
-            lanIpResolver = {
-                val ips = mutableListOf<String>()
-                try {
-                    val interfaces = java.net.NetworkInterface.getNetworkInterfaces()
-                    for (iface in interfaces) {
-                        if (iface.isLoopback || !iface.isUp) continue
-                        for (addr in iface.inetAddresses) {
-                            if (addr is java.net.Inet4Address && !addr.isLoopbackAddress) {
-                                val host = addr.hostAddress
-                                if (!host.isNullOrBlank() && !host.startsWith("127.")) {
-                                    ips.add(host)
-                                }
-                            }
-                        }
-                    }
-                } catch (_: Exception) {}
-                ips
-            },
+
         )
     }
 }
