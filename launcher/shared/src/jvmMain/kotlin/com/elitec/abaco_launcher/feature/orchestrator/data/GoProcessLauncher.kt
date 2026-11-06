@@ -105,7 +105,7 @@ class GoProcessLauncher : BackendProcess {
         env["ABACOPHY_BIND_MODE"] = scope
         if (scope == "LAN") {
             val selectedIp = lanInterfaceIp.trim()
-            require(selectedIp.matches(Regex("""(?:[0-9]{1,3}\\.){3}[0-9]{1,3}"""))) {
+            require(selectedIp.matches(Regex("""(?:[0-9]{1,3}\.){3}[0-9]{1,3}"""))) {
                 "Selecciona una IPv4 LAN válida antes de iniciar el servidor"
             }
             env["ABACOPHY_HOST"] = selectedIp
