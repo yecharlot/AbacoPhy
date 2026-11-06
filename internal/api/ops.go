@@ -1419,7 +1419,7 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 		}
 		hash, err := auth.HashPassword(body.Password)
 		if err != nil {
-			writeJSON(w, 500, map[string]string{"error": "no se pudo hashear la contraseña"})
+			writeJSON(w, 400, map[string]string{"error": err.Error()})
 			return
 		}
 		u := &domain.User{
@@ -1500,7 +1500,7 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 		if body.Password != "" {
 			h, err := auth.HashPassword(body.Password)
 			if err != nil {
-				writeJSON(w, 500, map[string]string{"error": "no se pudo hashear la contraseña"})
+				writeJSON(w, 400, map[string]string{"error": err.Error()})
 				return
 			}
 			u.PasswordHash = h
