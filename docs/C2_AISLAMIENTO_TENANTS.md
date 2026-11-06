@@ -34,17 +34,23 @@ Si la relación no coincide, se rechaza la autenticación/autorización. No se c
 - `TestResolveTenantNeverFallsBackToUserOrSingleTenant`
 - `TestMasterSessionCannotRestoreAnotherTenantSnapshot`
 - `TestTenantAdminCannotResetAllTenants`
+- `TestSyncPushRejectsForeignReferencesBeforeApplyingBatch`
+- `TestBackupImportRejectsForeignTenantChild`
+- `TestPresenceEndpointListsOnlyRequestingTenant`
+- `TestListOnlineForTenantDoesNotExposeOtherTenantClients`
 
 ## Segunda capa integrada
 
 - Sincronización offline: prevalidación del lote completo antes de mutar el snapshot; rechaza `TenantID` explícitos distintos, cuentas inexistentes/ajenas en asientos y productos/unidades de otro tenant en ventas POS. No se aplica parcialmente un lote que falla en la prevalidación.
 - Importación local: valida estructura y ejecuta `BindSnapshotToTenant`, que rechaza registros hijos con tenant explícito diferente y normaliza `TenantID` vacío de snapshots legacy.
+- Presencia: cada cliente autenticado se asocia al tenant de su sesión y el endpoint de administración solo lista clientes de ese tenant; el identificador de tenant no se expone en la respuesta.
+- Eventos SSE: comprobado que `EventHub.Subscribe(sess.TenantID)` separa los canales por tenant.
 
 ## Áreas todavía bajo auditoría
 
 1. Importación local de salvas: ampliar validación a integridad referencial completa entre cuentas, empleados, productos, unidades, movimientos, ventas y documentos.
 2. Referencias por ID en todos los endpoints REST (no solo sync): cuentas, productos, empleados, unidades, recepciones, ventas, transferencias, documentos y relaciones entre ellos.
-3. Endpoints globales: listado/creación de tenants, reset, cambio de contraseña de usuarios de otros tenants, presencia y canales de eventos.
+3. Endpoints globales: listado/creación de tenants, reset y cambio de contraseña master; la presencia ahora filtra por tenant. Los eventos SSE ya usan canales separados por tenant.
 4. Sincronización offline: tenant del sobre, idempotencia, referencias y eventos deben permanecer dentro del tenant autenticado.
 5. Migraciones y snapshots antiguos: validar/reparar datos heredados en un paso controlado de migración, nunca durante el login o una petición ordinaria.
 

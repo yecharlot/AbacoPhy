@@ -193,6 +193,7 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 - [x] Importación local: validar estructura y tenant de registros hijos; rechazar hijos con tenant explícito diferente y normalizar snapshots legacy sin TenantID.
 - [ ] Auditar todos los endpoints REST que reciben IDs de entidades y comprobar referencias cruzadas.
 - [ ] Ampliar integridad referencial de salvas a todas las relaciones entre entidades.
+- [x] Aislar la lista de presencia por tenant; confirmar SSE con canal tenant-scoped.
 - [ ] Revisar endpoints administrativos/globales restantes y operaciones de contraseña master.
 - [ ] Ejecutar pruebas completas de acceso cruzado con dos tenants y usuarios reales.
 

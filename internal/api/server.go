@@ -119,18 +119,19 @@ func (s *Server) Handler() http.Handler {
 func withPresence(s *Server, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodOptions && s != nil && s.Presence != nil && presence.ShouldTrackPath(r.URL.Path) {
-			uid, uname := "", ""
+			uid, uname, tenantID := "", "", ""
 			hasSess := false
 			if sess, err := s.sess(r); err == nil && sess != nil {
 				hasSess = true
 				uid = sess.UserID
-				if snap := s.Store.Get(sess.TenantID); snap != nil {
-					if u := snap.Users[sess.UserID]; u != nil {
+				tenantID = sess.TenantID
+				if tenantSnap := s.Store.Get(sess.TenantID); tenantSnap != nil {
+					if u := tenantSnap.Users[sess.UserID]; u != nil {
 						uname = u.Username
 					}
 				}
 			}
-			snap := presence.SnapshotFromRequest(r, uid, uname, hasSess)
+			snap := presence.SnapshotFromRequest(r, tenantID, uid, uname, hasSess)
 			res := s.Presence.Touch(snap)
 			if res.Created {
 				log.Printf("presence: +NUEVO id=%s platform=%s ip=%s path=%s session=%v user=%s | %s",
@@ -258,8 +259,8 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	platform := r.Header.Get(presence.HeaderClientApp)
 	ip := presence.ClientIP(r)
 	if s.Presence != nil {
-		s.Presence.AttachSession(clientID, ip, user.ID, user.Username)
-		s.Presence.Touch(presence.SnapshotFromRequest(r, user.ID, user.Username, true))
+		s.Presence.AttachSession(clientID, ip, tok.TenantID, user.ID, user.Username)
+		s.Presence.Touch(presence.SnapshotFromRequest(r, tok.TenantID, user.ID, user.Username, true))
 	}
 	snap := s.Store.Get(tok.TenantID)
 	if snap != nil {

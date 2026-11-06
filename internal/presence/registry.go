@@ -19,6 +19,7 @@ const (
 
 // Client es un terminal/proceso que habla con el API (con o sin sesión).
 type Client struct {
+	TenantID   string    `json:"-"`
 	InstanceID string    `json:"instance_id"`
 	Platform   string    `json:"platform"`
 	UserAgent  string    `json:"user_agent,omitempty"`
@@ -97,6 +98,9 @@ func (r *Registry) Touch(c Client) TouchResult {
 	}
 	if c.HasSession {
 		existing.HasSession = true
+		if c.TenantID != "" {
+			existing.TenantID = c.TenantID
+		}
 		if c.UserID != "" {
 			existing.UserID = c.UserID
 		}
@@ -123,7 +127,7 @@ func (r *Registry) countLocked(now time.Time) int {
 }
 
 // AttachSession marca usuario autenticado sobre un instance_id (o anon:ip).
-func (r *Registry) AttachSession(instanceID, remoteIP, userID, username string) {
+func (r *Registry) AttachSession(instanceID, remoteIP, tenantID, userID, username string) {
 	if r == nil {
 		return
 	}
@@ -136,6 +140,7 @@ func (r *Registry) AttachSession(instanceID, remoteIP, userID, username string) 
 	now := time.Now().UTC()
 	if existing, ok := r.clients[key]; ok {
 		existing.HasSession = true
+		existing.TenantID = tenantID
 		existing.UserID = userID
 		existing.Username = username
 		existing.LastSeen = now
@@ -143,6 +148,7 @@ func (r *Registry) AttachSession(instanceID, remoteIP, userID, username string) 
 	}
 	r.clients[key] = &Client{
 		InstanceID: key,
+		TenantID:   tenantID,
 		RemoteIP:   remoteIP,
 		UserID:     userID,
 		Username:   username,
@@ -165,8 +171,20 @@ func (r *Registry) CountOnline(now time.Time) int {
 	return r.countLocked(now)
 }
 
-// ListOnline devuelve clientes vistos en OnlineTTL.
+// ListOnline devuelve todos los clientes vistos en OnlineTTL (uso interno).
 func (r *Registry) ListOnline(now time.Time) []Client {
+	return r.listOnline(now, "")
+}
+
+// ListOnlineForTenant limita la presencia al tenant de la sesión solicitante.
+func (r *Registry) ListOnlineForTenant(tenantID string, now time.Time) []Client {
+	if strings.TrimSpace(tenantID) == "" {
+		return nil
+	}
+	return r.listOnline(now, tenantID)
+}
+
+func (r *Registry) listOnline(now time.Time, tenantID string) []Client {
 	if r == nil {
 		return nil
 	}
@@ -182,7 +200,9 @@ func (r *Registry) ListOnline(now time.Time) []Client {
 			delete(r.clients, k)
 			continue
 		}
-		out = append(out, *c)
+		if tenantID == "" || c.TenantID == tenantID {
+			out = append(out, *c)
+		}
 	}
 	return out
 }
@@ -253,7 +273,7 @@ func ClientIP(r *http.Request) string {
 }
 
 // SnapshotFromRequest construye un Client a partir de headers HTTP.
-func SnapshotFromRequest(r *http.Request, userID, username string, hasSession bool) Client {
+func SnapshotFromRequest(r *http.Request, tenantID, userID, username string, hasSession bool) Client {
 	id := strings.TrimSpace(r.Header.Get(HeaderClientID))
 	platform := strings.TrimSpace(r.Header.Get(HeaderClientApp))
 	if platform == "" {
@@ -261,6 +281,7 @@ func SnapshotFromRequest(r *http.Request, userID, username string, hasSession bo
 	}
 	return Client{
 		InstanceID: id,
+		TenantID:   tenantID,
 		Platform:   platform,
 		UserAgent:  truncate(r.UserAgent(), 160),
 		RemoteIP:   ClientIP(r),

@@ -10,6 +10,7 @@ import (
 	"github.com/yecharlot/AbacoPhy/internal/auth"
 	"github.com/yecharlot/AbacoPhy/internal/domain"
 	"github.com/yecharlot/AbacoPhy/internal/store"
+	"github.com/yecharlot/AbacoPhy/internal/presence"
 )
 
 func TestMasterSessionCannotRestoreAnotherTenantSnapshot(t *testing.T) {
@@ -70,4 +71,32 @@ func mustHashForTenantIsolationTest(t *testing.T, password string) string {
 	hash, err := auth.HashPassword(password)
 	if err != nil { t.Fatal(err) }
 	return hash
+}
+
+
+func TestPresenceEndpointListsOnlyRequestingTenant(t *testing.T) {
+	st := store.New(t.TempDir())
+	snap := domain.BootstrapTenant("Tenant A", "tenant-a", "CUP")
+	admin := userByName(snap, "admin")
+	if admin == nil { t.Fatal("admin user missing") }
+	admin.MustChangePassword = false
+	admin.PasswordHash = mustHashForTenantIsolationTest(t, "presence-isolation-password")
+	if err := st.Put(snap); err != nil { t.Fatal(err) }
+	sess, _, err := auth.Login(st, admin.Username, "presence-isolation-password")
+	if err != nil { t.Fatal(err) }
+
+	server := NewServer(st, t.TempDir())
+	server.Presence.Touch(presence.Client{InstanceID: "device-a", TenantID: snap.Tenant.ID, UserID: "user-a", Username: "alice", HasSession: true})
+	server.Presence.Touch(presence.Client{InstanceID: "device-b", TenantID: "tenant-b", UserID: "user-b", Username: "bob", HasSession: true})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/presence", nil)
+	req.Header.Set("Authorization", "Bearer "+sess.Token)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK { t.Fatalf("presence status=%d body=%s", rec.Code, rec.Body.String()) }
+	var payload struct { Clients []presence.Client `json:"clients"` }
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil { t.Fatal(err) }
+	if len(payload.Clients) != 1 || payload.Clients[0].InstanceID != "device-a" {
+		t.Fatalf("tenant A received cross-tenant presence: %#v", payload.Clients)
+	}
 }

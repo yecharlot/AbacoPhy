@@ -31,7 +31,7 @@ func (s *Server) handlePresence(w http.ResponseWriter, r *http.Request) {
 	}
 	list := []presence.Client{}
 	if s.Presence != nil {
-		list = s.Presence.ListOnline(time.Now().UTC())
+		list = s.Presence.ListOnlineForTenant(sess.TenantID, time.Now().UTC())
 	}
 	sort.Slice(list, func(i, j int) bool {
 		return list[i].LastSeen.After(list[j].LastSeen)
