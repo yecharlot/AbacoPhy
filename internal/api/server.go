@@ -1504,7 +1504,16 @@ func (s *Server) handleMasterCreateTenant(w http.ResponseWriter, r *http.Request
 		body.Currency = "CUP"
 	}
 	if body.AdminUser == "" {
-		body.AdminUser = "admin"
+		body.AdminUser = "admin-" + strings.ToLower(strings.ReplaceAll(strings.TrimSpace(body.Slug), " ", "-"))
+	}
+	body.AdminUser = strings.TrimSpace(body.AdminUser)
+	if body.AdminUser == "" {
+		writeJSON(w, 400, map[string]string{"error": "admin_user no válido"})
+		return
+	}
+	if s.Store.UsernameExists(body.AdminUser) || s.Store.UsernameExists(body.AdminUser+"-owner") {
+		writeJSON(w, 409, map[string]string{"error": "admin_user ya existe globalmente; cada tenant necesita nombres de usuario únicos"})
+		return
 	}
 	if strings.TrimSpace(body.AdminPass) != "" {
 		writeJSON(w, 400, map[string]string{"error": "admin_pass ya no se acepta; las credenciales temporales se generan de forma segura"})

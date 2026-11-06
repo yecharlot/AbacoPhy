@@ -338,24 +338,42 @@ func (s *Store) RevokeTenantTokens(tenantID string) int {
 	return n
 }
 
-func (s *Store) FindUserByUsername(username string) (*domain.User, *domain.StoreSnapshot) {
+// UsernameExists aplica unicidad global porque el endpoint de login no recibe
+// un tenant selector. La comparación es insensible a mayúsculas y espacios externos.
+func (s *Store) UsernameExists(username string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(username))
+	if normalized == "" { return false }
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	u := strings.ToLower(strings.TrimSpace(username))
 	for _, snap := range s.tenants {
-		if snap == nil {
-			continue
-		}
+		if snap == nil { continue }
 		for _, user := range snap.Users {
-			if user == nil {
-				continue
-			}
-			if strings.ToLower(user.Username) == u {
-				return user, snap
+			if user != nil && strings.ToLower(strings.TrimSpace(user.Username)) == normalized {
+				return true
 			}
 		}
 	}
-	return nil, nil
+	return false
+}
+
+// FindUserByUsername falla cerrado si el nombre está duplicado entre tenants.
+// Elegir arbitrariamente el primer snapshot podía autenticar la identidad equivocada.
+func (s *Store) FindUserByUsername(username string) (*domain.User, *domain.StoreSnapshot) {
+	normalized := strings.ToLower(strings.TrimSpace(username))
+	if normalized == "" { return nil, nil }
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var foundUser *domain.User
+	var foundSnap *domain.StoreSnapshot
+	for _, snap := range s.tenants {
+		if snap == nil { continue }
+		for _, user := range snap.Users {
+			if user == nil || strings.ToLower(strings.TrimSpace(user.Username)) != normalized { continue }
+			if foundUser != nil { return nil, nil }
+			foundUser, foundSnap = user, snap
+		}
+	}
+	return foundUser, foundSnap
 }
 
 // ResolveTenant devuelve exclusivamente el snapshot identificado por tenantID.

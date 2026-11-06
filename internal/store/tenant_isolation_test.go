@@ -21,3 +21,20 @@ func TestResolveTenantNeverFallsBackToUserOrSingleTenant(t *testing.T) {
 		t.Fatal("exact tenant ID must resolve independently of userID")
 	}
 }
+
+
+func TestFindUserByUsernameRejectsDuplicatesAcrossTenants(t *testing.T) {
+	st := New(t.TempDir())
+	a := domain.BootstrapTenant("A", "a", "CUP")
+	b := domain.BootstrapTenant("B", "b", "CUP")
+	for _, user := range a.Users { if user != nil { user.Username = "shared-login"; break } }
+	for _, user := range b.Users { if user != nil { user.Username = " Shared-Login "; break } }
+	if err := st.Put(a); err != nil { t.Fatal(err) }
+	if err := st.Put(b); err != nil { t.Fatal(err) }
+	if user, snap := st.FindUserByUsername("SHARED-LOGIN"); user != nil || snap != nil {
+		t.Fatal("ambiguous username must not resolve to an arbitrary tenant")
+	}
+	if !st.UsernameExists(" shared-login ") {
+		t.Fatal("username existence must be checked globally and normalized")
+	}
+}

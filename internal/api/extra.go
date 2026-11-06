@@ -1054,24 +1054,14 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 		}
-		// master puede buscar en todos los tenants
+		// master puede cambiar credenciales de otro tenant, pero solo si el
+		// username resuelve a una única identidad global.
 		if !found && sess.Role == domain.RoleMaster {
-			for _, tid := range s.Store.ListTenantIDs() {
-				sn := s.Store.Get(tid)
-				if sn == nil {
-					continue
-				}
-				for _, u := range sn.Users {
-					if u != nil && u.Username == body.Username {
-						target = u
-						snap = sn
-						found = true
-						break
-					}
-				}
-				if found {
-					break
-				}
+			globalUser, globalSnap := s.Store.FindUserByUsername(body.Username)
+			if globalUser != nil && globalSnap != nil {
+				target = globalUser
+				snap = globalSnap
+				found = true
 			}
 		}
 		if !found {

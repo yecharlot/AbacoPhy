@@ -1436,10 +1436,11 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 			Password    string `json:"password"`
 			Role        string `json:"role"`
 		}
-		if err := readJSON(r, &body); err != nil || body.Username == "" || body.Password == "" {
+		if err := readJSON(r, &body); err != nil || strings.TrimSpace(body.Username) == "" || body.Password == "" {
 			writeJSON(w, 400, map[string]string{"error": "usuario y contraseña requeridos"})
 			return
 		}
+		body.Username = strings.TrimSpace(body.Username)
 		roleOK := false
 		for _, r := range auth.ValidRoles() {
 			if r == body.Role {
@@ -1451,11 +1452,9 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 400, map[string]string{"error": "rol no permitido"})
 			return
 		}
-		for _, u := range snap.Users {
-			if u != nil && strings.EqualFold(u.Username, body.Username) {
-				writeJSON(w, 409, map[string]string{"error": "usuario ya existe"})
-				return
-			}
+		if s.Store.UsernameExists(body.Username) {
+			writeJSON(w, 409, map[string]string{"error": "usuario ya existe globalmente"})
+			return
 		}
 		hash, err := auth.HashPassword(body.Password)
 		if err != nil {

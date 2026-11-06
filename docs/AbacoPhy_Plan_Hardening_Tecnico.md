@@ -194,6 +194,8 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 - [ ] Auditar todos los endpoints REST que reciben IDs de entidades y comprobar referencias cruzadas.
 - [ ] Ampliar integridad referencial de salvas a todas las relaciones entre entidades.
 - [x] Aislar la lista de presencia por tenant; confirmar SSE con canal tenant-scoped.
+- [x] Login global: impedir resolución ambigua de nombres de usuario duplicados; exigir unicidad global en altas y creación de tenants.
+- [ ] Definir migración controlada para usernames duplicados heredados; el login y el cambio global de contraseña ya fallan cerrado ante ambigüedad.
 - [ ] Revisar endpoints administrativos/globales restantes y operaciones de contraseña master.
 - [ ] Ejecutar pruebas completas de acceso cruzado con dos tenants y usuarios reales.
 

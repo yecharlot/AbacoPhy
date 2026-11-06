@@ -3,6 +3,9 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
+
+	"github.com/google/uuid"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -138,5 +141,42 @@ func TestRESTReferencesMustBelongToSessionTenant(t *testing.T) {
 				t.Fatal("rejected cross-tenant reference changed business records")
 			}
 		})
+	}
+}
+
+
+func TestMasterPasswordChangeRejectsAmbiguousCrossTenantUsername(t *testing.T) {
+	st := store.New(t.TempDir())
+	primary := domain.BootstrapTenant("Primary", "primary", "CUP")
+	master := userByName(primary, "master")
+	if master == nil { t.Fatal("primary master missing") }
+	master.MustChangePassword = false
+	master.PasswordHash = mustHashForTenantIsolationTest(t, "primary-master-password")
+	if err := st.Put(primary); err != nil { t.Fatal(err) }
+
+	for _, tenantName := range []string{"Tenant B", "Tenant C"} {
+		snap := domain.BootstrapTenant(tenantName, strings.ToLower(strings.ReplaceAll(tenantName, " ", "-")), "CUP")
+		for _, user := range snap.Users {
+			if user == nil { continue }
+			if user.Role == domain.RoleMaster { user.Username = strings.ToLower(strings.ReplaceAll(tenantName, " ", "-")) + "-owner" }
+			if user.Role == domain.RoleAdmin { user.Username = strings.ToLower(strings.ReplaceAll(tenantName, " ", "-")) + "-admin" }
+		}
+		hash := mustHashForTenantIsolationTest(t, "shared-user-password")
+		shared := &domain.User{ID: uuid.NewString(), TenantID: snap.Tenant.ID, Username: "shared-cross-tenant", Role: domain.RoleVendedor, PasswordHash: hash, Active: true}
+		snap.Users[shared.ID] = shared
+		if err := st.Put(snap); err != nil { t.Fatal(err) }
+	}
+
+	sess, _, err := auth.Login(st, master.Username, "primary-master-password")
+	if err != nil { t.Fatal(err) }
+	body := `{"username":"shared-cross-tenant","current_password":"primary-master-password","new_password":"another-long-password-2026"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/password", bytes.NewBufferString(body))
+	req.Header.Set("Authorization", "Bearer "+sess.Token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	NewServer(st, t.TempDir()).Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound { t.Fatalf("ambiguous master password target status=%d body=%s", rec.Code, rec.Body.String()) }
+	if user, snap := st.FindUserByUsername("shared-cross-tenant"); user != nil || snap != nil {
+		t.Fatal("ambiguous username must remain unresolved")
 	}
 }
