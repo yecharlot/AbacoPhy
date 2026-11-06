@@ -139,3 +139,29 @@ Realizarla únicamente en una red privada confiable y con firewall restrictivo.
 A2 solo se marcará como validado cuando todas las evidencias anteriores estén verificadas en una instalación real. La revisión estática y los tests unitarios de resolución de configuración no sustituyen la prueba de red entre dos equipos.
 
 **No aumentar la puntuación global de hardening por esta evidencia parcial.** Mantener 55/100 hasta cerrar las pruebas operativas aplicables y las tareas pendientes de A1. El firewall desactivado se registra como condición del entorno de prueba; no se modifica. La protección mediante firewall continúa siendo un requisito para desplegar LAN en equipos de terceros.
+
+
+## 9. Verificación CI de Launcher — 2026-11-06
+
+**Commit verificado:** `e8fc28aa593e03049df164243f3109880be7ffe6`  
+**Workflow:** [CI Launcher Desktop](https://github.com/yecharlot/AbacoPhy/actions/runs/42245015081)  
+**Resultado:** `success`.
+
+Pasos ejecutados por GitHub Actions en Ubuntu + JDK 21:
+
+| Paso | Resultado |
+|---|---|
+| `:shared:jvmTest` — pruebas JVM del Launcher | Correcto |
+| `:desktopApp:compileKotlin` — compilación Desktop | Correcto |
+
+La verificación confirma que las pruebas JVM existentes pasan y que el Launcher Desktop compila en el entorno CI. No acredita la enumeración de adaptadores de una máquina Windows concreta, la selección real de Wi-Fi/Ethernet, la conectividad desde un segundo equipo ni el comportamiento del firewall.
+
+### Estado técnico confirmado en la rama
+
+- El selector de interfaz está en Launcher; presenta el nombre del adaptador y su IPv4 como dato informativo.
+- Se persiste el nombre del adaptador. La dirección se vuelve a resolver al iniciar para evitar reutilizar una IP DHCP antigua.
+- El backend recibe `ABACOPHY_HOST` y `ABACOPHY_LAN_INTERFACE_IP` con la IP elegida.
+- En modo LAN, HTTP escucha en la IP seleccionada y en loopback; mDNS se registra mediante `AdvertiseOnInterface` para la interfaz propietaria de esa IPv4.
+- AbacoPOS no participa en la selección de interfaz: su responsabilidad es descubrir el servicio y conectarse.
+
+**Criterio pendiente:** realizar las pruebas operativas LOCAL/LAN descritas en las secciones 4–7 con el Launcher empaquetado y, para LAN, un segundo dispositivo. No cambiar la configuración del firewall del equipo de prueba sin autorización explícita.
