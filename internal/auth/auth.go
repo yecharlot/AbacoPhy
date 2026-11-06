@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -163,7 +164,34 @@ func CanAccessUser(snap *domain.StoreSnapshot, role, view string, user *domain.U
 	return true
 }
 
+const (
+	MinPasswordLength = 12
+	MaxPasswordBytes  = 72
+)
+
+var (
+	ErrPasswordTooShort = errors.New("la contraseña debe tener al menos 12 caracteres")
+	ErrPasswordTooLong  = errors.New("la contraseña supera el máximo de 72 bytes admitido por bcrypt")
+	ErrPasswordBlank    = errors.New("la contraseña no puede estar vacía")
+)
+
+func ValidatePassword(pw string) error {
+	if strings.TrimSpace(pw) == "" {
+		return ErrPasswordBlank
+	}
+	if utf8.RuneCountInString(pw) < MinPasswordLength {
+		return ErrPasswordTooShort
+	}
+	if len([]byte(pw)) > MaxPasswordBytes {
+		return ErrPasswordTooLong
+	}
+	return nil
+}
+
 func HashPassword(pw string) (string, error) {
+	if err := ValidatePassword(pw); err != nil {
+		return "", err
+	}
 	b, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
 	if err != nil {
 		return "", err
