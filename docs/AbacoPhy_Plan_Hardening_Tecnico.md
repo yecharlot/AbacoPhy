@@ -198,7 +198,8 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 - [x] Importación local: validar estructura y tenant de registros hijos; rechazar hijos con tenant explícito diferente y normalizar snapshots legacy sin TenantID.
 - [ ] Auditar todos los endpoints REST que reciben IDs de entidades y comprobar referencias cruzadas.
 - [ ] Completar sync con todos los tipos de entidad y probar IDs repetidos/collisions entre tenants.
-- [ ] Ampliar integridad referencial de salvas a todas las relaciones entre entidades.
+- [x] Validar relaciones de `Employee.metadata`: usuario asignado y unidades de venta asociadas deben existir dentro del snapshot.
+- [ ] Ampliar integridad referencial de salvas a todas las relaciones restantes entre entidades.
 - [x] Aislar la lista de presencia por tenant; confirmar SSE con canal tenant-scoped.
 - [x] Login global: impedir resolución ambigua de nombres de usuario duplicados; exigir unicidad global en altas y creación de tenants.
 - [ ] Definir migración controlada para usernames duplicados heredados; el login y el cambio global de contraseña ya fallan cerrado ante ambigüedad.

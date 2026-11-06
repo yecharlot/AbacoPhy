@@ -79,9 +79,17 @@ Si la relación no coincide, se rechaza la autenticación/autorización. No se c
 - Los `TenantID` vacíos de registros legacy se vinculan al tenant raíz antes de persistir; esta normalización ocurre en el límite de escritura y no durante la autenticación.
 - Prueba: `TestStorePutRejectsForeignTenantChildAndBindsLegacyRecords`.
 
+## Cuarta iteración — relaciones operativas en snapshots
+
+- Se amplía `ValidateSnapshotReferences()` para comprobar las asignaciones de empleados almacenadas en metadata.
+- `Employee.metadata.userId` debe resolver a un usuario del mismo snapshot mediante su ID canónico.
+- Cada elemento de `Employee.metadata.unitIds` debe resolver a una unidad de venta del mismo snapshot. Se admiten las representaciones `[]string` y `[]any` producidas por código Go y JSON.
+- Se rechazan tipos de metadata incorrectos, referencias ausentes y asignaciones a IDs externos.
+- Pruebas: `TestValidateSnapshotReferencesRejectsForeignEmployeeAssignments` y `TestValidateSnapshotReferencesAcceptsLocalEmployeeAssignments`.
+
 ## Áreas todavía bajo auditoría
 
-1. Backups: ampliar integridad referencial a las relaciones restantes (incluidos metadatos de empleados y relaciones de auditoría) y validar hashes/CID del contenido restaurado.
+1. Backups: ampliar integridad referencial a las relaciones restantes y validar hashes/CID del contenido restaurado. Las asignaciones de empleado a usuario/PDV ya se validan.
 2. Completar revisión de referencias por ID en endpoints REST: empleados, recepciones, fichas de costo/precio, transferencias, ajustes y documentos.
 3. Endpoints globales: listado/creación de tenants, reset y cambio de contraseña master; la presencia ahora filtra por tenant. Los eventos SSE ya usan canales separados por tenant. Revisar manualmente los usernames duplicados con contraseña repetida.
 4. Sincronización offline: revisar referencias de cada entidad adicional y la semántica de IDs/idempotencia; verificar con dos tenants y lotes mixtos.

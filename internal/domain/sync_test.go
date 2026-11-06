@@ -83,3 +83,41 @@ func TestBindSnapshotToTenantChecksAllTenantScopedModules(t *testing.T) {
 		t.Fatal("foreign price sheet must be rejected during backup binding")
 	}
 }
+
+
+func TestValidateSnapshotReferencesRejectsForeignEmployeeAssignments(t *testing.T) {
+	s := &StoreSnapshot{
+		Tenant: Tenant{ID: "tenant-a"},
+		Users: map[string]*User{"user-a": {ID: "user-a", TenantID: "tenant-a"}},
+		SalesUnits: map[string]*SalesUnit{"unit-a": {ID: "unit-a", TenantID: "tenant-a"}},
+		Employees: map[string]*Employee{
+			"employee-a": {ID: "employee-a", TenantID: "tenant-a", Metadata: Metadata{
+				"userId": "user-from-b", "unitIds": []any{"unit-a"},
+			}},
+		},
+	}
+	if err := ValidateSnapshotReferences(s); err == nil {
+		t.Fatal("employee assignment to a user outside this tenant must be rejected")
+	}
+	s.Employees["employee-a"].Metadata["userId"] = "user-a"
+	s.Employees["employee-a"].Metadata["unitIds"] = []any{"unit-from-b"}
+	if err := ValidateSnapshotReferences(s); err == nil {
+		t.Fatal("employee assignment to a sales unit outside this tenant must be rejected")
+	}
+}
+
+func TestValidateSnapshotReferencesAcceptsLocalEmployeeAssignments(t *testing.T) {
+	s := &StoreSnapshot{
+		Tenant: Tenant{ID: "tenant-a"},
+		Users: map[string]*User{"user-a": {ID: "user-a", TenantID: "tenant-a"}},
+		SalesUnits: map[string]*SalesUnit{"unit-a": {ID: "unit-a", TenantID: "tenant-a"}},
+		Employees: map[string]*Employee{
+			"employee-a": {ID: "employee-a", TenantID: "tenant-a", Metadata: Metadata{
+				"userId": "user-a", "unitIds": []any{"unit-a"},
+			}},
+		},
+	}
+	if err := ValidateSnapshotReferences(s); err != nil {
+		t.Fatalf("local employee assignments should validate: %v", err)
+	}
+}

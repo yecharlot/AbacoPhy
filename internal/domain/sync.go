@@ -139,6 +139,40 @@ func ValidateSnapshotReferences(snap *StoreSnapshot) error {
 			return missing("empleado de nómina", slip.EmployeeID)
 		}
 	}
+	// La relación empleado → usuario/PDV se guarda en metadata y también
+	// forma parte del límite entre tenants: validar ambos extremos locales.
+	for employeeID, employee := range snap.Employees {
+		if employee == nil { continue }
+		if rawUserID, ok := employee.Metadata["userId"]; ok {
+			userID, valid := rawUserID.(string)
+			if !valid { return &SnapshotIntegrityError{Reason: "userId inválido en empleado: " + employeeID} }
+			if strings.TrimSpace(userID) != "" {
+				user := snap.Users[userID]
+				if user == nil || user.ID != userID { return missing("usuario asignado al empleado", userID) }
+			}
+		}
+		if rawUnitIDs, ok := employee.Metadata["unitIds"]; ok {
+			var unitIDs []string
+			switch values := rawUnitIDs.(type) {
+			case []string:
+				unitIDs = values
+			case []any:
+				for _, value := range values {
+					unitID, valid := value.(string)
+					if !valid { return &SnapshotIntegrityError{Reason: "unitIds inválido en empleado: " + employeeID} }
+					unitIDs = append(unitIDs, unitID)
+				}
+			case nil:
+			default:
+				return &SnapshotIntegrityError{Reason: "unitIds inválido en empleado: " + employeeID}
+			}
+			for _, unitID := range unitIDs {
+				if strings.TrimSpace(unitID) == "" || snap.SalesUnits[unitID] == nil {
+					return missing("unidad asignada al empleado", unitID)
+				}
+			}
+		}
+	}
 	for _, reception := range snap.Receptions {
 		for _, line := range reception.Lines {
 			if line.ProductID != "" && snap.Products[line.ProductID] == nil {
