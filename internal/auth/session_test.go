@@ -171,8 +171,9 @@ func TestLoginRejectsUserAssignedToDifferentTenant(t *testing.T) {
 	}
 	if user == nil { t.Fatal("bootstrap admin user not found") }
 	user.PasswordHash = mustHashForSessionTest(t, "tenant-binding-password")
-	user.TenantID = "different-tenant"
 	if err := st.Put(snap); err != nil { t.Fatal(err) }
+	// Simula un snapshot legacy/corrupto cargado desde disco después de persistir.
+	user.TenantID = "different-tenant"
 	if _, _, err := Login(st, user.Username, "tenant-binding-password"); err == nil {
 		t.Fatal("login must reject a user whose TenantID differs from its snapshot")
 	}
@@ -188,8 +189,9 @@ func TestSessionFromRequestRejectsCrossTenantUserBinding(t *testing.T) {
 		}
 	}
 	if user == nil { t.Fatal("bootstrap admin user not found") }
-	user.TenantID = "other-tenant"
 	if err := st.Put(snap); err != nil { t.Fatal(err) }
+	// Corromper el registro ya cargado para probar la validación de sesión.
+	user.TenantID = "other-tenant"
 	sess := &domain.TokenSession{
 		Token: "cross-tenant-session", UserID: user.ID, TenantID: snap.Tenant.ID,
 		Role: user.Role, ExpiresAt: time.Now().UTC().Add(time.Hour),
