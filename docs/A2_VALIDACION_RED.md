@@ -67,11 +67,11 @@ El proceso fue identificado como el backend empaquetado `abacophy.exe` bajo `lau
 
 ### Implementación posterior a la evidencia
 
-**Completado en código:** `cmd/abacophy/main.go` ahora selecciona explícitamente la familia del socket según el host: `tcp4` para IPv4 (`127.0.0.1`, `0.0.0.0` e IP IPv4 concreta), `tcp6` para IPv6 (`::1`, `::` e IP IPv6), y `tcp` únicamente para el hostname permitido `localhost`. Se añade el evento `EVENT=http.listen_config` para registrar la red elegida antes de abrir el listener. Así, el modo LAN IPv4 ya no depende de que el sistema operativo resuelva `tcp` como IPv4 o IPv6.
+**Completado en código:** `cmd/abacophy/main.go` selecciona explícitamente `tcp4` para hosts IPv4 y `tcp6` para IPv6; se registra `EVENT=http.listen_config`. Además, el backend ya admite `ABACOPHY_LAN_INTERFACE_IP`: valida que sea una IPv4 asignada a una interfaz activa, exige que coincida con `ABACOPHY_HOST`, limita la escucha HTTP a esa IP y usa `AdvertiseOnInterface` para publicar mDNS únicamente por la interfaz propietaria de esa IP. La API de mDNS usa `RegisterProxy` para anunciar solo la dirección seleccionada. **La integración de este parámetro en la UI/preferencias del Launcher todavía no está hecha**, por lo que la ejecución empaquetada actual continúa usando el comportamiento LAN anterior hasta completar esa integración.
 
 **Pendiente:**
-1. Revisar el descubrimiento de interfaces y evitar presentar interfaces VPN/públicas como direcciones LAN confiables.
-2. Definir selección explícita de interfaz/IP para anuncios y mDNS; no inferir que una interfaz es confiable solo por su nombre o por tener una IP privada.
+1. Integrar en el Launcher el campo persistente de IP LAN seleccionada y pasarla como `ABACOPHY_HOST` y `ABACOPHY_LAN_INTERFACE_IP`.
+2. Confirmar que UI, URL LAN y mDNS usan la misma IP; comprobar que ProtonVPN no aparece si no fue seleccionada.
 3. Probar LOCAL con el Launcher empaquetado y confirmar loopback estricto y mDNS desactivado.
 4. Realizar prueba LAN entre dos equipos cuando el entorno de red disponible lo permita. Registrar el resultado sin confundirlo con una validación de firewall.
 
