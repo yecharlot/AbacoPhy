@@ -41,6 +41,7 @@ fun App(
     onRun: suspend (
         preferredPort: Int?,
         networkScope: String,
+        lanInterfaceIp: String,
         corsAllowedOrigins: List<String>,
         onState: (OrchestratorState) -> Unit,
         onLog: (String) -> Unit,
@@ -49,6 +50,8 @@ fun App(
     onOpenBrowser: (String) -> Unit = {},
     initialNetworkScope: String = "LOCAL",
     onNetworkScopeChange: (String) -> Unit = {},
+    initialLanInterfaceIp: String = "",
+    onLanInterfaceIpChange: (String) -> Unit = {},
     initialCorsRules: String = "",
     onCorsRulesChange: (String) -> Unit = {},
 ) {
@@ -59,6 +62,8 @@ fun App(
             onOpenBrowser = onOpenBrowser,
             initialNetworkScope = initialNetworkScope,
             onNetworkScopeChange = onNetworkScopeChange,
+            initialLanInterfaceIp = initialLanInterfaceIp,
+            onLanInterfaceIpChange = onLanInterfaceIpChange,
             initialCorsRules = initialCorsRules,
             onCorsRulesChange = onCorsRulesChange,
         )
