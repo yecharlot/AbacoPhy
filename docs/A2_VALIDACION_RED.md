@@ -67,7 +67,7 @@ El proceso fue identificado como el backend empaquetado `abacophy.exe` bajo `lau
 
 ### Implementación posterior a la evidencia
 
-**Completado en código:** `cmd/abacophy/main.go` selecciona explícitamente `tcp4` para hosts IPv4 y `tcp6` para IPv6; se registra `EVENT=http.listen_config`. Además, el backend ya admite `ABACOPHY_LAN_INTERFACE_IP`: valida que sea una IPv4 asignada a una interfaz activa, exige que coincida con `ABACOPHY_HOST`, limita la escucha HTTP a esa IP y usa `AdvertiseOnInterface` para publicar mDNS únicamente por la interfaz propietaria de esa IP. La API de mDNS usa `RegisterProxy` para anunciar solo la dirección seleccionada. **La integración de este parámetro en la UI/preferencias del Launcher todavía no está hecha**, por lo que la ejecución empaquetada actual continúa usando el comportamiento LAN anterior hasta completar esa integración.
+**Completado en código:** `cmd/abacophy/main.go` selecciona explícitamente `tcp4` para hosts IPv4 y `tcp6` para IPv6; se registra `EVENT=http.listen_config`. Además, el backend ya admite `ABACOPHY_LAN_INTERFACE_IP`: valida que sea una IPv4 asignada a una interfaz activa, exige que coincida con `ABACOPHY_HOST`, limita la escucha HTTP a esa IP y usa `AdvertiseOnInterface` para publicar mDNS únicamente por la interfaz propietaria de esa IP. La API de mDNS usa `RegisterProxy` para anunciar solo la dirección seleccionada. La integración en la UI/preferencias del Launcher ya está hecha. CI Go, CI Launcher Desktop y CI Docker Image finalizaron correctamente para el commit de código `4988114`. La validación operativa con el binario empaquetado y dos equipos sigue pendiente.
 
 **Implementación integrada; validación operativa pendiente:**
 1. El Launcher presenta un campo persistente para la IPv4 LAN seleccionada y pasa esa dirección como `ABACOPHY_HOST` y `ABACOPHY_LAN_INTERFACE_IP`.
@@ -124,7 +124,7 @@ Realizarla únicamente en una red privada confiable y con firewall restrictivo.
 | Log de arranque LOCAL con bind loopback | Pendiente |
 | Health local correcto | Pendiente |
 | Fallo de conexión remota en LOCAL | Pendiente |
-| Log de arranque LAN con bind IPv4 explícito en la IP elegida y loopback (`<IP_LAN>:<PUERTO>`, `127.0.0.1:<PUERTO>`) | Pendiente de CI y prueba empaquetada |
+| Log de arranque LAN con bind IPv4 explícito en la IP elegida y loopback (`<IP_LAN>:<PUERTO>`, `127.0.0.1:<PUERTO>`) | CI Go/Launcher/Docker correcto; prueba empaquetada pendiente |
 | Health y web accesibles desde segundo equipo LAN | Pendiente |
 | Firewall limita el puerto a la subred confiable | No comprobado; firewall del equipo de prueba desactivado intencionalmente. Requisito de despliegue externo, no cambio solicitado al equipo del usuario |
 | mDNS solo activo en LAN | Pendiente |
