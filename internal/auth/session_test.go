@@ -75,6 +75,37 @@ func TestLoginAppliesRoleBasedAbsoluteExpiry(t *testing.T) {
 	}
 }
 
+func TestSessionFromRequestRejectsExpiredToken(t *testing.T) {
+	st := store.New(t.TempDir())
+	snap := domain.BootstrapTenant("Expired session", "expired-session", "CUP")
+	user := snap.Users["admin"]
+	if user == nil {
+		for _, candidate := range snap.Users {
+			if candidate != nil && candidate.Role == domain.RoleAdmin {
+				user = candidate
+				break
+			}
+		}
+	}
+	if user == nil {
+		t.Fatal("bootstrap admin user not found")
+	}
+	user.PasswordHash = mustHashForSessionTest(t, "admin-expired-session-passphrase")
+	user.Active = true
+	if err := st.Put(snap); err != nil {
+		t.Fatal(err)
+	}
+	sess, _, err := Login(st, user.Username, "admin-expired-session-passphrase")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess.ExpiresAt = time.Now().UTC().Add(-time.Minute)
+	st.SaveToken(sess)
+	if _, err := SessionFromRequest(st, "Bearer "+sess.Token); err == nil {
+		t.Fatal("expired session must be rejected")
+	}
+}
+
 func mustHashForSessionTest(t *testing.T, password string) string {
 	t.Helper()
 	hash, err := HashPassword(password)
