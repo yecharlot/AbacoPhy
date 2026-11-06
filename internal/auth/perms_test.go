@@ -66,6 +66,10 @@ func TestTenantPolicyCannotGrantMasterToAnotherRole(t *testing.T) {
 		t.Fatal("tenant policy must never grant master access to a non-master role")
 	}
 	if !CanInTenant(snap, domain.RoleMaster, "master") { t.Fatal("master must retain master access") }
+	admin := &domain.User{ID: "admin1", Role: domain.RoleAdmin, Modules: map[string]bool{"master": true}}
+	if CanAccessUser(snap, admin.Role, "master", admin) {
+		t.Fatal("per-user grant must never grant master access to admin")
+	}
 }
 
 func TestReadonlyCannotMutateWithExplicitUserGrantOrRolePolicy(t *testing.T) {

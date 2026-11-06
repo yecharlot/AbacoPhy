@@ -154,6 +154,10 @@ func CanAccess(snap *domain.StoreSnapshot, role, view string) bool {
 }
 
 func CanAccessUser(snap *domain.StoreSnapshot, role, view string, user *domain.User) bool {
+	// Ni los grants por usuario ni la política del tenant pueden otorgar master.
+	if view == "master" {
+		return role == domain.RoleMaster
+	}
 	if !ModuleEnabled(snap, view) {
 		return false
 	}
