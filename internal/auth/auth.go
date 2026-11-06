@@ -212,6 +212,20 @@ func NewToken() string {
 	return hex.EncodeToString(b)
 }
 
+// Política de expiración absoluta de sesiones. Las cuentas privilegiadas
+// tienen una ventana menor porque pueden administrar usuarios y configuración.
+const (
+	StandardSessionLifetime   = 12 * time.Hour
+	PrivilegedSessionLifetime = 4 * time.Hour
+)
+
+func SessionLifetime(role string) time.Duration {
+	if role == domain.RoleAdmin || role == domain.RoleMaster {
+		return PrivilegedSessionLifetime
+	}
+	return StandardSessionLifetime
+}
+
 func Login(st *store.Store, username, password string) (*domain.TokenSession, *domain.User, error) {
 	user, snap := st.FindUserByUsername(username)
 	if user == nil || snap == nil || !user.Active {
@@ -228,12 +242,14 @@ func Login(st *store.Store, username, password string) (*domain.TokenSession, *d
 		user.TenantID = tenantID
 	}
 	epoch := EffectivePermsEpoch(snap, user)
+	now := time.Now().UTC()
+	lifetime := SessionLifetime(user.Role)
 	tok := &domain.TokenSession{
 		Token:      NewToken(),
 		UserID:     user.ID,
 		TenantID:   tenantID,
 		Role:       user.Role,
-		ExpiresAt:  time.Now().UTC().Add(30 * 24 * time.Hour), // 30 días · sesión durable
+		ExpiresAt:  now.Add(lifetime),
 		PermsEpoch: epoch,
 	}
 	st.SaveToken(tok)
