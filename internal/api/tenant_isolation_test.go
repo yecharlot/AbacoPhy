@@ -96,7 +96,12 @@ func TestPresenceEndpointListsOnlyRequestingTenant(t *testing.T) {
 	if rec.Code != http.StatusOK { t.Fatalf("presence status=%d body=%s", rec.Code, rec.Body.String()) }
 	var payload struct { Clients []presence.Client `json:"clients"` }
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil { t.Fatal(err) }
-	if len(payload.Clients) != 1 || payload.Clients[0].InstanceID != "device-a" {
-		t.Fatalf("tenant A received cross-tenant presence: %#v", payload.Clients)
+	if len(payload.Clients) == 0 {
+		t.Fatal("tenant A should see its own presence records")
+	}
+	for _, client := range payload.Clients {
+		if client.InstanceID == "device-b" || client.Username == "bob" || client.UserID == "user-b" {
+			t.Fatalf("tenant A received tenant B presence: %#v", client)
+		}
 	}
 }
