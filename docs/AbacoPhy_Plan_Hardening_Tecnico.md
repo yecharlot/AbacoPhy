@@ -8,7 +8,7 @@
 
 **Puntuación inicial: 52/100 — 🟠 Hardening necesario**
 
-**Puntuación actual: 55/100 — 🟠 Hardening en curso.** A1 fue validado operativamente. A2 tiene implementación inicial en backend y documentación, pero sigue pendiente la validación operativa de Launcher/red. A4 admite reglas específicas y, por decisión explícita, el comodín global `*`. El commit `770cbf5e` pasó CI Go, CI Launcher Desktop y CI Docker. Siguen pendientes las pruebas manuales de A2/A4 y la validación de migración A1 sobre datos operativos.
+**Puntuación actual: 55/100 — 🟠 Hardening en curso.** A1 fue validado operativamente. A2 ya cuenta con evidencia de arranque LAN del Launcher empaquetado: el backend recibe `0.0.0.0`, registra listener efectivo `[::]` y anuncia Wi-Fi y ProtonVPN. Siguen pendientes LOCAL empaquetado, prueba entre equipos y revisión de selección de interfaces. El firewall del equipo de prueba está desactivado intencionalmente y no se modificará como parte de esta tarea; se registra como condición del entorno. A4 admite reglas específicas y, por decisión explícita, el comodín global `*`. El commit `770cbf5e` pasó CI Go, CI Launcher Desktop y CI Docker. Siguen pendientes las pruebas manuales de A4 y la validación de migración A1 sobre datos operativos.
 
 Esta puntuación procede de una revisión estática y de pruebas automatizadas del repositorio. No es una certificación ni un pentest.
 
@@ -69,7 +69,7 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 
 ## A2. Bind de red
 
-**Evidencia y validación operativa:** consultar [A2 — Validación operativa del alcance de red](A2_VALIDACION_RED.md). La revisión estática confirma que el Launcher sobrescribe explícitamente el modo y host del proceso Go y persiste LOCAL/LAN. La prueba entre dos equipos y la comprobación del firewall siguen pendientes.
+**Evidencia y validación operativa:** consultar [A2 — Validación operativa del alcance de red](A2_VALIDACION_RED.md). Ya se comprobó el arranque LAN empaquetado: `Scope de red=LAN`, host solicitado `0.0.0.0`, listener registrado `[::]:60565` y detección/anuncio de Wi-Fi y ProtonVPN. Pendientes: revisar la familia/dirección efectiva del listener, filtrar o seleccionar interfaces anunciadas, probar LOCAL empaquetado y completar conectividad entre equipos. El firewall del equipo del usuario está desactivado voluntariamente; no se modificará. La limitación de firewall se conserva como requisito de despliegue LAN para instalaciones de terceros.
 
 **Advertencia:** el Launcher configura LAN con `0.0.0.0`, que escucha en todas las interfaces IPv4. Antes de usar LAN debe limitarse el puerto mediante el firewall a una subred privada confiable; no publicar el puerto en Internet.
 
@@ -81,7 +81,11 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 - [x] Documentar variables, precedencia de puertos y ejemplos de despliegue. El Launcher configura el scope desde su interfaz; PRODUCTION queda reservado al despliegue/servicio administrado.
 - [x] Registrar modo, host y dirección real de escucha.
 - [x] Integrar selector LOCAL/LAN en la interfaz del Launcher; el scope se pasa directamente al proceso hijo y no depende de variables heredadas.
-- [ ] Ejecutar pruebas de conectividad desde otro equipo y verificar firewall/VPN.
+- [ ] Revisar por qué el listener efectivo se registra como `[::]` cuando el host solicitado es `0.0.0.0` y documentar/controlar la familia de direcciones.
+- [ ] Revisar la detección de interfaces: no anunciar ProtonVPN como LAN confiable por defecto; definir filtro o selección explícita de interfaz.
+- [ ] Probar LOCAL con el Launcher empaquetado: loopback estricto, health local correcto y mDNS desactivado.
+- [ ] Ejecutar prueba de conectividad LAN desde otro equipo cuando el entorno esté disponible.
+- [ ] Mantener firewall como requisito de despliegue LAN para instalaciones de terceros; no cambiar el firewall del equipo de desarrollo/validación por esta tarea.
 - [ ] Validar despliegues Docker/producción con la configuración explícita.
 
 **Terminado:** la exposición de red es una decisión explícita y el backend local no acepta conexiones LAN por defecto.
@@ -483,6 +487,7 @@ Ruta:
 | 2026-11-03 | A1: credenciales aleatorias, rotación legacy, creación de tenants y cambio obligatorio | Validado operativamente por el usuario; revisar referencias antiguas residuales en Launcher | 55/100 |
 | 2026-11-03 | A2: modos LOCAL/LAN/PRODUCTION, bind seguro y mDNS condicionado | Implementación inicial; validación operativa pendiente | 55/100 sin incremento hasta completar validación |
 | 2026-11-04 | A4: gestor CORS con comodín global explícito `*` | CI Go, Launcher Desktop y Docker correctos; pruebas manuales pendientes | 55/100; sin incremento hasta validar A2/A4 |
+| 2026-11-06 | A2: evidencia real de arranque LAN en Launcher empaquetado | Host solicitado `0.0.0.0`; listener efectivo `[::]:60565`; interfaces Wi-Fi y ProtonVPN anunciadas. Firewall del equipo de prueba desactivado intencionalmente; no se modifica. Pendientes LOCAL y prueba entre equipos | 55/100; evidencia parcial, sin incremento |
 
 ## Registro de excepciones
 
@@ -495,7 +500,7 @@ Ruta:
 | ID | Hallazgo | Severidad | Estado | Commit |
 |---|---|---|---|---|
 | H-01 | Credenciales bootstrap | Alta | CI Go/Webapp/Docker y compilación Launcher correctos; validación operativa pendiente | security-hardening |
-| H-02 | Bind de red | Alta | Implementación inicial en backend; pendiente Launcher, CI y prueba LAN/LOCAL/PRODUCTION | |
+| H-02 | Bind de red | Alta | Launcher empaquetado arranca LAN; listener efectivo `[::]`; revisar binding, selección de interfaces y completar LOCAL/prueba entre equipos. Firewall desactivado por decisión del usuario y no se modifica | |
 | H-03 | Tráfico LAN HTTP sin cifrar | Media | Riesgo aceptado: LAN solo en red privada confiable; validar A2 | |
 | H-04 | CORS | Alta | Implementado; CI Go/Launcher/Docker correcto; pruebas manuales pendientes | `770cbf5e` |
 | H-05 | Sesiones | Alta | Pendiente | |
