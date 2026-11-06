@@ -60,7 +60,7 @@ El proceso fue identificado como el backend empaquetado `abacophy.exe` bajo `lau
 |---|---|---|
 | A2-E01 | El Launcher pasa LAN y el backend registra host solicitado `0.0.0.0` | Confirmado |
 | A2-E02 | Listener efectivo registrado como `[::]:60565` con `net.Listen("tcp", ...)` | Causa identificada; corregido mediante selección explícita `tcp4`/`tcp6`; falta CI y prueba empaquetada |
-| A2-E03 | La detección/impresión de direcciones incluye ProtonVPN | Confirmado; requiere revisar filtro/selección de interfaces |
+| A2-E03 | La detección/impresión de direcciones incluye ProtonVPN | Causa corregida en código: Launcher exige una IPv4 explícita; validación empaquetada pendiente |
 | A2-E04 | Firewall de Windows desactivado intencionalmente | Condición del entorno; no modificar |
 | A2-E05 | Acceso desde un segundo equipo en LAN | Pendiente |
 | A2-E06 | Modo LOCAL probado en la instalación empaquetada | Pendiente |
@@ -69,11 +69,11 @@ El proceso fue identificado como el backend empaquetado `abacophy.exe` bajo `lau
 
 **Completado en código:** `cmd/abacophy/main.go` selecciona explícitamente `tcp4` para hosts IPv4 y `tcp6` para IPv6; se registra `EVENT=http.listen_config`. Además, el backend ya admite `ABACOPHY_LAN_INTERFACE_IP`: valida que sea una IPv4 asignada a una interfaz activa, exige que coincida con `ABACOPHY_HOST`, limita la escucha HTTP a esa IP y usa `AdvertiseOnInterface` para publicar mDNS únicamente por la interfaz propietaria de esa IP. La API de mDNS usa `RegisterProxy` para anunciar solo la dirección seleccionada. **La integración de este parámetro en la UI/preferencias del Launcher todavía no está hecha**, por lo que la ejecución empaquetada actual continúa usando el comportamiento LAN anterior hasta completar esa integración.
 
-**Pendiente:**
-1. Integrar en el Launcher el campo persistente de IP LAN seleccionada y pasarla como `ABACOPHY_HOST` y `ABACOPHY_LAN_INTERFACE_IP`.
-2. Confirmar que UI, URL LAN y mDNS usan la misma IP; comprobar que ProtonVPN no aparece si no fue seleccionada.
+**Implementación integrada; validación operativa pendiente:**
+1. El Launcher presenta un campo persistente para la IPv4 LAN seleccionada y pasa esa dirección como `ABACOPHY_HOST` y `ABACOPHY_LAN_INTERFACE_IP`.
+2. HTTP escucha en la IP seleccionada y, simultáneamente, en `127.0.0.1`; no usa `0.0.0.0` en el flujo normal del Launcher. mDNS se limita a la interfaz que posee la IP seleccionada.
 3. Probar LOCAL con el Launcher empaquetado y confirmar loopback estricto y mDNS desactivado.
-4. Realizar prueba LAN entre dos equipos cuando el entorno de red disponible lo permita. Registrar el resultado sin confundirlo con una validación de firewall.
+4. Probar LAN desde un segundo equipo y comprobar que no se anuncia ni acepta tráfico por interfaces no seleccionadas. Registrar por separado el estado del firewall del entorno.
 
 La activación del firewall del equipo del usuario no forma parte de este plan ni está autorizada por esta validación. En instalaciones de terceros, la restricción del puerto mediante firewall sigue siendo un requisito de despliegue cuando se use LAN.
 ## 4. Prueba operativa LOCAL
@@ -94,11 +94,13 @@ La activación del firewall del equipo del usuario no forma parte de este plan n
 
 Realizarla únicamente en una red privada confiable y con firewall restrictivo.
 
-1. Configurar en el firewall una regla de entrada para el puerto del backend limitada a la subred privada de prueba.
-2. En el Launcher seleccionar **LAN**, guardar y reiniciar el backend.
+1. En el Launcher seleccionar **LAN**, introducir la IPv4 de la interfaz que se desea autorizar y guardar.
+2. Reiniciar el backend.
 3. Confirmar:
-   - `EVENT=server.start bind_mode="LAN" host="0.0.0.0"`
-   - `EVENT=http.listening bind="0.0.0.0:<PUERTO>"`
+   - `EVENT=server.start bind_mode="LAN" host="<IP_LAN_SELECCIONADA>"`
+   - `EVENT=http.listening bind="<IP_LAN_SELECCIONADA>:<PUERTO>"`
+   - `EVENT=http.listening bind="127.0.0.1:<PUERTO>"`
+   - `EVENT=network.interface_selected ip="<IP_LAN_SELECCIONADA>"`
    - `EVENT=discovery.advertised` o un evento explícito de fallo mDNS.
 4. Desde otro equipo de la misma subred:
    - Windows: `Test-NetConnection <IP_DEL_SERVIDOR> -Port <PUERTO>`
@@ -122,7 +124,7 @@ Realizarla únicamente en una red privada confiable y con firewall restrictivo.
 | Log de arranque LOCAL con bind loopback | Pendiente |
 | Health local correcto | Pendiente |
 | Fallo de conexión remota en LOCAL | Pendiente |
-| Log de arranque LAN con bind IPv4 explícito (`0.0.0.0:<PUERTO>`) y `network="tcp4"` | Pendiente de CI y prueba empaquetada |
+| Log de arranque LAN con bind IPv4 explícito en la IP elegida y loopback (`<IP_LAN>:<PUERTO>`, `127.0.0.1:<PUERTO>`) | Pendiente de CI y prueba empaquetada |
 | Health y web accesibles desde segundo equipo LAN | Pendiente |
 | Firewall limita el puerto a la subred confiable | No comprobado; firewall del equipo de prueba desactivado intencionalmente. Requisito de despliegue externo, no cambio solicitado al equipo del usuario |
 | mDNS solo activo en LAN | Pendiente |
