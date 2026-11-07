@@ -445,21 +445,30 @@ func (s *Store) ResetAll() error {
 	if err := s.ensureDataDirs(); err != nil { return err }
 	s.tenants = make(map[string]*domain.StoreSnapshot)
 	s.tokens = make(map[string]*domain.TokenSession)
-	_ = os.Remove(s.tokensPath())
-	_ = os.Remove(filepath.Join(s.dataDir, "bootstrap-credentials.txt"))
-	dir := filepath.Join(s.dataDir, "tenants")
-	entries, err := os.ReadDir(dir)
+	root, err := openRootForPath(s.dataDir)
 	if err != nil { return err }
-	for _, e := range entries {
-		if e.IsDir() { continue }
-		if err := os.Remove(filepath.Join(dir, e.Name())); err != nil { return err }
+	defer root.Close()
+	// Root.Remove unlinks entries relative to the pinned data directory and
+	// cannot follow a swapped parent path outside that directory.
+	for _, name := range []string{"tokens.json", "bootstrap-credentials.txt"} {
+		if err := root.Remove(name); err != nil && !os.IsNotExist(err) { return err }
 	}
-	cidDir := filepath.Join(s.dataDir, "cids")
-	cids, err := os.ReadDir(cidDir)
-	if err != nil { return err }
-	for _, e := range cids {
-		if e.IsDir() { continue }
-		if err := os.Remove(filepath.Join(cidDir, e.Name())); err != nil { return err }
+	for _, dirName := range []string{"tenants", "cids"} {
+		dirRoot, err := root.OpenRoot(dirName)
+		if err != nil { return err }
+		dirFile, err := dirRoot.Open(".")
+		if err != nil { _ = dirRoot.Close(); return err }
+		entries, err := dirFile.ReadDir(-1)
+		_ = dirFile.Close()
+		if err != nil { _ = dirRoot.Close(); return err }
+		for _, entry := range entries {
+			if entry.IsDir() { continue }
+			if err := dirRoot.Remove(entry.Name()); err != nil && !os.IsNotExist(err) {
+				_ = dirRoot.Close()
+				return err
+			}
+		}
+		_ = dirRoot.Close()
 	}
 	return nil
 }

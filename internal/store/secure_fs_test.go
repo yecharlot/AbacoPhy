@@ -124,3 +124,20 @@ func TestEnsurePrivateDirRejectsSymlinkSubdirectory(t *testing.T) {
  if err := os.Symlink(outside, link); err != nil { t.Skipf("symlink creation unavailable on %s: %v", runtime.GOOS, err) }
  if err := ensurePrivateDir(link); err == nil { t.Fatal("expected symlink directory to be rejected") }
 }
+
+
+func TestResetAllDoesNotFollowReplacedTenantDirectory(t *testing.T) {
+ root := t.TempDir()
+ st := New(root)
+ outside := t.TempDir()
+ sentinel := filepath.Join(outside, "keep.json")
+ if err := os.WriteFile(sentinel, []byte("preserve"), 0600); err != nil { t.Fatal(err) }
+ tenants := filepath.Join(root, "tenants")
+ moved := filepath.Join(root, "tenants-original")
+ if err := os.Rename(tenants, moved); err != nil { t.Fatal(err) }
+ if err := os.Symlink(outside, tenants); err != nil { t.Skipf("symlink creation unavailable on %s: %v", runtime.GOOS, err) }
+ if err := st.ResetAll(); err == nil { t.Fatal("ResetAll should reject a replaced tenant directory") }
+ got, err := os.ReadFile(sentinel)
+ if err != nil { t.Fatal(err) }
+ if string(got) != "preserve" { t.Fatalf("outside sentinel changed: %q", got) }
+}
