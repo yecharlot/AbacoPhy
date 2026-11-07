@@ -216,7 +216,7 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 - [x] C3.1 — Endurecer importación de backups contra límites multipart y expansión ZIP (cerrado; pruebas CI confirmadas por el usuario).
 - [x] C3.2 — Verificar CID antes de restaurar, preservar historial y fallar de forma segura ante errores de persistencia (comprobado por el usuario; CI Go, Docker y Launcher Desktop correctos).
 - [x] C3.3 — Endurecer permisos; usar operaciones de filesystem confinadas con os.Root; verificar carreras de sustitución y validar compatibilidad Linux/Windows (completado; CI Go Linux/Windows, Docker y Launcher Desktop correctos).
-- [ ] C3.4: probar aislamiento SSE/presencia, revocación de sesiones y limpieza de suscriptores.
+- [x] C3.4: implementación y pruebas automatizadas de aislamiento SSE/presencia, revocación y concurrencia (CI Go Linux/Windows, Docker y Launcher Desktop correctos); validación manual pendiente.
 - [ ] C3.5: auditar operaciones administrativas globales.
 - [ ] Añadir pruebas automatizadas de acceso cruzado y regresión.
 

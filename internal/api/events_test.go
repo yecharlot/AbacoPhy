@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"fmt"
+	"sync"
 
 	"github.com/yecharlot/AbacoPhy/internal/auth"
 	"github.com/yecharlot/AbacoPhy/internal/domain"
@@ -125,5 +127,29 @@ func TestEventsStreamClosesAfterSessionRevocation(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("SSE stream remained open after session revocation")
+	}
+}
+
+func TestEventHubConcurrentSubscribePublishUnsubscribe(t *testing.T) {
+	hub := NewEventHub()
+	var wg sync.WaitGroup
+	for worker := 0; worker < 32; worker++ {
+		wg.Add(1)
+		go func(worker int) {
+			defer wg.Done()
+			tenantID := fmt.Sprintf("tenant-%d", worker%4)
+			for i := 0; i < 100; i++ {
+				ch := hub.Subscribe(tenantID)
+				hub.Publish(tenantID, "inventory.updated", map[string]int{"sequence": i})
+				hub.Unsubscribe(tenantID, ch)
+			}
+		}(worker)
+	}
+	wg.Wait()
+
+	hub.mu.RLock()
+	defer hub.mu.RUnlock()
+	if len(hub.subs) != 0 {
+		t.Fatalf("hub retained subscriptions after concurrent unsubscribe: %#v", hub.subs)
 	}
 }

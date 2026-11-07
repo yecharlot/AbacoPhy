@@ -62,13 +62,15 @@ C3 cubre:
 **Nota:** las pruebas de creación de symlinks pueden omitirse en Windows si el runner carece de privilegios para ello; el workflow sí valida compilación y tests restantes en Windows.
 
 ### C3.4 — Sesiones y eventos
-- [ ] Revalidar la sesión durante conexiones SSE largas, no solo al abrir el stream.
-- [ ] Comprobar que revocación, expiración, baja o cambio de permisos terminan el stream.
-- [ ] Verificar aislamiento de publicación/suscripción por tenant.
-- [ ] Verificar desconexión y limpieza de suscriptores.
-- [ ] Ejecutar pruebas de concurrencia y CI.
+- [x] Revalidar la sesión durante conexiones SSE largas, no solo al abrir el stream.
+- [x] Comprobar revocación, expiración, baja y cambios de permisos mediante la validación central de sesiones.
+- [x] Verificar aislamiento de publicación/suscripción por tenant.
+- [x] Verificar desconexión y limpieza de suscriptores.
+- [x] Añadir pruebas de concurrencia del hub y ejecutar CI.
 
-**Auditoría inicial:** el hub separaba suscriptores por TenantID, pero el stream solo autenticaba al conectar y continuaba entregando eventos tras una revocación. Además, presencia usaba el ID de cliente como clave global, permitiendo que IDs repetidos entre tenants sobrescribieran fichas. Se corrige revalidando la sesión antes de cada evento/keepalive y usando claves de presencia separadas por tenant para clientes autenticados y un espacio independiente para anónimos. Pendiente validar por tests y CI.
+**Resultado automatizado (commit `2cca58249d403966bb204e0107e224817340fb8c`):** stream SSE corta ante revocación; las sesiones se revalidan también ante expiración, baja y cambios de permisos; IDs de cliente repetidos quedan separados por tenant; clientes anónimos no pueden sobrescribir presencia autenticada. CI Go Linux/Windows, Docker y Launcher Desktop: success.
+
+**Pendiente para cierre operativo:** validación manual con dos tenants conectados simultáneamente, publicación exclusiva de eventos y revocación/logout mientras el stream permanece abierto.
 
 ### C3.5 — Operaciones globales
 - Auditar listado/creación/eliminación de tenants, reset y operaciones master.
