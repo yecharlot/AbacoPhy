@@ -240,7 +240,7 @@ func TestSensitiveExportEndpointsRejectUnsupportedMethods(t *testing.T) {
 func TestSensitiveExportResponsesArePrivateNoStore(t *testing.T) {
 	_,h,token,_,_:=exportIsolationFixture(t)
 	for _,p:=range []string{"/api/v1/invoices/pdf?id=local-invoice-id","/api/v1/payroll/pdf?period=all","/api/v1/reports/pdf?kind=rendimiento&period=all","/api/v1/backups/export?as=zip","/api/v1/backups/export"} {
-		t.Run(p,func(t *testing.T){ r:=exportRequest(h,http.MethodGet,p,token); if r.Code!=200 { t.Fatalf("status=%d",r.Code) }; if r.Header().Get("Cache-Control")!="no-store, private" { t.Fatalf("Cache-Control=%q",r.Header().Get("Cache-Control")) }; if r.Header().Get("Pragma")!="no-cache" { t.Fatalf("Pragma=%q",r.Header().Get("Pragma")) }; vary:=r.Header().Get("Vary"); if !strings.Contains(vary,"Authorization") || !strings.Contains(vary,"Cookie") { t.Fatalf("Vary=%q",vary) } })
+		t.Run(p,func(t *testing.T){ r:=exportRequest(h,http.MethodGet,p,token); if r.Code!=200 { t.Fatalf("status=%d",r.Code) }; if r.Header().Get("Cache-Control")!="no-store, private" { t.Fatalf("Cache-Control=%q",r.Header().Get("Cache-Control")) }; if r.Header().Get("Pragma")!="no-cache" { t.Fatalf("Pragma=%q",r.Header().Get("Pragma")) }; vary:=strings.Join(r.Header().Values("Vary"), ","); if !strings.Contains(vary,"Authorization") || !strings.Contains(vary,"Cookie") { t.Fatalf("Vary=%q",vary) } })
 	}
 }
 func TestSensitivePDFHeadRequestsDoNotReturnBody(t *testing.T) {
