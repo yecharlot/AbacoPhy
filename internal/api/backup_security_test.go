@@ -15,7 +15,7 @@ import (
 	"github.com/yecharlot/AbacoPhy/internal/store"
 )
 
-func backupImportTestHandler(t *testing.T) (http.Handler, string) {
+func backupImportTestHandler(t *testing.T) (http.Handler, *store.Store, string) {
 	t.Helper()
 	st := store.New(t.TempDir())
 	snap := domain.BootstrapTenant("Backup test", "backup-test", "CUP")
@@ -37,7 +37,7 @@ func backupImportTestHandler(t *testing.T) (http.Handler, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewServer(st, t.TempDir()).Handler(), sess.Token
+	return NewServer(st, t.TempDir()).Handler(), st, sess.Token
 }
 
 func backupMultipartRequest(t *testing.T, payload []byte) *http.Request {
@@ -60,7 +60,7 @@ func backupMultipartRequest(t *testing.T, payload []byte) *http.Request {
 }
 
 func TestBackupImportRejectsOversizedMultipartRequest(t *testing.T) {
-	handler, token := backupImportTestHandler(t)
+	handler, _, token := backupImportTestHandler(t)
 	payload := bytes.Repeat([]byte("x"), maxBackupUploadBytes+1)
 	req := backupMultipartRequest(t, payload)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -72,7 +72,7 @@ func TestBackupImportRejectsOversizedMultipartRequest(t *testing.T) {
 }
 
 func TestBackupImportRejectsZipExpansionBeyondLimit(t *testing.T) {
-	handler, token := backupImportTestHandler(t)
+	handler, _, token := backupImportTestHandler(t)
 	var archive bytes.Buffer
 	zw := zip.NewWriter(&archive)
 	entry, err := zw.Create(backupSnapshotArchiveEntry)
@@ -96,8 +96,10 @@ func TestBackupImportRejectsZipExpansionBeyondLimit(t *testing.T) {
 }
 
 func TestBackupImportAcceptsExportArchiveEntryName(t *testing.T) {
-	handler, token := backupImportTestHandler(t)
-	snapshot := domain.BootstrapTenant("Backup test", "backup-test", "CUP")
+	handler, st, token := backupImportTestHandler(t)
+	tenantIDs := st.ListTenantIDs()
+	if len(tenantIDs) != 1 { t.Fatalf("expected one tenant, got %d", len(tenantIDs)) }
+	snapshot := st.Get(tenantIDs[0])
 	raw, err := json.Marshal(snapshot)
 	if err != nil {
 		t.Fatal(err)
