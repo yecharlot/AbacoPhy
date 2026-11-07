@@ -149,14 +149,14 @@ Cobertura añadida:
 
 ### C3.6.3.1 — Métodos HTTP, cabeceras y validación de descargas
 
-**Estado:** implementación preparada en security-hardening; pendiente de CI.
+**Estado:** implementación y regresiones HTTP integradas; CI final pendiente.
 
-- Aplicar Cache-Control: no-store, private, Pragma: no-cache y Vary: Authorization, Cookie a respuestas sensibles y errores de backups, facturas, nómina e informes.
+- Aplicar Cache-Control: no-store, private y Pragma: no-cache a respuestas sensibles y errores de backups, facturas, nómina e informes; añadir Vary para Authorization y Cookie sin sobrescribir Origin cuando CORS lo haya establecido.
 - Limitar descargas PDF y exportación de backups a GET/HEAD; responder 405 con Allow: GET, HEAD para otros métodos.
 - Implementar HEAD sin cuerpo en PDFs y en las variantes ZIP/JSON de exportación.
-- Validar tipo y periodo de informe, identificador de cuenta, periodo de nómina e ID de factura.
+- Validar tipo y periodo de informe, identificador de cuenta, periodo de nómina, ID de factura y formato de exportación; mantener el modo as=base64 usado por la SPA.
 - Sanitizar componentes variables de nombres de archivo y construir Content-Disposition con mime.FormatMediaType.
 - No exponer valores de panic ni errores internos en las respuestas de exportación.
 - Incorporar regresiones HTTP para métodos, cabeceras y semántica HEAD.
 
-**Pendiente dentro de C3.6.3:** revisar compatibilidad de rutas PDF relacionadas y confirmar que los clientes no dependan de métodos o parámetros rechazados. La auditoría durable queda para C3.6.4.
+**Compatibilidad revisada:** la SPA exporta backups con as=base64 y ese modo se conserva; la descarga de factura usa getBlob sobre la ruta PDF. El caso de PDF de nómina sigue siendo un placeholder en la SPA. La auditoría durable queda para C3.6.4.

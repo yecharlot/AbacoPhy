@@ -283,3 +283,13 @@ func TestSensitiveExportPreservesCORSVaryHeader(t *testing.T) {
 		if !strings.Contains(vary, value) { t.Errorf("Vary=%q does not include %q", vary, value) }
 	}
 }
+
+
+func TestBackupExportAcceptsBase64CompatibilityMode(t *testing.T) {
+	_, handler, token, _, _ := exportIsolationFixture(t)
+	rec := exportRequest(handler, http.MethodGet, "/api/v1/backups/export?as=base64", token)
+	if rec.Code != http.StatusOK { t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String()) }
+	var payload struct { DataBase64 string `json:"data_base64"` }
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil { t.Fatal(err) }
+	if payload.DataBase64 == "" { t.Fatal("base64 compatibility response omitted data_base64") }
+}

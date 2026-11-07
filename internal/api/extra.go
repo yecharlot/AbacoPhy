@@ -641,7 +641,7 @@ func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 	if snap == nil { writeJSON(w, http.StatusNotFound, map[string]string{"error": "no encontrado"}); return }
 
 	as := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("as")))
-	if as != "" && as != "zip" && as != "binary" {
+	if as != "" && as != "zip" && as != "binary" && as != "base64" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "formato de exportación no válido"})
 		return
 	}

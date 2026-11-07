@@ -595,7 +595,7 @@ Ruta:
 
 - Se implementa caché privada/no-store para exportaciones y endpoints de backups.
 - Facturas, nómina, informes y exportación de backups limitan métodos a GET/HEAD.
-- Se validan parámetros de informe, periodos de nómina e identificadores de factura; los nombres de descarga se normalizan.
+- Se validan parámetros de informe, periodos de nómina, identificadores de factura y formato de exportación; se conserva el modo as=base64 que utiliza la SPA. Los nombres de descarga se normalizan.
 - Las respuestas HEAD no incluyen cuerpo y los errores internos/panics no se reflejan literalmente al cliente.
-- Se añaden pruebas HTTP para 405, Allow, cabeceras no-store y HEAD.
-- Pendiente: CI y revisión de compatibilidad; C3.6.3 no se considera cerrado.
+- Se añaden pruebas HTTP para 405, Allow, cabeceras no-store, preservación de Vary: Origin y HEAD. Se mantiene la compatibilidad del export JSON+base64.
+- Pendiente: CI final; C3.6.3 no se considera cerrado hasta completar las verificaciones.
