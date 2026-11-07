@@ -700,6 +700,12 @@ func toString(v any) string {
 	return fmt.Sprintf("%v", v)
 }
 
+const (
+	maxBackupUploadBytes       = 32 << 20
+	maxBackupArchiveEntries    = 16
+	backupSnapshotArchiveEntry = "abacophy-salva.json"
+)
+
 func (s *Server) handleBackupImport(w http.ResponseWriter, r *http.Request) {
 	sess, err := s.sess(r)
 	if err != nil {
@@ -718,47 +724,83 @@ func (s *Server) handleBackupImport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso para restaurar"})
 		return
 	}
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		writeJSON(w, 400, map[string]string{"error": "archivo requerido"})
+
+	// ParseMultipartForm limita memoria en RAM, no el tamaño total del request.
+	// MaxBytesReader aplica el límite real al cuerpo completo, incluidos headers
+	// multipart y campos auxiliares.
+	r.Body = http.MaxBytesReader(w, r.Body, maxBackupUploadBytes)
+	if err := r.ParseMultipartForm(1 << 20); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "la salva supera el tamaño máximo permitido"})
+			return
+		}
+		writeJSON(w, 400, map[string]string{"error": "archivo multipart inválido"})
 		return
 	}
+	if r.MultipartForm != nil {
+		defer r.MultipartForm.RemoveAll()
+	}
+
 	file, _, err := r.FormFile("file")
 	if err != nil {
 		writeJSON(w, 400, map[string]string{"error": "archivo requerido"})
 		return
 	}
 	defer file.Close()
-	raw, err := io.ReadAll(file)
+
+	raw, err := io.ReadAll(io.LimitReader(file, maxBackupUploadBytes+1))
 	if err != nil {
 		writeJSON(w, 400, map[string]string{"error": "lectura fallida"})
 		return
 	}
-	// ZIP or plain JSON
-	var jsonBytes []byte
+	if len(raw) > maxBackupUploadBytes {
+		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "la salva supera el tamaño máximo permitido"})
+		return
+	}
+
+	// ZIP o JSON plano. No se extraen rutas al filesystem y se limita tanto
+	// el número de entradas como el tamaño descomprimido del snapshot.
+	jsonBytes := raw
 	if len(raw) >= 2 && raw[0] == 'P' && raw[1] == 'K' {
 		zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
 		if err != nil {
 			writeJSON(w, 400, map[string]string{"error": "zip inválido"})
 			return
 		}
-		for _, zf := range zr.File {
-			if strings.HasSuffix(zf.Name, ".json") {
-				rc, err := zf.Open()
-				if err != nil {
-					continue
-				}
-				jsonBytes, _ = io.ReadAll(rc)
-				rc.Close()
-				break
-			}
+		if len(zr.File) == 0 || len(zr.File) > maxBackupArchiveEntries {
+			writeJSON(w, 400, map[string]string{"error": "estructura ZIP no permitida"})
+			return
 		}
-	} else {
-		jsonBytes = raw
+
+		jsonBytes = nil
+		for _, zf := range zr.File {
+			if zf.Name != backupSnapshotArchiveEntry {
+				continue
+			}
+			if jsonBytes != nil || zf.UncompressedSize64 > maxBackupUploadBytes {
+				writeJSON(w, 400, map[string]string{"error": "contenido JSON ZIP inválido o demasiado grande"})
+				return
+			}
+			rc, err := zf.Open()
+			if err != nil {
+				writeJSON(w, 400, map[string]string{"error": "contenido ZIP ilegible"})
+				return
+			}
+			content, readErr := io.ReadAll(io.LimitReader(rc, maxBackupUploadBytes+1))
+			closeErr := rc.Close()
+			if readErr != nil || closeErr != nil || len(content) > maxBackupUploadBytes {
+				writeJSON(w, 400, map[string]string{"error": "contenido ZIP inválido o demasiado grande"})
+				return
+			}
+			jsonBytes = content
+		}
 	}
 	if len(jsonBytes) == 0 {
-		writeJSON(w, 400, map[string]string{"error": "no se encontró JSON en el archivo"})
+		writeJSON(w, 400, map[string]string{"error": "no se encontró el archivo abacophy-salva.json"})
 		return
 	}
+
 	var restored domain.StoreSnapshot
 	if err := json.Unmarshal(jsonBytes, &restored); err != nil {
 		writeJSON(w, 400, map[string]string{"error": "JSON inválido"})
@@ -777,7 +819,10 @@ func (s *Server) handleBackupImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(&restored, sess, "salva.restauracion_local", "Restauración de salva desde archivo local · rev "+strconv.FormatInt(restored.Rev, 10), restored.RootCID)
-	_ = s.Store.Put(&restored)
+	if err := s.Store.Put(&restored); err != nil {
+		writeJSON(w, 500, map[string]string{"error": "no se pudo persistir la salva"})
+		return
+	}
 	writeJSON(w, 200, map[string]any{"ok": true, "rev": restored.Rev, "root_cid": restored.RootCID})
 }
 
