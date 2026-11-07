@@ -598,4 +598,4 @@ Ruta:
 - Se validan parámetros de informe, periodos de nómina, identificadores de factura y formato de exportación; se conserva el modo as=base64 que utiliza la SPA. Los nombres de descarga se normalizan.
 - Las respuestas HEAD no incluyen cuerpo y los errores internos/panics no se reflejan literalmente al cliente.
 - Se añaden pruebas HTTP para 405, Allow, cabeceras no-store, preservación de Vary: Origin y HEAD. Se mantiene la compatibilidad del export JSON+base64.
-- Pendiente: CI final; C3.6.3 no se considera cerrado hasta completar las verificaciones.
+- CI Go Linux/Windows, Docker Image y Launcher Desktop: correctos en el commit `99ecb929b869be5a83550c89663566bf3131037f`. C3.6.3.1 implementado; la auditoría durable sigue en C3.6.4 y los límites/memoria/streaming en C3.6.5.
