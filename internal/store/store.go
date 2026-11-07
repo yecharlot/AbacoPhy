@@ -126,6 +126,34 @@ func (s *Store) putLocked(snap *domain.StoreSnapshot) error {
 	return nil
 }
 
+// AppendAudit persiste un evento sobre la versión vigente del tenant bajo el lock
+// del Store. Clona el snapshot actual para no volver a guardar una copia antigua
+// preparada por el handler y publica el cambio solo si ambas escrituras terminan.
+func (s *Store) AppendAudit(tenantID string, entry domain.AuditEntry) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current := s.tenants[tenantID]
+	if current == nil {
+		return fmt.Errorf("tenant no encontrado para auditoría")
+	}
+	if tenantID == "" || entry.TenantID != tenantID || entry.ID == "" {
+		return fmt.Errorf("evento de auditoría inválido")
+	}
+	raw, err := json.Marshal(current)
+	if err != nil {
+		return fmt.Errorf("no se pudo copiar snapshot para auditoría: %w", err)
+	}
+	var next domain.StoreSnapshot
+	if err := json.Unmarshal(raw, &next); err != nil {
+		return fmt.Errorf("no se pudo copiar snapshot para auditoría: %w", err)
+	}
+	domain.AppendAudit(&next, entry)
+	if err := s.putLocked(&next); err != nil {
+		return fmt.Errorf("no se pudo persistir auditoría: %w", err)
+	}
+	return nil
+}
+
 // CreateTenant aplica unicidad global de slug y usernames bajo el mismo lock
 // que persiste el snapshot. Evita que dos altas master simultáneas superen
 // comprobaciones previas y creen identidades globales ambiguas.

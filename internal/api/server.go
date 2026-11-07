@@ -1628,6 +1628,10 @@ func (s *Server) handleInvoicePDF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := pdf.InvoicePDF(snap.Tenant, *inv)
+	if err := s.recordExportAudit(snap, sess, "factura.exportacion_pdf", "Exportación PDF de factura · "+inv.Number+" · negocio "+snap.Tenant.Name, inv.ID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "no se pudo registrar la exportación"})
+		return
+	}
 	filename := "factura-" + safeDownloadFilenamePart(inv.Number) + ".pdf"
 	w.Header().Set("Content-Type","application/pdf"); w.Header().Set("Content-Disposition",mime.FormatMediaType("attachment",map[string]string{"filename":filename})); w.Header().Set("Content-Length",strconv.Itoa(len(data))); w.WriteHeader(200)
 	if r.Method!=http.MethodHead { _,_=w.Write(data) }

@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -292,4 +294,56 @@ func TestBackupExportAcceptsBase64CompatibilityMode(t *testing.T) {
 	var payload struct { DataBase64 string `json:"data_base64"` }
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil { t.Fatal(err) }
 	if payload.DataBase64 == "" { t.Fatal("base64 compatibility response omitted data_base64") }
+}
+
+
+func TestSensitiveExportsPersistAuditBeforeReturningContent(t *testing.T) {
+	st, handler, token, _, _ := exportIsolationFixture(t)
+	cases := []struct{ path, action string }{
+		{"/api/v1/invoices/pdf?id=local-invoice-id", "factura.exportacion_pdf"},
+		{"/api/v1/payroll/pdf?period=all", "nomina.exportacion_pdf"},
+		{"/api/v1/reports/pdf?kind=rendimiento&period=all", "informe.exportacion_pdf"},
+		{"/api/v1/backups/export?as=zip", "salva.exportacion_zip"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.action, func(t *testing.T) {
+			before := len(st.Get("export-tenant-a").AuditLog)
+			rec := exportRequest(handler, http.MethodGet, tc.path, token)
+			if rec.Code != http.StatusOK || rec.Body.Len() == 0 {
+				t.Fatalf("export status=%d body=%s", rec.Code, rec.Body.String())
+			}
+			entries := st.Get("export-tenant-a").AuditLog
+			if len(entries) != before+1 {
+				t.Fatalf("audit entries=%d, want %d", len(entries), before+1)
+			}
+			last := entries[len(entries)-1]
+			if last.Action != tc.action || last.UserID == "" || last.CreatedAt.IsZero() {
+				t.Fatalf("unexpected durable audit entry: %#v", last)
+			}
+		})
+	}
+}
+
+func TestSensitiveExportFailsClosedWhenAuditCannotBePersisted(t *testing.T) {
+	st, handler, token, _, _ := exportIsolationFixture(t)
+	cidsDir := filepath.Join(st.DataDir(), "cids")
+	if err := os.Rename(cidsDir, cidsDir+".blocked"); err != nil { t.Fatal(err) }
+	if err := os.WriteFile(cidsDir, []byte("not a directory"), 0600); err != nil { t.Fatal(err) }
+	for _, path := range []string{
+		"/api/v1/invoices/pdf?id=local-invoice-id",
+		"/api/v1/payroll/pdf?period=all",
+		"/api/v1/reports/pdf?kind=rendimiento&period=all",
+		"/api/v1/backups/export?as=zip",
+	} {
+		rec := exportRequest(handler, http.MethodGet, path, token)
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("%s: status=%d body=%s, want 500", path, rec.Code, rec.Body.String())
+		}
+		if rec.Body.Len() == 0 || bytes.Contains(rec.Body.Bytes(), []byte("%PDF-")) || bytes.Contains(rec.Body.Bytes(), []byte{0x50, 0x4b, 0x03, 0x04}) {
+			t.Errorf("%s: sensitive export content was returned after audit failure", path)
+		}
+		if rec.Header().Get("Cache-Control") != "no-store, private" {
+			t.Errorf("%s: missing private no-store header", path)
+		}
+	}
 }

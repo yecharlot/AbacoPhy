@@ -222,7 +222,7 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 
 ## C3. Auditoría de datos y operaciones entre tenants
 
-- [ ] Revisar archivos, documentos, exportaciones y descargas por tenant (C3.6 completo permanece abierto hasta cerrar auditoría durable y límites/rendimiento).
+- [ ] Revisar archivos, documentos, exportaciones y descargas por tenant (C3.6 completo permanece abierto hasta cerrar límites/rendimiento; C3.6.4 implementado y pendiente CI).
 - [x] C3.6.3 — Métodos HTTP, cabeceras privadas/no-store, validación de parámetros, nombres de archivo seguros y semántica HEAD en descargas; CI Go Linux/Windows, Docker y Launcher Desktop: success (código `99ecb929b869be5a83550c89663566bf3131037f`).
 - [x] C3.1 — Endurecer importación de backups contra límites multipart y expansión ZIP (cerrado; pruebas CI confirmadas por el usuario).
 - [x] C3.2 — Verificar CID antes de restaurar, preservar historial y fallar de forma segura ante errores de persistencia (comprobado por el usuario; CI Go, Docker y Launcher Desktop correctos).
@@ -610,3 +610,12 @@ Ruta:
 - Pruebas HTTP verifican métodos, cabeceras, HEAD, sanitización y compatibilidad.
 - CI Go Linux/Windows, Docker Image y Launcher Desktop: success en el commit de código `99ecb929b869be5a83550c89663566bf3131037f`.
 - C3.6.3 queda cerrado. C3.6.4 (auditoría durable) y C3.6.5 (límites, memoria y streaming) continúan abiertos.
+
+
+### 2026-11-07 — C3.6.4: auditoría durable de exportaciones
+
+- Se añade Store.AppendAudit, que agrega el evento al snapshot vigente bajo lock, aplica retención y persiste con putLocked antes de publicarlo en memoria.
+- Facturas, nómina, informes y exportaciones ZIP/JSON de backups aplican fail-closed; si la auditoría no se puede persistir, responden 500 y no entregan contenido.
+- Se incorpora evento específico para exportación PDF de factura. GET y HEAD quedan registrados como solicitudes de exportación.
+- Pruebas HTTP cubren persistencia de eventos en los cuatro endpoints y fallo de persistencia del filesystem.
+- CI pendiente; no marcar C3.6.4 cerrado hasta verificar los tres workflows.

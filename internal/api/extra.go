@@ -57,6 +57,24 @@ func (s *Server) audit(snap *domain.StoreSnapshot, sess *domain.TokenSession, ac
 	}
 }
 
+// recordExportAudit aplica una política fail-closed: ninguna descarga sensible
+// se entrega hasta que su evento de auditoría queda persistido en el Store.
+func (s *Server) recordExportAudit(snap *domain.StoreSnapshot, sess *domain.TokenSession, action, detail, ref string) error {
+	if snap == nil || sess == nil || sess.TenantID != snap.Tenant.ID {
+		return fmt.Errorf("contexto de auditoría inválido")
+	}
+	username := ""
+	if user := snap.Users[sess.UserID]; user != nil {
+		username = user.Username
+	}
+	entry := domain.AuditEntry{
+		ID: uuid.NewString(), TenantID: sess.TenantID, UserID: sess.UserID,
+		Username: username, Role: sess.Role, Action: action, Detail: detail,
+		Ref: ref, CID: snap.RootCID, CreatedAt: time.Now().UTC(),
+	}
+	return s.Store.AppendAudit(sess.TenantID, entry)
+}
+
 func (s *Server) ensureCurrencies(snap *domain.StoreSnapshot) {
 	if snap.Currencies == nil || len(snap.Currencies) == 0 {
 		snap.Currencies = domain.DefaultCurrencies(snap.Tenant.Currency)
@@ -618,8 +636,10 @@ func (s *Server) handleReportPDF(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, map[string]string{"error": "no se pudo generar el informe"})
 		return
 	}
-	s.audit(snap, sess, "informe.exportacion_pdf", "Exportación PDF de informe · tipo "+kind+" · periodo "+period+" · negocio "+snap.Tenant.Name, kind)
-	_ = s.Store.Put(snap)
+	if err := s.recordExportAudit(snap, sess, "informe.exportacion_pdf", "Exportación PDF de informe · tipo "+kind+" · periodo "+period+" · negocio "+snap.Tenant.Name, kind); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "no se pudo registrar la exportación"})
+		return
+	}
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment",map[string]string{"filename":"informe-"+kind+".pdf"}))
 	w.Header().Set("Content-Length",strconv.Itoa(len(data)))
@@ -665,12 +685,10 @@ func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 	if err := zw.Close(); err != nil { writeJSON(w, 500, map[string]string{"error": "no se pudo generar la exportación"}); return }
 	out := buf.Bytes()
 
-	// La persistencia obligatoria de esta auditoría se aborda en C3.6.4.
-	func() {
-		defer func() { _ = recover() }()
-		s.audit(snap, sess, "salva.exportacion_zip", "Exportacion ZIP · "+snap.Tenant.Name+" · rev "+strconv.FormatInt(snap.Rev, 10), snap.RootCID)
-		_ = s.Store.Put(snap)
-	}()
+	if err := s.recordExportAudit(snap, sess, "salva.exportacion_zip", "Exportación de salva ZIP · "+snap.Tenant.Name+" · rev "+strconv.FormatInt(snap.Rev, 10), snap.RootCID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "no se pudo registrar la exportación"})
+		return
+	}
 
 	if as == "zip" || as == "binary" {
 		w.Header().Set("Content-Type", "application/zip")
@@ -1017,8 +1035,10 @@ func (s *Server) handlePayrollPDF(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	data := pdf.PayrollPDF(snap.Tenant, slips, period)
-	s.audit(snap, sess, "nomina.exportacion_pdf", "Exportación PDF de nómina · periodo "+period+" · "+fmt.Sprintf("%d", len(slips))+" liquidaciones · negocio "+snap.Tenant.Name, period)
-	_ = s.Store.Put(snap)
+	if err := s.recordExportAudit(snap, sess, "nomina.exportacion_pdf", "Exportación PDF de nómina · periodo "+period+" · "+fmt.Sprintf("%d", len(slips))+" liquidaciones · negocio "+snap.Tenant.Name, period); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "no se pudo registrar la exportación"})
+		return
+	}
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition",mime.FormatMediaType("attachment",map[string]string{"filename":"nomina-"+safeDownloadFilenamePart(period)+".pdf"})); w.Header().Set("Content-Length",strconv.Itoa(len(data))); w.WriteHeader(200)
 	if r.Method!=http.MethodHead { _,_=w.Write(data) }

@@ -169,3 +169,14 @@ Cobertura añadida:
 **Verificación adicional del cierre (2026-11-07):** se consultaron de nuevo los tres workflows y los tres constan como `completed/success`, todos sobre el commit de código `99ecb929b869be5a83550c89663566bf3131037f`. Las pruebas de `export_isolation_test.go` cubren 405/Allow, no-store y Vary, HEAD sin cuerpo, formato inválido, sanitización de nombres y compatibilidad `as=base64`.
 
 **Estado C3.6.3: CERRADO.** El endurecimiento de métodos, cabeceras y parámetros de descarga queda completado. No incluye auditoría durable de exportaciones (C3.6.4) ni límites de generación, memoria y streaming (C3.6.5), que siguen pendientes.
+
+
+### 2026-11-07 — C3.6.4: auditoría durable de exportaciones
+
+- Las descargas PDF de facturas, nómina e informes y las exportaciones ZIP/JSON de backups registran un evento tenant-scoped antes de emitir cabeceras o contenido.
+- La persistencia del evento es fail-closed: si no se puede guardar el snapshot actualizado, el endpoint responde HTTP 500 con cabeceras privadas/no-store y no entrega el archivo.
+- Se incorpora auditoría específica de descarga de factura, que antes no tenía evento propio.
+- Store.AppendAudit toma el lock del almacén, copia la versión vigente del tenant, agrega el evento con retención limitada y persiste mediante putLocked; evita que el handler reescriba una copia antigua obtenida antes de construir el documento.
+- Los requests HEAD también se auditan como solicitudes de exportación, aunque no reciban cuerpo.
+- Pruebas HTTP verifican evento durable en los cuatro endpoints y fallo cerrado cuando el filesystem impide persistir la auditoría.
+- C3.6.4 queda pendiente de CI Go Linux/Windows, Docker Image y Launcher Desktop.
