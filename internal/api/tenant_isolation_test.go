@@ -345,3 +345,39 @@ func TestMasterTenantListIsReadOnly(t *testing.T) {
 		}
 	}
 }
+
+
+func TestMasterResetRecordsGlobalOperationAfterBootstrap(t *testing.T) {
+	st := store.New(t.TempDir())
+	primary := domain.BootstrapTenant("Primary", "primary", "CUP")
+	master := userByName(primary, "master")
+	if master == nil { t.Fatal("master user missing") }
+	master.MustChangePassword = false
+	master.PasswordHash = mustHashForTenantIsolationTest(t, "reset-master-password")
+	if err := st.Put(primary); err != nil { t.Fatal(err) }
+	other := domain.BootstrapTenant("Other", "other", "CUP")
+	if err := st.Put(other); err != nil { t.Fatal(err) }
+	sess, _, err := auth.Login(st, master.Username, "reset-master-password")
+	if err != nil { t.Fatal(err) }
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/master/reset", bytes.NewBufferString(`{"confirm":"REINICIAR"}`))
+	req.Header.Set("Authorization", "Bearer "+sess.Token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	NewServer(st, t.TempDir()).Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK { t.Fatalf("master reset status=%d body=%s", rec.Code, rec.Body.String()) }
+	if got := len(st.ListTenants()); got != 1 { t.Fatalf("tenant count after reset=%d, want 1 bootstrap tenant", got) }
+	fresh := st.Get(st.ListTenants()[0].ID)
+	found := false
+	for _, entry := range fresh.AuditLog {
+		if entry.Action == "master.reset" && entry.TenantID == fresh.Tenant.ID &&
+			entry.Username == master.Username && entry.Role == domain.RoleMaster &&
+			entry.Metadata["actor_tenant_id"] == primary.Tenant.ID {
+			found = true
+		}
+	}
+	if !found { t.Fatal("global reset must leave an audit record with the originating tenant") }
+	if _, err := auth.SessionFromRequest(st, "Bearer "+sess.Token); err == nil {
+		t.Fatal("global reset must revoke the master session that initiated it")
+	}
+}

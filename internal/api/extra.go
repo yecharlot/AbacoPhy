@@ -1045,14 +1045,38 @@ func (s *Server) handleMasterReset(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"error": "debe enviar confirm=REINICIAR"})
 		return
 	}
-	// Reinicio a estado inicial: genera credenciales temporales nuevas y exige cambiarlas
+	actorName := sess.UserID
+	if actorSnap := s.Store.Get(sess.TenantID); actorSnap != nil {
+		if actor := actorSnap.Users[sess.UserID]; actor != nil && strings.TrimSpace(actor.Username) != "" {
+			actorName = actor.Username
+		}
+	}
+	actorTenantID := sess.TenantID
+	// Reinicio a estado inicial: genera credenciales temporales nuevas y exige cambiarlas.
 	if err := s.Store.ResetAll(); err != nil {
-		// fallback: borrar tenants en memoria y bootstrap
 		writeJSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
 	if err := EnsureBootstrap(s.Store); err != nil {
 		writeJSON(w, 500, map[string]string{"error": "bootstrap tras reinicio: " + err.Error()})
+		return
+	}
+	// ResetAll elimina el historial anterior; conservar una evidencia mínima
+	// del reinicio en el tenant bootstrap recién creado.
+	tenants := s.Store.ListTenants()
+	if len(tenants) == 0 {
+		writeJSON(w, 500, map[string]string{"error": "reinicio completado, pero no se creó el tenant inicial"})
+		return
+	}
+	fresh := s.Store.Get(tenants[0].ID)
+	fresh.AuditLog = append(fresh.AuditLog, domain.AuditEntry{
+		ID: uuid.NewString(), TenantID: fresh.Tenant.ID, Username: actorName, Role: sess.Role,
+		Action: "master.reset", Detail: "Reinicio global ejecutado; los datos de negocio anteriores fueron eliminados",
+		Ref: "reset-all", CreatedAt: time.Now().UTC(),
+		Metadata: domain.Metadata{"actor_tenant_id": actorTenantID},
+	})
+	if err := s.Store.Put(fresh); err != nil {
+		writeJSON(w, 500, map[string]string{"error": "reinicio completado, pero no se pudo persistir su auditoría"})
 		return
 	}
 	writeJSON(w, 200, map[string]any{"ok": true, "message": "Aplicación restaurada a estado inicial sin datos de negocio"})
