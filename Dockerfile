@@ -5,7 +5,7 @@ RUN cd webapp && npm ci
 COPY webapp/ ./webapp/
 RUN cd webapp && npm run check && npm test && npm run build
 
-FROM golang:1.22-alpine AS build
+FROM golang:1.24-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum* ./
 RUN go mod download 2>/dev/null || true

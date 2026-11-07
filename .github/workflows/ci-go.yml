@@ -26,8 +26,12 @@ concurrency:
 
 jobs:
   go:
-    name: Build & test (Go)
-    runs-on: ubuntu-latest
+    name: Build & test (Go) — ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     defaults:
       run:
         working-directory: .
@@ -39,7 +43,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.24"
           cache-dependency-path: go.sum
 
       - name: Download modules

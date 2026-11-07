@@ -215,11 +215,11 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 - [ ] Revisar archivos, documentos, exportaciones y descargas por tenant.
 - [x] C3.1 — Endurecer importación de backups contra límites multipart y expansión ZIP (cerrado; pruebas CI confirmadas por el usuario).
 - [x] C3.2 — Verificar CID antes de restaurar, preservar historial y fallar de forma segura ante errores de persistencia (comprobado por el usuario; CI Go, Docker y Launcher Desktop correctos).
-- [x] C3.3 (primer bloque) — Endurecer permisos de snapshots, blobs CID y directorios de datos; rechazar symlinks en rutas de almacenamiento y validar IDs como componentes de ruta.
+- [x] C3.3 (primer bloque) — Endurecer permisos; usar operaciones de filesystem confinadas con os.Root; verificar carreras de sustitución y validar compatibilidad Linux/Windows.
 - [ ] Probar aislamiento SSE/presencia y operaciones administrativas globales.
 - [ ] Añadir pruebas automatizadas de acceso cruzado y regresión.
 
-**Estado C3:** C3.1 y C3.2 comprobados por el usuario; CI Go, Docker y Launcher Desktop de C3.2 correctos. C3.3 en curso: permisos privados, escritura atómica y validación de rutas incorporados; pruebas automatizadas de traversal, symlink y permisos POSIX añadidas; pendiente CI y validación Windows/TOCTOU.
+**Estado C3:** C3.1 y C3.2 comprobados por el usuario; CI Go, Docker y Launcher Desktop de C3.2 correctos. C3.3 reforzado con os.Root (Go 1.24), operaciones ancladas y confinadas, verificación de identidad de directorios, lectura con verificación de identidad y rename relativo al root; añadida prueba de sustitución de directorio. CI Linux/Windows pendiente.
 
 # 5. FASE D — Hardening HTTP/API
 

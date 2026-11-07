@@ -19,10 +19,10 @@ func TestStoreRejectsTenantPathTraversal(t *testing.T) {
 }
 
 func TestStoreRejectsSymlinkedCIDDirectory(t *testing.T) {
-	if runtime.GOOS == "windows" { t.Skip("creating symlinks may require elevated Windows privileges") }
+	
 	root := t.TempDir()
 	outside := t.TempDir()
-	if err := os.Symlink(outside, filepath.Join(root, "cids")); err != nil { t.Fatal(err) }
+	if err := os.Symlink(outside, filepath.Join(root, "cids")); err != nil { t.Skipf("symlink creation unavailable on %s: %v", runtime.GOOS, err) }
 	st := New(root)
 	snap := domain.BootstrapTenant("Symlink directory", "symlink-dir", "CUP")
 	if err := st.Put(snap); err == nil {
@@ -41,7 +41,7 @@ func TestStoreRejectsSymlinkedTenantSnapshot(t *testing.T) {
 	outside := filepath.Join(t.TempDir(), "outside.json")
 	if err := os.WriteFile(outside, []byte("do not overwrite"), 0600); err != nil { t.Fatal(err) }
 	snap := domain.BootstrapTenant("Symlink file", "symlink-file", "CUP")
-	if err := os.Symlink(outside, filepath.Join(tenants, snap.Tenant.ID+".json")); err != nil { t.Fatal(err) }
+	if err := os.Symlink(outside, filepath.Join(tenants, snap.Tenant.ID+".json")); err != nil { t.Skipf("symlink creation unavailable on %s: %v", runtime.GOOS, err) }
 
 	st := New(root)
 	if err := st.Put(snap); err == nil {
@@ -81,4 +81,30 @@ func TestValidStorageNameRejectsPathSyntax(t *testing.T) {
 	for _, name := range []string{"tenant-1", "Tenant_2", "bafkrei0123456789"} {
 		if !validStorageName(name) { t.Errorf("validStorageName(%q) = false, want true", name) }
 	}
+}
+
+func TestPinnedRootRemainsConfinedAfterDirectorySwap(t *testing.T) {
+ rootPath, outside := t.TempDir(), t.TempDir()
+ originalPath := filepath.Join(rootPath, "tenants")
+ if err := os.Mkdir(originalPath, 0700); err != nil { t.Fatal(err) }
+ pinned, err := openRootForPath(originalPath); if err != nil { t.Fatal(err) }; defer pinned.Close()
+ moved := filepath.Join(rootPath, "tenants-original")
+ if err := os.Rename(originalPath, moved); err != nil { t.Fatal(err) }
+ if err := os.Symlink(outside, originalPath); err != nil { t.Skipf("symlink creation unavailable: %v", err) }
+ f, err := pinned.OpenFile("confined.json", os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0600); if err != nil { t.Fatal(err) }
+ if _, err := f.Write([]byte("confined")); err != nil { t.Fatal(err) }; if err := f.Close(); err != nil { t.Fatal(err) }
+ if _, err := os.Stat(filepath.Join(outside, "confined.json")); !os.IsNotExist(err) { t.Fatalf("operation escaped pinned root: %v", err) }
+ got, err := os.ReadFile(filepath.Join(moved, "confined.json")); if err != nil { t.Fatal(err) }
+ if string(got) != "confined" { t.Fatalf("unexpected contents: %q", got) }
+}
+
+func TestPrivateFileOperationsRejectSymlinkTargets(t *testing.T) {
+ dir, outsideDir := t.TempDir(), t.TempDir()
+ outside := filepath.Join(outsideDir, "outside.json")
+ if err := os.WriteFile(outside, []byte("keep"), 0600); err != nil { t.Fatal(err) }
+ if err := os.Symlink(outside, filepath.Join(dir, "tenant-1.json")); err != nil { t.Skipf("symlink creation unavailable: %v", err) }
+ if _, err := readPrivateFile(dir, "tenant-1.json"); err == nil { t.Fatal("expected symlink read rejection") }
+ if err := writePrivateFileAtomic(dir, "tenant-1.json", []byte("overwrite")); err == nil { t.Fatal("expected symlink write rejection") }
+ got, err := os.ReadFile(outside); if err != nil { t.Fatal(err) }
+ if string(got) != "keep" { t.Fatalf("outside file modified: %q", got) }
 }
