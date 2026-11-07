@@ -2,7 +2,7 @@
 
 **Rama:** `security-hardening`  
 **Fase:** C3 — auditoría e implementación incremental  
-**Estado:** C3.1 cerrado por confirmación del usuario; C3.2 implementado y pendiente de CI/validación manual.
+**Estado:** C3.1 y C3.2 comprobados y cerrados por confirmación del usuario; C3.3 en implementación.
 
 ## Objetivo
 
@@ -24,7 +24,7 @@ C3 cubre:
 | Backups CID | Restore compara el tenant raíz, vincula hijos y valida referencias | Añadir verificación de integridad del contenido CID y errores de persistencia |
 | Importación ZIP/JSON | El parser aceptaba lectura descomprimida sin límite y el límite de `ParseMultipartForm` solo controlaba memoria en RAM | Corregido en el primer bloque |
 | Exportación | Exporta el snapshot de la sesión autenticada; requiere revisar límites, no-store y auditoría | Revisar |
-| Archivos de datos | `Store.Put` usa permisos 0644 y directorios 0755 para snapshots/CID | Revisar compatibilidad multiplataforma y endurecer permisos |
+| Archivos de datos | C3.3 sustituye permisos 0644/0755 por 0600/0700, escritura atómica y rechazo de symlinks en componentes de ruta | Añadir pruebas negativas de traversal/symlink y verificar compatibilidad Windows/POSIX |
 | Tokens | `tokens.json` ya se persiste con 0600 y escritura temporal | Verificar permisos al crear directorios y comportamiento en Windows |
 
 ## C3.1 — Importación de backups
@@ -51,7 +51,7 @@ C3 cubre:
 - [x] Añadir prueba API: restauración válida conserva el historial de backups y auditoría y registra el evento de restore.
 - [x] Inducir fallo real de escritura del snapshot durante restore; responder HTTP 500 y mantener intacto el snapshot en memoria.
 - [x] Publicar el snapshot en memoria solo después de confirmar la escritura principal del tenant en disco.
-- [ ] Verificar CI completo y validar recuperación en una instalación con datos reales.
+- [x] Verificar CI Go, Docker y Launcher Desktop (confirmado por el usuario).\n- [x] Validación manual de C3.2 confirmada por el usuario.
 
 ### C3.3 — Archivos locales
 - Endurecer permisos de `dataDir`, `tenants/`, `cids/`, snapshots y blobs CID.

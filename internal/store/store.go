@@ -24,6 +24,7 @@ type Store struct {
 	tenants  map[string]*domain.StoreSnapshot // key = tenantID
 	tokens   map[string]*domain.TokenSession
 	dataDir  string
+	initErr  error
 	doURL    string // Cloudflare DO endpoint (opcional)
 	doToken  string
 }
@@ -36,9 +37,11 @@ func New(dataDir string) *Store {
 		doURL:   strings.TrimSpace(os.Getenv("ABACOPHY_DO_URL")),
 		doToken: strings.TrimSpace(os.Getenv("ABACOPHY_DO_TOKEN")),
 	}
-	_ = os.MkdirAll(dataDir, 0755)
-	s.loadAll()
-	s.loadTokens()
+	s.initErr = s.ensureDataDirs()
+	if s.initErr == nil {
+		s.loadAll()
+		s.loadTokens()
+	}
 	return s
 }
 
@@ -48,7 +51,7 @@ func (s *Store) pathTenant(id string) string {
 
 func (s *Store) loadAll() {
 	dir := filepath.Join(s.dataDir, "tenants")
-	_ = os.MkdirAll(dir, 0755)
+	if err := ensurePrivateDir(dir); err != nil { return }
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return
@@ -57,12 +60,14 @@ func (s *Store) loadAll() {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
-		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		id := strings.TrimSuffix(e.Name(), ".json")
+		if !validStorageName(id) { continue }
+		b, err := readPrivateFile(dir, e.Name())
 		if err != nil {
 			continue
 		}
 		var snap domain.StoreSnapshot
-		if json.Unmarshal(b, &snap) != nil || snap.Tenant.ID == "" {
+		if json.Unmarshal(b, &snap) != nil || snap.Tenant.ID == "" || snap.Tenant.ID != id {
 			continue
 		}
 		s.tenants[snap.Tenant.ID] = &snap
@@ -78,9 +83,11 @@ func (s *Store) Get(tenantID string) *domain.StoreSnapshot {
 func (s *Store) Put(snap *domain.StoreSnapshot) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if snap == nil || snap.Tenant.ID == "" {
+	if snap == nil || !validStorageName(snap.Tenant.ID) {
 		return fmt.Errorf("snapshot inválido")
 	}
+	if s.initErr != nil { return fmt.Errorf("directorio de datos no seguro: %w", s.initErr) }
+	if err := s.ensureDataDirs(); err != nil { return err }
 	// Defensa central: ninguna ruta puede persistir registros hijos con un
 	// TenantID explícito distinto al del snapshot. Los registros legacy vacíos
 	// se vinculan al tenant raíz antes de calcular CID y persistir.
@@ -101,17 +108,10 @@ func (s *Store) Put(snap *domain.StoreSnapshot) error {
 	if err != nil {
 		return err
 	}
-	_ = os.MkdirAll(filepath.Join(s.dataDir, "tenants"), 0755)
-	if err := os.WriteFile(s.pathTenant(snap.Tenant.ID), raw, 0644); err != nil {
-		return err
-	}
-	// Publicar en memoria solo después de confirmar la escritura principal.
-	// Un error de disco no debe reemplazar el snapshot activo en memoria.
+	if err := writePrivateFileAtomic(filepath.Join(s.dataDir, "tenants"), snap.Tenant.ID+".json", raw); err != nil { return err }
+	if err := writePrivateFileAtomic(filepath.Join(s.dataDir, "cids"), cid+".json", raw); err != nil { return err }
+	// Publicar en memoria solo después de confirmar ambas escrituras.
 	s.tenants[snap.Tenant.ID] = snap
-
-	cidDir := filepath.Join(s.dataDir, "cids")
-	_ = os.MkdirAll(cidDir, 0755)
-	_ = os.WriteFile(filepath.Join(cidDir, cid+".json"), raw, 0644)
 
 	go s.pushDO(snap.Tenant.ID, raw)
 	return nil
@@ -177,13 +177,12 @@ func (s *Store) tokensPath() string {
 }
 
 func (s *Store) loadTokens() {
-	b, err := os.ReadFile(s.tokensPath())
+	b, err := readPrivateFile(s.dataDir, "tokens.json")
 	if err != nil {
 		return
 	}
 	// tokens.json contiene credenciales bearer: restringir permisos también
 	// cuando el archivo proviene de una instalación anterior.
-	_ = os.Chmod(s.tokensPath(), 0600)
 	var m map[string]*domain.TokenSession
 	if json.Unmarshal(b, &m) != nil {
 		return
@@ -217,31 +216,7 @@ func (s *Store) persistTokensLocked() {
 	if err != nil {
 		return
 	}
-	tmp, err := os.CreateTemp(s.dataDir, ".tokens-*.tmp")
-	if err != nil {
-		return
-	}
-	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
-	if err := tmp.Chmod(0600); err != nil {
-		_ = tmp.Close()
-		return
-	}
-	if _, err := tmp.Write(b); err != nil {
-		_ = tmp.Close()
-		return
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return
-	}
-	if err := tmp.Close(); err != nil {
-		return
-	}
-	if err := os.Rename(tmpName, s.tokensPath()); err != nil {
-		return
-	}
-	_ = os.Chmod(s.tokensPath(), 0600)
+	_ = writePrivateFileAtomic(s.dataDir, "tokens.json", b)
 }
 
 func (s *Store) SaveToken(tok *domain.TokenSession) {
@@ -431,8 +406,9 @@ func (s *Store) LoadCID(cid string) (*domain.StoreSnapshot, error) {
 			return nil, fmt.Errorf("cid invalido")
 		}
 	}
-	path := filepath.Join(s.dataDir, "cids", cid+".json")
-	raw, err := os.ReadFile(path)
+	if s.initErr != nil { return nil, fmt.Errorf("directorio de datos no seguro: %w", s.initErr) }
+	if err := s.ensureDataDirs(); err != nil { return nil, err }
+	raw, err := readPrivateFile(filepath.Join(s.dataDir, "cids"), cid+".json")
 	if err != nil {
 		return nil, err
 	}
@@ -465,23 +441,25 @@ func (s *Store) LoadCID(cid string) (*domain.StoreSnapshot, error) {
 func (s *Store) ResetAll() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.initErr != nil { return s.initErr }
+	if err := s.ensureDataDirs(); err != nil { return err }
 	s.tenants = make(map[string]*domain.StoreSnapshot)
 	s.tokens = make(map[string]*domain.TokenSession)
 	_ = os.Remove(s.tokensPath())
 	_ = os.Remove(filepath.Join(s.dataDir, "bootstrap-credentials.txt"))
 	dir := filepath.Join(s.dataDir, "tenants")
-	entries, _ := os.ReadDir(dir)
+	entries, err := os.ReadDir(dir)
+	if err != nil { return err }
 	for _, e := range entries {
-		if !e.IsDir() {
-			_ = os.Remove(filepath.Join(dir, e.Name()))
-		}
+		if e.IsDir() { continue }
+		if err := os.Remove(filepath.Join(dir, e.Name())); err != nil { return err }
 	}
 	cidDir := filepath.Join(s.dataDir, "cids")
-	cids, _ := os.ReadDir(cidDir)
+	cids, err := os.ReadDir(cidDir)
+	if err != nil { return err }
 	for _, e := range cids {
-		if !e.IsDir() {
-			_ = os.Remove(filepath.Join(cidDir, e.Name()))
-		}
+		if e.IsDir() { continue }
+		if err := os.Remove(filepath.Join(cidDir, e.Name())); err != nil { return err }
 	}
 	return nil
 }
