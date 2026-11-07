@@ -51,21 +51,32 @@ type TouchResult struct {
 	OnlineCount     int
 }
 
-// Touch actualiza o crea la ficha del cliente. key estable = instance_id o anon:ip.
+// registryKey separa identidades autenticadas por tenant y mantiene los
+// clientes anónimos en un espacio distinto. El header de instancia no es una
+// credencial y nunca debe permitir que otro tenant sobrescriba una ficha.
+func registryKey(instanceID, remoteIP, tenantID string, hasSession bool) (key, displayID string) {
+	displayID = strings.TrimSpace(instanceID)
+	if displayID == "" {
+		displayID = AnonymousPrefix + strings.TrimSpace(remoteIP)
+		if displayID == AnonymousPrefix {
+			displayID += "unknown"
+		}
+	}
+	if hasSession && strings.TrimSpace(tenantID) != "" {
+		return "tenant:" + tenantID + "\x00" + displayID, displayID
+	}
+	return "anonymous\x00" + displayID, displayID
+}
+
+// Touch actualiza o crea la ficha del cliente dentro de su espacio de identidad.
 func (r *Registry) Touch(c Client) TouchResult {
 	res := TouchResult{}
 	if r == nil {
 		return res
 	}
-	key := strings.TrimSpace(c.InstanceID)
-	if key == "" {
-		key = AnonymousPrefix + c.RemoteIP
-		if key == AnonymousPrefix {
-			key = AnonymousPrefix + "unknown"
-		}
-		c.InstanceID = key
-	}
-	res.Key = key
+	key, displayID := registryKey(c.InstanceID, c.RemoteIP, c.TenantID, c.HasSession)
+	c.InstanceID = displayID
+	res.Key = displayID
 	now := time.Now().UTC()
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -126,15 +137,12 @@ func (r *Registry) countLocked(now time.Time) int {
 	return n
 }
 
-// AttachSession marca usuario autenticado sobre un instance_id (o anon:ip).
+// AttachSession marca usuario autenticado sobre la ficha scoped al tenant.
 func (r *Registry) AttachSession(instanceID, remoteIP, tenantID, userID, username string) {
-	if r == nil {
+	if r == nil || strings.TrimSpace(tenantID) == "" {
 		return
 	}
-	key := strings.TrimSpace(instanceID)
-	if key == "" {
-		key = AnonymousPrefix + remoteIP
-	}
+	key, displayID := registryKey(instanceID, remoteIP, tenantID, true)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	now := time.Now().UTC()
@@ -147,7 +155,7 @@ func (r *Registry) AttachSession(instanceID, remoteIP, tenantID, userID, usernam
 		return
 	}
 	r.clients[key] = &Client{
-		InstanceID: key,
+		InstanceID: displayID,
 		TenantID:   tenantID,
 		RemoteIP:   remoteIP,
 		UserID:     userID,

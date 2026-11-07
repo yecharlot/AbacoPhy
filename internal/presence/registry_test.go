@@ -23,3 +23,31 @@ func TestListOnlineForTenantDoesNotExposeOtherTenantClients(t *testing.T) {
 		t.Fatalf("empty tenant must not list global presence: %#v", got)
 	}
 }
+
+func TestRegistryScopesIdenticalClientIDsByTenant(t *testing.T) {
+	r := NewRegistry()
+	now := time.Now().UTC()
+	r.Touch(Client{InstanceID: "shared-device-id", TenantID: "tenant-a", UserID: "user-a", Username: "alice", HasSession: true})
+	r.Touch(Client{InstanceID: "shared-device-id", TenantID: "tenant-b", UserID: "user-b", Username: "bob", HasSession: true})
+
+	a := r.ListOnlineForTenant("tenant-a", now)
+	b := r.ListOnlineForTenant("tenant-b", now)
+	if len(a) != 1 || a[0].UserID != "user-a" || a[0].Username != "alice" {
+		t.Fatalf("tenant A identity was overwritten: %#v", a)
+	}
+	if len(b) != 1 || b[0].UserID != "user-b" || b[0].Username != "bob" {
+		t.Fatalf("tenant B identity missing or mixed: %#v", b)
+	}
+}
+
+func TestAnonymousClientCannotOverwriteTenantPresence(t *testing.T) {
+	r := NewRegistry()
+	now := time.Now().UTC()
+	r.Touch(Client{InstanceID: "shared-device-id", TenantID: "tenant-a", UserID: "user-a", Username: "alice", HasSession: true})
+	r.Touch(Client{InstanceID: "shared-device-id", RemoteIP: "192.0.2.10", Platform: "spoofed", HasSession: false})
+
+	a := r.ListOnlineForTenant("tenant-a", now)
+	if len(a) != 1 || a[0].UserID != "user-a" || a[0].Username != "alice" {
+		t.Fatalf("anonymous client overwrote authenticated presence: %#v", a)
+	}
+}

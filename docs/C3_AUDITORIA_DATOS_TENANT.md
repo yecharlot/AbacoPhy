@@ -68,7 +68,7 @@ C3 cubre:
 - [ ] Verificar desconexión y limpieza de suscriptores.
 - [ ] Ejecutar pruebas de concurrencia y CI.
 
-**Auditoría inicial:** el hub ya separaba suscriptores por TenantID, pero el stream solo autenticaba al conectar y continuaba entregando eventos tras una revocación. Se corrige revalidando la sesión antes de cada evento y keepalive; queda pendiente validar por tests y CI.
+**Auditoría inicial:** el hub separaba suscriptores por TenantID, pero el stream solo autenticaba al conectar y continuaba entregando eventos tras una revocación. Además, presencia usaba el ID de cliente como clave global, permitiendo que IDs repetidos entre tenants sobrescribieran fichas. Se corrige revalidando la sesión antes de cada evento/keepalive y usando claves de presencia separadas por tenant para clientes autenticados y un espacio independiente para anónimos. Pendiente validar por tests y CI.
 
 ### C3.5 — Operaciones globales
 - Auditar listado/creación/eliminación de tenants, reset y operaciones master.
