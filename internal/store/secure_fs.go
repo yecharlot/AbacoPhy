@@ -1,8 +1,6 @@
 package store
 
 import (
- "crypto/rand"
- "encoding/hex"
  "fmt"
  "io"
  "os"
@@ -66,7 +64,10 @@ func ensurePrivateDir(path string) error {
  if err != nil || named.Mode()&os.ModeSymlink != 0 || !named.IsDir() || !os.SameFile(opened, named) {
   return fmt.Errorf("el directorio %q cambió durante su apertura", abs)
  }
- return child.Chmod(".", 0700)
+ dirFile, err := child.OpenFile(".", os.O_RDONLY, 0)
+ if err != nil { return err }
+ defer dirFile.Close()
+ return dirFile.Chmod(0700)
 }
 
 func (s *Store) ensureDataDirs() error {
@@ -95,23 +96,39 @@ func readPrivateFile(dir, name string) ([]byte, error) {
  return io.ReadAll(f)
 }
 
+// writePrivateFileAtomic uses a pinned directory root and an already-open file
+// descriptor. It verifies the opened inode before truncating, so a concurrent
+// symlink swap cannot redirect a write to another path. The name is retained
+// for compatibility; descriptor-based replacement is intentionally non-atomic.
 func writePrivateFileAtomic(dir, name string, data []byte) error {
  if err := validatePrivateFilename(name); err != nil { return err }
  root, err := openRootForPath(dir); if err != nil { return err }; defer root.Close()
- if info, statErr := root.Lstat(name); statErr == nil {
-  if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() { return fmt.Errorf("destino no regular o symlink: %q", name) }
- } else if !os.IsNotExist(statErr) { return statErr }
- var nonce [16]byte
- if _, err := rand.Read(nonce[:]); err != nil { return err }
- tmpName := ".abacophy-" + hex.EncodeToString(nonce[:]) + ".tmp"
- tmp, err := root.OpenFile(tmpName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600); if err != nil { return err }
- removeTemp := true
- defer func() { _ = tmp.Close(); if removeTemp { _ = root.Remove(tmpName) } }()
- if _, err := tmp.Write(data); err != nil { return err }
- if err := tmp.Sync(); err != nil { return err }
- if err := tmp.Close(); err != nil { return err }
- // Rename relative to the pinned root replaces a raced symlink entry; it never follows it.
- if err := root.Rename(tmpName, name); err != nil { return err }
- removeTemp = false
- return root.Chmod(name, 0600)
+
+ before, statErr := root.Lstat(name)
+ var f *os.File
+ if os.IsNotExist(statErr) {
+  // O_EXCL makes creation fail if an attacker inserted any entry, including a symlink.
+  f, err = root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+ } else if statErr != nil {
+  return statErr
+ } else {
+  if before.Mode()&os.ModeSymlink != 0 || !before.Mode().IsRegular() {
+   return fmt.Errorf("destino no regular o symlink: %q", name)
+  }
+  // Do not use O_TRUNC until the opened inode has been compared with Lstat.
+  f, err = root.OpenFile(name, os.O_WRONLY, 0)
+ }
+ if err != nil { return err }
+ defer f.Close()
+
+ opened, err := f.Stat(); if err != nil { return err }
+ after, err := root.Lstat(name)
+ if err != nil || after.Mode()&os.ModeSymlink != 0 || !after.Mode().IsRegular() || !os.SameFile(opened, after) {
+  return fmt.Errorf("el archivo %q cambió durante su apertura", name)
+ }
+ if err := f.Chmod(0600); err != nil { return err }
+ if err := f.Truncate(0); err != nil { return err }
+ if _, err := f.Seek(0, io.SeekStart); err != nil { return err }
+ if _, err := f.Write(data); err != nil { return err }
+ return f.Sync()
 }

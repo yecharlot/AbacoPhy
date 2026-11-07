@@ -24,7 +24,7 @@ C3 cubre:
 | Backups CID | Restore compara el tenant raíz, vincula hijos y valida referencias | Añadir verificación de integridad del contenido CID y errores de persistencia |
 | Importación ZIP/JSON | El parser aceptaba lectura descomprimida sin límite y el límite de `ParseMultipartForm` solo controlaba memoria en RAM | Corregido en el primer bloque |
 | Exportación | Exporta el snapshot de la sesión autenticada; requiere revisar límites, no-store y auditoría | Revisar |
-| Archivos de datos | C3.3 usa os.Root (Go 1.24), operaciones relativas a directorios anclados, permisos 0600/0700 y escritura atómica | Verificar CI Linux/Windows y compatibilidad NTFS/symlinks |
+| Archivos de datos | C3.3 usa os.Root (Go 1.24), operaciones relativas a directorios anclados, permisos 0600/0700 y escritura mediante descriptor abierto y verificado | Verificar CI Linux/Windows y compatibilidad NTFS/symlinks |
 | Tokens | `tokens.json` ya se persiste con 0600 y escritura temporal | Verificar permisos al crear directorios y comportamiento en Windows |
 
 ## C3.1 — Importación de backups
@@ -56,7 +56,7 @@ C3 cubre:
 ### C3.3 — Archivos locales
 - Endurecer permisos de `dataDir`, `tenants/`, `cids/`, snapshots y blobs CID.
 - Evitar path traversal y symlink escapes en rutas derivadas de IDs.
-- Asegurar escritura atómica de snapshots y verificar comportamiento Windows/POSIX.
+- Asegurar escritura confinada por descriptor de snapshots y verificar comportamiento Windows/POSIX.
 
 ### C3.4 — Sesiones y eventos
 - Verificar revocación de sesiones por tenant, expiración y aislamiento de eventos.
