@@ -34,7 +34,6 @@ func TestStoreRejectsSymlinkedCIDDirectory(t *testing.T) {
 }
 
 func TestStoreRejectsSymlinkedTenantSnapshot(t *testing.T) {
-	if runtime.GOOS == "windows" { t.Skip("creating symlinks may require elevated Windows privileges") }
 	root := t.TempDir()
 	tenants := filepath.Join(root, "tenants")
 	if err := os.Mkdir(tenants, 0700); err != nil { t.Fatal(err) }
