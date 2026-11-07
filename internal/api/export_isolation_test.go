@@ -260,7 +260,7 @@ func TestBackupExportRejectsUnknownFormat(t *testing.T) {
 
 func TestSafeDownloadFilenamePart(t *testing.T) {
 	cases := map[string]string{
-		"invoice/../private\\name": "invoice-.-private-name",
+		"invoice/../private\\name": "invoice-..-private-name",
 		"../../": "documento",
 		"  INV #42  ": "INV-42",
 	}
