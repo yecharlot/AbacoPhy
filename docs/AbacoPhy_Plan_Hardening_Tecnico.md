@@ -8,7 +8,7 @@
 
 **Puntuación inicial: 52/100 — 🟠 Hardening necesario**
 
-**Puntuación actual: 55/100 — 🟠 Hardening en curso.** A1 fue validado operativamente. A2 ya cuenta con evidencia de arranque LAN del Launcher empaquetado: el backend recibe `0.0.0.0`, registra listener efectivo `[::]` y anuncia Wi-Fi y ProtonVPN. Siguen pendientes LOCAL empaquetado, prueba entre equipos y revisión de selección de interfaces. El firewall del equipo de prueba está desactivado intencionalmente y no se modificará como parte de esta tarea; se registra como condición del entorno. A4 admite reglas específicas y, por decisión explícita, el comodín global `*`. El commit `770cbf5e` pasó CI Go, CI Launcher Desktop y CI Docker. Siguen pendientes las pruebas manuales de A4 y la validación de migración A1 sobre datos operativos.
+**Puntuación actual: 55/100 — 🟠 Hardening en curso.** A1 fue validado operativamente. En A2 ya está integrada la selección explícita de interfaz: el Launcher resuelve la IPv4 privada vigente del adaptador elegido, el backend limita HTTP a esa IPv4 y loopback, y mDNS se restringe a la interfaz propietaria. Los logs del 2026-11-06 con `0.0.0.0`, `[::]`, Wi-Fi y ProtonVPN corresponden a la implementación anterior y se conservan como evidencia histórica del hallazgo, no como comportamiento del HEAD actual. El HEAD `0fb9c5d415db088b73f5050a7f81f71b6306640c` pasó CI Go, CI Launcher Desktop y CI Docker; CI Launcher solo ejecutó pruebas JVM y compilación Kotlin en Ubuntu, no generó un paquete Windows. La ejecución del Launcher empaquetado actual, las pruebas LOCAL/LAN y la conectividad desde un segundo equipo siguen pendientes. El Firewall de Windows del equipo de prueba fue reportado desactivado el 2026-11-06; no se modificó ni se revalidó en esta revisión. A4 admite reglas específicas y, por decisión explícita, el comodín global `*`. Siguen pendientes las pruebas manuales de A4 y la validación de migración A1 sobre datos operativos.
 
 Esta puntuación procede de una revisión estática y de pruebas automatizadas del repositorio. No es una certificación ni un pentest.
 
@@ -23,7 +23,7 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 
 ### Prioridades
 - [x] Eliminar credenciales administrativas conocidas o impresas (A1 implementado; CI correcto; validación operativa pendiente).
-- [x] Definir política segura de bind de red (implementación y pruebas automatizadas en curso; validación de Launcher/operación pendiente).
+- [x] Definir política segura de bind de red (selección explícita de interfaz integrada; CI correcto; validación operativa empaquetada pendiente).
 - [x] Definir el alcance de transporte: LOCAL/LAN; HTTPS público fuera de alcance por decisión del proyecto.
 - [x] Sustituir CORS abierto por allowlist configurable (IP, CIDR, dominio exacto y puerto), con excepción explícita `*` para instalaciones que necesiten permitir todos los orígenes; CI correcto, validación manual pendiente.
 - [ ] Reducir duración de sesiones.
@@ -69,26 +69,36 @@ El puntaje es una evaluación interna de hardening, no una certificación. Se vo
 
 ## A2. Bind de red
 
-**Evidencia y validación operativa:** consultar [A2 — Validación operativa del alcance de red](A2_VALIDACION_RED.md). Ya se comprobó el arranque LAN empaquetado: `Scope de red=LAN`, host solicitado `0.0.0.0`, listener registrado `[::]:60565` y detección/anuncio de Wi-Fi y ProtonVPN. Pendientes: revisar la familia/dirección efectiva del listener, filtrar o seleccionar interfaces anunciadas, probar LOCAL empaquetado y completar conectividad entre equipos. El firewall del equipo del usuario está desactivado voluntariamente; no se modificará. La limitación de firewall se conserva como requisito de despliegue LAN para instalaciones de terceros.
+**Evidencia y validación operativa:** consultar [A2 — Validación operativa del alcance de red](A2_VALIDACION_RED.md). Los logs recibidos el 2026-11-06 (host solicitado `0.0.0.0`, listener `[::]`, detección de Wi-Fi y ProtonVPN) documentan la implementación anterior y motivaron el cambio; no describen el código actual.
 
-**Advertencia:** el Launcher configura LAN con `0.0.0.0`, que escucha en todas las interfaces IPv4. Antes de usar LAN debe limitarse el puerto mediante el firewall a una subred privada confiable; no publicar el puerto en Internet.
+**Estado estático del HEAD `0fb9c5d415db088b73f5050a7f81f71b6306640c`:** el Launcher presenta adaptadores activos con IPv4 privada, excluye nombres asociados a VPN/ProtonVPN, WireGuard, túneles y adaptadores virtuales, persiste el nombre del adaptador y resuelve su IP actual al iniciar. En LAN pasa la IPv4 seleccionada a `ABACOPHY_HOST` y `ABACOPHY_LAN_INTERFACE_IP`; el backend crea listeners en esa IPv4 y `127.0.0.1`, y limita mDNS a la interfaz que posee la IPv4. En LOCAL fuerza `127.0.0.1`, elimina la variable LAN y desactiva mDNS. La ruta IPv4 usa `tcp4`; la ruta IPv6 usa `tcp6`.
 
-- [x] `LOCAL` como modo predeterminado y escucha en `127.0.0.1`.
-- [x] `LAN` requiere selección explícita y admite IP de interfaz o wildcard configurado.
+**CI del HEAD:** CI Go [42329339328](https://github.com/yecharlot/AbacoPhy/actions/runs/42329339328), CI Launcher Desktop [42329339650](https://github.com/yecharlot/AbacoPhy/actions/runs/42329339650) y CI Docker Image [42329339911](https://github.com/yecharlot/AbacoPhy/actions/runs/42329339911) finalizaron correctamente. CI Launcher se ejecutó en Ubuntu + JDK 21 y solo ejecutó `:shared:jvmTest` y `:desktopApp:compileKotlin`; no construyó un instalador/binario empaquetado y no publicó artefactos.
+
+**Resultado operativo de la revisión 2026-11-07:** no hubo acceso al equipo Windows donde se ejecuta el Launcher ni al segundo dispositivo LAN. No se ejecutó el paquete actual y no se obtuvieron logs nuevos LOCAL/LAN. Por ello, CI y revisión estática no se consideran validación operativa.
+
+**Advertencia:** el flujo normal del Launcher ya no usa `0.0.0.0`: limita HTTP a la interfaz seleccionada y loopback. El backend mantiene soporte wildcard para configuraciones directas fuera del flujo del Launcher. LAN continúa siendo HTTP sin cifrar; el bind por interfaz no sustituye autenticación ni filtrado de red. No publicar el puerto en Internet. El firewall del equipo de prueba no se modifica como parte de esta tarea; su último estado reportado (2026-11-06) fue desactivado intencionalmente y no se revalidó el 2026-11-07.
+
+- [x] `LOCAL` como modo predeterminado y host `127.0.0.1`.
+- [x] `LAN` requiere selección explícita de un adaptador; el flujo del Launcher no usa wildcard.
 - [x] `PRODUCTION` requiere modo y `ABACOPHY_HOST` explícitos; wildcard permitido solo por configuración explícita para contenedores protegidos por la plataforma.
-- [x] mDNS solo se anuncia en modo `LAN`.
+- [x] mDNS solo se anuncia en modo `LAN`; en LAN del Launcher se limita a la interfaz seleccionada mediante `AdvertiseOnInterface`.
 - [x] Validar/rechazar combinaciones inseguras y modos desconocidos.
 - [x] Documentar variables, precedencia de puertos y ejemplos de despliegue. El Launcher configura el scope desde su interfaz; PRODUCTION queda reservado al despliegue/servicio administrado.
-- [x] Registrar modo, host y dirección real de escucha.
-- [x] Integrar selector LOCAL/LAN en la interfaz del Launcher; el scope se pasa directamente al proceso hijo y no depende de variables heredadas.
-- [x] Evitar ambigüedad de familia del listener: seleccionar `tcp4` para hosts IPv4 y `tcp6` para hosts IPv6; registrar `EVENT=http.listen_config`. Pendiente CI y validación del binario empaquetado.
-- [ ] Revisar la detección de interfaces: no anunciar ProtonVPN como LAN confiable por defecto; definir filtro o selección explícita de interfaz.
-- [ ] Probar LOCAL con el Launcher empaquetado: loopback estricto, health local correcto y mDNS desactivado.
-- [ ] Ejecutar prueba de conectividad LAN desde otro equipo cuando el entorno esté disponible.
-- [ ] Mantener firewall como requisito de despliegue LAN para instalaciones de terceros; no cambiar el firewall del equipo de desarrollo/validación por esta tarea.
+- [x] Registrar modo, host y direcciones reales de escucha.
+- [x] Integrar selector LOCAL/LAN; el scope y la IP resuelta se pasan directamente al proceso hijo y no dependen de variables heredadas.
+- [x] Persistir el nombre del adaptador, no la IP DHCP; volver a resolver la dirección actual al iniciar.
+- [x] Excluir por nombre adaptadores VPN/ProtonVPN, WireGuard, túneles y adaptadores virtuales del selector.
+- [x] Evitar ambigüedad de familia: usar `tcp4` para hosts IPv4 y `tcp6` para hosts IPv6; CI Go correcto.
+- [ ] Ejecutar el Launcher Desktop empaquetado actual en Windows y verificar la resolución de la interfaz Wi-Fi activa.
+- [ ] Probar LOCAL empaquetado: bind exclusivo a loopback, health local correcto, mDNS desactivado y conexión remota fallida.
+- [ ] Probar LAN empaquetado: bind solo a IPv4 Wi-Fi seleccionada + loopback; mDNS solo por Wi-Fi; ProtonVPN no seleccionado ni anunciado.
+- [ ] Probar health y carga web desde un segundo dispositivo de la misma LAN; registrar `CLIENT_CONNECTED`.
+- [ ] Verificar persistencia de LOCAL/LAN y del nombre de adaptador, cambio DHCP y liberación del puerto al detener.
+- [ ] Registrar el estado existente del Firewall de Windows sin modificarlo. La restricción del puerto mediante firewall sigue siendo requisito de despliegue para instalaciones de terceros.
 - [ ] Validar despliegues Docker/producción con la configuración explícita.
 
-**Terminado:** la exposición de red es una decisión explícita y el backend local no acepta conexiones LAN por defecto.
+**Terminado en código y CI:** la exposición de red es una decisión explícita y el backend LOCAL no acepta conexiones LAN por defecto. **No terminado operativamente:** faltan la ejecución empaquetada actual, las pruebas reales LOCAL/LAN y la conectividad entre equipos.
 
 ## A3. Transporte de red / HTTPS
 
@@ -551,7 +561,7 @@ Ruta:
 | ID | Hallazgo | Severidad | Estado | Commit |
 |---|---|---|---|---|
 | H-01 | Credenciales bootstrap | Alta | CI Go/Webapp/Docker y compilación Launcher correctos; validación operativa pendiente | security-hardening |
-| H-02 | Bind de red | Alta | Launcher empaquetado arranca LAN; listener efectivo `[::]`; revisar binding, selección de interfaces y completar LOCAL/prueba entre equipos. Firewall desactivado por decisión del usuario y no se modifica | |
+| H-02 | Bind de red | Alta | Logs del 2026-11-06 con `[::]` pertenecen a la implementación anterior. HEAD actual integra selección de interfaz y bind específico; CI Go/Launcher/Docker success. Ejecución empaquetada actual, LOCAL/LAN y segundo equipo pendientes. Firewall Windows último reportado desactivado el 2026-11-06; no se modifica ni se revalidó | |
 | H-03 | Tráfico LAN HTTP sin cifrar | Media | Riesgo aceptado: LAN solo en red privada confiable; validar A2 | |
 | H-04 | CORS | Alta | Implementado; CI Go/Launcher/Docker correcto; pruebas manuales pendientes | `770cbf5e` |
 | H-05 | Sesiones | Alta | Pendiente | |
