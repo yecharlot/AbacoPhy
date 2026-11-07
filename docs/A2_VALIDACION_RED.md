@@ -1,20 +1,20 @@
 # A2 — Validación operativa del alcance de red
 
 **Rama:** `security-hardening`  
-**Fecha de revisión:** 2026-11-06  
-**Estado:** selector de interfaz integrado en código; validación operativa empaquetada y entre equipos pendiente.  
+**Fecha de revisión:** 2026-11-07  
+**Estado:** selección explícita de interfaz integrada y CI actual verificado; ejecución del Launcher empaquetado y validación entre equipos no realizadas en esta revisión. A2 continúa abierto.  
 **Alcance:** Launcher Desktop + backend Go. No modifica Android/POS ni reglas de negocio.
 
 ## 1. Resultado de la revisión estática
 
 Se revisaron los siguientes puntos de la implementación:
 
-- `cmd/abacophy/main.go`: `LOCAL` resuelve por defecto a `127.0.0.1`; `LAN` requiere modo explícito y admite IP de interfaz o wildcard; `PRODUCTION` requiere host explícito.
+- `cmd/abacophy/main.go`: `LOCAL` resuelve por defecto a `127.0.0.1`; `LAN` requiere modo explícito. En el flujo del Launcher se usa la IPv4 exacta seleccionada; el backend conserva soporte wildcard para configuraciones directas fuera de ese flujo. `PRODUCTION` requiere host explícito.
 - `launcher/shared/.../GoProcessLauncher.kt`: el Launcher sobrescribe explícitamente `ABACOPHY_BIND_MODE` y `ABACOPHY_HOST`. En LOCAL envía `127.0.0.1`; en LAN envía la IPv4 privada actual de la interfaz seleccionada como `ABACOPHY_HOST` y `ABACOPHY_LAN_INTERFACE_IP`.
 - `launcher/desktopApp/.../main.kt`: LOCAL/LAN se persiste en las preferencias del Launcher; instalaciones sin preferencia usan LOCAL y valores desconocidos se normalizan a LOCAL.
 - `OrchestratorUseCase.kt`: mDNS solo se consulta/anuncia cuando el scope es LAN.
 
-**Conclusión estática:** la selección del Launcher llega al backend y el valor LOCAL no depende de variables de entorno heredadas. La implementación cubre el comportamiento previsto en código; esto no demuestra conectividad real entre equipos ni reglas de firewall.
+**Conclusión estática:** la selección del Launcher llega al backend y el valor LOCAL no depende de variables de entorno heredadas. `SystemLanInterfaceResolver` enumera adaptadores activos con IPv4 privada y excluye nombres asociados a VPN/ProtonVPN, WireGuard, túneles y adaptadores virtuales. El nombre del adaptador se persiste y su IP se vuelve a resolver al iniciar. El código limita HTTP a la IP elegida más loopback y mDNS a la interfaz propietaria de esa IP. Esto es evidencia de revisión estática, no de ejecución real en Windows ni de conectividad entre equipos.
 
 ## 2. Advertencia de seguridad: alcance real de LAN
 
@@ -29,7 +29,9 @@ Por tanto:
 
 El bind por interfaz reduce la exposición accidental, pero no sustituye el firewall ni controles de acceso. No habilitar LAN en redes públicas o no confiables.
 
-## 3. Evidencia operativa recibida — 2026-11-06
+## 3. Evidencia operativa histórica recibida — 2026-11-06
+
+**Importante:** los siguientes logs pertenecen a la ejecución anterior a la integración del selector de interfaz. Documentan el problema original (`0.0.0.0` / `[::]` y anuncio por varias interfaces); no describen el comportamiento del HEAD actual.
 
 La ejecución real del Launcher en Windows aportó esta evidencia:
 
@@ -95,7 +97,7 @@ La activación del firewall del equipo del usuario no forma parte de este plan n
 
 ## 5. Prueba operativa LAN
 
-Realizarla únicamente en una red privada confiable y con firewall restrictivo.
+Realizarla únicamente en una red privada confiable y aislada. No cambiar el Firewall de Windows del equipo de prueba: registrar el estado que exista. Si no está restrictivo, la prueba de conectividad no acredita aislamiento por firewall; ese control queda como requisito de despliegue para instalaciones de terceros.
 
 1. En el Launcher seleccionar **LAN**, elegir la interfaz por su nombre (Ethernet/Wi-Fi) y guardar. La IPv4 aparece como información; no se introduce manualmente.
 2. Reiniciar el backend.
@@ -111,7 +113,7 @@ Realizarla únicamente en una red privada confiable y con firewall restrictivo.
    - Abrir `http://<IP_DEL_SERVIDOR>:<PUERTO>/api/v1/health`.
 5. Verificar que la aplicación web carga y que las operaciones protegidas siguen exigiendo autenticación.
 6. Confirmar que el Launcher registra `CLIENT_CONNECTED` al recibir una petición API desde el equipo remoto.
-7. Comprobar que el puerto no es accesible desde interfaces/redes que no formen parte de la subred autorizada. Si lo es, corregir firewall antes de aceptar LAN.
+7. Registrar qué interfaces adicionales existen y comprobar el alcance real del bind. No modificar el firewall durante esta validación. Si no puede demostrarse el filtrado de otras redes, dejar explícitamente pendiente la restricción por firewall para el despliegue.
 
 ## 6. Persistencia y recuperación
 
@@ -129,7 +131,7 @@ Realizarla únicamente en una red privada confiable y con firewall restrictivo.
 | Fallo de conexión remota en LOCAL | Pendiente |
 | Log de arranque LAN con bind IPv4 explícito en la IP elegida y loopback (`<IP_LAN>:<PUERTO>`, `127.0.0.1:<PUERTO>`) | CI Go/Launcher/Docker correcto; prueba empaquetada pendiente |
 | Health y web accesibles desde segundo equipo LAN | Pendiente |
-| Firewall limita el puerto a la subred confiable | No comprobado; firewall del equipo de prueba desactivado intencionalmente. Requisito de despliegue externo, no cambio solicitado al equipo del usuario |
+| Firewall limita el puerto a la subred confiable | No comprobado. Último estado reportado para el equipo Windows: perfiles Domain/Private/Public desactivados intencionalmente el 2026-11-06; no se revalidó en esta ejecución. No modificarlo. Requisito de despliegue externo |
 | mDNS solo activo en LAN | Pendiente |
 | Preferencia LOCAL/LAN e interfaz seleccionada persisten | Pendiente |
 | Proceso termina y libera el puerto | Pendiente |
@@ -165,3 +167,42 @@ La verificación confirma que las pruebas JVM existentes pasan y que el Launcher
 - AbacoPOS no participa en la selección de interfaz: su responsabilidad es descubrir el servicio y conectarse.
 
 **Criterio pendiente:** realizar las pruebas operativas LOCAL/LAN descritas en las secciones 4–7 con el Launcher empaquetado y, para LAN, un segundo dispositivo. No cambiar la configuración del firewall del equipo de prueba sin autorización explícita.
+
+
+## 10. Revisión de ejecución y CI — 2026-11-07
+
+### Resultado de esta ejecución
+
+No se pudo ejecutar el Launcher Desktop empaquetado ni interactuar con el equipo Windows del usuario desde este entorno. Tampoco hay acceso al segundo dispositivo de la LAN. No se obtuvieron logs nuevos de arranque LOCAL/LAN, no se comprobó la IP Wi-Fi vigente y no se realizó una prueba HTTP/mDNS en la red física. Por tanto, **ninguna prueba operativa solicitada en esta revisión se marca como completada**.
+
+La revisión del workflow confirma que CI Launcher Desktop se ejecuta en `ubuntu-latest` y ejecuta `:shared:jvmTest` y `:desktopApp:compileKotlin`; no construye ni adjunta un instalador/binario empaquetado. La consulta de artefactos de esa ejecución devolvió una lista vacía. CI no sustituye la ejecución en Windows.
+
+### CI verificado en HEAD
+
+**Rama:** `security-hardening`  
+**Commit HEAD:** `0fb9c5d415db088b73f5050a7f81f71b6306640c`
+
+| Workflow | Ejecución | Resultado | Alcance confirmado |
+|---|---|---|---|
+| CI Go | [42329339328](https://github.com/yecharlot/AbacoPhy/actions/runs/42329339328) | `success` | Job Go del commit HEAD |
+| CI Launcher Desktop | [42329339650](https://github.com/yecharlot/AbacoPhy/actions/runs/42329339650) | `success` | `:shared:jvmTest` y `:desktopApp:compileKotlin` en Ubuntu + JDK 21 |
+| CI Docker Image | [42329339911](https://github.com/yecharlot/AbacoPhy/actions/runs/42329339911) | `success` | Build de imagen Docker del commit HEAD |
+
+### Evidencia estática actualizada
+
+- El selector persiste el nombre del adaptador (`lanInterfaceName`), no una IP DHCP; la IP se vuelve a resolver al iniciar.
+- El enumerador excluye adaptadores cuyos nombres contienen `vpn`, `proton`, `wireguard`, `tun`, `tap` y otros indicadores de túneles/virtualización.
+- LAN entrega la misma IPv4 seleccionada a `ABACOPHY_HOST` y `ABACOPHY_LAN_INTERFACE_IP`; LOCAL fuerza `127.0.0.1` y elimina la variable LAN.
+- El backend usa la familia TCP correspondiente; en LAN con interfaz seleccionada crea listeners para la IPv4 elegida y `127.0.0.1`. mDNS se registra en la interfaz propietaria de la IPv4 seleccionada.
+- En LOCAL, el backend no entra en el flujo de registro mDNS y emite `EVENT=discovery.disabled`.
+
+### Pendiente para continuar
+
+1. Ejecutar el Launcher empaquetado en Windows con la versión correspondiente al HEAD validado.
+2. En LAN, elegir explícitamente Wi-Fi de la lista y registrar nombre/IP vigentes; comprobar los dos binds y el anuncio mDNS exclusivo de esa interfaz, sin ProtonVPN.
+3. Probar health y carga web desde un segundo dispositivo de la misma red.
+4. En LOCAL, comprobar bind exclusivo a loopback, health local correcto y ausencia de anuncio mDNS; confirmar que el segundo dispositivo no conecta.
+5. Registrar el estado del Firewall de Windows como condición del entorno, sin modificarlo ni solicitar cambios.
+6. Adjuntar logs completos y resultados antes de cerrar A2.
+
+**Estado final de esta revisión:** CI y revisión estática correctos; ejecución empaquetada, LOCAL/LAN, mDNS real y prueba entre equipos pendientes. A2 no se cierra y la puntuación de hardening no aumenta.
