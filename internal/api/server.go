@@ -2,6 +2,7 @@ package api
 
 import (
 	"crypto/rand"
+	"errors"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -1576,7 +1577,11 @@ func (s *Server) handleMasterCreateTenant(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err := s.Store.CreateTenant(snap); err != nil {
-		writeJSON(w, 409, map[string]string{"error": err.Error()})
+		if errors.Is(err, store.ErrTenantConflict) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		} else {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "no se pudo persistir la nueva empresa"})
+		}
 		return
 	}
 	writeJSON(w, 201, map[string]any{

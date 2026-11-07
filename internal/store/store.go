@@ -2,6 +2,7 @@ package store
 
 import (
 	"bytes"
+	"errors"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -17,6 +18,9 @@ import (
 
 	"github.com/yecharlot/AbacoPhy/internal/domain"
 )
+
+// ErrTenantConflict indica que la nueva empresa colisiona con un ID, slug o username global.
+var ErrTenantConflict = errors.New("conflicto de identidad global del tenant")
 
 // Store: memoria + disco local + ancla CID (IPFS-style) + Durable Object opcional.
 type Store struct {
@@ -132,7 +136,7 @@ func (s *Store) CreateTenant(snap *domain.StoreSnapshot) error {
 		return fmt.Errorf("tenant inválido")
 	}
 	if _, exists := s.tenants[snap.Tenant.ID]; exists {
-		return fmt.Errorf("tenant ID ya existe")
+		return fmt.Errorf("%w: tenant ID ya existe", ErrTenantConflict)
 	}
 	slug := strings.ToLower(strings.TrimSpace(snap.Tenant.Slug))
 	usernames := make(map[string]struct{}, len(snap.Users))
@@ -141,19 +145,19 @@ func (s *Store) CreateTenant(snap *domain.StoreSnapshot) error {
 		username := strings.ToLower(strings.TrimSpace(user.Username))
 		if username == "" { continue }
 		if _, duplicate := usernames[username]; duplicate {
-			return fmt.Errorf("username duplicado dentro del tenant")
+			return fmt.Errorf("%w: username duplicado dentro del tenant", ErrTenantConflict)
 		}
 		usernames[username] = struct{}{}
 	}
 	for _, existing := range s.tenants {
 		if existing == nil { continue }
 		if strings.ToLower(strings.TrimSpace(existing.Tenant.Slug)) == slug {
-			return fmt.Errorf("slug de tenant ya existe")
+			return fmt.Errorf("%w: slug de tenant ya existe", ErrTenantConflict)
 		}
 		for _, user := range existing.Users {
 			if user == nil { continue }
 			if _, duplicate := usernames[strings.ToLower(strings.TrimSpace(user.Username))]; duplicate {
-				return fmt.Errorf("username ya existe globalmente")
+				return fmt.Errorf("%w: username ya existe globalmente", ErrTenantConflict)
 			}
 		}
 	}
