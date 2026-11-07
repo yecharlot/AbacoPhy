@@ -107,3 +107,20 @@ func TestPrivateFileOperationsRejectSymlinkTargets(t *testing.T) {
  got, err := os.ReadFile(outside); if err != nil { t.Fatal(err) }
  if string(got) != "keep" { t.Fatalf("outside file modified: %q", got) }
 }
+
+
+func TestOpenRootRejectsSymlinkedPathComponent(t *testing.T) {
+ root := t.TempDir()
+ outside := t.TempDir()
+ link := filepath.Join(root, "linked")
+ if err := os.Symlink(outside, link); err != nil { t.Skipf("symlink creation unavailable on %s: %v", runtime.GOOS, err) }
+ if _, err := openRootForPath(link); err == nil { t.Fatal("expected symlink path component to be rejected") }
+}
+
+func TestEnsurePrivateDirRejectsSymlinkSubdirectory(t *testing.T) {
+ root := t.TempDir()
+ outside := t.TempDir()
+ link := filepath.Join(root, "private")
+ if err := os.Symlink(outside, link); err != nil { t.Skipf("symlink creation unavailable on %s: %v", runtime.GOOS, err) }
+ if err := ensurePrivateDir(link); err == nil { t.Fatal("expected symlink directory to be rejected") }
+}

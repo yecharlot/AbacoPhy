@@ -32,8 +32,10 @@ func openRootForPath(path string) (*os.Root, error) {
   next, err := current.OpenRoot(part)
   if err != nil { _ = current.Close(); return nil, err }
   opened, e1 := next.Stat(".")
-  named, e2 := current.Stat(part)
-  if e1 != nil || e2 != nil || !os.SameFile(opened, named) {
+  // Lstat is intentional: Stat would follow a symlink swapped into place
+  // between the first Lstat and OpenRoot, hiding the substitution.
+  named, e2 := current.Lstat(part)
+  if e1 != nil || e2 != nil || named.Mode()&os.ModeSymlink != 0 || !named.IsDir() || !os.SameFile(opened, named) {
    _ = next.Close(); _ = current.Close()
    return nil, fmt.Errorf("el componente %q cambió durante su apertura", part)
   }
@@ -58,8 +60,12 @@ func ensurePrivateDir(path string) error {
  child, err := parent.OpenRoot(base); if err != nil { return err }
  defer child.Close()
  opened, err := child.Stat("."); if err != nil { return err }
- named, err := parent.Stat(base)
- if err != nil || !os.SameFile(opened, named) { return fmt.Errorf("el directorio %q cambió durante su apertura", abs) }
+ // Compare against Lstat, not Stat, so a symlink replacement cannot masquerade
+ // as the directory that was inspected before OpenRoot.
+ named, err := parent.Lstat(base)
+ if err != nil || named.Mode()&os.ModeSymlink != 0 || !named.IsDir() || !os.SameFile(opened, named) {
+  return fmt.Errorf("el directorio %q cambió durante su apertura", abs)
+ }
  return child.Chmod(".", 0700)
 }
 
