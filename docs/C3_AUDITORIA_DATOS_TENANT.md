@@ -2,7 +2,7 @@
 
 **Rama:** `security-hardening`  
 **Fase:** C3 — auditoría e implementación incremental  
-**Estado:** C3.1 cerrado por confirmación del usuario; C3.2 en implementación.
+**Estado:** C3.1 cerrado por confirmación del usuario; C3.2 implementado y pendiente de CI/validación manual.
 
 ## Objetivo
 
@@ -47,8 +47,11 @@ C3 cubre:
 - [x] La restauración usa VerifyStoredCID y valida estructura antes de mutar el tenant.
 - [x] Comprobar y reportar fallos de persistencia en la restauración CID.
 - [x] Añadir pruebas de modificación del blob y RootCID manipulado.
-- [ ] Añadir pruebas de restauración CID corrupta a nivel API y fallos de persistencia inducidos.
-- [ ] Revisar la semántica de historial de backups/auditoría al restaurar.
+- [x] Añadir prueba API: CID corrupto devuelve error y no modifica el tenant activo.
+- [x] Añadir prueba API: restauración válida conserva el historial de backups y auditoría y registra el evento de restore.
+- [x] Inducir fallo real de escritura del snapshot durante restore; responder HTTP 500 y mantener intacto el snapshot en memoria.
+- [x] Publicar el snapshot en memoria solo después de confirmar la escritura principal del tenant en disco.
+- [ ] Verificar CI completo y validar recuperación en una instalación con datos reales.
 
 ### C3.3 — Archivos locales
 - Endurecer permisos de `dataDir`, `tenants/`, `cids/`, snapshots y blobs CID.

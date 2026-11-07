@@ -101,12 +101,14 @@ func (s *Store) Put(snap *domain.StoreSnapshot) error {
 	if err != nil {
 		return err
 	}
-	s.tenants[snap.Tenant.ID] = snap
-
 	_ = os.MkdirAll(filepath.Join(s.dataDir, "tenants"), 0755)
 	if err := os.WriteFile(s.pathTenant(snap.Tenant.ID), raw, 0644); err != nil {
 		return err
 	}
+	// Publicar en memoria solo después de confirmar la escritura principal.
+	// Un error de disco no debe reemplazar el snapshot activo en memoria.
+	s.tenants[snap.Tenant.ID] = snap
+
 	cidDir := filepath.Join(s.dataDir, "cids")
 	_ = os.MkdirAll(cidDir, 0755)
 	_ = os.WriteFile(filepath.Join(cidDir, cid+".json"), raw, 0644)

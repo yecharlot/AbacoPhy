@@ -214,12 +214,12 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 
 - [ ] Revisar archivos, documentos, exportaciones y descargas por tenant.
 - [x] C3.1 — Endurecer importación de backups contra límites multipart y expansión ZIP (cerrado; pruebas CI confirmadas por el usuario).
-- [ ] C3.2 — Verificar CID antes de restaurar y validar fallos de persistencia (en curso; ver auditoría C3).
+- [x] C3.2 — Verificar CID antes de restaurar, preservar historial y fallar de forma segura ante errores de persistencia (implementado; CI en ejecución; ver auditoría C3).
 - [ ] Endurecer permisos de snapshots, blobs CID y directorios de datos.
 - [ ] Probar aislamiento SSE/presencia y operaciones administrativas globales.
 - [ ] Añadir pruebas automatizadas de acceso cruzado y regresión.
 
-**Estado C3:** auditoría inicial documentada en `C3_AUDITORIA_DATOS_TENANT.md`. C3.1 limita el cuerpo multipart a 32 MiB, la expansión ZIP a 32 MiB y el número de entradas a 16; CI pendiente.
+**Estado C3:** auditoría inicial documentada en `C3_AUDITORIA_DATOS_TENANT.md`. C3.1 limita el cuerpo multipart a 32 MiB, la expansión ZIP a 32 MiB y el número de entradas a 16; C3.2 verifica el contenido CID, conserva historial de backups/auditoría durante restore y comprueba fallos de persistencia mediante pruebas API. CI del cambio C3.2 pendiente.
 
 # 5. FASE D — Hardening HTTP/API
 
