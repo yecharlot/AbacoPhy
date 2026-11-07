@@ -70,7 +70,7 @@ C3 cubre:
 
 **Resultado automatizado (commit `2cca58249d403966bb204e0107e224817340fb8c`):** stream SSE corta ante revocación; las sesiones se revalidan también ante expiración, baja y cambios de permisos; IDs de cliente repetidos quedan separados por tenant; clientes anónimos no pueden sobrescribir presencia autenticada. CI Go Linux/Windows, Docker y Launcher Desktop: success.
 
-**Pendiente para cierre operativo:** validación manual con dos tenants conectados simultáneamente, publicación exclusiva de eventos y revocación/logout mientras el stream permanece abierto.
+**Cierre C3.4 — <badge>OK</badge>:** el despliegue actual corresponde a una sola empresa/tenant. Por tanto, la validación manual con dos empresas no aplica al alcance operativo y no bloquea el cierre. Se conservan las pruebas automatizadas de separación tenant-scoped como defensa de regresión; la revocación del stream SSE, la revalidación de sesión y la limpieza/concurrencia del hub están cubiertas por pruebas automatizadas. CI Go Linux/Windows, Docker y Launcher Desktop: success (commit de código `0fb9c5d415db088b73f5050a7f81f71b6306640c`).
 
 ### C3.5 — Operaciones globales
 - Auditar listado/creación/eliminación de tenants, reset y operaciones master.
@@ -78,4 +78,4 @@ C3 cubre:
 
 ## Criterio de cierre
 
-No se cierra C3 hasta que cada superficie tenga pruebas negativas entre dos tenants, pruebas de integridad y evidencia CI. La validación manual del usuario se registrará separada de los resultados automatizados.
+El criterio de cada bloque se ajusta al despliegue real: para la instalación actual de una sola empresa, las pruebas manuales entre dos tenants no son requisito de cierre. Se mantienen las pruebas automatizadas de aislamiento como regresión y se exigen pruebas de integridad y evidencia CI para las superficies modificadas. Si el producto pasa a operar con varias empresas, deberá ejecutarse la validación operativa multi-tenant antes de habilitar ese escenario.
