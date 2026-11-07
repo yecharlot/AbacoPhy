@@ -1388,6 +1388,10 @@ func (s *Server) handleSyncPush(w http.ResponseWriter, r *http.Request) {
 
 
 func (s *Server) handleMasterTenants(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
 	sess, err := s.sess(r)
 	if err != nil {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
@@ -1555,12 +1559,24 @@ func (s *Server) handleMasterCreateTenant(w http.ResponseWriter, r *http.Request
 		}
 	}
 	snap.Tenant.Settings[bootstrapCredentialMarker] = "1"
+	actorName := sess.UserID
+	if actorSnap := s.Store.Get(sess.TenantID); actorSnap != nil {
+		if actor := actorSnap.Users[sess.UserID]; actor != nil && strings.TrimSpace(actor.Username) != "" {
+			actorName = actor.Username
+		}
+	}
+	snap.AuditLog = append(snap.AuditLog, domain.AuditEntry{
+		ID: uuid.NewString(), TenantID: snap.Tenant.ID, Username: actorName, Role: sess.Role,
+		Action: "master.tenant_create", Detail: "Alta global de empresa " + snap.Tenant.Name + " (" + snap.Tenant.Slug + ")",
+		Ref: snap.Tenant.ID, CreatedAt: time.Now().UTC(),
+		Metadata: domain.Metadata{"actor_tenant_id": sess.TenantID},
+	})
 	if err := appendBootstrapCredentials(s.Store, credentials); err != nil {
 		writeJSON(w, 500, map[string]string{"error": "no se pudieron guardar las credenciales temporales"})
 		return
 	}
-	if err := s.Store.Put(snap); err != nil {
-		writeJSON(w, 500, map[string]string{"error": err.Error()})
+	if err := s.Store.CreateTenant(snap); err != nil {
+		writeJSON(w, 409, map[string]string{"error": err.Error()})
 		return
 	}
 	writeJSON(w, 201, map[string]any{

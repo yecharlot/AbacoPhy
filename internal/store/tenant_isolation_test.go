@@ -6,6 +6,7 @@ import (
 	"os"
 	"bytes"
 	"testing"
+	"sync"
 
 	"github.com/yecharlot/AbacoPhy/internal/domain"
 )
@@ -135,5 +136,40 @@ func TestLoadCIDRejectsMismatchedEmbeddedRootCID(t *testing.T) {
 	}
 	if _, err := st.LoadCID(cid); err == nil {
 		t.Fatal("LoadCID must reject an embedded RootCID different from requested CID")
+	}
+}
+
+
+func TestCreateTenantEnforcesGlobalUniquenessAtomically(t *testing.T) {
+	st := New(t.TempDir())
+	const workers = 12
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	succeeded := 0
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			snap := domain.BootstrapTenant("Concurrent business", "same-slug", "CUP")
+			for _, user := range snap.Users {
+				if user != nil && user.Role == domain.RoleAdmin { user.Username = "same-admin" }
+				if user != nil && user.Role == domain.RoleMaster { user.Username = "same-owner" }
+			}
+			if err := st.CreateTenant(snap); err == nil {
+				mu.Lock()
+				succeeded++
+				mu.Unlock()
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	if succeeded != 1 {
+		t.Fatalf("successful concurrent tenant creations = %d, want exactly 1", succeeded)
+	}
+	if got := len(st.ListTenants()); got != 1 {
+		t.Fatalf("persisted tenant count = %d, want 1", got)
 	}
 }

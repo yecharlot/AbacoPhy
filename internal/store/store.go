@@ -83,6 +83,11 @@ func (s *Store) Get(tenantID string) *domain.StoreSnapshot {
 func (s *Store) Put(snap *domain.StoreSnapshot) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.putLocked(snap)
+}
+
+// putLocked persiste un snapshot; el caller debe mantener s.mu bloqueado.
+func (s *Store) putLocked(snap *domain.StoreSnapshot) error {
 	if snap == nil || !validStorageName(snap.Tenant.ID) {
 		return fmt.Errorf("snapshot inválido")
 	}
@@ -115,6 +120,44 @@ func (s *Store) Put(snap *domain.StoreSnapshot) error {
 
 	go s.pushDO(snap.Tenant.ID, raw)
 	return nil
+}
+
+// CreateTenant aplica unicidad global de slug y usernames bajo el mismo lock
+// que persiste el snapshot. Evita que dos altas master simultáneas superen
+// comprobaciones previas y creen identidades globales ambiguas.
+func (s *Store) CreateTenant(snap *domain.StoreSnapshot) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if snap == nil || !validStorageName(snap.Tenant.ID) || strings.TrimSpace(snap.Tenant.Slug) == "" {
+		return fmt.Errorf("tenant inválido")
+	}
+	if _, exists := s.tenants[snap.Tenant.ID]; exists {
+		return fmt.Errorf("tenant ID ya existe")
+	}
+	slug := strings.ToLower(strings.TrimSpace(snap.Tenant.Slug))
+	usernames := make(map[string]struct{}, len(snap.Users))
+	for _, user := range snap.Users {
+		if user == nil { continue }
+		username := strings.ToLower(strings.TrimSpace(user.Username))
+		if username == "" { continue }
+		if _, duplicate := usernames[username]; duplicate {
+			return fmt.Errorf("username duplicado dentro del tenant")
+		}
+		usernames[username] = struct{}{}
+	}
+	for _, existing := range s.tenants {
+		if existing == nil { continue }
+		if strings.ToLower(strings.TrimSpace(existing.Tenant.Slug)) == slug {
+			return fmt.Errorf("slug de tenant ya existe")
+		}
+		for _, user := range existing.Users {
+			if user == nil { continue }
+			if _, duplicate := usernames[strings.ToLower(strings.TrimSpace(user.Username))]; duplicate {
+				return fmt.Errorf("username ya existe globalmente")
+			}
+		}
+	}
+	return s.putLocked(snap)
 }
 
 // VerifyStoredCID comprueba que el blob CID existe y deserializa.

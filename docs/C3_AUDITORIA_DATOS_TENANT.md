@@ -73,8 +73,16 @@ C3 cubre:
 **Cierre C3.4 — <badge>OK</badge>:** el despliegue actual corresponde a una sola empresa/tenant. Por tanto, la validación manual con dos empresas no aplica al alcance operativo y no bloquea el cierre. Se conservan las pruebas automatizadas de separación tenant-scoped como defensa de regresión; la revocación del stream SSE, la revalidación de sesión y la limpieza/concurrencia del hub están cubiertas por pruebas automatizadas. CI Go Linux/Windows, Docker y Launcher Desktop: success (commit de código `0fb9c5d415db088b73f5050a7f81f71b6306640c`).
 
 ### C3.5 — Operaciones globales
-- Auditar listado/creación/eliminación de tenants, reset y operaciones master.
-- Documentar explícitamente qué acciones son globales y cuáles están limitadas por tenant.
+- [x] Revisar rutas globales: listado de tenants (solo GET), alta de tenant (POST), reset global (POST + confirmación explícita) y cambio global de contraseña (solo master).
+- [x] Confirmar que las políticas configurables del tenant y los grants individuales no pueden elevar roles operativos a `master`.
+- [x] Hacer atómica bajo el lock del Store la unicidad global de slug y usernames durante la creación de tenants; rechazar duplicados y altas concurrentes.
+- [x] Registrar la creación global en la auditoría del tenant creado, identificando al master y el tenant de origen sin mezclar TenantID entre snapshots.
+- [x] Mantener pruebas de rechazo para admin→master/reset, usernames globales ambiguos y cambio de contraseña cross-tenant.
+- [x] Añadir pruebas de método HTTP y auditoría de alta global.
+- [x] Añadir prueba concurrente de unicidad de tenant/identidades.
+- [ ] Validar CI del commit C3.5.
+
+**Límites de alcance:** no existe endpoint de eliminación individual de tenants en la API actual. `/api/v1/master/reset` es un reinicio global destructivo, no una baja individual. El listado de tenants es una operación de solo lectura. El despliegue actual del usuario es de una sola empresa; las defensas globales se conservan para impedir ambigüedad de identidad y proteger futuras ampliaciones.
 
 ## Criterio de cierre
 

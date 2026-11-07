@@ -178,6 +178,15 @@ func TestMasterCreateTenantGeneratesIndependentTemporaryPasswords(t *testing.T) 
 	firstPassword := readBootstrapPassword(t, dataDir, "secure-admin")
 	secondPassword := readBootstrapPassword(t, dataDir, "secure-admin-owner")
 	if firstPassword == secondPassword { t.Fatal("new tenant admin accounts must not share a temporary password") }
+	foundAudit := false
+	for _, entry := range created.AuditLog {
+		if entry.Action == "master.tenant_create" && entry.TenantID == created.Tenant.ID &&
+			entry.Username == "master" && entry.Role == domain.RoleMaster &&
+			entry.Metadata["actor_tenant_id"] == initial.Tenant.ID {
+			foundAudit = true
+		}
+	}
+	if !foundAudit { t.Fatal("global tenant creation must be audited in the created tenant with actor tenant metadata") }
 }
 
 func userByName(snap *domain.StoreSnapshot, username string) *domain.User {
