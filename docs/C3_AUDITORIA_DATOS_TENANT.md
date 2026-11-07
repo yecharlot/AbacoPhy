@@ -88,3 +88,39 @@ C3 cubre:
 ## Criterio de cierre
 
 El criterio de cada bloque se ajusta al despliegue real: para la instalación actual de una sola empresa, las pruebas manuales entre dos tenants no son requisito de cierre. Se mantienen las pruebas automatizadas de aislamiento como regresión y se exigen pruebas de integridad y evidencia CI para las superficies modificadas. Si el producto pasa a operar con varias empresas, deberá ejecutarse la validación operativa multi-tenant antes de habilitar ese escenario.
+
+### C3.6.1 — Inventario de exportaciones y descargas
+
+**Estado:** inventario estático completado; no se modificó código en este paso.
+
+#### Superficies del backend
+
+| Ruta / superficie | Datos y origen | Autorización observada | Controles observados / puntos a revisar |
+|---|---|---|---|
+| `GET /api/v1/backups` | Metadatos de backups y CID del snapshot actual | Sesión + `gateOp("salvas")`; obtiene `Store.Get(sess.TenantID)` | No establece explícitamente `Cache-Control: no-store, private`. Revisar métodos no permitidos y respuesta sensible. |
+| `GET /api/v1/backups/export` | Snapshot completo del tenant serializado en ZIP; respuesta ZIP binaria o JSON+base64 | GET/HEAD explícitos, sesión + permiso `salvas`; snapshot del tenant de sesión | ZIP binario usa `Cache-Control: no-store`, pero la respuesta JSON+base64 no. Auditoría best-effort; el panic handler expone el texto del panic. HEAD ejecuta la generación completa. Revisar límites de exportación, memoria y auditoría. |
+| `POST /api/v1/backups/import` | Snapshot ZIP/JSON suministrado por el usuario | Sesión, permiso `salvas` y rol admin/master/contador | Límites multipart/ZIP y validación tenant ya cubiertos por C3.1/C3.2. Revalidar cabeceras y no-store de respuestas. |
+| `POST /api/v1/backups/restore` | Snapshot recuperado por CID | Sesión + permiso `salvas`; comprueba TenantID del snapshot | Verificación CID, estructura, referencias y persistencia ya cubiertas por C3.2. Revisar no-store y auditoría del flujo completo. |
+| `GET /api/v1/invoices/pdf?id=...` | PDF de factura | Sesión + permiso `facturas`; busca factura únicamente en `Store.Get(sess.TenantID)` | No establece explícitamente no-store; no registra evento de exportación. El nombre de descarga deriva del número de factura. Revisar método HTTP, cabecera de descarga y auditoría. |
+| `/api/v1/payroll/pdf?period=...` | PDF de nómina | Sesión + permiso `nomina`; obtiene liquidaciones del snapshot del tenant autenticado | Registra `nomina.exportacion_pdf`, pero ignora el error de persistencia de auditoría. No establece explícitamente no-store. El periodo sin coincidencias puede recurrir a las últimas 50 liquidaciones; revisar comportamiento y métodos HTTP. |
+| `/api/v1/reports/pdf?kind=...&period=...&account_id=...` | PDF contable | Sesión + permisos `reportes` y `cuentas_t`; snapshot del tenant autenticado | Registra `informe.exportacion_pdf`, pero ignora el error de persistencia de auditoría. No establece explícitamente no-store. Revisar allowlist de métodos, tipos de informe, parámetros y cabecera de descarga. |
+
+#### Exportaciones generadas en el cliente
+
+- Contabilidad: `webapp/src/features/accounting/ui/export/accountingReportsExport.ts` genera CSV y PDF/impresión desde los datos ya cargados en la aplicación (balance de comprobación, estado de resultados, libro diario, ingresos/gastos y plan de cuentas).
+- CSV común: `webapp/src/infrastructure/data/export/csv.ts` construye un Blob y dispara una descarga local; no hay endpoint de exportación asociado en este helper.
+- Impresión/PDF: `webapp/src/infrastructure/data/export/printHtml.ts` genera documentos HTML para la ventana de impresión del navegador.
+- Informes de recepción y transferencias: `webapp/src/features/warehouse/ui/pdf/buildReceptionReportHtml.ts` y `buildTransferReportHtml.ts` generan contenido local para impresión/PDF; la autorización depende de la carga previa de los datos en las pantallas/servicios, no de un endpoint PDF independiente.
+- Nómina: existe el caso de uso `DownloadPayrollPdf`, que documenta que el PDF uniforme no está disponible en esa versión; la ruta backend anterior sí existe y se usa como superficie a revisar.
+
+#### Hallazgos que pasan a C3.6.2–C3.6.4
+
+1. Homogeneizar `Cache-Control: no-store, private` en todas las respuestas autenticadas que contienen datos financieros, personales o snapshots, incluidos JSON+base64 y respuestas de error sensibles.
+2. Revisar y restringir métodos HTTP de los handlers PDF de facturas, nómina e informes; confirmar que GET/HEAD tienen semántica coherente y que los demás métodos responden 405.
+3. Validar parámetros que intervienen en el contenido y nombre de archivos descargados; no permitir que valores arbitrarios controlen cabeceras.
+4. Revisar la política de auditoría: los exports de nómina/informes ignoran errores de persistencia y el export ZIP usa auditoría best-effort. Definir explícitamente qué operaciones requieren auditoría durable antes de entregar el archivo.
+5. Revisar el límite de tamaño/coste de generación de ZIP y PDF, el uso de memoria y la transmisión de respuestas. El export ZIP actualmente serializa el snapshot completo y construye el ZIP en memoria.
+6. Añadir pruebas de autorización, método, cabeceras, auditoría y aislamiento tenant-scoped para cada endpoint. Mantener pruebas automatizadas tenant-scoped; no exigir una prueba manual con dos empresas para el despliegue actual de una sola empresa.
+
+**Criterio de este paso:** el inventario no demuestra por sí solo una fuga cross-tenant. Las rutas revisadas seleccionan los snapshots por `sess.TenantID`; C3.6.2 debe convertir esa observación en pruebas negativas y de regresión. No se declara cerrada la auditoría de exportaciones/descargas hasta completar los pasos siguientes.
+
