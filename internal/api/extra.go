@@ -629,6 +629,7 @@ func (s *Server) handleReportPDF(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 	setPrivateNoStore(w)
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.Header().Set("Allow", "GET, HEAD")
 		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
 		return
 	}
@@ -696,7 +697,7 @@ func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", strconv.Itoa(len(out)))
 		w.Header().Set("Cache-Control", "no-store, private")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(out)
+		if r.Method != http.MethodHead { _, _ = w.Write(out) }
 		return
 	}
 
