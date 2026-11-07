@@ -219,7 +219,7 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 - [ ] Probar aislamiento SSE/presencia y operaciones administrativas globales.
 - [ ] Añadir pruebas automatizadas de acceso cruzado y regresión.
 
-**Estado C3:** C3.1 y C3.2 comprobados por el usuario; CI Go, Docker y Launcher Desktop de C3.2 correctos. C3.3 en curso: permisos privados, escritura atómica y validación de rutas incorporados; pendientes pruebas negativas de symlink/traversal y validación multiplataforma.
+**Estado C3:** C3.1 y C3.2 comprobados por el usuario; CI Go, Docker y Launcher Desktop de C3.2 correctos. C3.3 en curso: permisos privados, escritura atómica y validación de rutas incorporados; pruebas automatizadas de traversal, symlink y permisos POSIX añadidas; pendiente CI y validación Windows/TOCTOU.
 
 # 5. FASE D — Hardening HTTP/API
 
