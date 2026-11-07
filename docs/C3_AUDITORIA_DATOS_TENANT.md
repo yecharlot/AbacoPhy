@@ -124,3 +124,24 @@ El criterio de cada bloque se ajusta al despliegue real: para la instalación ac
 
 **Criterio de este paso:** el inventario no demuestra por sí solo una fuga cross-tenant. Las rutas revisadas seleccionan los snapshots por `sess.TenantID`; C3.6.2 debe convertir esa observación en pruebas negativas y de regresión. No se declara cerrada la auditoría de exportaciones/descargas hasta completar los pasos siguientes.
 
+### C3.6.2 — Regresión automatizada de autorización y aislamiento
+
+**Estado:** implementado y CI verificado en el commit de pruebas `85e30f463d8cef0d93cd7d59b59df5fa692db152`.
+
+Se añadió `internal/api/export_isolation_test.go` con un escenario automatizado de dos tenants. El objetivo es comprobar el límite de datos desde la perspectiva de una sesión autenticada, sin convertir una prueba manual multiempresa en requisito operativo.
+
+Cobertura añadida:
+
+- La descarga PDF de una factura ajena al tenant autenticado devuelve 404; una factura propia sigue siendo descargable.
+- El listado de backups solo devuelve metadatos/CID del snapshot de la sesión.
+- La exportación ZIP contiene el snapshot del tenant autenticado y no incorpora marcadores de datos de la otra empresa.
+- Las exportaciones PDF de nómina e informes se ejecutan con la sesión autenticada y no contienen los marcadores sensibles sembrados en el tenant ajeno.
+- Los endpoints PDF y ZIP rechazan peticiones sin sesión (401).
+
+**CI del commit de pruebas:**
+- [CI Go Linux/Windows — success](https://github.com/yecharlot/AbacoPhy/actions/runs/42397259783)
+- [CI Docker Image — success](https://github.com/yecharlot/AbacoPhy/actions/runs/42397259722)
+- [CI Launcher Desktop — success](https://github.com/yecharlot/AbacoPhy/actions/runs/42397259731)
+
+**Alcance:** este bloque confirma mediante regresión automatizada que las superficies cubiertas no mezclan snapshots ni permiten consultar una factura ajena. No cierra todavía la revisión de métodos HTTP, cabeceras de caché, persistencia de auditoría, validación de parámetros ni límites de generación/streaming; esos puntos siguen pendientes en C3.6.3 y C3.6.4.
+
