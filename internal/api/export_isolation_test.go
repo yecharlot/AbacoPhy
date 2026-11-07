@@ -298,7 +298,8 @@ func TestBackupExportAcceptsBase64CompatibilityMode(t *testing.T) {
 
 
 func TestSensitiveExportsPersistAuditBeforeReturningContent(t *testing.T) {
-	st, handler, token, _, _ := exportIsolationFixture(t)
+	st, handler, token, tenantA, _ := exportIsolationFixture(t)
+	tenantID := tenantA.Tenant.ID
 	cases := []struct{ path, action string }{
 		{"/api/v1/invoices/pdf?id=local-invoice-id", "factura.exportacion_pdf"},
 		{"/api/v1/payroll/pdf?period=all", "nomina.exportacion_pdf"},
@@ -307,12 +308,12 @@ func TestSensitiveExportsPersistAuditBeforeReturningContent(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.action, func(t *testing.T) {
-			before := len(st.Get("export-tenant-a").AuditLog)
+			before := len(st.Get(tenantID).AuditLog)
 			rec := exportRequest(handler, http.MethodGet, tc.path, token)
 			if rec.Code != http.StatusOK || rec.Body.Len() == 0 {
 				t.Fatalf("export status=%d body=%s", rec.Code, rec.Body.String())
 			}
-			entries := st.Get("export-tenant-a").AuditLog
+			entries := st.Get(tenantID).AuditLog
 			if len(entries) != before+1 {
 				t.Fatalf("audit entries=%d, want %d", len(entries), before+1)
 			}
