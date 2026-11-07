@@ -261,7 +261,7 @@ func (s *Server) handleBackupRestore(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"error": "cid requerido"})
 		return
 	}
-	restored, err := s.Store.LoadCID(body.CID)
+	restored, err := s.Store.VerifyStoredCID(body.CID)
 	if err != nil || restored == nil {
 		writeJSON(w, 404, map[string]string{"error": "salva no encontrada en almacén CID"})
 		return
@@ -293,7 +293,10 @@ func (s *Server) handleBackupRestore(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	restored.Tenant.ID = sess.TenantID
-	_ = s.Store.Put(restored)
+	if err := s.Store.Put(restored); err != nil {
+		writeJSON(w, 500, map[string]string{"error": "no se pudo persistir la restauración"})
+		return
+	}
 	writeJSON(w, 200, map[string]any{"ok": true, "rev": restored.Rev, "root_cid": restored.RootCID})
 }
 

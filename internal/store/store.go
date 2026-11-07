@@ -430,14 +430,31 @@ func (s *Store) LoadCID(cid string) (*domain.StoreSnapshot, error) {
 		}
 	}
 	path := filepath.Join(s.dataDir, "cids", cid+".json")
-	b, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 	var snap domain.StoreSnapshot
-	if err := json.Unmarshal(b, &snap); err != nil {
-		return nil, err
+	if err := json.Unmarshal(raw, &snap); err != nil {
+		return nil, fmt.Errorf("contenido CID ilegible: %w", err)
 	}
+	if snap.RootCID != cid {
+		return nil, fmt.Errorf("CID raíz no coincide con el identificador solicitado")
+	}
+
+	// Store.Put calcula el CID sobre el snapshot serializado con RootCID vacío.
+	// Repetimos exactamente esa canonicalización para detectar blobs sustituidos
+	// o modificados en disco antes de devolverlos a cualquier restauración.
+	storedCID := snap.RootCID
+	snap.RootCID = ""
+	canonical, err := json.Marshal(&snap)
+	if err != nil {
+		return nil, fmt.Errorf("no se pudo canonicalizar el snapshot CID: %w", err)
+	}
+	if ContentCID(canonical) != storedCID {
+		return nil, fmt.Errorf("integridad CID inválida: el contenido no corresponde al identificador")
+	}
+	snap.RootCID = storedCID
 	return &snap, nil
 }
 

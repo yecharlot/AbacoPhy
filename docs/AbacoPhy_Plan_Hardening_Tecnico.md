@@ -213,8 +213,8 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 ## C3. Auditoría de datos y operaciones entre tenants
 
 - [ ] Revisar archivos, documentos, exportaciones y descargas por tenant.
-- [ ] Endurecer importación de backups contra límites multipart y expansión ZIP.
-- [ ] Verificar CID antes de restaurar y validar fallos de persistencia.
+- [x] C3.1 — Endurecer importación de backups contra límites multipart y expansión ZIP (cerrado; pruebas CI confirmadas por el usuario).
+- [ ] C3.2 — Verificar CID antes de restaurar y validar fallos de persistencia (en curso; ver auditoría C3).
 - [ ] Endurecer permisos de snapshots, blobs CID y directorios de datos.
 - [ ] Probar aislamiento SSE/presencia y operaciones administrativas globales.
 - [ ] Añadir pruebas automatizadas de acceso cruzado y regresión.

@@ -2,7 +2,7 @@
 
 **Rama:** `security-hardening`  
 **Fase:** C3 — auditoría e implementación incremental  
-**Estado:** primer bloque de protección de importación de backups implementado; CI pendiente.
+**Estado:** C3.1 cerrado por confirmación del usuario; C3.2 en implementación.
 
 ## Objetivo
 
@@ -36,15 +36,19 @@ C3 cubre:
 - [x] Aceptar únicamente la entrada de snapshot esperada `abacophy-salva.json`; no extraer rutas al filesystem.
 - [x] Rechazar ZIP sin snapshot, duplicado o de expansión excesiva.
 - [x] Comprobar error de persistencia antes de responder éxito.
-- [ ] Ejecutar tests Go y CI.
+- [x] Ejecutar tests Go y CI (confirmado por el usuario).
 - [x] Añadir pruebas de payload multipart superior al límite y ZIP expandido superior al límite.
 
 ## Próximos bloques
 
 ### C3.2 — Integridad y aislamiento de backups
-- Verificar CID contra contenido real antes de restaurar.
-- Probar restauración cruzada, CID manipulado, snapshot corrupto y persistencia fallida.
-- Revisar la semántica de historial de backups/auditoría al restaurar.
+- [x] Verificar que el RootCID embebido coincide con el CID solicitado.
+- [x] Recalcular el CID del snapshot canonicalizado antes de devolverlo desde LoadCID.
+- [x] La restauración usa VerifyStoredCID y valida estructura antes de mutar el tenant.
+- [x] Comprobar y reportar fallos de persistencia en la restauración CID.
+- [x] Añadir pruebas de modificación del blob y RootCID manipulado.
+- [ ] Añadir pruebas de restauración CID corrupta a nivel API y fallos de persistencia inducidos.
+- [ ] Revisar la semántica de historial de backups/auditoría al restaurar.
 
 ### C3.3 — Archivos locales
 - Endurecer permisos de `dataDir`, `tenants/`, `cids/`, snapshots y blobs CID.

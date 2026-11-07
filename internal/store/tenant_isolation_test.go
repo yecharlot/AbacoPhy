@@ -1,6 +1,10 @@
 package store
 
 import (
+	"strings"
+	"path/filepath"
+	"os"
+	"bytes"
 	"testing"
 
 	"github.com/yecharlot/AbacoPhy/internal/domain"
@@ -77,5 +81,59 @@ func TestStorePutRejectsForeignTenantChildAndBindsLegacyRecords(t *testing.T) {
 	}
 	if user.TenantID != snap.Tenant.ID {
 		t.Fatal("legacy child TenantID was not normalized to the snapshot tenant")
+	}
+}
+
+
+func TestLoadCIDVerifiesContentAddressBeforeReturningSnapshot(t *testing.T) {
+	dataDir := t.TempDir()
+	st := New(dataDir)
+	snap := domain.BootstrapTenant("Tenant integrity", "tenant-integrity", "CUP")
+	if err := st.Put(snap); err != nil {
+		t.Fatal(err)
+	}
+	cid := snap.RootCID
+	if _, err := st.LoadCID(cid); err != nil {
+		t.Fatalf("fresh CID should load: %v", err)
+	}
+
+	path := filepath.Join(dataDir, "cids", cid+".json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tampered := bytes.Replace(raw, []byte("Tenant integrity"), []byte("Tenant tampered"), 1)
+	if bytes.Equal(raw, tampered) {
+		t.Fatal("test fixture did not modify the stored snapshot")
+	}
+	if err := os.WriteFile(path, tampered, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.LoadCID(cid); err == nil {
+		t.Fatal("LoadCID must reject content whose bytes do not match its CID")
+	}
+}
+
+func TestLoadCIDRejectsMismatchedEmbeddedRootCID(t *testing.T) {
+	st := New(t.TempDir())
+	snap := domain.BootstrapTenant("Tenant root", "tenant-root", "CUP")
+	if err := st.Put(snap); err != nil {
+		t.Fatal(err)
+	}
+	cid := snap.RootCID
+	path := filepath.Join(st.dataDir, "cids", cid+".json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tampered := bytes.Replace(raw, []byte(cid), []byte(strings.Repeat("a", len(cid))), 1)
+	if bytes.Equal(raw, tampered) {
+		t.Fatal("test fixture did not modify embedded root CID")
+	}
+	if err := os.WriteFile(path, tampered, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.LoadCID(cid); err == nil {
+		t.Fatal("LoadCID must reject an embedded RootCID different from requested CID")
 	}
 }
