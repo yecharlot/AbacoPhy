@@ -37,7 +37,7 @@ C3 cubre:
 - [x] Rechazar ZIP sin snapshot, duplicado o de expansión excesiva.
 - [x] Comprobar error de persistencia antes de responder éxito.
 - [ ] Ejecutar tests Go y CI.
-- [ ] Añadir pruebas de payload multipart superior al límite y ZIP expandido superior al límite.
+- [x] Añadir pruebas de payload multipart superior al límite y ZIP expandido superior al límite.
 
 ## Próximos bloques
 
