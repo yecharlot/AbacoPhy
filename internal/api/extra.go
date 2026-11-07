@@ -25,7 +25,8 @@ import (
 func setPrivateNoStore(w http.ResponseWriter) {
 	w.Header().Set("Cache-Control", "no-store, private")
 	w.Header().Set("Pragma", "no-cache")
-	w.Header().Set("Vary", "Authorization, Cookie")
+	w.Header().Add("Vary", "Authorization")
+	w.Header().Add("Vary", "Cookie")
 }
 func safeDownloadFilenamePart(value string) string {
 	var b strings.Builder

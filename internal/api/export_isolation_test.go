@@ -268,3 +268,18 @@ func TestSafeDownloadFilenamePart(t *testing.T) {
 		if got := safeDownloadFilenamePart(input); got != want { t.Errorf("safeDownloadFilenamePart(%q)=%q, want %q", input, got, want) }
 	}
 }
+
+
+func TestSensitiveExportPreservesCORSVaryHeader(t *testing.T) {
+	_, handler, token, _, _ := exportIsolationFixture(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/invoices/pdf?id=local-invoice-id", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Origin", "https://client.example")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK { t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String()) }
+	vary := strings.Join(rec.Header().Values("Vary"), ",")
+	for _, value := range []string{"Origin", "Authorization", "Cookie"} {
+		if !strings.Contains(vary, value) { t.Errorf("Vary=%q does not include %q", vary, value) }
+	}
+}
