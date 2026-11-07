@@ -215,11 +215,11 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 - [ ] Revisar archivos, documentos, exportaciones y descargas por tenant.
 - [x] C3.1 — Endurecer importación de backups contra límites multipart y expansión ZIP (cerrado; pruebas CI confirmadas por el usuario).
 - [x] C3.2 — Verificar CID antes de restaurar, preservar historial y fallar de forma segura ante errores de persistencia (comprobado por el usuario; CI Go, Docker y Launcher Desktop correctos).
-- [x] C3.3 (primer bloque) — Endurecer permisos; usar operaciones de filesystem confinadas con os.Root; verificar carreras de sustitución y validar compatibilidad Linux/Windows.
+- [x] C3.3 — Endurecer permisos; usar operaciones de filesystem confinadas con os.Root; verificar carreras de sustitución y validar compatibilidad Linux/Windows (completado; CI Go Linux/Windows, Docker y Launcher Desktop correctos).
 - [ ] Probar aislamiento SSE/presencia y operaciones administrativas globales.
 - [ ] Añadir pruebas automatizadas de acceso cruzado y regresión.
 
-**Estado C3:** C3.1 y C3.2 comprobados por el usuario; CI Go, Docker y Launcher Desktop de C3.2 correctos. C3.3 reforzado con os.Root (Go 1.24), operaciones ancladas y confinadas, verificación de identidad de directorios, lectura con verificación de identidad y rename relativo al root; añadida prueba de sustitución de directorio. CI Linux/Windows pendiente.
+**Estado C3:** C3.1 y C3.2 comprobados por el usuario. C3.3 completado y marcado OK: filesystem confinado con `os.Root` (Go 1.24), permisos privados, validación de componentes de ruta, verificación de identidad de directorios/archivos y protección de `ResetAll()` frente a sustitución de directorios. CI Go Linux/Windows, Docker y Launcher Desktop correctos en el commit `3f570610df18087f9019e90a75cba2865e166689`. Los tests de symlink pueden omitirse en Windows cuando el runner no dispone de privilegios para crearlos.
 
 # 5. FASE D — Hardening HTTP/API
 
@@ -537,6 +537,7 @@ Ruta:
 | 2026-11-06 | B1: política uniforme de contraseñas | Validación central en `internal/auth`, aplicada a bootstrap, altas, ediciones y cambios de contraseña; pruebas de límites, Unicode y passphrases. CI Go correcto | Implementación validada por CI; revisión del coste bcrypt pendiente |
 | 2026-11-06 | B2: expiración y revocación de sesiones | Sesiones estándar 12 h y admin/master 4 h; tokens expirados se limpian de memoria/disco; persistencia atómica con permisos 0600; pruebas de expiración, persistencia y revocación añadidas | CI Go correcto; cifrado en reposo y access/refresh diferidos por falta de gestión de clave y sincronización segura |
 | 2026-11-06 | B3: protección contra fuerza bruta | Límite IP + usuario, backoff progresivo, respuestas genéricas, registro sin secretos y pruebas automatizadas. La IP se toma del peer TCP; X-Forwarded-For no se confía sin proxy explícitamente confiable | Implementación integrada; CI y validación concurrente pendientes |
+| 2026-11-07 | C3.3: filesystem confinado y protección TOCTOU | `os.Root`, permisos 0700/0600, validación de rutas, verificación de identidad de descriptores y reset anclado a roots. CI Go Linux/Windows, Docker y Launcher Desktop: success | OK — commit `3f570610df18087f9019e90a75cba2865e166689` |
 
 ## Registro de excepciones
 

@@ -2,7 +2,7 @@
 
 **Rama:** `security-hardening`  
 **Fase:** C3 — auditoría e implementación incremental  
-**Estado:** C3.1 y C3.2 comprobados y cerrados por confirmación del usuario; C3.3 en implementación.
+**Estado:** C3.1, C3.2 y C3.3 comprobados y cerrados. C3.3 cuenta con CI Go Linux/Windows, Docker y Launcher Desktop correctos.
 
 ## Objetivo
 
@@ -24,7 +24,7 @@ C3 cubre:
 | Backups CID | Restore compara el tenant raíz, vincula hijos y valida referencias | Añadir verificación de integridad del contenido CID y errores de persistencia |
 | Importación ZIP/JSON | El parser aceptaba lectura descomprimida sin límite y el límite de `ParseMultipartForm` solo controlaba memoria en RAM | Corregido en el primer bloque |
 | Exportación | Exporta el snapshot de la sesión autenticada; requiere revisar límites, no-store y auditoría | Revisar |
-| Archivos de datos | C3.3 usa os.Root (Go 1.24), operaciones relativas a directorios anclados, permisos 0600/0700 y escritura mediante descriptor abierto y verificado | Verificar CI Linux/Windows y compatibilidad NTFS/symlinks |
+| Archivos de datos | C3.3 usa os.Root (Go 1.24), operaciones relativas a directorios anclados, permisos 0600/0700 y escritura mediante descriptor abierto y verificado | CI Go Linux/Windows, Docker y Launcher Desktop correctos; bloque aceptado como OK |
 | Tokens | `tokens.json` ya se persiste con 0600 y escritura temporal | Verificar permisos al crear directorios y comportamiento en Windows |
 
 ## C3.1 — Importación de backups
@@ -53,10 +53,13 @@ C3 cubre:
 - [x] Publicar el snapshot en memoria solo después de confirmar la escritura principal del tenant en disco.
 - [x] Verificar CI Go, Docker y Launcher Desktop (confirmado por el usuario).\n- [x] Validación manual de C3.2 confirmada por el usuario.
 
-### C3.3 — Archivos locales
-- Endurecer permisos de `dataDir`, `tenants/`, `cids/`, snapshots y blobs CID.
-- Evitar path traversal y symlink escapes en rutas derivadas de IDs.
-- Asegurar escritura confinada por descriptor de snapshots y verificar comportamiento Windows/POSIX.
+### C3.3 — Archivos locales <badge>OK</badge>
+- [x] Endurecer permisos de `dataDir`, `tenants/`, `cids/`, snapshots y blobs CID.
+- [x] Evitar path traversal y symlink escapes en rutas derivadas de IDs.
+- [x] Asegurar operaciones confinadas por descriptor/root y verificar condiciones de carrera.
+- [x] CI Go en Linux y Windows, CI Docker y CI Launcher Desktop correctos (commit `3f570610df18087f9019e90a75cba2865e166689`).
+
+**Nota:** las pruebas de creación de symlinks pueden omitirse en Windows si el runner carece de privilegios para ello; el workflow sí valida compilación y tests restantes en Windows.
 
 ### C3.4 — Sesiones y eventos
 - Verificar revocación de sesiones por tenant, expiración y aislamiento de eventos.
