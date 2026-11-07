@@ -216,7 +216,8 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 - [x] C3.1 — Endurecer importación de backups contra límites multipart y expansión ZIP (cerrado; pruebas CI confirmadas por el usuario).
 - [x] C3.2 — Verificar CID antes de restaurar, preservar historial y fallar de forma segura ante errores de persistencia (comprobado por el usuario; CI Go, Docker y Launcher Desktop correctos).
 - [x] C3.3 — Endurecer permisos; usar operaciones de filesystem confinadas con os.Root; verificar carreras de sustitución y validar compatibilidad Linux/Windows (completado; CI Go Linux/Windows, Docker y Launcher Desktop correctos).
-- [ ] Probar aislamiento SSE/presencia y operaciones administrativas globales.
+- [ ] C3.4: probar aislamiento SSE/presencia, revocación de sesiones y limpieza de suscriptores.
+- [ ] C3.5: auditar operaciones administrativas globales.
 - [ ] Añadir pruebas automatizadas de acceso cruzado y regresión.
 
 **Estado C3:** C3.1 y C3.2 comprobados por el usuario. C3.3 completado y marcado OK: filesystem confinado con `os.Root` (Go 1.24), permisos privados, validación de componentes de ruta, verificación de identidad de directorios/archivos y protección de `ResetAll()` frente a sustitución de directorios. CI Go Linux/Windows, Docker y Launcher Desktop correctos en el commit `3f570610df18087f9019e90a75cba2865e166689`. Los tests de symlink pueden omitirse en Windows cuando el runner no dispone de privilegios para crearlos.

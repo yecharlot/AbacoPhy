@@ -1,6 +1,7 @@
 package api
 
 import (
+	"strings"
 	"sync"
 )
 
@@ -11,6 +12,7 @@ type SSEEvent struct {
 }
 
 // EventHub fan-out in-process por tenant (sin Redis; mono-instancia).
+// El tenant es la única clave de partición: no existe una suscripción global.
 type EventHub struct {
 	mu   sync.RWMutex
 	subs map[string]map[chan SSEEvent]struct{}
@@ -21,9 +23,15 @@ func NewEventHub() *EventHub {
 }
 
 func (h *EventHub) Subscribe(tenantID string) chan SSEEvent {
+	if h == nil || strings.TrimSpace(tenantID) == "" {
+		return nil
+	}
 	ch := make(chan SSEEvent, 16)
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if h.subs == nil {
+		h.subs = make(map[string]map[chan SSEEvent]struct{})
+	}
 	if h.subs[tenantID] == nil {
 		h.subs[tenantID] = make(map[chan SSEEvent]struct{})
 	}
@@ -32,6 +40,9 @@ func (h *EventHub) Subscribe(tenantID string) chan SSEEvent {
 }
 
 func (h *EventHub) Unsubscribe(tenantID string, ch chan SSEEvent) {
+	if h == nil || strings.TrimSpace(tenantID) == "" || ch == nil {
+		return
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if m, ok := h.subs[tenantID]; ok {
@@ -40,12 +51,15 @@ func (h *EventHub) Unsubscribe(tenantID string, ch chan SSEEvent) {
 			delete(h.subs, tenantID)
 		}
 	}
-	// no cerrar ch aquí: el receptor puede estar leyendo; el defer del handler cierra el flujo
+	// No cerrar ch: Publish puede haberlo obtenido antes del Unsubscribe.
+	// El canal queda fuera del mapa y el handler termina por contexto.
 }
 
-// Publish envía a todos los suscriptores del tenant (no bloquea si el buffer está lleno).
+// Publish envía solo a los suscriptores del tenant indicado. Es no bloqueante:
+// un consumidor lento no puede frenar operaciones de negocio.
 func (h *EventHub) Publish(tenantID, event string, data any) {
-	if h == nil || tenantID == "" || event == "" {
+	if h == nil || strings.TrimSpace(tenantID) == "" || strings.TrimSpace(event) == "" ||
+		strings.ContainsAny(event, "\r\n") {
 		return
 	}
 	ev := SSEEvent{Event: event, Data: data}
@@ -55,7 +69,7 @@ func (h *EventHub) Publish(tenantID, event string, data any) {
 		select {
 		case ch <- ev:
 		default:
-			// cliente lento: descartar para no bloquear almacén/API
+			// Cliente lento: descartar para no bloquear almacén/API.
 		}
 	}
 }

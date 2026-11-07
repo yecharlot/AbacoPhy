@@ -62,8 +62,13 @@ C3 cubre:
 **Nota:** las pruebas de creación de symlinks pueden omitirse en Windows si el runner carece de privilegios para ello; el workflow sí valida compilación y tests restantes en Windows.
 
 ### C3.4 — Sesiones y eventos
-- Verificar revocación de sesiones por tenant, expiración y aislamiento de eventos.
-- Añadir pruebas SSE que demuestren que una publicación de A nunca llega a suscriptores de B.
+- [ ] Revalidar la sesión durante conexiones SSE largas, no solo al abrir el stream.
+- [ ] Comprobar que revocación, expiración, baja o cambio de permisos terminan el stream.
+- [ ] Verificar aislamiento de publicación/suscripción por tenant.
+- [ ] Verificar desconexión y limpieza de suscriptores.
+- [ ] Ejecutar pruebas de concurrencia y CI.
+
+**Auditoría inicial:** el hub ya separaba suscriptores por TenantID, pero el stream solo autenticaba al conectar y continuaba entregando eventos tras una revocación. Se corrige revalidando la sesión antes de cada evento y keepalive; queda pendiente validar por tests y CI.
 
 ### C3.5 — Operaciones globales
 - Auditar listado/creación/eliminación de tenants, reset y operaciones master.
