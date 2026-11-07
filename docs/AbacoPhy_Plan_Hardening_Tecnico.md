@@ -222,7 +222,8 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 
 ## C3. Auditoría de datos y operaciones entre tenants
 
-- [ ] Revisar archivos, documentos, exportaciones y descargas por tenant.
+- [ ] Revisar archivos, documentos, exportaciones y descargas por tenant (C3.6 completo permanece abierto hasta cerrar auditoría durable y límites/rendimiento).
+- [x] C3.6.3 — Métodos HTTP, cabeceras privadas/no-store, validación de parámetros, nombres de archivo seguros y semántica HEAD en descargas; CI Go Linux/Windows, Docker y Launcher Desktop: success (código `99ecb929b869be5a83550c89663566bf3131037f`).
 - [x] C3.1 — Endurecer importación de backups contra límites multipart y expansión ZIP (cerrado; pruebas CI confirmadas por el usuario).
 - [x] C3.2 — Verificar CID antes de restaurar, preservar historial y fallar de forma segura ante errores de persistencia (comprobado por el usuario; CI Go, Docker y Launcher Desktop correctos).
 - [x] C3.3 — Endurecer permisos; usar operaciones de filesystem confinadas con os.Root; verificar carreras de sustitución y validar compatibilidad Linux/Windows (completado; CI Go Linux/Windows, Docker y Launcher Desktop correctos).
@@ -599,3 +600,13 @@ Ruta:
 - Las respuestas HEAD no incluyen cuerpo y los errores internos/panics no se reflejan literalmente al cliente.
 - Se añaden pruebas HTTP para 405, Allow, cabeceras no-store, preservación de Vary: Origin y HEAD. Se mantiene la compatibilidad del export JSON+base64.
 - CI Go Linux/Windows, Docker Image y Launcher Desktop: correctos en el commit `99ecb929b869be5a83550c89663566bf3131037f`. C3.6.3.1 implementado; la auditoría durable sigue en C3.6.4 y los límites/memoria/streaming en C3.6.5.
+
+
+### 2026-11-07 — C3.6.3: endurecimiento HTTP de exportaciones y descargas cerrado
+
+- C3.6.3.1 implementa GET/HEAD, 405 + Allow, HEAD sin cuerpo, Cache-Control no-store/private, Pragma no-cache y Vary para Authorization/Cookie preservando Origin.
+- Se validan parámetros de informes, periodos de nómina, ID de factura y formato de backup; se sanitizan los nombres de archivo y se usa mime.FormatMediaType.
+- Los errores de exportación no filtran valores de panic ni detalles internos. Se conserva el contrato JSON+base64 y el alias SPA `as=base64`.
+- Pruebas HTTP verifican métodos, cabeceras, HEAD, sanitización y compatibilidad.
+- CI Go Linux/Windows, Docker Image y Launcher Desktop: success en el commit de código `99ecb929b869be5a83550c89663566bf3131037f`.
+- C3.6.3 queda cerrado. C3.6.4 (auditoría durable) y C3.6.5 (límites, memoria y streaming) continúan abiertos.

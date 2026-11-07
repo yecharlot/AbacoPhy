@@ -165,3 +165,7 @@ Cobertura añadida:
 - [CI Go Linux/Windows — success](https://github.com/yecharlot/AbacoPhy/actions/runs/42411522865)
 - [CI Docker Image — success](https://github.com/yecharlot/AbacoPhy/actions/runs/42411523028)
 - [CI Launcher Desktop — success](https://github.com/yecharlot/AbacoPhy/actions/runs/42411522817)
+
+**Verificación adicional del cierre (2026-11-07):** se consultaron de nuevo los tres workflows y los tres constan como `completed/success`, todos sobre el commit de código `99ecb929b869be5a83550c89663566bf3131037f`. Las pruebas de `export_isolation_test.go` cubren 405/Allow, no-store y Vary, HEAD sin cuerpo, formato inválido, sanitización de nombres y compatibilidad `as=base64`.
+
+**Estado C3.6.3: CERRADO.** El endurecimiento de métodos, cabeceras y parámetros de descarga queda completado. No incluye auditoría durable de exportaciones (C3.6.4) ni límites de generación, memoria y streaming (C3.6.5), que siguen pendientes.
