@@ -182,17 +182,6 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 
 **Estado C1:** correcciones y pruebas automatizadas integradas; cierre condicionado a CI del commit final y prueba manual por rol. La política mantiene la personalización de permisos existente, pero el espacio `master` queda reservado y readonly nunca obtiene escritura.
 
-## C3. Auditoría de datos y operaciones entre tenants
-
-- [ ] Revisar archivos, documentos, exportaciones y descargas por tenant.
-- [ ] Endurecer importación de backups contra límites multipart y expansión ZIP.
-- [ ] Verificar CID antes de restaurar y validar fallos de persistencia.
-- [ ] Endurecer permisos de snapshots, blobs CID y directorios de datos.
-- [ ] Probar aislamiento SSE/presencia y operaciones administrativas globales.
-- [ ] Añadir pruebas automatizadas de acceso cruzado y regresión.
-
-**Estado C3:** auditoría inicial documentada en `C3_AUDITORIA_DATOS_TENANT.md`. C3.1 limita el cuerpo multipart a 32 MiB, la expansión ZIP a 32 MiB y el número de entradas a 16; CI pendiente.
-
 ## C2. Aislamiento de tenants
 - [x] Primera auditoría de resolución de tenant: eliminar fallback por `UserID` y por tenant único.
 - [x] Vincular sesión, snapshot y usuario mediante coincidencia exacta de `TenantID` y `UserID`.
@@ -220,6 +209,17 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 - [ ] Ejecutar pruebas completas de acceso cruzado con dos tenants y usuarios reales.
 
 **Estado C2:** implementación de aislamiento, backups, REST, sync push, presencia/SSE y operaciones globales completada; auditoría y remediación legacy documentadas. Cierre de aceptación pendiente únicamente de ejecutar la remediación si el inventario detecta usernames duplicados y realizar prueba manual integral con dos tenants.
+
+## C3. Auditoría de datos y operaciones entre tenants
+
+- [ ] Revisar archivos, documentos, exportaciones y descargas por tenant.
+- [ ] Endurecer importación de backups contra límites multipart y expansión ZIP.
+- [ ] Verificar CID antes de restaurar y validar fallos de persistencia.
+- [ ] Endurecer permisos de snapshots, blobs CID y directorios de datos.
+- [ ] Probar aislamiento SSE/presencia y operaciones administrativas globales.
+- [ ] Añadir pruebas automatizadas de acceso cruzado y regresión.
+
+**Estado C3:** auditoría inicial documentada en `C3_AUDITORIA_DATOS_TENANT.md`. C3.1 limita el cuerpo multipart a 32 MiB, la expansión ZIP a 32 MiB y el número de entradas a 16; CI pendiente.
 
 # 5. FASE D — Hardening HTTP/API
 
