@@ -240,12 +240,31 @@ func TestSensitiveExportEndpointsRejectUnsupportedMethods(t *testing.T) {
 func TestSensitiveExportResponsesArePrivateNoStore(t *testing.T) {
 	_,h,token,_,_:=exportIsolationFixture(t)
 	for _,p:=range []string{"/api/v1/invoices/pdf?id=local-invoice-id","/api/v1/payroll/pdf?period=all","/api/v1/reports/pdf?kind=rendimiento&period=all","/api/v1/backups/export?as=zip","/api/v1/backups/export"} {
-		t.Run(p,func(t *testing.T){ r:=exportRequest(h,http.MethodGet,p,token); if r.Code!=200 { t.Fatalf("status=%d",r.Code) }; if r.Header().Get("Cache-Control")!="no-store, private" { t.Fatalf("Cache-Control=%q",r.Header().Get("Cache-Control")) }; if r.Header().Get("Pragma")!="no-cache" { t.Fatalf("Pragma=%q",r.Header().Get("Pragma")) } })
+		t.Run(p,func(t *testing.T){ r:=exportRequest(h,http.MethodGet,p,token); if r.Code!=200 { t.Fatalf("status=%d",r.Code) }; if r.Header().Get("Cache-Control")!="no-store, private" { t.Fatalf("Cache-Control=%q",r.Header().Get("Cache-Control")) }; if r.Header().Get("Pragma")!="no-cache" { t.Fatalf("Pragma=%q",r.Header().Get("Pragma")) }; vary:=r.Header().Get("Vary"); if !strings.Contains(vary,"Authorization") || !strings.Contains(vary,"Cookie") { t.Fatalf("Vary=%q",vary) } })
 	}
 }
 func TestSensitivePDFHeadRequestsDoNotReturnBody(t *testing.T) {
 	_,h,token,_,_:=exportIsolationFixture(t)
 	for _,p:=range []string{"/api/v1/invoices/pdf?id=local-invoice-id","/api/v1/payroll/pdf?period=all","/api/v1/reports/pdf?kind=rendimiento&period=all","/api/v1/backups/export?as=zip"} {
 		t.Run(p,func(t *testing.T){ r:=exportRequest(h,http.MethodHead,p,token); if r.Code!=200 { t.Fatalf("status=%d body=%s",r.Code,r.Body.String()) }; if r.Body.Len()!=0 { t.Fatalf("HEAD returned %d bytes",r.Body.Len()) } })
+	}
+}
+
+
+func TestBackupExportRejectsUnknownFormat(t *testing.T) {
+	_, handler, token, _, _ := exportIsolationFixture(t)
+	rec := exportRequest(handler, http.MethodGet, "/api/v1/backups/export?as=../../secret", token)
+	if rec.Code != http.StatusBadRequest { t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String()) }
+	if got := rec.Header().Get("Cache-Control"); got != "no-store, private" { t.Errorf("Cache-Control=%q", got) }
+}
+
+func TestSafeDownloadFilenamePart(t *testing.T) {
+	cases := map[string]string{
+		"invoice/../private\\name": "invoice-.-private-name",
+		"../../": "documento",
+		"  INV #42  ": "INV-42",
+	}
+	for input, want := range cases {
+		if got := safeDownloadFilenamePart(input); got != want { t.Errorf("safeDownloadFilenamePart(%q)=%q, want %q", input, got, want) }
 	}
 }

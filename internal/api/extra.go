@@ -630,90 +630,66 @@ func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 	setPrivateNoStore(w)
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		w.Header().Set("Allow", "GET, HEAD")
-		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
 		return
 	}
 	sess, err := s.sess(r)
-	if err != nil {
-		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
-		return
-	}
-	if err := s.gateOp(sess, "salvas", r.Method); err != nil {
-		writeGateError(w, err)
-		return
-	}
+	if err != nil { writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "no autorizado"}); return }
+	if err := s.gateOp(sess, "salvas", r.Method); err != nil { writeGateError(w, err); return }
 	snap := s.Store.Get(sess.TenantID)
-	if snap == nil {
-		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
+	if snap == nil { writeJSON(w, http.StatusNotFound, map[string]string{"error": "no encontrado"}); return }
+
+	as := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("as")))
+	if as != "" && as != "zip" && as != "binary" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "formato de exportación no válido"})
 		return
 	}
-
-	// Evitar panics que cierran la conexión (Firefox: "No se ha conseguido recuperar")
 	defer func() {
-		if recover()!=nil { writeJSON(w,500,map[string]string{"error":"no se pudo generar la exportación"}) }
+		if recover() != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "no se pudo generar la exportación"})
+		}
 	}()
 
 	raw, err := json.MarshalIndent(snap, "", "  ")
-	if err != nil {
-		writeJSON(w, 500, map[string]string{"error": "no se pudo serializar"})
-		return
-	}
+	if err != nil { writeJSON(w, 500, map[string]string{"error": "no se pudo generar la exportación"}); return }
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
-	f, err := zw.Create("abacophy-salva.json")
-	if err != nil {
-		writeJSON(w, 500, map[string]string{"error": "zip create"})
-		return
-	}
-	if _, err := f.Write(raw); err != nil {
-		writeJSON(w, 500, map[string]string{"error": "zip write"})
-		return
-	}
-	if meta, err := zw.Create("meta.txt"); err == nil {
-		_, _ = meta.Write([]byte("AbacoPhy salva\nNegocio: " + snap.Tenant.Name +
-			"\nCID: " + snap.RootCID +
-			"\nRev: " + strconv.FormatInt(snap.Rev, 10) + "\n"))
-	}
-	if err := zw.Close(); err != nil {
-		writeJSON(w, 500, map[string]string{"error": "zip close"})
-		return
-	}
+	entry, err := zw.Create(backupSnapshotArchiveEntry)
+	if err != nil { writeJSON(w, 500, map[string]string{"error": "no se pudo generar la exportación"}); return }
+	if _, err := entry.Write(raw); err != nil { writeJSON(w, 500, map[string]string{"error": "no se pudo generar la exportación"}); return }
+	meta, err := zw.Create("meta.txt")
+	if err != nil { writeJSON(w, 500, map[string]string{"error": "no se pudo generar la exportación"}); return }
+	metaText := "AbacoPhy salva\nNegocio: " + snap.Tenant.Name + "\nCID: " + snap.RootCID + "\nRev: " + strconv.FormatInt(snap.Rev, 10) + "\n"
+	if _, err := meta.Write([]byte(metaText)); err != nil { writeJSON(w, 500, map[string]string{"error": "no se pudo generar la exportación"}); return }
+	if err := zw.Close(); err != nil { writeJSON(w, 500, map[string]string{"error": "no se pudo generar la exportación"}); return }
 	out := buf.Bytes()
 
-	// Auditoría best-effort (no debe tumbar el export)
+	// La persistencia obligatoria de esta auditoría se aborda en C3.6.4.
 	func() {
 		defer func() { _ = recover() }()
-		s.audit(snap, sess, "salva.exportacion_zip",
-			"Exportacion ZIP · "+snap.Tenant.Name+" · rev "+strconv.FormatInt(snap.Rev, 10),
-			snap.RootCID)
+		s.audit(snap, sess, "salva.exportacion_zip", "Exportacion ZIP · "+snap.Tenant.Name+" · rev "+strconv.FormatInt(snap.Rev, 10), snap.RootCID)
 		_ = s.Store.Put(snap)
 	}()
 
-	as := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("as")))
-	// Por defecto JSON+base64 (SPA/CORS). Solo ?as=zip entrega binario.
 	if as == "zip" || as == "binary" {
 		w.Header().Set("Content-Type", "application/zip")
-		w.Header().Set("Content-Disposition",mime.FormatMediaType("attachment",map[string]string{"filename":"abacophy-salva.zip"}))
+		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": "abacophy-salva.zip"}))
 		w.Header().Set("Content-Length", strconv.Itoa(len(out)))
-		w.Header().Set("Cache-Control", "no-store, private")
 		w.WriteHeader(http.StatusOK)
 		if r.Method != http.MethodHead { _, _ = w.Write(out) }
 		return
 	}
-
 	payload := map[string]any{
-		"ok":           true,
-		"filename":     "abacophy-salva.zip",
-		"content_type": "application/zip",
-		"size":         len(out),
-		"rev":          snap.Rev,
-		"root_cid":     snap.RootCID,
-		"data_base64":  base64.StdEncoding.EncodeToString(out),
+		"ok": true, "filename": "abacophy-salva.zip", "content_type": "application/zip",
+		"size": len(out), "rev": snap.Rev, "root_cid": snap.RootCID,
+		"data_base64": base64.StdEncoding.EncodeToString(out),
 	}
 	encoded, err := json.Marshal(payload)
-	if err != nil { writeJSON(w,500,map[string]string{"error":"no se pudo generar la exportación"}); return }
-	w.Header().Set("Content-Type","application/json; charset=utf-8"); w.Header().Set("Content-Length",strconv.Itoa(len(encoded))); w.WriteHeader(200)
-	if r.Method!=http.MethodHead { _,_=w.Write(encoded) }
+	if err != nil { writeJSON(w, 500, map[string]string{"error": "no se pudo generar la exportación"}); return }
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Content-Length", strconv.Itoa(len(encoded)))
+	w.WriteHeader(http.StatusOK)
+	if r.Method != http.MethodHead { _, _ = w.Write(encoded) }
 }
 
 func toString(v any) string {
