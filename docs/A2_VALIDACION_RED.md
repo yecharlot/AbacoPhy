@@ -180,7 +180,8 @@ La revisión del workflow confirma que CI Launcher Desktop se ejecuta en `ubuntu
 ### CI verificado en HEAD
 
 **Rama:** `security-hardening`  
-**Commit HEAD:** `0fb9c5d415db088b73f5050a7f81f71b6306640c`
+**Commit de código evaluado:** `0fb9c5d415db088b73f5050a7f81f71b6306640c`  
+**HEAD de la rama tras actualizar la documentación:** `d2903c749002478e955c61dcc1584160459ccb8a`
 
 | Workflow | Ejecución | Resultado | Alcance confirmado |
 |---|---|---|---|
