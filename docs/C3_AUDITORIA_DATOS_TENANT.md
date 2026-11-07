@@ -77,10 +77,11 @@ C3 cubre:
 - [x] Confirmar que las políticas configurables del tenant y los grants individuales no pueden elevar roles operativos a `master`.
 - [x] Hacer atómica bajo el lock del Store la unicidad global de slug y usernames durante la creación de tenants; rechazar duplicados y altas concurrentes.
 - [x] Registrar la creación global en la auditoría del tenant creado, identificando al master y el tenant de origen sin mezclar TenantID entre snapshots.
+- [x] Registrar el reinicio global en el tenant bootstrap nuevo, ya que el reset elimina la auditoría histórica.
 - [x] Mantener pruebas de rechazo para admin→master/reset, usernames globales ambiguos y cambio de contraseña cross-tenant.
 - [x] Añadir pruebas de método HTTP y auditoría de alta global.
 - [x] Añadir prueba concurrente de unicidad de tenant/identidades.
-- [ ] Validar CI del commit C3.5.
+- [x] CI Go Linux/Windows, Docker y Launcher Desktop: success en el commit de código `6573e21a3ad1a2ae6d4714fb53baeaa3cfe11d39`.
 
 **Límites de alcance:** no existe endpoint de eliminación individual de tenants en la API actual. `/api/v1/master/reset` es un reinicio global destructivo, no una baja individual. El listado de tenants es una operación de solo lectura. El despliegue actual del usuario es de una sola empresa; las defensas globales se conservan para impedir ambigüedad de identidad y proteger futuras ampliaciones.
 
