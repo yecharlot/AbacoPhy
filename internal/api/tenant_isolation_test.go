@@ -321,3 +321,27 @@ func TestSyncPushRejectsForeignTenantAndReferencesAtomically(t *testing.T) {
 		})
 	}
 }
+
+
+func TestMasterTenantListIsReadOnly(t *testing.T) {
+	st := store.New(t.TempDir())
+	snap := domain.BootstrapTenant("Primary", "primary", "CUP")
+	master := userByName(snap, "master")
+	if master == nil { t.Fatal("master user missing") }
+	master.MustChangePassword = false
+	master.PasswordHash = mustHashForTenantIsolationTest(t, "master-list-password")
+	if err := st.Put(snap); err != nil { t.Fatal(err) }
+	sess, _, err := auth.Login(st, master.Username, "master-list-password")
+	if err != nil { t.Fatal(err) }
+	handler := NewServer(st, t.TempDir()).Handler()
+
+	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead} {
+		req := httptest.NewRequest(method, "/api/v1/master/tenants", nil)
+		req.Header.Set("Authorization", "Bearer "+sess.Token)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Errorf("%s /master/tenants status=%d, want 405: %s", method, rec.Code, rec.Body.String())
+		}
+	}
+}
