@@ -229,3 +229,23 @@ func TestBackupExportJSONEnvelopeDecodesExpectedZIP(t *testing.T) {
 		t.Fatal("JSON export did not contain the requesting tenant's snapshot")
 	}
 }
+
+
+func TestSensitiveExportEndpointsRejectUnsupportedMethods(t *testing.T) {
+	_,h,_,_,_:=exportIsolationFixture(t)
+	for _,p:=range []string{"/api/v1/invoices/pdf?id=local-invoice-id","/api/v1/payroll/pdf?period=all","/api/v1/reports/pdf?kind=rendimiento&period=all","/api/v1/backups/export?as=zip"} {
+		t.Run(p,func(t *testing.T){ r:=exportRequest(h,http.MethodPost,p,""); if r.Code!=405 { t.Fatalf("status=%d",r.Code) }; if r.Header().Get("Allow")!="GET, HEAD" { t.Fatalf("Allow=%q",r.Header().Get("Allow")) }; if r.Header().Get("Cache-Control")!="no-store, private" { t.Fatalf("Cache-Control=%q",r.Header().Get("Cache-Control")) } })
+	}
+}
+func TestSensitiveExportResponsesArePrivateNoStore(t *testing.T) {
+	_,h,token,_,_:=exportIsolationFixture(t)
+	for _,p:=range []string{"/api/v1/invoices/pdf?id=local-invoice-id","/api/v1/payroll/pdf?period=all","/api/v1/reports/pdf?kind=rendimiento&period=all","/api/v1/backups/export?as=zip","/api/v1/backups/export"} {
+		t.Run(p,func(t *testing.T){ r:=exportRequest(h,http.MethodGet,p,token); if r.Code!=200 { t.Fatalf("status=%d",r.Code) }; if r.Header().Get("Cache-Control")!="no-store, private" { t.Fatalf("Cache-Control=%q",r.Header().Get("Cache-Control")) }; if r.Header().Get("Pragma")!="no-cache" { t.Fatalf("Pragma=%q",r.Header().Get("Pragma")) } })
+	}
+}
+func TestSensitivePDFHeadRequestsDoNotReturnBody(t *testing.T) {
+	_,h,token,_,_:=exportIsolationFixture(t)
+	for _,p:=range []string{"/api/v1/invoices/pdf?id=local-invoice-id","/api/v1/payroll/pdf?period=all","/api/v1/reports/pdf?kind=rendimiento&period=all","/api/v1/backups/export?as=zip"} {
+		t.Run(p,func(t *testing.T){ r:=exportRequest(h,http.MethodHead,p,token); if r.Code!=200 { t.Fatalf("status=%d body=%s",r.Code,r.Body.String()) }; if r.Body.Len()!=0 { t.Fatalf("HEAD returned %d bytes",r.Body.Len()) } })
+	}
+}

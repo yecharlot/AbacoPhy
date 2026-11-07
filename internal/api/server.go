@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"mime"
 	"os"
 	"path/filepath"
 	"sort"
@@ -1594,6 +1595,8 @@ func (s *Server) handleMasterCreateTenant(w http.ResponseWriter, r *http.Request
 
 
 func (s *Server) handleInvoicePDF(w http.ResponseWriter, r *http.Request) {
+	setPrivateNoStore(w)
+	if r.Method!=http.MethodGet && r.Method!=http.MethodHead { w.Header().Set("Allow","GET, HEAD"); writeJSON(w,405,map[string]string{"error":"metodo no permitido"}); return }
 	sess, err := s.sess(r)
 	if err != nil {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
@@ -1603,8 +1606,8 @@ func (s *Server) handleInvoicePDF(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
-	id := r.URL.Query().Get("id")
-	if id == "" {
+	id := strings.TrimSpace(r.URL.Query().Get("id"))
+	if id=="" || len(id)>128 {
 		writeJSON(w, 400, map[string]string{"error": "falta id de factura"})
 		return
 	}
@@ -1625,11 +1628,9 @@ func (s *Server) handleInvoicePDF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := pdf.InvoicePDF(snap.Tenant, *inv)
-	filename := "factura-" + inv.Number + ".pdf"
-	w.Header().Set("Content-Type", "application/pdf")
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
-	w.WriteHeader(200)
-	_, _ = w.Write(data)
+	filename := "factura-" + safeDownloadFilenamePart(inv.Number) + ".pdf"
+	w.Header().Set("Content-Type","application/pdf"); w.Header().Set("Content-Disposition",mime.FormatMediaType("attachment",map[string]string{"filename":filename})); w.Header().Set("Content-Length",strconv.Itoa(len(data))); w.WriteHeader(200)
+	if r.Method!=http.MethodHead { _,_=w.Write(data) }
 }
 
 func (s *Server) servePWA(w http.ResponseWriter, r *http.Request) {

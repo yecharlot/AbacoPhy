@@ -7,6 +7,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"io"
+	"mime"
 	"strconv"
 	"strings"
 	"encoding/base64"
@@ -20,6 +21,20 @@ import (
 	"github.com/yecharlot/AbacoPhy/internal/pdf"
 	"github.com/yecharlot/AbacoPhy/internal/store"
 )
+
+func setPrivateNoStore(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store, private")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Vary", "Authorization, Cookie")
+}
+func safeDownloadFilenamePart(value string) string {
+	var b strings.Builder
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' { b.WriteRune(r) } else if b.Len() > 0 && !strings.HasSuffix(b.String(), "-") { b.WriteByte('-') }
+		if b.Len() >= 80 { break }
+	}
+	part := strings.Trim(b.String(), ".-_"); if part == "" { return "documento" }; return part
+}
 
 func (s *Server) audit(snap *domain.StoreSnapshot, sess *domain.TokenSession, action, detail, ref string) {
 	if snap == nil || sess == nil {
@@ -194,6 +209,7 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleBackups(w http.ResponseWriter, r *http.Request) {
+	setPrivateNoStore(w)
 	sess, err := s.sess(r)
 	if err != nil {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
@@ -241,6 +257,7 @@ func (s *Server) handleBackups(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleBackupRestore(w http.ResponseWriter, r *http.Request) {
+	setPrivateNoStore(w)
 	if r.Method != http.MethodPost {
 		writeJSON(w, 405, map[string]string{"error": "metodo no permitido"})
 		return
@@ -569,6 +586,8 @@ func (s *Server) handleErrors(w http.ResponseWriter, r *http.Request) {
 
 
 func (s *Server) handleReportPDF(w http.ResponseWriter, r *http.Request) {
+	setPrivateNoStore(w)
+	if r.Method!=http.MethodGet && r.Method!=http.MethodHead { w.Header().Set("Allow","GET, HEAD"); writeJSON(w,405,map[string]string{"error":"metodo no permitido"}); return }
 	sess, err := s.sess(r)
 	if err != nil {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
@@ -583,29 +602,32 @@ func (s *Server) handleReportPDF(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
 		return
 	}
-	kind := r.URL.Query().Get("kind") // situacion|rendimiento|ecuacion|cuenta_t
-	period := r.URL.Query().Get("period")
-	if period == "" {
-		period = "month"
-	}
+	kind := strings.TrimSpace(r.URL.Query().Get("kind")) // situacion|rendimiento|ecuacion|cuenta_t
+	if kind=="" { kind="ecuacion" }; switch kind { case "situacion","rendimiento","ecuacion","cuenta_t": default: writeJSON(w,400,map[string]string{"error":"tipo de informe no válido"}); return }
+	period := strings.TrimSpace(r.URL.Query().Get("period"))
+	if period=="" { period="month" }; switch period { case "week","month","quarter","year","all": default: writeJSON(w,400,map[string]string{"error":"periodo no válido"}); return }
 	if err := s.gateOp(sess, "cuentas_t", r.Method); err != nil {
 		writeJSON(w, 403, map[string]string{"error": "sin permiso"})
 		return
 	}
-	accountID := r.URL.Query().Get("account_id")
+	accountID := strings.TrimSpace(r.URL.Query().Get("account_id"))
+	if len(accountID)>128 { writeJSON(w,400,map[string]string{"error":"cuenta no válida"}); return }; if kind=="cuenta_t" && (accountID=="" || snap.Accounts[accountID]==nil) { writeJSON(w,400,map[string]string{"error":"cuenta requerida o no válida"}); return }
 	data, err := pdf.BuildReportPDF(snap, kind, period, accountID)
 	if err != nil {
-		writeJSON(w, 500, map[string]string{"error": err.Error()})
+		writeJSON(w, 500, map[string]string{"error": "no se pudo generar el informe"})
 		return
 	}
 	s.audit(snap, sess, "informe.exportacion_pdf", "Exportación PDF de informe · tipo "+kind+" · periodo "+period+" · negocio "+snap.Tenant.Name, kind)
 	_ = s.Store.Put(snap)
 	w.Header().Set("Content-Type", "application/pdf")
-	w.Header().Set("Content-Disposition", "attachment; filename=informe-"+kind+".pdf")
-	w.Write(data)
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment",map[string]string{"filename":"informe-"+kind+".pdf"}))
+	w.Header().Set("Content-Length",strconv.Itoa(len(data)))
+	w.WriteHeader(200)
+	if r.Method!=http.MethodHead { _,_=w.Write(data) }
 }
 
 func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
+	setPrivateNoStore(w)
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
 		return
@@ -627,9 +649,7 @@ func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 
 	// Evitar panics que cierran la conexión (Firefox: "No se ha conseguido recuperar")
 	defer func() {
-		if rec := recover(); rec != nil {
-			writeJSON(w, 500, map[string]string{"error": "panic en export: " + toString(rec)})
-		}
+		if recover()!=nil { writeJSON(w,500,map[string]string{"error":"no se pudo generar la exportación"}) }
 	}()
 
 	raw, err := json.MarshalIndent(snap, "", "  ")
@@ -672,15 +692,15 @@ func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 	// Por defecto JSON+base64 (SPA/CORS). Solo ?as=zip entrega binario.
 	if as == "zip" || as == "binary" {
 		w.Header().Set("Content-Type", "application/zip")
-		w.Header().Set("Content-Disposition", `attachment; filename="abacophy-salva.zip"`)
+		w.Header().Set("Content-Disposition",mime.FormatMediaType("attachment",map[string]string{"filename":"abacophy-salva.zip"}))
 		w.Header().Set("Content-Length", strconv.Itoa(len(out)))
-		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Cache-Control", "no-store, private")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(out)
 		return
 	}
 
-	writeJSON(w, 200, map[string]any{
+	payload := map[string]any{
 		"ok":           true,
 		"filename":     "abacophy-salva.zip",
 		"content_type": "application/zip",
@@ -688,7 +708,11 @@ func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 		"rev":          snap.Rev,
 		"root_cid":     snap.RootCID,
 		"data_base64":  base64.StdEncoding.EncodeToString(out),
-	})
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil { writeJSON(w,500,map[string]string{"error":"no se pudo generar la exportación"}); return }
+	w.Header().Set("Content-Type","application/json; charset=utf-8"); w.Header().Set("Content-Length",strconv.Itoa(len(encoded))); w.WriteHeader(200)
+	if r.Method!=http.MethodHead { _,_=w.Write(encoded) }
 }
 
 func toString(v any) string {
@@ -711,6 +735,7 @@ const (
 )
 
 func (s *Server) handleBackupImport(w http.ResponseWriter, r *http.Request) {
+	setPrivateNoStore(w)
 	sess, err := s.sess(r)
 	if err != nil {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
@@ -982,6 +1007,8 @@ func (s *Server) handleAccountsTAll(w http.ResponseWriter, r *http.Request) {
 
 
 func (s *Server) handlePayrollPDF(w http.ResponseWriter, r *http.Request) {
+	setPrivateNoStore(w)
+	if r.Method!=http.MethodGet && r.Method!=http.MethodHead { w.Header().Set("Allow","GET, HEAD"); writeJSON(w,405,map[string]string{"error":"metodo no permitido"}); return }
 	sess, err := s.sess(r)
 	if err != nil {
 		writeJSON(w, 401, map[string]string{"error": "no autorizado"})
@@ -996,10 +1023,8 @@ func (s *Server) handlePayrollPDF(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 404, map[string]string{"error": "no encontrado"})
 		return
 	}
-	period := r.URL.Query().Get("period")
-	if period == "" {
-		period = time.Now().Format("2006-01")
-	}
+	period := strings.TrimSpace(r.URL.Query().Get("period"))
+	if period=="" { period=time.Now().Format("2006-01") }; if period!="all" { layout:="2006-01"; if len(period)==4 { layout="2006" }; if _,err:=time.Parse(layout,period); err!=nil { writeJSON(w,400,map[string]string{"error":"periodo no válido"}); return } }
 	var slips []domain.Payslip
 	for _, p := range snap.Payslips {
 		if period == "all" || strings.HasPrefix(p.Period, period) || p.Period == period {
@@ -1017,8 +1042,8 @@ func (s *Server) handlePayrollPDF(w http.ResponseWriter, r *http.Request) {
 	s.audit(snap, sess, "nomina.exportacion_pdf", "Exportación PDF de nómina · periodo "+period+" · "+fmt.Sprintf("%d", len(slips))+" liquidaciones · negocio "+snap.Tenant.Name, period)
 	_ = s.Store.Put(snap)
 	w.Header().Set("Content-Type", "application/pdf")
-	w.Header().Set("Content-Disposition", "attachment; filename=nomina-"+period+".pdf")
-	w.Write(data)
+	w.Header().Set("Content-Disposition",mime.FormatMediaType("attachment",map[string]string{"filename":"nomina-"+safeDownloadFilenamePart(period)+".pdf"})); w.Header().Set("Content-Length",strconv.Itoa(len(data))); w.WriteHeader(200)
+	if r.Method!=http.MethodHead { _,_=w.Write(data) }
 }
 
 func (s *Server) handleMasterReset(w http.ResponseWriter, r *http.Request) {

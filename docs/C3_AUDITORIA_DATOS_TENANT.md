@@ -145,3 +145,18 @@ Cobertura añadida:
 
 **Alcance:** este bloque confirma mediante regresión automatizada que las superficies cubiertas no mezclan snapshots ni permiten consultar una factura ajena. No cierra todavía la revisión de métodos HTTP, cabeceras de caché, persistencia de auditoría, validación de parámetros ni límites de generación/streaming; esos puntos siguen pendientes en C3.6.3 y C3.6.4.
 
+
+
+### C3.6.3.1 — Métodos HTTP, cabeceras y validación de descargas
+
+**Estado:** implementación preparada en security-hardening; pendiente de CI.
+
+- Aplicar Cache-Control: no-store, private, Pragma: no-cache y Vary: Authorization, Cookie a respuestas sensibles y errores de backups, facturas, nómina e informes.
+- Limitar descargas PDF y exportación de backups a GET/HEAD; responder 405 con Allow: GET, HEAD para otros métodos.
+- Implementar HEAD sin cuerpo en PDFs y en las variantes ZIP/JSON de exportación.
+- Validar tipo y periodo de informe, identificador de cuenta, periodo de nómina e ID de factura.
+- Sanitizar componentes variables de nombres de archivo y construir Content-Disposition con mime.FormatMediaType.
+- No exponer valores de panic ni errores internos en las respuestas de exportación.
+- Incorporar regresiones HTTP para métodos, cabeceras y semántica HEAD.
+
+**Pendiente dentro de C3.6.3:** revisar compatibilidad de rutas PDF relacionadas y confirmar que los clientes no dependan de métodos o parámetros rechazados. La auditoría durable queda para C3.6.4.

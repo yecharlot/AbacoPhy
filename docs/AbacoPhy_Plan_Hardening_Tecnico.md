@@ -589,3 +589,13 @@ Ruta:
 - Proceso Go: LAN pasa la misma IP a `ABACOPHY_HOST` y `ABACOPHY_LAN_INTERFACE_IP`; LOCAL elimina la variable y vuelve a `127.0.0.1`.
 - Backend: crea dos listeners en modo LAN explícito: la IP seleccionada y `127.0.0.1`, ambos en el mismo puerto; mDNS queda limitado a la interfaz seleccionada.
 - CI Go, Launcher Desktop y Docker Image: correctos en `4988114`. Pendiente: ejecutar el build empaquetado y pruebas operativas LOCAL/LAN. La puntuación permanece en 55/100.
+
+
+### 2026-11-07 — C3.6.3.1: endurecimiento inicial de descargas
+
+- Se implementa caché privada/no-store para exportaciones y endpoints de backups.
+- Facturas, nómina, informes y exportación de backups limitan métodos a GET/HEAD.
+- Se validan parámetros de informe, periodos de nómina e identificadores de factura; los nombres de descarga se normalizan.
+- Las respuestas HEAD no incluyen cuerpo y los errores internos/panics no se reflejan literalmente al cliente.
+- Se añaden pruebas HTTP para 405, Allow, cabeceras no-store y HEAD.
+- Pendiente: CI y revisión de compatibilidad; C3.6.3 no se considera cerrado.
