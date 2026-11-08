@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -295,6 +296,9 @@ func TestBackupExportAcceptsBase64CompatibilityMode(t *testing.T) {
 	var payload struct { DataBase64 string `json:"data_base64"` }
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil { t.Fatal(err) }
 	if payload.DataBase64 == "" { t.Fatal("base64 compatibility response omitted data_base64") }
+	if got := rec.Header().Get("Content-Length"); got != strconv.Itoa(rec.Body.Len()) {
+		t.Fatalf("Content-Length=%q, actual body bytes=%d", got, rec.Body.Len())
+	}
 }
 
 
@@ -363,8 +367,9 @@ func TestExportLimitWriterRejectsOverflow(t *testing.T) {
 }
 
 func TestBackupExportRejectsOversizedSnapshot(t *testing.T) {
-	_, handler, token, tenantA, _ := exportIsolationFixture(t)
+	st, handler, token, tenantA, _ := exportIsolationFixture(t)
 	tenantA.Tenant.Name = strings.Repeat("X", maxBackupExportSnapshotBytes)
+	if err := st.Put(tenantA); err != nil { t.Fatal(err) }
 	rec := exportRequest(handler, http.MethodGet, "/api/v1/backups/export?as=zip", token)
 	if rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("oversized snapshot status=%d body=%s, want 413", rec.Code, rec.Body.String())
