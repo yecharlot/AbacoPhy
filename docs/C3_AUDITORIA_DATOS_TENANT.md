@@ -179,7 +179,7 @@ Cobertura añadida:
 - Store.AppendAudit toma el lock del almacén, copia la versión vigente del tenant, agrega el evento con retención limitada y persiste mediante putLocked; evita que el handler reescriba una copia antigua obtenida antes de construir el documento.
 - Los requests HEAD también se auditan como solicitudes de exportación, aunque no reciban cuerpo.
 - Pruebas HTTP verifican evento durable en los cuatro endpoints y fallo cerrado cuando el filesystem impide persistir la auditoría.
-- C3.6.4 queda pendiente de CI Go Linux/Windows, Docker Image y Launcher Desktop.
+- C3.6.4 validado por el usuario el 2026-11-07; cerrado.
 
 
 ### 2026-11-07 — C3.6.5: límites y generación acotada de exportaciones (en curso)
