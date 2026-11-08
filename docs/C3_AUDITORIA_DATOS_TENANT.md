@@ -182,10 +182,20 @@ Cobertura añadida:
 - C3.6.4 validado por el usuario el 2026-11-07; cerrado.
 
 
-### 2026-11-07 — C3.6.5: límites y generación acotada de exportaciones (en curso)
+### C3.6.5 — Límites y generación acotada de exportaciones
 
 - Backups: el JSON ya persistido bajo el CID del tenant se abre con descriptor confinado y se copia directamente al ZIP; no se vuelve a serializar el snapshot. El ZIP se genera en un temporal privado (CreateTemp, permisos restrictivos) y se elimina al terminar.
 - Se limita el snapshot JSON y el archivo ZIP a 32 MiB cada uno. La exportación base64 se transmite incrementalmente y no materializa otra copia base64 en RAM. Los límites se verifican antes de iniciar la respuesta.
 - PDF: límite de 2.000 registros, 1.024 bytes por campo textual y 8 MiB por documento. Se rechazan documentos que exceden el presupuesto con HTTP 413.
 - Se añaden pruebas de límites del escritor, snapshot excesivo y validación de datos PDF.
 - Pruebas de límites, errores y limpieza temporal completadas. CI Go Linux/Windows, Docker Image y Launcher Desktop: success en el commit `d2879ba2c3f4c9ad6594a2c873433f6c8f26f9f8`. C3.6.5 queda implementado y validado por CI; pendiente únicamente la validación funcional del usuario.
+
+
+### Revisión final de C3.6 — 2026-11-08
+
+- Revisión estática de las cuatro rutas sensibles (facturas, nómina, informes y backups): autenticación y permisos antes de la entrega; selección tenant-scoped; respuestas privadas/no-store; métodos GET/HEAD; auditoría fail-closed antes de emitir el contenido; límites de generación antes de enviar cabeceras.
+- Revisión de exportación de backups: snapshot persistido abierto mediante descriptor confinado, ZIP temporal privado, límite de snapshot y ZIP de 32 MiB, eliminación del temporal y entrega binaria/base64 mediante streaming. La prueba automatizada comprueba ZIP base64 y Content-Length; el usuario aún debe validar el flujo en su instalación.
+- Hallazgo corregido durante la revisión: el límite de 1.024 bytes no cubría todos los campos de texto realmente impresos en PDF (moneda del tenant en factura; tipo de cuenta, tipo de operación y CID en informes). Se amplió la validación y se añadieron regresiones específicas.
+- Los límites PDF son 2.000 registros, 1.024 bytes por campo textual validado y 8 MiB por documento. La generación sigue construyendo el PDF en memoria, pero queda acotada por los límites de registros/campos y tamaño final; no se afirma streaming de PDFs.
+- El despliegue operativo es de una sola empresa. Se mantienen tests tenant-scoped automatizados, sin exigir validación manual multiempresa.
+- **Estado de la revisión de código:** sin bloqueantes conocidos tras la corrección anterior. C3.6.5 y C3.6 completo siguen pendientes únicamente de validación funcional de C3.6.5 por el usuario.

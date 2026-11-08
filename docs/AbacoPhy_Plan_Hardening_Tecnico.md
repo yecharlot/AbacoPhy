@@ -231,7 +231,7 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 - [x] C3.3 — Endurecer permisos; usar operaciones de filesystem confinadas con os.Root; verificar carreras de sustitución y validar compatibilidad Linux/Windows (completado; CI Go Linux/Windows, Docker y Launcher Desktop correctos).
 - [x] C3.4 — CERRADO: revalidación de sesión SSE, revocación, aislamiento tenant-scoped y concurrencia cubiertos por pruebas automatizadas; CI Go Linux/Windows, Docker y Launcher Desktop correctos. El despliegue actual es de una sola empresa, por lo que la prueba manual con dos empresas no aplica. Si se habilita un despliegue multiempresa, se deberá validar ese escenario antes de ponerlo en producción.
 - [x] C3.5: auditar operaciones administrativas globales; listado solo GET, creación y reset reservados a master, unicidad global de slug/usernames atómica, alta y reset global auditados, y pruebas negativas/concurrencia añadidas. CI Go Linux/Windows, Docker y Launcher Desktop: success (commit de código `6573e21a3ad1a2ae6d4714fb53baeaa3cfe11d39`).
-- [ ] Añadir pruebas automatizadas de acceso cruzado y regresión.
+- [x] Añadir pruebas automatizadas de acceso cruzado y regresión (C3.6.2, `internal/api/export_isolation_test.go`).
 
 **Estado C3:** C3.1 y C3.2 comprobados por el usuario. C3.3 completado y marcado OK: filesystem confinado con `os.Root` (Go 1.24), permisos privados, validación de componentes de ruta, verificación de identidad de directorios/archivos y protección de `ResetAll()` frente a sustitución de directorios. CI Go Linux/Windows, Docker y Launcher Desktop correctos en el commit `3f570610df18087f9019e90a75cba2865e166689`. Los tests de symlink pueden omitirse en Windows cuando el runner no dispone de privilegios para crearlos.
 
@@ -614,19 +614,19 @@ Ruta:
 - C3.6.3 queda cerrado. C3.6.4 (auditoría durable) y C3.6.5 (límites, memoria y streaming) continúan abiertos.
 
 
-### 2026-11-07 — C3.6.4: auditoría durable de exportaciones
+### 2026-11-07 — C3.6.4: auditoría durable de exportaciones (CERRADO)
 
 - Se añade Store.AppendAudit, que agrega el evento al snapshot vigente bajo lock, aplica retención y persiste con putLocked antes de publicarlo en memoria.
 - Facturas, nómina, informes y exportaciones ZIP/JSON de backups aplican fail-closed; si la auditoría no se puede persistir, responden 500 y no entregan contenido.
 - Se incorpora evento específico para exportación PDF de factura. GET y HEAD quedan registrados como solicitudes de exportación.
 - Pruebas HTTP cubren persistencia de eventos en los cuatro endpoints y fallo de persistencia del filesystem.
-- CI pendiente; no marcar C3.6.4 cerrado hasta verificar los tres workflows.
+- C3.6.4 validado por el usuario el 2026-11-07 y cerrado.
 
 
-### 2026-11-07 — C3.6.5: límites de tamaño y consumo de memoria (en curso)
+### 2026-11-07 — C3.6.5: límites de tamaño y generación acotada (implementado; validación funcional pendiente)
 
-- Backups reutilizan el JSON ya persistido en el CID actual del tenant, abierto mediante descriptor confinado, y lo copian directamente al ZIP temporal; se evita reconstruir el snapshot y mantener ZIP/base64 completos simultáneamente en RAM.
-- Límites iniciales: snapshot JSON 32 MiB, ZIP final 32 MiB; respuesta base64 se transmite por streaming.
-- PDFs: máximo 2.000 registros, 1.024 bytes por campo textual y 8 MiB por documento.
-- Se rechazan excesos antes de enviar cabeceras o contenido (HTTP 413); las pruebas y CI quedan pendientes de verificación.
-- C3.6.4 se marca cerrado tras confirmación del usuario.
+- Backups reutilizan el JSON persistido del CID actual mediante descriptor confinado, lo copian al ZIP temporal privado y eliminan el temporal al finalizar. Snapshot JSON y ZIP final limitados a 32 MiB.
+- Las respuestas ZIP binarias y JSON+base64 se transmiten desde el temporal; base64 usa encoder streaming y Content-Length calculado.
+- PDFs: máximo 2.000 registros, 1.024 bytes por cada campo textual emitido/validado y 8 MiB por documento. La generación PDF es en memoria, acotada por los límites anteriores y el máximo final.
+- Los excesos se rechazan con HTTP 413 antes de emitir cabeceras/contenido. Las pruebas cubren exceso de registros, campos, tamaño final y limpieza del temporal.
+- CI Go Linux/Windows, Docker Image y Launcher Desktop: success en el commit de código `d2879ba2c3f4c9ad6594a2c873433f6c8f26f9f8`. C3.6.5 pendiente únicamente de validación funcional del usuario.

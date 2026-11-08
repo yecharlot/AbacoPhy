@@ -26,7 +26,7 @@ func ValidateInvoiceExport(tenant domain.Tenant, inv domain.Invoice) error {
 	for label, value := range map[string]string{
 		"nombre del negocio": tenant.Name, "nombre comercial": tenant.TradeName,
 		"identificación fiscal": tenant.TaxID, "dirección": tenant.Address,
-		"teléfono": tenant.Phone, "número de factura": inv.Number,
+		"teléfono": tenant.Phone, "moneda del negocio": tenant.Currency, "número de factura": inv.Number,
 		"fecha": inv.IssuedAt, "cliente": inv.ClientName, "documento del cliente": inv.ClientTax,
 		"estado": inv.Status, "CID": inv.CID, "moneda": inv.Currency,
 	} {
@@ -61,7 +61,7 @@ func validateReportExport(snap *domain.StoreSnapshot) error {
 	}
 	for label, value := range map[string]string{
 		"nombre del negocio": snap.Tenant.Name, "slug": snap.Tenant.Slug,
-		"moneda": snap.Tenant.Currency,
+		"moneda": snap.Tenant.Currency, "CID": snap.RootCID,
 	} {
 		if err := validatePDFField(label, value); err != nil { return err }
 	}
@@ -69,11 +69,13 @@ func validateReportExport(snap *domain.StoreSnapshot) error {
 		if account == nil { continue }
 		if err := validatePDFField("código de cuenta", account.Code); err != nil { return err }
 		if err := validatePDFField("nombre de cuenta", account.Name); err != nil { return err }
+		if err := validatePDFField("tipo de cuenta", account.Type); err != nil { return err }
 	}
 	for _, entry := range snap.Entries {
 		if err := validatePDFField("descripción de operación", entry.Description); err != nil { return err }
 		if err := validatePDFField("fecha de operación", entry.Date); err != nil { return err }
 		if err := validatePDFField("moneda de operación", entry.Currency); err != nil { return err }
+		if err := validatePDFField("tipo de operación", entry.Type); err != nil { return err }
 	}
 	return nil
 }

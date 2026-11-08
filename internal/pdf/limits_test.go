@@ -17,6 +17,9 @@ func TestValidateInvoiceExportEnforcesLineAndFieldLimits(t *testing.T) {
 	if err := ValidateInvoiceExport(domain.Tenant{}, inv); err == nil {
 		t.Fatal("expected invoice field limit error")
 	}
+	if err := ValidateInvoiceExport(domain.Tenant{Currency: strings.Repeat("x", MaxPDFExportFieldBytes+1)}, domain.Invoice{}); err == nil {
+		t.Fatal("expected tenant currency field limit error")
+	}
 }
 
 func TestValidatePayrollExportEnforcesRecordAndFieldLimits(t *testing.T) {
@@ -38,4 +41,22 @@ func TestBuildReportPDFRejectsExcessiveRecordCount(t *testing.T) {
 	if _, err := BuildReportPDF(snap, "rendimiento", "all", ""); err == nil {
 		t.Fatal("expected report record limit error")
 	}
+}
+
+func TestBuildReportPDFValidatesEveryPrintedTextField(t *testing.T) {
+	t.Run("entry type", func(t *testing.T) {
+		snap := domain.BootstrapTenant("PDF limits", "pdf-limits", "CUP")
+		snap.Entries = []domain.Entry{{Type: strings.Repeat("x", MaxPDFExportFieldBytes+1)}}
+		if _, err := BuildReportPDF(snap, "rendimiento", "all", ""); err == nil { t.Fatal("expected entry type limit error") }
+	})
+	t.Run("account type", func(t *testing.T) {
+		snap := domain.BootstrapTenant("PDF limits", "pdf-limits", "CUP")
+		snap.Accounts["long-type"] = &domain.Account{ID: "long-type", Type: strings.Repeat("x", MaxPDFExportFieldBytes+1)}
+		if _, err := BuildReportPDF(snap, "situacion", "all", ""); err == nil { t.Fatal("expected account type limit error") }
+	})
+	t.Run("root CID", func(t *testing.T) {
+		snap := domain.BootstrapTenant("PDF limits", "pdf-limits", "CUP")
+		snap.RootCID = strings.Repeat("x", MaxPDFExportFieldBytes+1)
+		if _, err := BuildReportPDF(snap, "ecuacion", "all", ""); err == nil { t.Fatal("expected root CID limit error") }
+	})
 }
