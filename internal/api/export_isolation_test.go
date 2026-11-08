@@ -404,3 +404,32 @@ func TestPDFExportEndpointsRejectExcessiveRecords(t *testing.T) {
 		if bytes.Contains(rec.Body.Bytes(), []byte("%PDF-")) { t.Fatal("oversized report PDF was returned") }
 	})
 }
+
+
+func TestBuildBackupExportFileCleansTemporaryOnFailure(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("TMPDIR", tempDir)
+	t.Setenv("TMP", tempDir)
+	t.Setenv("TEMP", tempDir)
+	_, _, err := buildBackupExportFile(strings.NewReader("{"), 2, "meta")
+	if err == nil { t.Fatal("expected truncated snapshot source to fail") }
+	entries, readErr := os.ReadDir(tempDir)
+	if readErr != nil { t.Fatal(readErr) }
+	if len(entries) != 0 { t.Fatalf("temporary ZIP leaked after failure: %#v", entries) }
+}
+
+func TestBuildBackupExportFileUsesPrivateTemporary(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("TMPDIR", tempDir)
+	t.Setenv("TMP", tempDir)
+	t.Setenv("TEMP", tempDir)
+	tmp, size, err := buildBackupExportFile(strings.NewReader("{}"), 2, "meta")
+	if err != nil { t.Fatal(err) }
+	name := tmp.Name()
+	defer os.Remove(name)
+	defer tmp.Close()
+	info, err := tmp.Stat()
+	if err != nil { t.Fatal(err) }
+	if info.Mode().Perm() != 0600 { t.Fatalf("temporary permissions=%04o, want 0600", info.Mode().Perm()) }
+	if size != info.Size() || size == 0 { t.Fatalf("reported size=%d, file size=%d", size, info.Size()) }
+}
