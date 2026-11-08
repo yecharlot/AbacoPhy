@@ -6,6 +6,8 @@ import (
  "os"
  "path/filepath"
  "strings"
+
+ "github.com/yecharlot/AbacoPhy/internal/domain"
 )
 
 func validStorageName(name string) bool {
@@ -131,4 +133,40 @@ func writePrivateFileAtomic(dir, name string, data []byte) error {
  if _, err := f.Seek(0, io.SeekStart); err != nil { return err }
  if _, err := f.Write(data); err != nil { return err }
  return f.Sync()
+}
+
+
+// OpenTenantSnapshotJSON opens the persisted JSON snapshot for the tenant's
+// current CID. The descriptor is validated against the confined cids root and
+// remains safe to stream after the root handle is closed.
+func (s *Store) OpenTenantSnapshotJSON(tenantID string) (*os.File, int64, *domain.StoreSnapshot, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	snap := s.tenants[tenantID]
+	if snap == nil || tenantID == "" || snap.RootCID == "" {
+		return nil, 0, nil, fmt.Errorf("snapshot tenant no encontrado")
+	}
+	name := snap.RootCID + ".json"
+	if err := validatePrivateFilename(name); err != nil {
+		return nil, 0, nil, err
+	}
+	root, err := openRootForPath(filepath.Join(s.dataDir, "cids"))
+	if err != nil { return nil, 0, nil, err }
+	defer root.Close()
+	before, err := root.Lstat(name)
+	if err != nil { return nil, 0, nil, err }
+	if before.Mode()&os.ModeSymlink != 0 || !before.Mode().IsRegular() {
+		return nil, 0, nil, fmt.Errorf("snapshot CID no regular o symlink")
+	}
+	file, err := root.OpenFile(name, os.O_RDONLY, 0)
+	if err != nil { return nil, 0, nil, err }
+	opened, err := file.Stat()
+	if err != nil { _ = file.Close(); return nil, 0, nil, err }
+	after, err := root.Lstat(name)
+	if err != nil || after.Mode()&os.ModeSymlink != 0 || !after.Mode().IsRegular() || !os.SameFile(opened, after) {
+		_ = file.Close()
+		return nil, 0, nil, fmt.Errorf("snapshot CID cambió durante su apertura")
+	}
+	if err := file.Chmod(0600); err != nil { _ = file.Close(); return nil, 0, nil, err }
+	return file, opened.Size(), snap, nil
 }

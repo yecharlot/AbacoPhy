@@ -687,32 +687,29 @@ func (w *exportLimitWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
-// buildBackupExportFile serializa JSON y ZIP directamente a un temporal privado.
-// No mantiene simultáneamente snapshot JSON, ZIP y base64 en memoria.
-func buildBackupExportFile(snap *domain.StoreSnapshot) (*os.File, int64, error) {
+// buildBackupExportFile comprime el JSON persistido del CID directamente al
+// temporal ZIP. No vuelve a serializar el snapshot ni mantiene ZIP/base64 en RAM.
+func buildBackupExportFile(snapshotJSON io.Reader, snapshotSize int64, metaText string) (*os.File, int64, error) {
+	if snapshotSize < 0 || snapshotSize > maxBackupExportSnapshotBytes || len(metaText) > 4096 {
+		return nil, 0, errExportLimitExceeded
+	}
 	tmp, err := os.CreateTemp("", "abacophy-backup-export-*.zip")
 	if err != nil { return nil, 0, err }
 	ok := false
-	defer func() {
-		if !ok { _ = tmp.Close(); _ = os.Remove(tmp.Name()) }
-	}()
+	defer func() { if !ok { _ = tmp.Close(); _ = os.Remove(tmp.Name()) } }()
 
 	archiveOut := &exportLimitWriter{writer: tmp, remaining: maxBackupExportArchiveBytes}
 	zw := zip.NewWriter(archiveOut)
 	entry, err := zw.Create(backupSnapshotArchiveEntry)
 	if err != nil { _ = zw.Close(); return nil, 0, err }
-	jsonOut := &exportLimitWriter{writer: entry, remaining: maxBackupExportSnapshotBytes}
-	encoder := json.NewEncoder(jsonOut)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(snap); err != nil { _ = zw.Close(); return nil, 0, err }
-
-	metaText := "AbacoPhy salva\nNegocio: " + snap.Tenant.Name + "\nCID: " + snap.RootCID + "\nRev: " + strconv.FormatInt(snap.Rev, 10) + "\n"
-	if len(metaText) > 4096 { _ = zw.Close(); return nil, 0, errExportLimitExceeded }
+	if _, err := io.CopyN(entry, snapshotJSON, snapshotSize); err != nil {
+		_ = zw.Close()
+		return nil, 0, err
+	}
 	meta, err := zw.Create("meta.txt")
 	if err != nil { _ = zw.Close(); return nil, 0, err }
 	if _, err := io.WriteString(meta, metaText); err != nil { _ = zw.Close(); return nil, 0, err }
 	if err := zw.Close(); err != nil { return nil, 0, err }
-
 	info, err := tmp.Stat()
 	if err != nil { return nil, 0, err }
 	if _, err := tmp.Seek(0, io.SeekStart); err != nil { return nil, 0, err }
@@ -730,16 +727,20 @@ func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 	sess, err := s.sess(r)
 	if err != nil { writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "no autorizado"}); return }
 	if err := s.gateOp(sess, "salvas", r.Method); err != nil { writeGateError(w, err); return }
-	snap := s.Store.Get(sess.TenantID)
-	if snap == nil { writeJSON(w, http.StatusNotFound, map[string]string{"error": "no encontrado"}); return }
-
 	as := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("as")))
 	if as != "" && as != "zip" && as != "binary" && as != "base64" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "formato de exportación no válido"})
 		return
 	}
 
-	tmp, size, err := buildBackupExportFile(snap)
+	snapshotJSON, snapshotSize, snap, err := s.Store.OpenTenantSnapshotJSON(sess.TenantID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "no se pudo abrir la salva actual"})
+		return
+	}
+	defer snapshotJSON.Close()
+	metaText := "AbacoPhy salva\nNegocio: " + snap.Tenant.Name + "\nCID: " + snap.RootCID + "\nRev: " + strconv.FormatInt(snap.Rev, 10) + "\n"
+	tmp, size, err := buildBackupExportFile(snapshotJSON, snapshotSize, metaText)
 	if err != nil {
 		if errors.Is(err, errExportLimitExceeded) {
 			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "la salva supera el tamaño máximo de exportación"})

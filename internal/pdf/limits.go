@@ -28,7 +28,7 @@ func ValidateInvoiceExport(tenant domain.Tenant, inv domain.Invoice) error {
 		"identificación fiscal": tenant.TaxID, "dirección": tenant.Address,
 		"teléfono": tenant.Phone, "número de factura": inv.Number,
 		"fecha": inv.IssuedAt, "cliente": inv.ClientName, "documento del cliente": inv.ClientTax,
-		"moneda": inv.Currency,
+		"estado": inv.Status, "CID": inv.CID, "moneda": inv.Currency,
 	} {
 		if err := validatePDFField(label, value); err != nil { return err }
 	}

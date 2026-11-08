@@ -1,6 +1,7 @@
 package pdf
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -32,7 +33,7 @@ func TestValidatePayrollExportEnforcesRecordAndFieldLimits(t *testing.T) {
 func TestBuildReportPDFRejectsExcessiveRecordCount(t *testing.T) {
 	snap := domain.BootstrapTenant("PDF limits", "pdf-limits", "CUP")
 	for i := 0; i <= MaxPDFExportRecords; i++ {
-		snap.Entries = append(snap.Entries, domain.Entry{ID: "entry-" + string(rune(i)), Description: "test"})
+		snap.Entries = append(snap.Entries, domain.Entry{ID: fmt.Sprintf("entry-%d", i), Description: "test"})
 	}
 	if _, err := BuildReportPDF(snap, "rendimiento", "all", ""); err == nil {
 		t.Fatal("expected report record limit error")

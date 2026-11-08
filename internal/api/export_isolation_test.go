@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -371,4 +372,30 @@ func TestBackupExportRejectsOversizedSnapshot(t *testing.T) {
 	if rec.Header().Get("Cache-Control") != "no-store, private" {
 		t.Fatalf("Cache-Control=%q", rec.Header().Get("Cache-Control"))
 	}
+}
+
+
+func TestPDFExportEndpointsRejectExcessiveRecords(t *testing.T) {
+	t.Run("invoice", func(t *testing.T) {
+		_, handler, token, tenant, _ := exportIsolationFixture(t)
+		tenant.Invoices[0].Lines = make([]domain.InvoiceLine, 2001)
+		rec := exportRequest(handler, http.MethodGet, "/api/v1/invoices/pdf?id=local-invoice-id", token)
+		if rec.Code != http.StatusRequestEntityTooLarge { t.Fatalf("status=%d body=%s, want 413", rec.Code, rec.Body.String()) }
+		if bytes.Contains(rec.Body.Bytes(), []byte("%PDF-")) { t.Fatal("oversized invoice PDF was returned") }
+	})
+	t.Run("payroll", func(t *testing.T) {
+		_, handler, token, tenant, _ := exportIsolationFixture(t)
+		tenant.Payslips = make([]domain.Payslip, 2001)
+		for i := range tenant.Payslips { tenant.Payslips[i].Period = "2026-11" }
+		rec := exportRequest(handler, http.MethodGet, "/api/v1/payroll/pdf?period=all", token)
+		if rec.Code != http.StatusRequestEntityTooLarge { t.Fatalf("status=%d body=%s, want 413", rec.Code, rec.Body.String()) }
+		if bytes.Contains(rec.Body.Bytes(), []byte("%PDF-")) { t.Fatal("oversized payroll PDF was returned") }
+	})
+	t.Run("report", func(t *testing.T) {
+		_, handler, token, tenant, _ := exportIsolationFixture(t)
+		tenant.Entries = make([]domain.Entry, 2001)
+		rec := exportRequest(handler, http.MethodGet, "/api/v1/reports/pdf?kind=rendimiento&period=all", token)
+		if rec.Code != http.StatusRequestEntityTooLarge { t.Fatalf("status=%d body=%s, want 413", rec.Code, rec.Body.String()) }
+		if bytes.Contains(rec.Body.Bytes(), []byte("%PDF-")) { t.Fatal("oversized report PDF was returned") }
+	})
 }
