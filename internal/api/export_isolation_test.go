@@ -348,3 +348,27 @@ func TestSensitiveExportFailsClosedWhenAuditCannotBePersisted(t *testing.T) {
 		}
 	}
 }
+
+
+// TestExportLimitWriterRejectsOverflow verifies the writer stops at its byte budget.
+func TestExportLimitWriterRejectsOverflow(t *testing.T) {
+	var dst bytes.Buffer
+	writer := &exportLimitWriter{writer: &dst, remaining: 4}
+	if _, err := writer.Write([]byte("1234")); err != nil { t.Fatalf("exact limit: %v", err) }
+	if _, err := writer.Write([]byte("5")); !errors.Is(err, errExportLimitExceeded) {
+		t.Fatalf("overflow error=%v, want errExportLimitExceeded", err)
+	}
+	if dst.String() != "1234" { t.Fatalf("written=%q, want 1234", dst.String()) }
+}
+
+func TestBackupExportRejectsOversizedSnapshot(t *testing.T) {
+	_, handler, token, tenantA, _ := exportIsolationFixture(t)
+	tenantA.Tenant.Name = strings.Repeat("X", maxBackupExportSnapshotBytes)
+	rec := exportRequest(handler, http.MethodGet, "/api/v1/backups/export?as=zip", token)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversized snapshot status=%d body=%s, want 413", rec.Code, rec.Body.String())
+	}
+	if rec.Header().Get("Cache-Control") != "no-store, private" {
+		t.Fatalf("Cache-Control=%q", rec.Header().Get("Cache-Control"))
+	}
+}

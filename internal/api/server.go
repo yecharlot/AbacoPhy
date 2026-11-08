@@ -1627,7 +1627,15 @@ func (s *Server) handleInvoicePDF(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 404, map[string]string{"error": "factura no encontrada"})
 		return
 	}
+	if err := pdf.ValidateInvoiceExport(snap.Tenant, *inv); err != nil {
+		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "la factura supera los límites de exportación"})
+		return
+	}
 	data := pdf.InvoicePDF(snap.Tenant, *inv)
+	if len(data) > pdf.MaxPDFExportBytes {
+		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "el PDF supera el tamaño máximo permitido"})
+		return
+	}
 	if err := s.recordExportAudit(snap, sess, "factura.exportacion_pdf", "Exportación PDF de factura · "+inv.Number+" · negocio "+snap.Tenant.Name, inv.ID); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "no se pudo registrar la exportación"})
 		return

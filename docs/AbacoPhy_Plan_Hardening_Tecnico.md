@@ -222,7 +222,7 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 
 ## C3. Auditoría de datos y operaciones entre tenants
 
-- [ ] Revisar archivos, documentos, exportaciones y descargas por tenant (C3.6 completo permanece abierto hasta cerrar límites/rendimiento; C3.6.4 implementado y pendiente CI).
+- [ ] Revisar archivos, documentos, exportaciones y descargas por tenant (C3.6 completo permanece abierto hasta cerrar límites/rendimiento; C3.6.4 validado por el usuario; C3.6.5 en curso).
 - [x] C3.6.3 — Métodos HTTP, cabeceras privadas/no-store, validación de parámetros, nombres de archivo seguros y semántica HEAD en descargas; CI Go Linux/Windows, Docker y Launcher Desktop: success (código `99ecb929b869be5a83550c89663566bf3131037f`).
 - [x] C3.1 — Endurecer importación de backups contra límites multipart y expansión ZIP (cerrado; pruebas CI confirmadas por el usuario).
 - [x] C3.2 — Verificar CID antes de restaurar, preservar historial y fallar de forma segura ante errores de persistencia (comprobado por el usuario; CI Go, Docker y Launcher Desktop correctos).
@@ -619,3 +619,12 @@ Ruta:
 - Se incorpora evento específico para exportación PDF de factura. GET y HEAD quedan registrados como solicitudes de exportación.
 - Pruebas HTTP cubren persistencia de eventos en los cuatro endpoints y fallo de persistencia del filesystem.
 - CI pendiente; no marcar C3.6.4 cerrado hasta verificar los tres workflows.
+
+
+### 2026-11-07 — C3.6.5: límites de tamaño y consumo de memoria (en curso)
+
+- Backups se serializan con json.Encoder directamente dentro del ZIP, que se escribe a un archivo temporal privado y acotado; se evita mantener JSON, ZIP y base64 completos simultáneamente en RAM.
+- Límites iniciales: snapshot JSON 32 MiB, ZIP final 32 MiB; respuesta base64 se transmite por streaming.
+- PDFs: máximo 2.000 registros, 1.024 bytes por campo textual y 8 MiB por documento.
+- Se rechazan excesos antes de enviar cabeceras o contenido (HTTP 413); las pruebas y CI quedan pendientes de verificación.
+- C3.6.4 se marca cerrado tras confirmación del usuario.

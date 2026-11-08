@@ -12,6 +12,9 @@ func BuildReportPDF(snap *domain.StoreSnapshot, kind, period, accountID string) 
 	if snap == nil {
 		return nil, fmt.Errorf("sin datos")
 	}
+	if err := validateReportExport(snap); err != nil {
+		return nil, err
+	}
 	t := snap.Tenant
 	base := t.Currency
 	if base == "" {
@@ -91,7 +94,11 @@ func BuildReportPDF(snap *domain.StoreSnapshot, kind, period, accountID string) 
 	if snap.RootCID != "" {
 		lines = append(lines, "CID: "+snap.RootCID)
 	}
-	return buildTextPDF(lines), nil
+	data := buildTextPDF(lines)
+	if len(data) > MaxPDFExportBytes {
+		return nil, fmt.Errorf("el informe supera el tamaño máximo permitido")
+	}
+	return data, nil
 }
 
 func periodLabel(p string) string {

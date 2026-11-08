@@ -1,18 +1,19 @@
 package api
 
 import (
-	"errors"
-	"sort"
-	"fmt"
 	"archive/zip"
 	"bytes"
-	"io"
-	"mime"
-	"strconv"
-	"strings"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"mime"
 	"net/http"
+	"os"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -633,7 +634,15 @@ func (s *Server) handleReportPDF(w http.ResponseWriter, r *http.Request) {
 	if len(accountID)>128 { writeJSON(w,400,map[string]string{"error":"cuenta no válida"}); return }; if kind=="cuenta_t" && (accountID=="" || snap.Accounts[accountID]==nil) { writeJSON(w,400,map[string]string{"error":"cuenta requerida o no válida"}); return }
 	data, err := pdf.BuildReportPDF(snap, kind, period, accountID)
 	if err != nil {
-		writeJSON(w, 500, map[string]string{"error": "no se pudo generar el informe"})
+		if strings.Contains(err.Error(), "máximo") || strings.Contains(err.Error(), "tamaño máximo") {
+			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "el informe supera los límites de exportación"})
+		} else {
+			writeJSON(w, 500, map[string]string{"error": "no se pudo generar el informe"})
+		}
+		return
+	}
+	if len(data) > pdf.MaxPDFExportBytes {
+		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "el PDF supera el tamaño máximo permitido"})
 		return
 	}
 	if err := s.recordExportAudit(snap, sess, "informe.exportacion_pdf", "Exportación PDF de informe · tipo "+kind+" · periodo "+period+" · negocio "+snap.Tenant.Name, kind); err != nil {
@@ -645,6 +654,70 @@ func (s *Server) handleReportPDF(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length",strconv.Itoa(len(data)))
 	w.WriteHeader(200)
 	if r.Method!=http.MethodHead { _,_=w.Write(data) }
+}
+
+const (
+	maxBackupExportSnapshotBytes = 32 << 20
+	maxBackupExportArchiveBytes  = 32 << 20
+)
+
+var errExportLimitExceeded = errors.New("export size limit exceeded")
+
+type exportLimitWriter struct {
+	writer    io.Writer
+	remaining int64
+}
+
+func (w *exportLimitWriter) Write(p []byte) (int, error) {
+	if int64(len(p)) > w.remaining {
+		allowed := w.remaining
+		if allowed < 0 { allowed = 0 }
+		n := 0
+		if allowed > 0 {
+			written, err := w.writer.Write(p[:int(allowed)])
+			n += written
+			w.remaining -= int64(written)
+			if err != nil { return n, err }
+			if int64(written) != allowed { return n, io.ErrShortWrite }
+		}
+		return n, errExportLimitExceeded
+	}
+	n, err := w.writer.Write(p)
+	w.remaining -= int64(n)
+	return n, err
+}
+
+// buildBackupExportFile serializa JSON y ZIP directamente a un temporal privado.
+// No mantiene simultáneamente snapshot JSON, ZIP y base64 en memoria.
+func buildBackupExportFile(snap *domain.StoreSnapshot) (*os.File, int64, error) {
+	tmp, err := os.CreateTemp("", "abacophy-backup-export-*.zip")
+	if err != nil { return nil, 0, err }
+	ok := false
+	defer func() {
+		if !ok { _ = tmp.Close(); _ = os.Remove(tmp.Name()) }
+	}()
+
+	archiveOut := &exportLimitWriter{writer: tmp, remaining: maxBackupExportArchiveBytes}
+	zw := zip.NewWriter(archiveOut)
+	entry, err := zw.Create(backupSnapshotArchiveEntry)
+	if err != nil { _ = zw.Close(); return nil, 0, err }
+	jsonOut := &exportLimitWriter{writer: entry, remaining: maxBackupExportSnapshotBytes}
+	encoder := json.NewEncoder(jsonOut)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(snap); err != nil { _ = zw.Close(); return nil, 0, err }
+
+	metaText := "AbacoPhy salva\nNegocio: " + snap.Tenant.Name + "\nCID: " + snap.RootCID + "\nRev: " + strconv.FormatInt(snap.Rev, 10) + "\n"
+	if len(metaText) > 4096 { _ = zw.Close(); return nil, 0, errExportLimitExceeded }
+	meta, err := zw.Create("meta.txt")
+	if err != nil { _ = zw.Close(); return nil, 0, err }
+	if _, err := io.WriteString(meta, metaText); err != nil { _ = zw.Close(); return nil, 0, err }
+	if err := zw.Close(); err != nil { return nil, 0, err }
+
+	info, err := tmp.Stat()
+	if err != nil { return nil, 0, err }
+	if _, err := tmp.Seek(0, io.SeekStart); err != nil { return nil, 0, err }
+	ok = true
+	return tmp, info.Size(), nil
 }
 
 func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
@@ -665,25 +738,17 @@ func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "formato de exportación no válido"})
 		return
 	}
-	defer func() {
-		if recover() != nil {
+
+	tmp, size, err := buildBackupExportFile(snap)
+	if err != nil {
+		if errors.Is(err, errExportLimitExceeded) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "la salva supera el tamaño máximo de exportación"})
+		} else {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "no se pudo generar la exportación"})
 		}
-	}()
-
-	raw, err := json.MarshalIndent(snap, "", "  ")
-	if err != nil { writeJSON(w, 500, map[string]string{"error": "no se pudo generar la exportación"}); return }
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-	entry, err := zw.Create(backupSnapshotArchiveEntry)
-	if err != nil { writeJSON(w, 500, map[string]string{"error": "no se pudo generar la exportación"}); return }
-	if _, err := entry.Write(raw); err != nil { writeJSON(w, 500, map[string]string{"error": "no se pudo generar la exportación"}); return }
-	meta, err := zw.Create("meta.txt")
-	if err != nil { writeJSON(w, 500, map[string]string{"error": "no se pudo generar la exportación"}); return }
-	metaText := "AbacoPhy salva\nNegocio: " + snap.Tenant.Name + "\nCID: " + snap.RootCID + "\nRev: " + strconv.FormatInt(snap.Rev, 10) + "\n"
-	if _, err := meta.Write([]byte(metaText)); err != nil { writeJSON(w, 500, map[string]string{"error": "no se pudo generar la exportación"}); return }
-	if err := zw.Close(); err != nil { writeJSON(w, 500, map[string]string{"error": "no se pudo generar la exportación"}); return }
-	out := buf.Bytes()
+		return
+	}
+	defer func() { _ = tmp.Close(); _ = os.Remove(tmp.Name()) }()
 
 	if err := s.recordExportAudit(snap, sess, "salva.exportacion_zip", "Exportación de salva ZIP · "+snap.Tenant.Name+" · rev "+strconv.FormatInt(snap.Rev, 10), snap.RootCID); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "no se pudo registrar la exportación"})
@@ -693,22 +758,38 @@ func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 	if as == "zip" || as == "binary" {
 		w.Header().Set("Content-Type", "application/zip")
 		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": "abacophy-salva.zip"}))
-		w.Header().Set("Content-Length", strconv.Itoa(len(out)))
+		w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
 		w.WriteHeader(http.StatusOK)
-		if r.Method != http.MethodHead { _, _ = w.Write(out) }
+		if r.Method != http.MethodHead {
+			if _, err := io.CopyN(w, tmp, size); err != nil { return }
+		}
 		return
 	}
-	payload := map[string]any{
-		"ok": true, "filename": "abacophy-salva.zip", "content_type": "application/zip",
-		"size": len(out), "rev": snap.Rev, "root_cid": snap.RootCID,
-		"data_base64": base64.StdEncoding.EncodeToString(out),
-	}
-	encoded, err := json.Marshal(payload)
+
+	header, err := json.Marshal(struct {
+		OK bool `json:"ok"`
+		Filename string `json:"filename"`
+		ContentType string `json:"content_type"`
+		Size int64 `json:"size"`
+		Rev int64 `json:"rev"`
+		RootCID string `json:"root_cid"`
+	}{true, "abacophy-salva.zip", "application/zip", size, snap.Rev, snap.RootCID})
 	if err != nil { writeJSON(w, 500, map[string]string{"error": "no se pudo generar la exportación"}); return }
+	prefix := bytes.TrimSuffix(header, []byte("}"))
+	middle := []byte(`,"data_base64":"`)
+	suffix := []byte(`"}`)
+	encodedSize := base64.StdEncoding.EncodedLen(int(size))
+	contentLength := int64(len(prefix) + len(middle) + encodedSize + len(suffix))
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Content-Length", strconv.Itoa(len(encoded)))
+	w.Header().Set("Content-Length", strconv.FormatInt(contentLength, 10))
 	w.WriteHeader(http.StatusOK)
-	if r.Method != http.MethodHead { _, _ = w.Write(encoded) }
+	if r.Method == http.MethodHead { return }
+	if _, err := w.Write(prefix); err != nil { return }
+	if _, err := w.Write(middle); err != nil { return }
+	encoder := base64.NewEncoder(base64.StdEncoding, w)
+	if _, err := io.CopyN(encoder, tmp, size); err != nil { _ = encoder.Close(); return }
+	if err := encoder.Close(); err != nil { return }
+	_, _ = w.Write(suffix)
 }
 
 func toString(v any) string {
@@ -1024,6 +1105,10 @@ func (s *Server) handlePayrollPDF(w http.ResponseWriter, r *http.Request) {
 	var slips []domain.Payslip
 	for _, p := range snap.Payslips {
 		if period == "all" || strings.HasPrefix(p.Period, period) || p.Period == period {
+			if len(slips) >= pdf.MaxPDFExportRecords {
+				writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "la nómina supera el máximo de liquidaciones"})
+				return
+			}
 			slips = append(slips, p)
 		}
 	}
@@ -1034,7 +1119,15 @@ func (s *Server) handlePayrollPDF(w http.ResponseWriter, r *http.Request) {
 			slips = slips[len(slips)-50:]
 		}
 	}
+	if err := pdf.ValidatePayrollExport(snap.Tenant, slips, period); err != nil {
+		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "la nómina supera los límites de exportación"})
+		return
+	}
 	data := pdf.PayrollPDF(snap.Tenant, slips, period)
+	if len(data) > pdf.MaxPDFExportBytes {
+		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "el PDF supera el tamaño máximo permitido"})
+		return
+	}
 	if err := s.recordExportAudit(snap, sess, "nomina.exportacion_pdf", "Exportación PDF de nómina · periodo "+period+" · "+fmt.Sprintf("%d", len(slips))+" liquidaciones · negocio "+snap.Tenant.Name, period); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "no se pudo registrar la exportación"})
 		return
