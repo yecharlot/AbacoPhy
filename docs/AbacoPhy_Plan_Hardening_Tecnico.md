@@ -222,10 +222,10 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 
 ## C3. Auditoría de datos y operaciones entre tenants
 
-- [ ] Revisar archivos, documentos, exportaciones y descargas por tenant (C3.6 completo permanece abierto hasta cerrar C3.6.5 y la revisión final).
+- [x] Revisar archivos, documentos, exportaciones y descargas por tenant: revisión final de C3.6 completada el 2026-11-08; cierre global pendiente de validación funcional de C3.6.5.
 - [x] C3.6.3 — Métodos HTTP, cabeceras privadas/no-store, validación de parámetros, nombres de archivo seguros y semántica HEAD en descargas; CI Go Linux/Windows, Docker y Launcher Desktop: success (código `99ecb929b869be5a83550c89663566bf3131037f`).
 - [x] C3.6.4 — Auditoría durable fail-closed en PDF de facturas, nómina, informes y backups; validado por el usuario el 2026-11-07.
-- [ ] C3.6.5 — Límites de tamaño, consumo de memoria y generación/entrega acotada; implementación y pruebas integradas, CI Go Linux/Windows, Docker Image y Launcher Desktop success; pendiente validación funcional del usuario.
+- [ ] C3.6.5 — Límites de tamaño, consumo de memoria y generación/entrega acotada; implementación, pruebas integradas y revisión final completadas; CI Go Linux/Windows, Docker Image y Launcher Desktop success en `ea4d2d0cc183c7fd29e86386fa95059039f7b8a6`; pendiente validación funcional del usuario.
 - [x] C3.1 — Endurecer importación de backups contra límites multipart y expansión ZIP (cerrado; pruebas CI confirmadas por el usuario).
 - [x] C3.2 — Verificar CID antes de restaurar, preservar historial y fallar de forma segura ante errores de persistencia (comprobado por el usuario; CI Go, Docker y Launcher Desktop correctos).
 - [x] C3.3 — Endurecer permisos; usar operaciones de filesystem confinadas con os.Root; verificar carreras de sustitución y validar compatibilidad Linux/Windows (completado; CI Go Linux/Windows, Docker y Launcher Desktop correctos).
@@ -594,6 +594,8 @@ Ruta:
 - CI Go, Launcher Desktop y Docker Image: correctos en `4988114`. Pendiente: ejecutar el build empaquetado y pruebas operativas LOCAL/LAN. La puntuación permanece en 55/100.
 
 
+> Las notas históricas de C3.6.3.1 y de los estados intermedios siguientes registran la secuencia de implementación. Para el estado vigente, prevalecen los checklists superiores y la sección más reciente de cada bloque.
+
 ### 2026-11-07 — C3.6.3.1: endurecimiento inicial de descargas
 
 - Se implementa caché privada/no-store para exportaciones y endpoints de backups.
@@ -629,4 +631,4 @@ Ruta:
 - Las respuestas ZIP binarias y JSON+base64 se transmiten desde el temporal; base64 usa encoder streaming y Content-Length calculado.
 - PDFs: máximo 2.000 registros, 1.024 bytes por cada campo textual emitido/validado y 8 MiB por documento. La generación PDF es en memoria, acotada por los límites anteriores y el máximo final.
 - Los excesos se rechazan con HTTP 413 antes de emitir cabeceras/contenido. Las pruebas cubren exceso de registros, campos, tamaño final y limpieza del temporal.
-- CI Go Linux/Windows, Docker Image y Launcher Desktop: success en el commit de código `d2879ba2c3f4c9ad6594a2c873433f6c8f26f9f8`. C3.6.5 pendiente únicamente de validación funcional del usuario.
+- CI Go Linux/Windows, Docker Image y Launcher Desktop: success en el commit final de código `ea4d2d0cc183c7fd29e86386fa95059039f7b8a6`. La revisión final corrigió y cubrió con regresiones todos los campos de texto identificados en los PDF. C3.6.5 pendiente únicamente de validación funcional del usuario.

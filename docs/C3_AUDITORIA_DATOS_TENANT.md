@@ -89,7 +89,7 @@ C3 cubre:
 
 El criterio de cada bloque se ajusta al despliegue real: para la instalación actual de una sola empresa, las pruebas manuales entre dos tenants no son requisito de cierre. Se mantienen las pruebas automatizadas de aislamiento como regresión y se exigen pruebas de integridad y evidencia CI para las superficies modificadas. Si el producto pasa a operar con varias empresas, deberá ejecutarse la validación operativa multi-tenant antes de habilitar ese escenario.
 
-### C3.6.1 — Inventario de exportaciones y descargas
+### C3.6.1 — Inventario inicial de exportaciones y descargas (línea base histórica)
 
 **Estado:** inventario estático completado; no se modificó código en este paso.
 
@@ -113,7 +113,9 @@ El criterio de cada bloque se ajusta al despliegue real: para la instalación ac
 - Informes de recepción y transferencias: `webapp/src/features/warehouse/ui/pdf/buildReceptionReportHtml.ts` y `buildTransferReportHtml.ts` generan contenido local para impresión/PDF; la autorización depende de la carga previa de los datos en las pantallas/servicios, no de un endpoint PDF independiente.
 - Nómina: existe el caso de uso `DownloadPayrollPdf`, que documenta que el PDF uniforme no está disponible en esa versión; la ruta backend anterior sí existe y se usa como superficie a revisar.
 
-#### Hallazgos que pasan a C3.6.2–C3.6.4
+> **Nota de vigencia:** las observaciones de las tablas siguientes describen el estado inicial inspeccionado, antes de C3.6.2–C3.6.5. No representan el comportamiento actual de las rutas; las correcciones y el estado final se registran en las secciones de cierre posteriores.
+
+#### Hallazgos iniciales que pasan a C3.6.2–C3.6.5
 
 1. Homogeneizar `Cache-Control: no-store, private` en todas las respuestas autenticadas que contienen datos financieros, personales o snapshots, incluidos JSON+base64 y respuestas de error sensibles.
 2. Revisar y restringir métodos HTTP de los handlers PDF de facturas, nómina e informes; confirmar que GET/HEAD tienen semántica coherente y que los demás métodos responden 405.
@@ -143,7 +145,7 @@ Cobertura añadida:
 - [CI Docker Image — success](https://github.com/yecharlot/AbacoPhy/actions/runs/42397259722)
 - [CI Launcher Desktop — success](https://github.com/yecharlot/AbacoPhy/actions/runs/42397259731)
 
-**Alcance:** este bloque confirma mediante regresión automatizada que las superficies cubiertas no mezclan snapshots ni permiten consultar una factura ajena. No cierra todavía la revisión de métodos HTTP, cabeceras de caché, persistencia de auditoría, validación de parámetros ni límites de generación/streaming; esos puntos siguen pendientes en C3.6.3 y C3.6.4.
+**Alcance:** este bloque confirma mediante regresión automatizada que las superficies cubiertas no mezclan snapshots ni permiten consultar una factura ajena. No cierra todavía la revisión de métodos HTTP, cabeceras de caché, persistencia de auditoría, validación de parámetros ni límites de generación/streaming; esos puntos se resolvieron posteriormente en C3.6.3, C3.6.4 y C3.6.5.
 
 
 
@@ -188,7 +190,8 @@ Cobertura añadida:
 - Se limita el snapshot JSON y el archivo ZIP a 32 MiB cada uno. La exportación base64 se transmite incrementalmente y no materializa otra copia base64 en RAM. Los límites se verifican antes de iniciar la respuesta.
 - PDF: límite de 2.000 registros, 1.024 bytes por campo textual y 8 MiB por documento. Se rechazan documentos que exceden el presupuesto con HTTP 413.
 - Se añaden pruebas de límites del escritor, snapshot excesivo y validación de datos PDF.
-- Pruebas de límites, errores y limpieza temporal completadas. CI Go Linux/Windows, Docker Image y Launcher Desktop: success en el commit `d2879ba2c3f4c9ad6594a2c873433f6c8f26f9f8`. C3.6.5 queda implementado y validado por CI; pendiente únicamente la validación funcional del usuario.
+- Pruebas de límites, errores y limpieza temporal completadas. La revisión final añadió regresiones para los campos de texto omitidos inicialmente (moneda del tenant en factura; tipo de cuenta, tipo de operación y CID en informes).
+- CI Go Linux/Windows, Docker Image y Launcher Desktop: success en el commit final de código `ea4d2d0cc183c7fd29e86386fa95059039f7b8a6`. C3.6.5 queda implementado y validado por CI; pendiente únicamente la validación funcional del usuario.
 
 
 ### Revisión final de C3.6 — 2026-11-08
@@ -198,4 +201,4 @@ Cobertura añadida:
 - Hallazgo corregido durante la revisión: el límite de 1.024 bytes no cubría todos los campos de texto realmente impresos en PDF (moneda del tenant en factura; tipo de cuenta, tipo de operación y CID en informes). Se amplió la validación y se añadieron regresiones específicas.
 - Los límites PDF son 2.000 registros, 1.024 bytes por campo textual validado y 8 MiB por documento. La generación sigue construyendo el PDF en memoria, pero queda acotada por los límites de registros/campos y tamaño final; no se afirma streaming de PDFs.
 - El despliegue operativo es de una sola empresa. Se mantienen tests tenant-scoped automatizados, sin exigir validación manual multiempresa.
-- **Estado de la revisión de código:** sin bloqueantes conocidos tras la corrección anterior. C3.6.5 y C3.6 completo siguen pendientes únicamente de validación funcional de C3.6.5 por el usuario.
+- **Estado de la revisión de código:** sin bloqueantes conocidos tras la corrección anterior. Los tres workflows del commit final `ea4d2d0cc183c7fd29e86386fa95059039f7b8a6` terminaron correctamente. C3.6.5 y C3.6 completo siguen pendientes únicamente de validación funcional de C3.6.5 por el usuario.
