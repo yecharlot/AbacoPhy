@@ -184,7 +184,7 @@ Cobertura añadida:
 
 ### 2026-11-07 — C3.6.5: límites y generación acotada de exportaciones (en curso)
 
-- Backups: serialización JSON incremental directamente a ZIP, sin copias completas simultáneas en memoria; el ZIP se genera en un temporal privado (CreateTemp, permisos restrictivos) y se elimina al terminar.
+- Backups: el JSON ya persistido bajo el CID del tenant se abre con descriptor confinado y se copia directamente al ZIP; no se vuelve a serializar el snapshot. El ZIP se genera en un temporal privado (CreateTemp, permisos restrictivos) y se elimina al terminar.
 - Se limita el snapshot JSON y el archivo ZIP a 32 MiB cada uno. La exportación base64 se transmite incrementalmente y no materializa otra copia base64 en RAM. Los límites se verifican antes de iniciar la respuesta.
 - PDF: límite de 2.000 registros, 1.024 bytes por campo textual y 8 MiB por documento. Se rechazan documentos que exceden el presupuesto con HTTP 413.
 - Se añaden pruebas de límites del escritor, snapshot excesivo y validación de datos PDF.

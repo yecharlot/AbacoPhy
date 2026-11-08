@@ -623,7 +623,7 @@ Ruta:
 
 ### 2026-11-07 — C3.6.5: límites de tamaño y consumo de memoria (en curso)
 
-- Backups se serializan con json.Encoder directamente dentro del ZIP, que se escribe a un archivo temporal privado y acotado; se evita mantener JSON, ZIP y base64 completos simultáneamente en RAM.
+- Backups reutilizan el JSON ya persistido en el CID actual del tenant, abierto mediante descriptor confinado, y lo copian directamente al ZIP temporal; se evita reconstruir el snapshot y mantener ZIP/base64 completos simultáneamente en RAM.
 - Límites iniciales: snapshot JSON 32 MiB, ZIP final 32 MiB; respuesta base64 se transmite por streaming.
 - PDFs: máximo 2.000 registros, 1.024 bytes por campo textual y 8 MiB por documento.
 - Se rechazan excesos antes de enviar cabeceras o contenido (HTTP 413); las pruebas y CI quedan pendientes de verificación.

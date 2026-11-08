@@ -141,3 +141,29 @@ func TestResetAllDoesNotFollowReplacedTenantDirectory(t *testing.T) {
  if err != nil { t.Fatal(err) }
  if string(got) != "preserve" { t.Fatalf("outside sentinel changed: %q", got) }
 }
+
+
+func TestOpenTenantSnapshotJSONStreamsCurrentPersistedCID(t *testing.T) {
+	root := t.TempDir()
+	st := New(root)
+	snap := domain.BootstrapTenant("Stream snapshot", "stream-snapshot", "CUP")
+	if err := st.Put(snap); err != nil { t.Fatal(err) }
+	file, size, current, err := st.OpenTenantSnapshotJSON(snap.Tenant.ID)
+	if err != nil { t.Fatal(err) }
+	defer file.Close()
+	if current.RootCID != snap.RootCID { t.Fatalf("CID=%q, want %q", current.RootCID, snap.RootCID) }
+	info, err := os.Stat(filepath.Join(root, "cids", snap.RootCID+".json"))
+	if err != nil { t.Fatal(err) }
+	if size != info.Size() { t.Fatalf("reported size=%d, file size=%d", size, info.Size()) }
+	data := make([]byte, size)
+	if _, err := file.Read(data); err != nil { t.Fatal(err) }
+	if len(data) == 0 || data[0] != '{' { t.Fatalf("snapshot JSON not found: %q", data[:min(len(data), 32)]) }
+}
+
+func TestOpenTenantSnapshotJSONRejectsUnknownTenant(t *testing.T) {
+	st := New(t.TempDir())
+	if file, _, _, err := st.OpenTenantSnapshotJSON("missing-tenant"); err == nil {
+		if file != nil { _ = file.Close() }
+		t.Fatal("expected unknown tenant to fail")
+	}
+}
