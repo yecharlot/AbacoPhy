@@ -188,4 +188,4 @@ Cobertura añadida:
 - Se limita el snapshot JSON y el archivo ZIP a 32 MiB cada uno. La exportación base64 se transmite incrementalmente y no materializa otra copia base64 en RAM. Los límites se verifican antes de iniciar la respuesta.
 - PDF: límite de 2.000 registros, 1.024 bytes por campo textual y 8 MiB por documento. Se rechazan documentos que exceden el presupuesto con HTTP 413.
 - Se añaden pruebas de límites del escritor, snapshot excesivo y validación de datos PDF.
-- C3.6.5 sigue abierto hasta completar revisión de memoria, pruebas de errores/limpieza temporal y CI.
+- Pruebas de límites, errores y limpieza temporal completadas. CI Go Linux/Windows y Launcher Desktop: success en el commit `d2879ba2c3f4c9ad6594a2c873433f6c8f26f9f8`; Docker Image sigue en ejecución. C3.6.5 permanece abierto hasta cerrar ese workflow y recibir la validación del usuario.

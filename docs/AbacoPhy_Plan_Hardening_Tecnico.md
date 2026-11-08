@@ -225,7 +225,7 @@ CORS es una política del navegador; no sustituye firewall ni autenticación y n
 - [ ] Revisar archivos, documentos, exportaciones y descargas por tenant (C3.6 completo permanece abierto hasta cerrar C3.6.5 y la revisión final).
 - [x] C3.6.3 — Métodos HTTP, cabeceras privadas/no-store, validación de parámetros, nombres de archivo seguros y semántica HEAD en descargas; CI Go Linux/Windows, Docker y Launcher Desktop: success (código `99ecb929b869be5a83550c89663566bf3131037f`).
 - [x] C3.6.4 — Auditoría durable fail-closed en PDF de facturas, nómina, informes y backups; validado por el usuario el 2026-11-07.
-- [ ] C3.6.5 — Límites de tamaño, consumo de memoria y generación/entrega acotada; implementación en curso, CI Go Linux/Windows success, Docker y Launcher pendientes.
+- [ ] C3.6.5 — Límites de tamaño, consumo de memoria y generación/entrega acotada; implementación y pruebas integradas, CI Go Linux/Windows y Launcher Desktop success; Docker Image pendiente y validación del usuario pendiente.
 - [x] C3.1 — Endurecer importación de backups contra límites multipart y expansión ZIP (cerrado; pruebas CI confirmadas por el usuario).
 - [x] C3.2 — Verificar CID antes de restaurar, preservar historial y fallar de forma segura ante errores de persistencia (comprobado por el usuario; CI Go, Docker y Launcher Desktop correctos).
 - [x] C3.3 — Endurecer permisos; usar operaciones de filesystem confinadas con os.Root; verificar carreras de sustitución y validar compatibilidad Linux/Windows (completado; CI Go Linux/Windows, Docker y Launcher Desktop correctos).
