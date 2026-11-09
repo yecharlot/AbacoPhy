@@ -77,7 +77,7 @@ func TestCreatePayslipAcceptsCanonicalPayloadAndPersists(t *testing.T) {
 
 func TestCreatePayslipReportsMetadataTypeMismatchClearly(t *testing.T) {
 	handler, _, token, employeeID := payrollPayslipTestHandler(t)
-	payload := `{"employee_id":"` + employeeID + `","period":"2026-11","metadata":"{\\"employeeId\\":\\"x\\"}"}`
+	payload := `{"employee_id":"` + employeeID + `","period":"2026-11","metadata":"{\"employeeId\":\"x\"}"}`
 	rec := payrollPayslipRequest(handler, token, payload)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
