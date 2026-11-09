@@ -55,7 +55,7 @@ func payrollPayslipRequest(handler http.Handler, token, payload string) *httptes
 
 func TestCreatePayslipAcceptsCanonicalPayloadAndPersists(t *testing.T) {
 	handler, st, token, employeeID := payrollPayslipTestHandler(t)
-	payload := `{"employee_id":"` + employeeID + `","period":"2026-11","other_deductions":0}`
+	payload := `{"employee_id":"` + employeeID + `","period":"2026-11","other_deductions":0,"metadata":{"employeeId":"` + employeeID + `","period":"2026-11","otherDeduct":0}}`
 	rec := payrollPayslipRequest(handler, token, payload)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
