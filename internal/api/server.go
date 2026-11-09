@@ -951,6 +951,51 @@ func (s *Server) handleEmployees(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// writePayslipPayloadError devuelve errores de validación específicos para
+// que el cliente pueda distinguir JSON inválido, campos desconocidos y tipos
+// incompatibles (por ejemplo metadata enviado como string en vez de objeto).
+func writePayslipPayloadError(w http.ResponseWriter, err error) {
+	var typeErr *json.UnmarshalTypeError
+	if errors.As(err, &typeErr) {
+		if typeErr.Field == "metadata" && typeErr.Value == "string" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{
+				"error": "El campo metadata debe ser un objeto JSON, no una cadena de texto.",
+				"code":  "metadata_must_be_object",
+				"field": "metadata",
+			})
+			return
+		}
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"error": fmt.Sprintf("El campo %q tiene un tipo de dato no válido.", typeErr.Field),
+			"code":  "invalid_field_type",
+			"field": typeErr.Field,
+		})
+		return
+	}
+	const unknownPrefix = "json: unknown field "
+	if strings.HasPrefix(err.Error(), unknownPrefix) {
+		field := strings.Trim(strings.TrimPrefix(err.Error(), unknownPrefix), "\"")
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"error": fmt.Sprintf("El campo %q no está admitido para una liquidación.", field),
+			"code":  "unknown_field",
+			"field": field,
+		})
+		return
+	}
+	var syntaxErr *json.SyntaxError
+	if errors.As(err, &syntaxErr) {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"error": "El cuerpo de la solicitud contiene JSON mal formado.",
+			"code":  "invalid_json",
+		})
+		return
+	}
+	writeJSON(w, http.StatusBadRequest, map[string]any{
+		"error": "No se pudo interpretar el cuerpo de la solicitud. Compruebe los nombres y tipos de los campos.",
+		"code":  "invalid_request_body",
+	})
+}
+
 func (s *Server) handlePayslips(w http.ResponseWriter, r *http.Request) {
 	sess, err := s.sess(r)
 	if err != nil {
@@ -972,13 +1017,26 @@ func (s *Server) handlePayslips(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == http.MethodPost {
 		var body domain.Payslip
-		if err := readJSON(r, &body); err != nil || body.EmployeeID == "" {
-			writeJSON(w, 400, map[string]string{"error": "trabajador requerido"})
+		if err := readJSON(r, &body); err != nil {
+			writePayslipPayloadError(w, err)
+			return
+		}
+		body.EmployeeID = strings.TrimSpace(body.EmployeeID)
+		if body.EmployeeID == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{
+				"error": "Debe seleccionar un trabajador para generar la liquidación.",
+				"code":  "missing_employee_id",
+				"field": "employee_id",
+			})
 			return
 		}
 		emp := snap.Employees[body.EmployeeID]
 		if emp == nil || !emp.Active {
-			writeJSON(w, 404, map[string]string{"error": "trabajador no encontrado o inactivo"})
+			writeJSON(w, http.StatusNotFound, map[string]any{
+				"error": "El trabajador indicado no existe o está inactivo.",
+				"code":  "employee_not_found",
+				"field": "employee_id",
+			})
 			return
 		}
 		if emp.LicenseType != "" && emp.LicenseTo != "" {
