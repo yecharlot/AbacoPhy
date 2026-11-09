@@ -163,14 +163,15 @@ export const payrollMapper = {
   },
 
   toPayslipDto(input: CreatePayslipInput): Record<string, unknown> {
-    // Payslip no necesita metadata: los datos funcionales ya tienen campos API
-    // propios. Enviar metadataToDto() serializaba JSON como string y Go espera
-    // domain.Metadata (objeto JSON), provocando un error de deserialización.
+    // El dominio FE conserva metadata como string JSON; el contrato Go espera
+    // domain.Metadata (objeto JSON). Convertirla al objeto antes del POST.
+    const metadata = metadataToApiObject(input);
     return {
       employee_id: input.employeeId.trim(),
       period: input.period || undefined,
       gross: input.gross ?? undefined,
       other_deductions: input.otherDeduct ?? 0,
+      ...(metadata ? { metadata } : {}),
     };
   },
 };
