@@ -106,7 +106,7 @@ func TestCreatePayslipDistinguishesMissingEmployeeFromMalformedJSON(t *testing.T
 		t.Fatalf("unexpected missing employee response: %s", missing.Body.String())
 	}
 
-	malformed := payrollPayslipRequest(handler, token, `{"employee_id":`)
+	malformed := payrollPayslipRequest(handler, token, `{"employee_id":]}`)
 	if malformed.Code != http.StatusBadRequest {
 		t.Fatalf("malformed JSON status=%d body=%s", malformed.Code, malformed.Body.String())
 	}
